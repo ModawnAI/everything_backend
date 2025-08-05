@@ -1,0 +1,326 @@
+# 🔒 에뷰리띵 Backend - .gitignore
+# Comprehensive gitignore for Node.js/TypeScript backend with security focus
+
+# ========================
+# 🚨 SECURITY & SECRETS
+# ========================
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+*.p12
+*.pfx
+secrets/
+config/secrets.json
+.cursor/mcp.json
+.vscode/settings.json
+
+# API Keys and Tokens
+**/api-keys/
+**/tokens/
+**/*secret*
+**/*password*
+**/*token*
+**/*key*
+
+# ========================
+# 📦 NODE.JS & NPM
+# ========================
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.npm
+.eslintcache
+*.tsbuildinfo
+.nyc_output
+
+# Package lock files (choose one)
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# ========================
+# 🔧 BUILD & DIST
+# ========================
+dist/
+build/
+out/
+*.js.map
+*.d.ts.map
+
+# TypeScript build cache
+*.tsbuildinfo
+
+# ========================
+# 🧪 TESTING & COVERAGE
+# ========================
+coverage/
+*.lcov
+.nyc_output/
+test-results/
+junit.xml
+
+# Jest
+jest_*
+.jest/
+
+# ========================
+# 📝 LOGS & MONITORING
+# ========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+lerna-debug.log*
+.pnpm-debug.log*
+
+# Runtime data
+pids/
+*.pid
+*.seed
+*.pid.lock
+
+# ========================
+# 🗄️ DATABASE & CACHE
+# ========================
+*.sqlite
+*.sqlite3
+*.db
+*.rdb
+dump.rdb
+
+# Redis
+redis.conf
+
+# PostgreSQL
+*.sql.backup
+*.dump
+
+# ========================
+# ☁️ CLOUD & DEPLOYMENT
+# ========================
+.serverless/
+.netlify/
+.vercel/
+.now/
+.firebase/
+
+# Docker
+.dockerignore
+Dockerfile.dev
+docker-compose.override.yml
+
+# Kubernetes
+k8s-secret.yaml
+*-secret.yaml
+
+# ========================
+# 🛠️ DEVELOPMENT TOOLS
+# ========================
+
+# IDEs and Editors
+.vscode/
+!.vscode/extensions.json
+!.vscode/launch.json
+!.vscode/settings.template.json
+.idea/
+*.swp
+*.swo
+*~
+
+# Cursor AI
+.cursor/mcp.json
+!.cursor/rules/
+!.cursor/*.template.*
+
+# JetBrains
+*.iml
+.idea/
+
+# ========================
+# 🌐 FRONTEND BUILD
+# ========================
+# Flutter/Dart (if any)
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+.pub-cache/
+.pub/
+build/
+flutter_*.png
+ios/.generated/
+ios/Flutter/Generated.xcconfig
+ios/Runner/GeneratedPluginRegistrant.*
+
+# ========================
+# 🖥️ OPERATING SYSTEMS
+# ========================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.Spotlight-V100
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+
+# Windows
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+*.stackdump
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.cab
+*.msi
+*.msix
+*.msm
+*.msp
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+.nfs*
+
+# ========================
+# 🧹 TEMPORARY & MISC
+# ========================
+tmp/
+temp/
+.tmp/
+.cache/
+.parcel-cache/
+
+# Backup files
+*.bak
+*.backup
+*.old
+*.orig
+
+# Archive files
+*.tar
+*.tar.gz
+*.zip
+*.rar
+*.7z
+
+# ========================
+# 📊 ANALYTICS & METRICS
+# ========================
+.nyc_output/
+coverage/
+*.lcov
+
+# ========================
+# 🔄 VERSION CONTROL
+# ========================
+.git/
+.svn/
+.hg/
+
+# ========================
+# 📱 MOBILE DEVELOPMENT
+# ========================
+# iOS
+ios/Pods/
+ios/.symlinks/
+ios/Flutter/flutter_export_environment.sh
+ios/ServiceDefinitions.json
+ios/Runner/GoogleService-Info.plist
+
+# Android
+android/.gradle/
+android/captures/
+android/gradlew
+android/gradlew.bat
+android/local.properties
+android/**/GeneratedPluginRegistrant.java
+android/key.properties
+android/app/google-services.json
+
+# ========================
+# 🎯 PROJECT SPECIFIC
+# ========================
+
+# 에뷰리띵 specific files
+uploads/
+user-uploads/
+shop-images/
+service-images/
+
+# Test data
+test-data/
+mock-data/
+sample-uploads/
+
+# Documentation builds
+docs/build/
+docs/_site/
+
+# Certificates for development
+*.crt
+*.cert
+certs/
+
+# ========================
+# 📋 CONFIGURATION TEMPLATES
+# ========================
+# Keep template files but ignore actual config
+!config/*.template.json
+!config/*.example.json
+!.env.example
+!docker-compose.example.yml
+
+# ========================
+# 🚫 NEVER COMMIT THESE
+# ========================
+# Critical security files that should NEVER be in version control
+.cursor/mcp.json
+.vscode/settings.json
+config/database-prod.json
+config/api-keys.json
+config/secrets.json
+firebase-admin-sdk.json
+google-cloud-key.json
+aws-credentials.json
+toss-payments-key.json
+supabase-service-key.json
+
+# Backup of sensitive files
+*.env.backup
+*secret*.backup
+*key*.backup
+*password*.backup
+
+# ========================
+# 📄 DOCUMENTATION
+# ========================
+# Exclude large documentation files
+*.pdf
+*.doc
+*.docx
+*.ppt
+*.pptx
+
+# But keep README and essential docs
+!README.md
+!LICENSE
+!CHANGELOG.md
+!CONTRIBUTING.md

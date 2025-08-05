@@ -1,0 +1,245 @@
+# EBEAUTYTHING APP - ENUMERATION DEFINITIONS
+# Version: 3.2 (Based on PRD.txt)
+# This file defines all enumeration types used in the Supabase database structure
+
+## USER MANAGEMENT ENUMS
+
+### UserGender
+- male: Male gender
+- female: Female gender  
+- other: Other gender identity
+- prefer_not_to_say: User prefers not to specify gender
+
+### UserStatus
+- active: User account is active and can use the service
+- inactive: User account is temporarily inactive
+- suspended: User account is suspended due to policy violations
+- deleted: User account has been deleted (soft delete)
+
+### UserRole
+- user: Regular user who can book services
+- shop_owner: User who owns and manages a shop
+- admin: Administrator with full system access
+- influencer: User with influencer status and enhanced rewards
+
+### SocialProvider
+- kakao: Kakao social login provider
+- apple: Apple ID social login provider
+- google: Google social login provider
+- email: Email/password authentication
+
+## SHOP MANAGEMENT ENUMS
+
+### ShopStatus
+- active: Shop is active and accepting bookings
+- inactive: Shop is temporarily inactive
+- pending_approval: Shop is waiting for admin approval
+- suspended: Shop is suspended due to policy violations
+- deleted: Shop has been deleted (soft delete)
+
+### ShopType
+- partnered: Official partnered shop with full integration
+- non_partnered: Non-partnered shop with limited features
+
+### ServiceCategory
+- nail: Nail art and manicure services
+- eyelash: Eyelash extension and related services
+- waxing: Hair removal and waxing services
+- eyebrow_tattoo: Eyebrow tattooing and permanent makeup
+- hair: Hair styling and treatment services (currently disabled)
+
+### ShopVerificationStatus
+- pending: Verification documents are being reviewed
+- verified: Shop has been verified and approved
+- rejected: Shop verification was rejected
+
+## RESERVATION & PAYMENT ENUMS
+
+### ReservationStatus
+- requested: User has submitted a reservation request
+- confirmed: Shop has confirmed the reservation
+- completed: Service has been completed successfully
+- cancelled_by_user: User cancelled the reservation
+- cancelled_by_shop: Shop cancelled the reservation
+- no_show: User did not show up for the appointment
+
+### PaymentStatus
+- pending: Payment is pending processing
+- deposit_paid: Only deposit has been paid
+- fully_paid: Full payment has been completed
+- refunded: Payment has been fully refunded
+- partially_refunded: Payment has been partially refunded
+- failed: Payment processing failed
+
+### PaymentMethod
+- toss_payments: Toss Payments integration
+- kakao_pay: Kakao Pay payment method
+- naver_pay: Naver Pay payment method
+- card: Credit/debit card payment
+- bank_transfer: Bank transfer payment
+
+## POINTS SYSTEM ENUMS
+
+### PointTransactionType
+- earned_service: Points earned from service usage (2.5% cashback)
+- earned_referral: Points earned from referring new users
+- used_service: Points used for service payment
+- expired: Points that have expired
+- adjusted: Manual adjustment by admin
+- influencer_bonus: Additional bonus for influencers (2x multiplier)
+
+### PointStatus
+- pending: Points are pending and not yet available (7-day rule)
+- available: Points are available for use
+- used: Points have been used for payment
+- expired: Points have expired and are no longer valid
+
+## NOTIFICATION ENUMS
+
+### NotificationType
+- reservation_confirmed: Notification when reservation is confirmed
+- reservation_cancelled: Notification when reservation is cancelled
+- payment_required: Notification when payment is required
+- point_earned: Notification when points are earned
+- referral_success: Notification when referral is successful
+- promotion: Promotional notifications and events
+- system: System-related notifications
+
+### NotificationStatus
+- unread: Notification has not been read by user
+- read: Notification has been read by user
+- deleted: Notification has been deleted by user
+
+## SOCIAL FEATURES ENUMS
+
+### PostStatus
+- active: Post is active and visible to users
+- hidden: Post is hidden by user or admin
+- reported: Post has been reported and under review
+- deleted: Post has been deleted (soft delete)
+
+### ReportReason
+- spam: Content is spam or promotional
+- inappropriate_content: Content is inappropriate or offensive
+- fake_review: Review appears to be fake or misleading
+- harassment: Content contains harassment or bullying
+- copyright: Content violates copyright
+- other: Other reason not listed above
+
+## ADMIN & MODERATION ENUMS
+
+### AdminActionType
+- user_suspended: Admin suspended a user account
+- shop_approved: Admin approved a shop registration
+- shop_rejected: Admin rejected a shop registration
+- post_removed: Admin removed a user post
+- review_removed: Admin removed a review
+- refund_processed: Admin processed a refund request
+
+## LOCATION & SEARCH ENUMS
+
+### LocationAccuracy
+- high: GPS location with high accuracy
+- medium: GPS location with medium accuracy
+- low: GPS location with low accuracy
+- manual: Manually selected location
+
+### SearchSortType
+- distance: Sort by distance from user location
+- rating: Sort by shop rating (highest first)
+- price_low: Sort by price (lowest first)
+- price_high: Sort by price (highest first)
+- newest: Sort by newest shops first
+- popularity: Sort by popularity/booking count
+
+## APP SETTINGS ENUMS
+
+### LanguagePreference
+- ko: Korean language
+- en: English language
+
+### ThemePreference
+- light: Light theme
+- dark: Dark theme
+- system: Follow system setting
+
+### CurrencyPreference
+- KRW: Korean Won
+- USD: US Dollar
+
+## BUSINESS LOGIC ENUMS
+
+### TimeSlotStatus
+- available: Time slot is available for booking
+- booked: Time slot is already booked
+- blocked: Time slot is blocked by shop owner
+- past: Time slot is in the past
+
+### RefundType
+- full: Full refund of payment
+- partial: Partial refund of payment
+- deposit_only: Refund deposit only
+- no_refund: No refund applicable
+
+### VerificationMethod
+- sms: SMS verification
+- email: Email verification
+- document: Document verification
+- manual: Manual verification by admin
+
+## ANALYTICS ENUMS
+
+### EventType
+- app_open: User opened the app
+- search_performed: User performed a search
+- shop_viewed: User viewed a shop detail page
+- reservation_created: User created a reservation
+- payment_completed: Payment was completed
+- review_posted: User posted a review
+- post_created: User created a social post
+
+### DevicePlatform
+- ios: iOS mobile app
+- android: Android mobile app
+- web: Web browser
+- tablet: Tablet device
+
+## CONTENT MODERATION ENUMS
+
+### ModerationStatus
+- pending: Content awaiting moderation
+- approved: Content approved by moderator
+- rejected: Content rejected by moderator
+- auto_approved: Content automatically approved by system
+- flagged: Content flagged for review
+
+### ContentType
+- user_profile: User profile content
+- shop_profile: Shop profile content
+- review: User review content
+- post: Social media post content
+- comment: Comment content
+- image: Image content
+
+## ERROR HANDLING ENUMS
+
+### ErrorSeverity
+- low: Low severity error (recoverable)
+- medium: Medium severity error (user action required)
+- high: High severity error (system intervention required)
+- critical: Critical error (immediate attention required)
+
+### ErrorCategory
+- authentication: Authentication related errors
+- payment: Payment processing errors
+- validation: Data validation errors
+- network: Network connectivity errors
+- system: System/server errors
+- business_logic: Business rule violations
+
+# USAGE NOTES:
+# - All enum values should be used consistently across the application
+# - New enum values should be added through database migrations
+# - Deprecated enum values should be marked but not removed for data integrity
+# - Client applications should handle unknown enum values gracefully
+# - All enum values are stored as lowercase strings in the database 

@@ -1,0 +1,314 @@
+/**
+ * Shop Owner Routes
+ * 
+ * API endpoints for shop owner dashboard including:
+ * - Dashboard overview and analytics
+ * - Reservation management and status updates
+ * - Shop owner profile and settings
+ * - Revenue and performance tracking
+ */
+
+import { Router } from 'express';
+import { shopOwnerController } from '../controllers/shop-owner.controller';
+import { validateRequestBody } from '../middleware/validation.middleware';
+import { authenticateJWT } from '../middleware/auth.middleware';
+import { rateLimit } from '../middleware/rate-limit.middleware';
+import { logger } from '../utils/logger';
+
+// Validation schemas
+import Joi from 'joi';
+
+const router = Router();
+
+// Validation schemas
+const updateReservationStatusSchema = Joi.object({
+  status: Joi.string().valid(
+    'requested', 'confirmed', 'completed', 'cancelled', 'no_show'
+  ).required().messages({
+    'any.only': '유효하지 않은 예약 상태입니다.',
+    'any.required': '예약 상태는 필수입니다.'
+  }),
+  notes: Joi.string().max(500).optional().messages({
+    'string.max': '메모는 최대 500자까지 가능합니다.'
+  })
+});
+
+const reservationIdSchema = Joi.object({
+  reservationId: Joi.string().uuid().required().messages({
+    'string.guid': '유효하지 않은 예약 ID입니다.',
+    'any.required': '예약 ID는 필수입니다.'
+  })
+});
+
+const analyticsQuerySchema = Joi.object({
+  period: Joi.string().valid('day', 'week', 'month', 'year').optional().messages({
+    'any.only': '유효하지 않은 기간입니다.'
+  }),
+  startDate: Joi.string().isoDate().optional().messages({
+    'string.isoDate': '시작 날짜 형식이 올바르지 않습니다.'
+  }),
+  endDate: Joi.string().isoDate().optional().messages({
+    'string.isoDate': '종료 날짜 형식이 올바르지 않습니다.'
+  })
+});
+
+const reservationListQuerySchema = Joi.object({
+  status: Joi.string().valid(
+    'requested', 'confirmed', 'completed', 'cancelled', 'no_show'
+  ).optional().messages({
+    'any.only': '유효하지 않은 예약 상태입니다.'
+  }),
+  startDate: Joi.string().isoDate().optional().messages({
+    'string.isoDate': '시작 날짜 형식이 올바르지 않습니다.'
+  }),
+  endDate: Joi.string().isoDate().optional().messages({
+    'string.isoDate': '종료 날짜 형식이 올바르지 않습니다.'
+  }),
+  page: Joi.string().pattern(/^\d+$/).optional().messages({
+    'string.pattern.base': '페이지 번호는 숫자로 입력해주세요.'
+  }),
+  limit: Joi.string().pattern(/^\d+$/).optional().messages({
+    'string.pattern.base': '페이지 크기는 숫자로 입력해주세요.'
+  }),
+  search: Joi.string().max(100).optional().messages({
+    'string.max': '검색어는 최대 100자까지 가능합니다.'
+  })
+});
+
+// Rate limiting configuration
+const shopOwnerRateLimit = rateLimit({
+  config: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // limit each IP to 100 requests per windowMs
+    strategy: 'fixed_window'
+  }
+});
+
+const analyticsRateLimit = rateLimit({
+  config: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 50, // limit each IP to 50 requests per windowMs
+    strategy: 'fixed_window'
+  }
+});
+
+const sensitiveRateLimit = rateLimit({
+  config: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 30, // limit each IP to 30 requests per windowMs
+    strategy: 'fixed_window'
+  }
+});
+
+// Middleware for all routes
+router.use(authenticateJWT);
+
+/**
+ * GET /api/shop-owner/dashboard
+ * Get shop owner dashboard overview
+ * 
+ * Returns:
+ * - Number of shops
+ * - Today's reservations count
+ * - Pending reservations count
+ * - Monthly revenue
+ * - Recent pending reservations
+ * 
+ * Example: GET /api/shop-owner/dashboard
+ */
+router.get('/dashboard',
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerController.getDashboard(req, res);
+    } catch (error) {
+      logger.error('Error in dashboard route', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '대시보드 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/analytics
+ * Get shop analytics and performance metrics
+ * 
+ * Query Parameters:
+ * - period: Analysis period ('day', 'week', 'month', 'year') (optional, default: 'month')
+ * - startDate: Custom start date (optional)
+ * - endDate: Custom end date (optional)
+ * 
+ * Returns:
+ * - Overview metrics (total reservations, completion rate, revenue, etc.)
+ * - Chart data grouped by date
+ * - Shop information
+ * 
+ * Example: GET /api/shop-owner/analytics?period=month
+ * Example: GET /api/shop-owner/analytics?startDate=2024-01-01&endDate=2024-01-31
+ */
+router.get('/analytics',
+  analyticsRateLimit,
+  validateRequestBody(analyticsQuerySchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.getAnalytics(req, res);
+    } catch (error) {
+      logger.error('Error in analytics route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '분석 데이터 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/reservations
+ * Get shop reservations with filtering and pagination
+ * 
+ * Query Parameters:
+ * - status: Filter by reservation status (optional)
+ * - startDate: Filter by start date (optional)
+ * - endDate: Filter by end date (optional)
+ * - page: Page number (optional, default: 1)
+ * - limit: Page size (optional, default: 20)
+ * - search: Search by customer name or phone (optional)
+ * 
+ * Returns:
+ * - List of reservations with customer and service details
+ * - Pagination information
+ * 
+ * Example: GET /api/shop-owner/reservations?status=requested&page=1&limit=20
+ * Example: GET /api/shop-owner/reservations?startDate=2024-01-01&endDate=2024-01-31
+ */
+router.get('/reservations',
+  shopOwnerRateLimit,
+  validateRequestBody(reservationListQuerySchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.getReservations(req, res);
+    } catch (error) {
+      logger.error('Error in reservations route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 목록 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/shop-owner/reservations/:reservationId/status
+ * Update reservation status (confirm, complete, cancel)
+ * 
+ * Path Parameters:
+ * - reservationId: Reservation UUID (required)
+ * 
+ * Body Parameters:
+ * - status: New reservation status (required)
+ * - notes: Optional notes for status change (optional)
+ * 
+ * Returns:
+ * - Updated reservation information
+ * - Success message
+ * 
+ * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/status
+ * Body: { "status": "confirmed", "notes": "예약 확정되었습니다" }
+ */
+router.put('/reservations/:reservationId/status',
+  sensitiveRateLimit,
+  validateRequestBody(reservationIdSchema),
+  validateRequestBody(updateReservationStatusSchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.updateReservationStatus(req as any, res);
+    } catch (error) {
+      logger.error('Error in update reservation status route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.reservationId,
+        body: req.body
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 상태 업데이트 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/profile
+ * Get shop owner profile and shop information
+ * 
+ * Returns:
+ * - User profile information
+ * - List of user's shops with details
+ * 
+ * Example: GET /api/shop-owner/profile
+ */
+router.get('/profile',
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerController.getProfile(req, res);
+    } catch (error) {
+      logger.error('Error in profile route', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '프로필 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+// Error handling middleware for shop owner routes
+router.use((error: any, req: any, res: any, next: any) => {
+  logger.error('Unhandled error in shop owner routes', {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined,
+    url: req.url,
+    method: req.method
+  });
+
+  res.status(500).json({
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: '샵 오너 관련 요청 처리 중 오류가 발생했습니다.',
+      details: '잠시 후 다시 시도해주세요.'
+    }
+  });
+});
+
+export default router; 

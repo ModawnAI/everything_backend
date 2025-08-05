@@ -1,0 +1,93 @@
+{
+	"meta": {
+		"generatedAt": "2025-07-28T15:36:34.621Z",
+		"tasksAnalyzed": 10,
+		"totalTasks": 10,
+		"analysisCount": 10,
+		"thresholdScore": 5,
+		"projectName": "Taskmaster",
+		"usedResearch": false
+	},
+	"complexityAnalysis": [
+		{
+			"taskId": 1,
+			"taskTitle": "Project Setup and Environment Configuration",
+			"complexityScore": 4,
+			"recommendedSubtasks": 5,
+			"expansionPrompt": "Break down the project initialization into: package.json creation with dependency management, TypeScript configuration and build setup, directory structure creation, environment variable configuration, and development tooling setup with scripts and nodemon.",
+			"reasoning": "Moderate complexity due to multiple configuration files and dependencies, but well-defined setup tasks with clear requirements. Foundation task that enables all other development."
+		},
+		{
+			"taskId": 2,
+			"taskTitle": "Database Schema and Supabase Integration",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Divide into: Supabase client configuration and connection setup, core table creation (users, shops, services), relationship tables and foreign keys setup, PostGIS spatial configuration and indexes, RLS policy implementation, and database migration scripts creation.",
+			"reasoning": "High complexity due to PostGIS spatial features, multiple interconnected tables, RLS security policies, and performance optimization requirements. Critical foundation for data layer."
+		},
+		{
+			"taskId": 3,
+			"taskTitle": "Authentication and Authorization System",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Split into: JWT middleware for token validation, RBAC authorization middleware with permission matrix, rate limiting implementation, security headers configuration, user status validation, token refresh mechanism, and comprehensive security testing setup.",
+			"reasoning": "Very high complexity involving security-critical components, multiple middleware layers, role-based permissions, and integration with Supabase Auth. Requires careful implementation to prevent vulnerabilities."
+		},
+		{
+			"taskId": 4,
+			"taskTitle": "User Management and Social Login APIs",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into: social login endpoint implementation for multiple providers, user registration and profile completion, phone verification system, referral code generation and tracking, user profile management endpoints, and user status management workflows.",
+			"reasoning": "Moderate-high complexity due to multiple social providers, Korean phone validation, referral system logic, and integration with authentication system. Requires external API integrations."
+		},
+		{
+			"taskId": 5,
+			"taskTitle": "Shop Management and Location-Based Search",
+			"complexityScore": 7,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Divide into: PostGIS location-based search implementation, shop CRUD operations with validation, image upload and optimization system, shop verification workflow, shop owner dashboard endpoints, and Supabase Storage integration with access policies.",
+			"reasoning": "High complexity due to PostGIS spatial queries, image processing with Sharp, complex search algorithms with priority logic, and storage management. Performance-critical for user experience."
+		},
+		{
+			"taskId": 6,
+			"taskTitle": "Reservation System with Conflict Prevention",
+			"complexityScore": 9,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Break into: time slot availability calculation engine, concurrent booking prevention with database locks, reservation status state machine, automatic no-show detection system, reservation rescheduling logic, conflict resolution mechanisms, transaction management, and comprehensive booking validation.",
+			"reasoning": "Very high complexity involving concurrent access control, complex business logic, time-based calculations, state management, and transaction integrity. Critical for preventing double-bookings and maintaining data consistency."
+		},
+		{
+			"taskId": 7,
+			"taskTitle": "Payment Integration with TossPayments",
+			"complexityScore": 8,
+			"recommendedSubtasks": 7,
+			"expansionPrompt": "Split into: TossPayments API integration and initialization, payment confirmation and verification flow, webhook handling for status updates, split payment logic implementation, refund functionality, payment retry mechanisms, and comprehensive error handling with fraud detection.",
+			"reasoning": "Very high complexity due to financial transaction handling, external API integration, webhook processing, error recovery, and security requirements. Requires robust testing and error handling."
+		},
+		{
+			"taskId": 8,
+			"taskTitle": "Point System with Business Rules",
+			"complexityScore": 6,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Divide into: point transaction system with status tracking, pending period and expiration logic, influencer bonus calculation system, FIFO point usage implementation, admin adjustment capabilities with audit logging, and point balance calculation and history endpoints.",
+			"reasoning": "Moderate-high complexity involving business rule implementation, time-based logic, FIFO algorithms, and audit requirements. Requires careful balance calculations and transaction integrity."
+		},
+		{
+			"taskId": 9,
+			"taskTitle": "Admin Dashboard and Management APIs",
+			"complexityScore": 5,
+			"recommendedSubtasks": 6,
+			"expansionPrompt": "Break down into: enhanced admin authentication with security features, user management endpoints with search and filtering, shop approval and verification workflows, reservation oversight and management, payment and settlement reporting, and analytics dashboard with metrics collection.",
+			"reasoning": "Moderate complexity with multiple CRUD operations, reporting features, and enhanced security. Builds on existing systems but requires comprehensive management interfaces and analytics."
+		},
+		{
+			"taskId": 10,
+			"taskTitle": "Real-time Notifications and System Monitoring",
+			"complexityScore": 8,
+			"recommendedSubtasks": 8,
+			"expansionPrompt": "Split into: FCM push notification system setup, WebSocket real-time communication implementation, comprehensive error handling middleware, structured logging with Winston, health check endpoints, Redis caching implementation, monitoring and alerting system, and graceful shutdown handling.",
+			"reasoning": "Very high complexity involving multiple real-time systems, external services integration, comprehensive monitoring, caching strategies, and system reliability features. Requires coordination of multiple technologies and robust error handling."
+		}
+	]
+}
