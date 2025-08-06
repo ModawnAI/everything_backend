@@ -12,7 +12,8 @@ export type SocialProvider = 'kakao' | 'apple' | 'google';
  */
 export interface SocialLoginRequest {
   provider: SocialProvider;
-  token: string;
+  token: string; // ID token for provider authentication
+  accessToken?: string; // Access token (if available from provider)
   fcmToken?: string;
   deviceInfo?: {
     deviceId?: string;
@@ -36,6 +37,7 @@ export interface SocialLoginResponse {
     };
     isNewUser: boolean;
     profileComplete: boolean;
+    supabaseSession?: any; // Full Supabase session object
   };
   message: string;
 }
@@ -302,7 +304,7 @@ export interface SocialLoginAuditLog {
   id: string;
   user_id?: string;
   provider: SocialProvider;
-  action: 'login_attempt' | 'login_success' | 'login_failure' | 'token_validation' | 'user_creation';
+  action: 'login_attempt' | 'login_success' | 'login_failure' | 'token_validation' | 'user_creation' | 'supabase_auth_success' | 'supabase_auth_failed';
   ip_address: string;
   user_agent: string;
   success: boolean;

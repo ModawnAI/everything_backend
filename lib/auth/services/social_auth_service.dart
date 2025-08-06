@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:kakao_flutter_sdk/kakao_flutter_sdk.dart';
 import 'package:sign_in_with_apple/sign_in_with_apple.dart';
 import 'package:google_sign_in/google_sign_in.dart';
@@ -6,6 +7,7 @@ import 'package:google_sign_in/google_sign_in.dart';
 enum SocialProvider { kakao, apple, google }
 
 class SocialAuthService {
+  final SupabaseClient _supabase = Supabase.instance.client;
   final GoogleSignIn _googleSignIn = GoogleSignIn();
 
   Future<String> signInWithKakao() async {

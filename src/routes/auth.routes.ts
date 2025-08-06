@@ -386,4 +386,16 @@ router.get('/sessions',
   AuthController.getSessions
 );
 
+/**
+ * POST /api/auth/refresh-supabase
+ * Refresh Supabase Auth session using refresh token
+ * 
+ * Rate limited: Standard rate limiting
+ * Body: { refreshToken: string }
+ */
+router.post('/refresh-supabase',
+  rateLimit(),
+  socialAuthController.refreshSupabaseSession
+);
+
 export default router; 

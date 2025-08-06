@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "958913474136",
+    "project_id": "e-beautything",
+    "storage_bucket": "e-beautything.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:958913474136:android:dc43474270a6623190642d",
+        "android_client_info": {
+          "package_name": "com.ebeautything.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyD34PCmhKutAm8HOnagVnLFMwV_cwTSk9I"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

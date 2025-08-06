@@ -37,15 +37,22 @@ const envSchema = Joi.object({
   FCM_PROJECT_ID: Joi.string().required(),
   FIREBASE_ADMIN_SDK_PATH: Joi.string().default('./config/firebase-admin-sdk.json'),
 
-  // Social Login Configuration
+  // Social Login Configuration (for Supabase Auth)
+  // Kakao OAuth
   KAKAO_CLIENT_ID: Joi.string().optional(),
   KAKAO_CLIENT_SECRET: Joi.string().optional(),
+  
+  // Apple OAuth
   APPLE_CLIENT_ID: Joi.string().optional(),
-  APPLE_TEAM_ID: Joi.string().optional(),
-  APPLE_KEY_ID: Joi.string().optional(),
-  APPLE_PRIVATE_KEY_PATH: Joi.string().optional(),
+  APPLE_CLIENT_SECRET: Joi.string().optional(),
+  
+  // Google OAuth
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   GOOGLE_CLIENT_SECRET: Joi.string().optional(),
+  
+  // Supabase Auth specific
+  SUPABASE_AUTH_REDIRECT_URL: Joi.string().uri().optional(),
+  SUPABASE_AUTH_SITE_URL: Joi.string().uri().optional(),
 
   // File Storage & CDN
   SUPABASE_STORAGE_BUCKET: Joi.string().default('shop-images'),
@@ -160,13 +167,15 @@ export const config = {
     },
     apple: {
       clientId: envVars.APPLE_CLIENT_ID as string,
-      teamId: envVars.APPLE_TEAM_ID as string,
-      keyId: envVars.APPLE_KEY_ID as string,
-      privateKeyPath: envVars.APPLE_PRIVATE_KEY_PATH as string,
+      clientSecret: envVars.APPLE_CLIENT_SECRET as string,
     },
     google: {
       clientId: envVars.GOOGLE_CLIENT_ID as string,
       clientSecret: envVars.GOOGLE_CLIENT_SECRET as string,
+    },
+    supabase: {
+      redirectUrl: envVars.SUPABASE_AUTH_REDIRECT_URL as string,
+      siteUrl: envVars.SUPABASE_AUTH_SITE_URL as string,
     },
   },
 

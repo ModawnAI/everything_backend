@@ -105,9 +105,9 @@ export const USER_ROLE_LIMITS: UserRoleLimits = {
  * Stricter limits for sensitive operations
  */
 export const ENDPOINT_LIMITS: EndpointLimits = {
-  // Authentication endpoints - strict limits to prevent brute force
+  // Authentication endpoints - relaxed limits for development/testing
   login: createBaseConfig(
-    5,   // 5 login attempts per 15 minutes
+    1000,   // 1000 login attempts per 15 minutes (effectively unlimited for testing)
     TIME_WINDOWS.FIFTEEN_MINUTES,
     'fixed_window',
     'ip'

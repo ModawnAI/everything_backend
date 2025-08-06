@@ -36,6 +36,7 @@ import {
 } from '../types/phone-verification.types';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { getSupabaseClient } from '../config/database';
+import { config } from '../config/environment';
 
 /**
  * User registration request interface
@@ -532,14 +533,14 @@ export class SocialAuthController {
   };
 
   /**
-   * Handle social login for all providers
+   * Handle social login for all providers using Supabase Auth
    */
   public socialLogin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const requestId = `social-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const startTime = Date.now();
     
     try {
-      const { provider, token, fcmToken, deviceInfo }: SocialLoginRequest = req.body;
+      const { provider, token, accessToken, fcmToken, deviceInfo }: SocialLoginRequest = req.body;
       const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
       const userAgent = req.get('User-Agent') || 'unknown';
 
@@ -553,10 +554,11 @@ export class SocialAuthController {
         request_id: requestId
       });
 
-      logger.info('Social login attempt', {
+      logger.info('Social login attempt via Supabase Auth', {
         provider,
         requestId,
         hasToken: !!token,
+        hasAccessToken: !!accessToken,
         hasFcmToken: !!fcmToken,
         deviceInfo,
         ipAddress,
@@ -573,39 +575,46 @@ export class SocialAuthController {
         throw new SocialAuthError('Token is required', 'MISSING_TOKEN', 400);
       }
 
-      // Validate provider token and get user data
-      let validationResult;
+      // Authenticate with Supabase Auth
+      let authResult;
       try {
-        switch (provider) {
-          case 'kakao':
-            validationResult = await socialAuthService.validateKakaoToken(token);
-            break;
-          case 'apple':
-            validationResult = await socialAuthService.validateAppleToken(token);
-            break;
-          case 'google':
-            validationResult = await socialAuthService.validateGoogleToken(token);
-            break;
-          default:
-            throw new SocialAuthError('Unsupported provider', 'UNSUPPORTED_PROVIDER', 400);
-        }
+        authResult = await socialAuthService.authenticateWithProvider(
+          provider as SocialProvider,
+          token,
+          accessToken
+        );
 
-        // Log audit event - token validation
+        // Log audit event - authentication success
         await this.logSocialLoginAudit({
           provider,
-          action: 'token_validation',
+          action: 'supabase_auth_success',
           ip_address: ipAddress,
           user_agent: userAgent,
           success: true,
-          provider_user_id: validationResult.providerUserId,
+          user_id: authResult.user.id,
           request_id: requestId
         });
 
+        logger.info('Supabase Auth completed successfully', {
+          provider,
+          userId: authResult.user.id,
+          requestId
+        });
+
       } catch (error) {
-        logger.error('Token validation failed', {
+        logger.error('Supabase Auth failed', {
           provider,
           requestId,
           error: error instanceof Error ? error.message : 'Unknown error'
+        });
+
+        await this.logSocialLoginAudit({
+          provider,
+          action: 'supabase_auth_failed',
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          success: false,
+          request_id: requestId
         });
 
         if (error instanceof InvalidProviderTokenError || error instanceof ProviderApiError) {
@@ -613,74 +622,18 @@ export class SocialAuthController {
         }
 
         throw new SocialAuthError(
-          'Token validation failed',
-          'TOKEN_VALIDATION_FAILED',
+          'Authentication failed',
+          'AUTH_FAILED',
           401,
           provider
         );
       }
 
-      // Check if user exists or create new user
-      let user;
-      let isNewUser = false;
-
-      try {
-        // First try to find existing user by provider ID
-        user = await socialAuthService.getUserByProviderId(provider, validationResult.providerUserId);
-
-        if (!user) {
-          // Create new user
-          user = await socialAuthService.createOrUpdateUser(provider, validationResult);
-          isNewUser = true;
-
-          // Log audit event - user creation
-          await this.logSocialLoginAudit({
-            user_id: user.id,
-            provider,
-            action: 'user_creation',
-            ip_address: ipAddress,
-            user_agent: userAgent,
-            success: true,
-            provider_user_id: validationResult.providerUserId,
-            request_id: requestId
-          });
-
-          logger.info('New user created via social login', {
-            provider,
-            userId: user.id,
-            userEmail: user.email,
-            requestId
-          });
-        } else {
-          logger.info('Existing user found for social login', {
-            provider,
-            userId: user.id,
-            userStatus: user.user_status,
-            requestId
-          });
-        }
-
-      } catch (error) {
-        logger.error('Failed to create or retrieve user', {
-          provider,
-          requestId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-
-        if (error instanceof UserCreationError || error instanceof AccountLinkingError) {
-          throw error;
-        }
-
-        throw new SocialAuthError(
-          'Failed to process user account',
-          'USER_PROCESSING_ERROR',
-          500,
-          provider
-        );
-      }
+      const user = authResult.supabaseUser;
+      const isNewUser = !user; // If no existing profile found, it's a new user
 
       // Check user status
-      if (user.user_status !== 'active') {
+      if (user && user.user_status !== 'active') {
         logger.warn('Social login attempted with inactive user', {
           provider,
           userId: user.id,
@@ -696,43 +649,10 @@ export class SocialAuthController {
         );
       }
 
-      // Generate JWT tokens
-      let accessToken: string;
-      let refreshToken: string;
-      let expiresIn: number;
-
-      try {
-        // Create refresh token with device info
-        const deviceDetails = {
-          ...(deviceInfo?.deviceId && { deviceId: deviceInfo.deviceId }),
-          ...(userAgent && { userAgent }),
-          ...(ipAddress && { ipAddress })
-        };
-
-        const tokenPair = await refreshTokenService.createTokenPair({
-          userId: user.id,
-          ...deviceDetails
-        });
-
-        accessToken = tokenPair.accessToken;
-        refreshToken = tokenPair.refreshToken;
-        expiresIn = tokenPair.expiresIn;
-
-      } catch (error) {
-        logger.error('Failed to generate tokens', {
-          provider,
-          userId: user.id,
-          requestId,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-
-        throw new SocialAuthError(
-          'Failed to generate authentication tokens',
-          'TOKEN_GENERATION_ERROR',
-          500,
-          provider
-        );
-      }
+      // Use Supabase session tokens instead of generating our own
+      const supabaseAccessToken = authResult.session?.access_token;
+      const supabaseRefreshToken = authResult.session?.refresh_token;
+      const expiresIn = authResult.session?.expires_in || 3600;
 
       // Register FCM token if provided
       if (fcmToken && fcmToken.trim().length > 0) {
@@ -762,23 +682,15 @@ export class SocialAuthController {
         }
       }
 
-      // Check profile completion status
-      const profileComplete = !!(
-        user.name &&
-        user.email &&
-        user.phone &&
-        user.birth_date
-      );
-
       // Log successful login
       await this.logSocialLoginAudit({
-        user_id: user.id,
+        user_id: authResult.user.id,
         provider,
         action: 'login_success',
         ip_address: ipAddress,
         user_agent: userAgent,
         success: true,
-        provider_user_id: validationResult.providerUserId,
+        provider_user_id: authResult.user.id,
         request_id: requestId
       });
 
@@ -788,14 +700,22 @@ export class SocialAuthController {
         isNewUser,
         platform: deviceInfo?.platform,
         success: true,
-        userId: user.id,
+        userId: authResult.user.id,
         deviceInfo
       });
+
+      // Check profile completion status
+      const profileComplete = !!(
+        user?.name &&
+        user?.email &&
+        user?.phone &&
+        user?.birth_date
+      );
 
       const duration = Date.now() - startTime;
       logger.info('Social login completed successfully', {
         provider,
-        userId: user.id,
+        userId: authResult.user.id,
         isNewUser,
         profileComplete,
         duration,
@@ -807,24 +727,25 @@ export class SocialAuthController {
         success: true,
         data: {
           user: {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            user_role: user.user_role,
-            user_status: user.user_status,
-            profile_image_url: user.profile_image_url,
-            phone: user.phone,
-            birth_date: user.birth_date,
-            created_at: user.created_at,
-            updated_at: user.updated_at
+            id: authResult.user.id,
+            email: authResult.user.email || user?.email,
+            name: authResult.user.user_metadata?.full_name || user?.name,
+            user_role: user?.user_role || 'user',
+            user_status: user?.user_status || 'active',
+            profile_image_url: authResult.user.user_metadata?.avatar_url || user?.profile_image_url,
+            phone: user?.phone,
+            birth_date: user?.birth_date,
+            created_at: user?.created_at || authResult.user.created_at,
+            updated_at: user?.updated_at || authResult.user.updated_at
           },
           tokens: {
-            accessToken,
-            refreshToken,
+            accessToken: supabaseAccessToken,
+            refreshToken: supabaseRefreshToken,
             expiresIn
           },
           isNewUser,
-          profileComplete
+          profileComplete,
+          supabaseSession: authResult.session // Include full Supabase session for client
         },
         message: isNewUser ? 'Account created successfully' : 'Login successful'
       };
@@ -884,29 +805,25 @@ export class SocialAuthController {
    */
   public getProviderStatus = async (_req: Request, res: Response, _next: NextFunction): Promise<void> => {
     try {
-      const validation = socialAuthService.validateConfiguration();
-      
       const response = {
         success: true,
         data: {
-          configurationValid: validation.isValid,
+          configurationValid: true,
           providers: {
             kakao: { 
-              configured: !validation.errors.some(e => e.includes('KAKAO')),
+              configured: !!config.socialLogin.kakao.clientId,
               available: true
             },
             apple: { 
-              configured: !validation.errors.some(e => e.includes('APPLE')),
+              configured: !!config.socialLogin.apple.clientId,
               available: true
             },
             google: { 
-              configured: !validation.errors.some(e => e.includes('GOOGLE')),
+              configured: !!config.socialLogin.google.clientId,
               available: true
             }
           },
-          ...(validation.errors.length > 0 && { 
-            configurationErrors: validation.errors 
-          })
+          authMethod: 'Supabase Auth'
         }
       };
 
@@ -1042,6 +959,61 @@ export class SocialAuthController {
       });
     }
   }
+
+  /**
+   * Refresh Supabase Auth session
+   */
+  public refreshSupabaseSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REFRESH_TOKEN',
+            message: 'Refresh token is required',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      logger.info('Refreshing Supabase session', { hasRefreshToken: !!refreshToken });
+
+      const result = await socialAuthService.refreshSession(refreshToken);
+
+      res.status(200).json({
+        success: true,
+        data: {
+          accessToken: result.session?.access_token,
+          refreshToken: result.session?.refresh_token,
+          expiresIn: result.session?.expires_in || 3600,
+          user: {
+            id: result.user?.id,
+            email: result.user?.email,
+            name: result.user?.user_metadata?.full_name,
+            role: result.user?.role
+          }
+        },
+        message: 'Session refreshed successfully'
+      });
+
+    } catch (error) {
+      logger.error('Failed to refresh Supabase session', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(401).json({
+        success: false,
+        error: {
+          code: 'SESSION_REFRESH_FAILED',
+          message: 'Failed to refresh session',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  };
 }
 
 // Export singleton instance

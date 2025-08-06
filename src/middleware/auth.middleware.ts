@@ -116,9 +116,65 @@ export function extractTokenFromHeader(authHeader?: string): string | null {
 }
 
 /**
- * Verify JWT token using Supabase JWT secret
+ * Verify JWT token using Supabase's built-in verification
  */
 export async function verifySupabaseToken(token: string): Promise<SupabaseJWTPayload> {
+  try {
+    const supabase = getSupabaseClient();
+    
+    // Use Supabase's built-in token verification
+    const { data: { user }, error } = await supabase.auth.getUser(token);
+    
+    if (error) {
+      logger.error('Supabase token verification failed', { error: error.message });
+      
+      if (error.message.includes('expired')) {
+        throw new TokenExpiredError('Token has expired');
+      }
+      
+      throw new InvalidTokenError(`Invalid token: ${error.message}`);
+    }
+    
+    if (!user) {
+      throw new InvalidTokenError('No user found for token');
+    }
+
+    // Create compatible payload format
+    const payload: SupabaseJWTPayload = {
+      sub: user.id,
+      aud: user.aud || 'authenticated',
+      exp: Math.floor(Date.now() / 1000) + 3600, // Default 1 hour if not available
+      iat: Math.floor(Date.now() / 1000),
+      iss: config.auth.issuer,
+      email: user.email,
+      phone: user.phone,
+      app_metadata: user.app_metadata,
+      user_metadata: user.user_metadata,
+      role: user.role,
+      ...(user.email_confirmed_at && { email_confirmed_at: user.email_confirmed_at }),
+      ...(user.phone_confirmed_at && { phone_confirmed_at: user.phone_confirmed_at }),
+      ...(user.last_sign_in_at && { last_sign_in_at: user.last_sign_in_at })
+    };
+
+    return payload;
+  } catch (error) {
+    if (error instanceof AuthenticationError) {
+      throw error;
+    }
+    
+    logger.error('Token verification failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      stack: error instanceof Error ? error.stack : undefined
+    });
+    
+    throw new InvalidTokenError('Token verification failed');
+  }
+}
+
+/**
+ * Fallback JWT verification using local secret (for backward compatibility)
+ */
+export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJWTPayload> {
   try {
     // Get JWT secret from Supabase configuration
     const jwtSecret = config.auth.jwtSecret;
@@ -159,7 +215,7 @@ export async function verifySupabaseToken(token: string): Promise<SupabaseJWTPay
       throw error;
     }
     
-    logger.error('Token verification failed', {
+    logger.error('Local token verification failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined
     });
