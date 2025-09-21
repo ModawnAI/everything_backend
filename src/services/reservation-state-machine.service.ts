@@ -318,14 +318,15 @@ export class ReservationStateMachine {
   }
 
   /**
-   * Execute a state transition
+   * Execute a state transition using atomic database functions
    */
   async executeTransition(
     reservationId: string,
     toStatus: ReservationStatus,
     changedBy: 'user' | 'shop' | 'system' | 'admin',
     changedById: string,
-    reason?: string
+    reason?: string,
+    metadata?: Record<string, any>
   ): Promise<{
     success: boolean;
     reservation?: Reservation;
@@ -361,24 +362,46 @@ export class ReservationStateMachine {
         };
       }
 
-      // Execute the transition
-      const updatedReservation = await this.updateReservationStatus(
-        reservationId,
-        toStatus,
-        changedBy,
-        changedById,
-        reason
+      // Use atomic database function for state transition
+      const { data: transitionResult, error: transitionError } = await this.supabase.rpc(
+        'transition_reservation_status_enhanced',
+        {
+          p_reservation_id: reservationId,
+          p_to_status: toStatus,
+          p_changed_by: changedBy,
+          p_changed_by_id: changedById,
+          p_reason: reason || null,
+          p_metadata: metadata || {},
+          p_business_context: {
+            business_rules: validation.businessRules,
+            validation_warnings: validation.warnings
+          },
+          p_system_context: {
+            user_agent: 'reservation-state-machine',
+            timestamp: new Date().toISOString(),
+            version: '1.0.0'
+          }
+        }
       );
 
-      // Log the state change
-      await this.logStateChange(
-        reservationId,
-        reservation.status,
-        toStatus,
-        changedBy,
-        changedById,
-        reason
-      );
+      if (transitionError) {
+        logger.error('Database state transition failed', {
+          reservationId,
+          toStatus,
+          changedBy,
+          changedById,
+          error: transitionError.message
+        });
+
+        return {
+          success: false,
+          errors: ['Database state transition failed'],
+          warnings: validation.warnings
+        };
+      }
+
+      // Get updated reservation
+      const updatedReservation = await this.getReservationById(reservationId);
 
       // Send notifications
       await this.sendNotifications(validation.businessRules, updatedReservation, changedBy);
@@ -434,7 +457,7 @@ export class ReservationStateMachine {
   }
 
   /**
-   * Process automatic transitions based on time
+   * Process automatic transitions based on time using database functions
    */
   async processAutomaticTransitions(): Promise<{
     processed: number;
@@ -444,42 +467,27 @@ export class ReservationStateMachine {
     let processed = 0;
 
     try {
-      // Get reservations that need automatic transitions
-      const { data: reservations, error } = await this.supabase
-        .from('reservations')
-        .select('*')
-        .in('status', ['confirmed'])
-        .lt('reservation_datetime', new Date(Date.now() - 30 * 60 * 1000).toISOString()); // 30 minutes ago
+      // Use the comprehensive cleanup function from the database
+      const { data: cleanupResult, error: cleanupError } = await this.supabase.rpc(
+        'comprehensive_reservation_cleanup'
+      );
 
-      if (error) {
-        throw error;
+      if (cleanupError) {
+        errors.push(`Failed to run comprehensive cleanup: ${cleanupError.message}`);
+        return { processed, errors };
       }
 
-      for (const reservation of reservations || []) {
-        try {
-          // Auto-complete confirmed reservations that are 30+ minutes old
-          const result = await this.executeTransition(
-            reservation.id,
-            'completed',
-            'system',
-            'system',
-            'Automatic completion after service time'
-          );
+      // Extract results from cleanup
+      const noShowCount = cleanupResult?.no_show_detection?.no_show_count || 0;
+      const expiredCount = cleanupResult?.expired_cleanup?.expired_count || 0;
+      
+      processed = noShowCount + expiredCount;
 
-          if (result.success) {
-            processed++;
-          } else {
-            errors.push(`Failed to auto-complete reservation ${reservation.id}: ${result.errors.join(', ')}`);
-          }
-        } catch (error) {
-          errors.push(`Error processing reservation ${reservation.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      }
-
-      // Process no-show transitions
-      const noShowResult = await this.processNoShowTransitions();
-      processed += noShowResult.processed;
-      errors.push(...noShowResult.errors);
+      logger.info('Automatic transitions processed', {
+        noShowCount,
+        expiredCount,
+        totalProcessed: processed
+      });
 
     } catch (error) {
       errors.push(`Failed to process automatic transitions: ${error instanceof Error ? error.message : 'Unknown error'}`);
@@ -488,76 +496,6 @@ export class ReservationStateMachine {
     return { processed, errors };
   }
 
-  /**
-   * Process no-show transitions
-   */
-  private async processNoShowTransitions(): Promise<{
-    processed: number;
-    errors: string[];
-  }> {
-    const errors: string[] = [];
-    let processed = 0;
-
-    try {
-      // Get confirmed reservations that are 30+ minutes old and haven't been completed
-      const { data: reservations, error } = await this.supabase
-        .from('reservations')
-        .select('*')
-        .eq('status', 'confirmed')
-        .lt('reservation_datetime', new Date(Date.now() - 30 * 60 * 1000).toISOString());
-
-      if (error) {
-        throw error;
-      }
-
-      for (const reservation of reservations || []) {
-        try {
-          // Check if this reservation should be marked as no-show
-          const shouldMarkAsNoShow = await this.shouldMarkAsNoShow(reservation.id);
-          
-          if (shouldMarkAsNoShow) {
-            const result = await this.executeTransition(
-              reservation.id,
-              'no_show',
-              'system',
-              'system',
-              'Automatic no-show detection'
-            );
-
-            if (result.success) {
-              processed++;
-            } else {
-              errors.push(`Failed to mark reservation ${reservation.id} as no-show: ${result.errors.join(', ')}`);
-            }
-          }
-        } catch (error) {
-          errors.push(`Error processing no-show for reservation ${reservation.id}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-        }
-      }
-    } catch (error) {
-      errors.push(`Failed to process no-show transitions: ${error instanceof Error ? error.message : 'Unknown error'}`);
-    }
-
-    return { processed, errors };
-  }
-
-  /**
-   * Check if a reservation should be marked as no-show
-   */
-  private async shouldMarkAsNoShow(reservationId: string): Promise<boolean> {
-    // This would implement business logic to determine if a reservation should be marked as no-show
-    // For now, we'll use a simple time-based check
-    const reservation = await this.getReservationById(reservationId);
-    if (!reservation) return false;
-
-    const reservationTime = new Date(reservation.reservation_datetime);
-    const now = new Date();
-    const timeDiff = now.getTime() - reservationTime.getTime();
-    const minutesDiff = timeDiff / (1000 * 60);
-
-    // Mark as no-show if 30+ minutes have passed since reservation time
-    return minutesDiff >= 30;
-  }
 
   /**
    * Validate business rules for a transition
@@ -633,87 +571,6 @@ export class ReservationStateMachine {
     return { errors, warnings };
   }
 
-  /**
-   * Update reservation status in database
-   */
-  private async updateReservationStatus(
-    reservationId: string,
-    status: ReservationStatus,
-    changedBy: 'user' | 'shop' | 'system' | 'admin',
-    changedById: string,
-    reason?: string
-  ): Promise<Reservation> {
-    const updateData: any = {
-      status,
-      updated_at: new Date().toISOString()
-    };
-
-    // Set appropriate timestamp based on status
-    switch (status) {
-      case 'confirmed':
-        updateData.confirmed_at = new Date().toISOString();
-        break;
-      case 'completed':
-        updateData.completed_at = new Date().toISOString();
-        break;
-      case 'cancelled_by_user':
-      case 'cancelled_by_shop':
-        updateData.cancelled_at = new Date().toISOString();
-        updateData.cancellation_reason = reason;
-        break;
-      case 'no_show':
-        updateData.no_show_reason = reason || 'No-show detected automatically';
-        break;
-    }
-
-    const { data, error } = await this.supabase
-      .from('reservations')
-      .update(updateData)
-      .eq('id', reservationId)
-      .select()
-      .single();
-
-    if (error) {
-      throw new Error(`Failed to update reservation status: ${error.message}`);
-    }
-
-    return data as Reservation;
-  }
-
-  /**
-   * Log state change for audit trail
-   */
-  private async logStateChange(
-    reservationId: string,
-    fromStatus: ReservationStatus,
-    toStatus: ReservationStatus,
-    changedBy: 'user' | 'shop' | 'system' | 'admin',
-    changedById: string,
-    reason?: string
-  ): Promise<void> {
-    const logEntry = {
-      reservation_id: reservationId,
-      from_status: fromStatus,
-      to_status: toStatus,
-      changed_by: changedBy,
-      changed_by_id: changedById,
-      reason,
-      timestamp: new Date().toISOString()
-    };
-
-    const { error } = await this.supabase
-      .from('reservation_status_logs')
-      .insert(logEntry);
-
-    if (error) {
-      logger.error('Failed to log state change', {
-        reservationId,
-        fromStatus,
-        toStatus,
-        error: error.message
-      });
-    }
-  }
 
   /**
    * Send notifications based on transition
@@ -788,14 +645,15 @@ export class ReservationStateMachine {
   }
 
   /**
-   * Get state change history for a reservation
+   * Get comprehensive state change history for a reservation using enhanced audit trail
    */
   async getStateChangeHistory(reservationId: string): Promise<StateChangeLog[]> {
-    const { data, error } = await this.supabase
-      .from('reservation_status_logs')
-      .select('*')
-      .eq('reservation_id', reservationId)
-      .order('timestamp', { ascending: false });
+    const { data, error } = await this.supabase.rpc(
+      'get_reservation_audit_trail',
+      {
+        p_reservation_id: reservationId
+      }
+    );
 
     if (error) {
       logger.error('Failed to get state change history', { reservationId, error: error.message });
@@ -803,6 +661,96 @@ export class ReservationStateMachine {
     }
 
     return data as StateChangeLog[];
+  }
+
+  /**
+   * Get state transition statistics
+   */
+  async getStateTransitionStatistics(
+    dateFrom?: string,
+    dateTo?: string,
+    shopId?: string,
+    changedBy?: string
+  ): Promise<any[]> {
+    const { data, error } = await this.supabase.rpc(
+      'get_state_transition_statistics',
+      {
+        p_date_from: dateFrom || null,
+        p_date_to: dateTo || null,
+        p_shop_id: shopId || null,
+        p_changed_by: changedBy || null
+      }
+    );
+
+    if (error) {
+      logger.error('Failed to get state transition statistics', { error: error.message });
+      return [];
+    }
+
+    return data || [];
+  }
+
+  /**
+   * Execute bulk state transitions using database functions
+   */
+  async bulkTransitionReservations(
+    reservationIds: string[],
+    toStatus: ReservationStatus,
+    changedBy: 'user' | 'shop' | 'system' | 'admin',
+    changedById: string,
+    reason?: string,
+    metadata?: Record<string, any>
+  ): Promise<{
+    success: boolean;
+    totalProcessed: number;
+    successCount: number;
+    failureCount: number;
+    failures: any[];
+    errors: string[];
+  }> {
+    try {
+      const { data: bulkResult, error: bulkError } = await this.supabase.rpc(
+        'bulk_transition_reservations',
+        {
+          p_reservation_ids: reservationIds,
+          p_to_status: toStatus,
+          p_changed_by: changedBy,
+          p_changed_by_id: changedById,
+          p_reason: reason || null,
+          p_metadata: metadata || {}
+        }
+      );
+
+      if (bulkError) {
+        return {
+          success: false,
+          totalProcessed: 0,
+          successCount: 0,
+          failureCount: 0,
+          failures: [],
+          errors: [`Bulk transition failed: ${bulkError.message}`]
+        };
+      }
+
+      return {
+        success: true,
+        totalProcessed: bulkResult.total_processed,
+        successCount: bulkResult.success_count,
+        failureCount: bulkResult.failure_count,
+        failures: bulkResult.failures,
+        errors: []
+      };
+
+    } catch (error) {
+      return {
+        success: false,
+        totalProcessed: 0,
+        successCount: 0,
+        failureCount: 0,
+        failures: [],
+        errors: [`Bulk transition failed: ${error instanceof Error ? error.message : 'Unknown error'}`]
+      };
+    }
   }
 
   /**
@@ -841,7 +789,12 @@ export class ReservationStateMachine {
         targetStatus,
         'admin',
         adminId,
-        `Rollback: ${reason}`
+        `Rollback: ${reason}`,
+        {
+          rollback: true,
+          original_status: reservation.status,
+          rollback_reason: reason
+        }
       );
 
       return result;

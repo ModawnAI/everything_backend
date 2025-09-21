@@ -36,6 +36,14 @@ DECLARE
   v_max_deadlock_retries INTEGER := 3;
   v_deposit_amount INTEGER;
   v_remaining_amount INTEGER;
+  -- Enhanced deposit calculation variables
+  v_default_deposit_percentage DECIMAL(5,2) := 25.0;
+  v_min_deposit_amount INTEGER := 10000;
+  v_max_deposit_amount INTEGER := 100000;
+  v_total_service_deposit INTEGER := 0;
+  v_service_deposit INTEGER := 0;
+  v_deposit_percentage DECIMAL(5,2);
+  v_service_deposit_amount INTEGER;
 BEGIN
   -- Set lock timeout
   SET lock_timeout = p_lock_timeout;
@@ -111,16 +119,52 @@ BEGIN
         RAISE EXCEPTION 'INSUFFICIENT_AMOUNT: Points used cannot exceed total amount';
       END IF;
       
-      -- Calculate deposit and remaining amounts if not provided
-      -- Default to full payment if deposit amounts are not specified
+      -- Calculate deposit and remaining amounts with enhanced business rules
+      -- Calculate service-specific deposits
+      FOR v_service_data IN SELECT * FROM jsonb_array_elements(p_services)
+      LOOP
+        v_service_id := (v_service_data->>'serviceId')::UUID;
+        v_quantity := (v_service_data->>'quantity')::INTEGER;
+        
+        -- Get service deposit policy
+        SELECT 
+          price_min,
+          COALESCE(deposit_amount, 0) as deposit_amount,
+          COALESCE(deposit_percentage, 0) as deposit_percentage
+        INTO v_price, v_service_deposit_amount, v_deposit_percentage
+        FROM shop_services
+        WHERE id = v_service_id;
+        
+        -- Calculate service-specific deposit
+        IF v_service_deposit_amount > 0 THEN
+          -- Fixed deposit amount per service
+          v_service_deposit := v_service_deposit_amount * v_quantity;
+        ELSIF v_deposit_percentage > 0 THEN
+          -- Percentage-based deposit
+          v_service_deposit := ROUND((v_price * v_quantity * v_deposit_percentage) / 100);
+        ELSE
+          -- Default deposit calculation (25% of service price)
+          v_service_deposit := ROUND((v_price * v_quantity * v_default_deposit_percentage) / 100);
+        END IF;
+        
+        -- Apply business rules constraints
+        v_service_deposit := GREATEST(v_min_deposit_amount, LEAST(v_service_deposit, v_max_deposit_amount));
+        
+        -- Ensure deposit doesn't exceed service total
+        v_service_deposit := LEAST(v_service_deposit, v_price * v_quantity);
+        
+        v_total_service_deposit := v_total_service_deposit + v_service_deposit;
+      END LOOP;
+      
+      -- Final deposit calculation
       IF p_deposit_amount IS NOT NULL AND p_remaining_amount IS NOT NULL THEN
-        -- Use provided amounts
-        v_deposit_amount := p_deposit_amount;
-        v_remaining_amount := p_remaining_amount;
+        -- Use provided amounts (validate against total)
+        v_deposit_amount := LEAST(p_deposit_amount, v_total_amount);
+        v_remaining_amount := v_total_amount - v_deposit_amount;
       ELSE
-        -- Default behavior: full payment upfront (backward compatibility)
-        v_deposit_amount := v_total_amount;
-        v_remaining_amount := 0;
+        -- Use calculated service deposits
+        v_deposit_amount := LEAST(v_total_service_deposit, v_total_amount);
+        v_remaining_amount := v_total_amount - v_deposit_amount;
       END IF;
 
       -- Create reservation

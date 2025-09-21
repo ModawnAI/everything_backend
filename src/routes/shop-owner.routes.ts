@@ -13,6 +13,7 @@ import { shopOwnerController } from '../controllers/shop-owner.controller';
 import { validateRequestBody } from '../middleware/validation.middleware';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
+import { requireShopOwnerWithShop } from '../middleware/shop-owner-auth.middleware';
 import { logger } from '../utils/logger';
 
 // Validation schemas
@@ -37,6 +38,18 @@ const reservationIdSchema = Joi.object({
   reservationId: Joi.string().uuid().required().messages({
     'string.guid': '유효하지 않은 예약 ID입니다.',
     'any.required': '예약 ID는 필수입니다.'
+  })
+});
+
+const confirmationRequestSchema = Joi.object({
+  notes: Joi.string().max(500).optional().messages({
+    'string.max': '확정 메모는 최대 500자까지 가능합니다.'
+  })
+});
+
+const rejectionRequestSchema = Joi.object({
+  notes: Joi.string().max(500).optional().messages({
+    'string.max': '거절 사유는 최대 500자까지 가능합니다.'
   })
 });
 
@@ -212,6 +225,145 @@ router.get('/reservations',
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '예약 목록 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/reservations/pending
+ * Get pending reservations (requested status) for shop owners
+ * 
+ * Query Parameters:
+ * - page: Page number (optional, default: 1)
+ * - limit: Page size (optional, default: 20)
+ * - search: Search by customer name, phone, or email (optional)
+ * 
+ * Returns:
+ * - List of pending reservations with detailed information
+ * - Pagination information
+ * - Summary statistics
+ * - Waiting time and urgency level for each reservation
+ * 
+ * Example: GET /api/shop-owner/reservations/pending?page=1&limit=20
+ * Example: GET /api/shop-owner/reservations/pending?search=김고객
+ */
+router.get('/reservations/pending',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  validateRequestBody(reservationListQuerySchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.getPendingReservations(req, res);
+    } catch (error) {
+      logger.error('Error in pending reservations route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '대기 중인 예약 목록 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/shop-owner/reservations/:reservationId/confirm
+ * Confirm a pending reservation (requested -> confirmed)
+ * 
+ * Path Parameters:
+ * - reservationId: Reservation UUID (required)
+ * 
+ * Body Parameters:
+ * - notes: Optional confirmation notes (optional)
+ * 
+ * Returns:
+ * - Confirmed reservation information
+ * - Success message
+ * 
+ * Business Rules:
+ * - Only reservations with 'requested' status can be confirmed
+ * - Shop owner must own the reservation
+ * - Deposit must be paid if required
+ * - Sends confirmation notification to customer
+ * 
+ * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/confirm
+ * Body: { "notes": "예약 확정되었습니다. 즐거운 시간 되세요!" }
+ */
+router.put('/reservations/:reservationId/confirm',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  validateRequestBody(confirmationRequestSchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.confirmReservation(req as any, res);
+    } catch (error) {
+      logger.error('Error in confirm reservation route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.reservationId,
+        body: req.body
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 확정 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/shop-owner/reservations/:reservationId/reject
+ * Reject a pending reservation (requested -> cancelled_by_shop)
+ * 
+ * Path Parameters:
+ * - reservationId: Reservation UUID (required)
+ * 
+ * Body Parameters:
+ * - notes: Optional rejection reason (optional)
+ * 
+ * Returns:
+ * - Rejected reservation information
+ * - Success message
+ * - Refund status if applicable
+ * 
+ * Business Rules:
+ * - Only reservations with 'requested' status can be rejected
+ * - Shop owner must own the reservation
+ * - Automatically processes deposit refund if paid
+ * - Sends rejection notification to customer
+ * 
+ * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/reject
+ * Body: { "notes": "예약 가능한 시간이 없어서 거절합니다. 죄송합니다." }
+ */
+router.put('/reservations/:reservationId/reject',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  validateRequestBody(rejectionRequestSchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.rejectReservation(req as any, res);
+    } catch (error) {
+      logger.error('Error in reject reservation route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.reservationId,
+        body: req.body
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 거절 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });

@@ -117,6 +117,19 @@ export class PaymentConfirmationService {
         );
       }
 
+      // Step 7.5: Send shop owner notification for payment completion (v3.1 flow)
+      let shopOwnerNotificationSent = false;
+      try {
+        await this.sendShopOwnerPaymentNotification(paymentRecord.reservation_id, confirmResponse, paymentRecord);
+        shopOwnerNotificationSent = true;
+      } catch (error) {
+        logger.warn('Failed to send shop owner payment notification', {
+          reservationId: paymentRecord.reservation_id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        // Don't fail the payment confirmation if shop notification fails
+      }
+
       // Step 8: Generate and deliver receipt
       let receiptGenerated = false;
       if (request.generateReceipt !== false) {
@@ -267,40 +280,38 @@ export class PaymentConfirmationService {
 
   /**
    * Update reservation status based on payment status
+   * v3.1 Flow: Reservations remain in 'requested' status after payment
+   * and only get confirmed by shop owner action
    */
   private async updateReservationStatus(
     reservationId: string,
     paymentStatus: PaymentStatus
   ): Promise<ReservationStatus | undefined> {
-    let newReservationStatus: ReservationStatus | undefined;
+    // v3.1 Flow: Do not automatically confirm reservations after payment
+    // Reservations should remain in 'requested' status until shop owner confirms
+    
+    logger.info('Payment completed - reservation remains in requested status (v3.1 flow)', {
+      reservationId,
+      paymentStatus,
+      note: 'Reservation will be confirmed by shop owner action, not automatic payment confirmation'
+    });
 
-    // Update reservation status based on payment type and status
-    if (paymentStatus === 'deposit_paid') {
-      newReservationStatus = 'confirmed';
-    } else if (paymentStatus === 'fully_paid') {
-      newReservationStatus = 'confirmed';
-    }
-
-    if (newReservationStatus) {
-      const { error } = await this.supabase
-        .from('reservations')
-        .update({
-          status: newReservationStatus,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', reservationId);
-
-      if (error) {
-        logger.error('Failed to update reservation status', {
-          reservationId,
-          newStatus: newReservationStatus,
-          error: error.message
-        });
-        // Don't throw error as payment is still successful
-      }
-    }
-
-    return newReservationStatus;
+    // For v3.1 flow, we only log the payment completion but don't change reservation status
+    // The reservation will be confirmed later by the shop owner through the admin interface
+    // 
+    // Note: If future changes require automatic status updates after payment,
+    // they should use the state machine validation:
+    // const { reservationStateMachine } = await import('./reservation-state-machine.service');
+    // const result = await reservationStateMachine.executeTransition(
+    //   reservationId,
+    //   newStatus,
+    //   'system',
+    //   'payment-system',
+    //   'Automatic status update after payment completion',
+    //   { paymentStatus, updatedAt: new Date().toISOString() }
+    // );
+    
+    return undefined; // No status change
   }
 
   /**
@@ -366,6 +377,117 @@ export class PaymentConfirmationService {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       return false;
+    }
+  }
+
+  /**
+   * Send notification to shop owner about payment completion (v3.1 flow)
+   */
+  private async sendShopOwnerPaymentNotification(
+    reservationId: string,
+    confirmResponse: PaymentConfirmationResponse,
+    paymentRecord: any
+  ): Promise<void> {
+    try {
+      // Get reservation details
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select(`
+          id,
+          shop_id,
+          user_id,
+          reservation_date,
+          reservation_time,
+          total_amount,
+          deposit_amount,
+          remaining_amount,
+          special_requests,
+          shops!inner (
+            id,
+            name,
+            owner_id,
+            users!shops_owner_id_fkey (
+              id,
+              name,
+              email,
+              phone_number
+            )
+          )
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (reservationError || !reservation) {
+        throw new Error(`Reservation not found: ${reservationId}`);
+      }
+
+      // Get service details for the notification
+      const { data: reservationServices, error: servicesError } = await this.supabase
+        .from('reservation_services')
+        .select(`
+          quantity,
+          shop_services!inner (
+            id,
+            name,
+            price_min
+          )
+        `)
+        .eq('reservation_id', reservationId);
+
+      if (servicesError) {
+        logger.warn('Failed to fetch reservation services for shop notification', {
+          reservationId,
+          error: servicesError.message
+        });
+      }
+
+      const serviceDetails = reservationServices?.map((rs: any) => ({
+        serviceId: rs.shop_services.id,
+        serviceName: rs.shop_services.name,
+        quantity: rs.quantity
+      })) || [];
+
+      // Prepare notification message
+      const paymentType = paymentRecord.is_deposit ? '예약금' : '전체 결제';
+      const message = `예약 결제가 완료되었습니다!
+샵: ${(reservation as any).shops.name}
+예약일시: ${reservation.reservation_date} ${reservation.reservation_time}
+${paymentType}: ${paymentRecord.amount.toLocaleString()}원
+총 금액: ${reservation.total_amount.toLocaleString()}원
+예약금: ${reservation.deposit_amount?.toLocaleString() || 0}원
+잔금: ${reservation.remaining_amount?.toLocaleString() || 0}원
+예약 ID: ${reservationId}
+샵 관리자 페이지에서 예약을 확인하고 승인해주세요.`;
+
+      const notificationTitle = `[${(reservation as any).shops.name}] 예약 결제 완료 (${reservation.reservation_date} ${reservation.reservation_time})`;
+
+      // Create in-app notification record
+      await this.supabase.from('notifications').insert({
+        user_id: (reservation as any).shops.owner_id,
+        notification_type: 'payment_completed',
+        title: notificationTitle,
+        message: message,
+        related_id: reservationId,
+        action_url: `/shop/reservations/${reservationId}`,
+        status: 'unread',
+        created_at: new Date().toISOString()
+      });
+
+      logger.info('Shop owner payment notification created successfully', {
+        shopId: reservation.shop_id,
+        ownerUserId: (reservation as any).shops.owner_id,
+        reservationId,
+        paymentType,
+        amount: paymentRecord.amount
+      });
+
+    } catch (error) {
+      logger.error('Failed to send shop owner payment notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId,
+        paymentId: confirmResponse.paymentId
+      });
+      throw error;
     }
   }
 

@@ -542,7 +542,7 @@ export class ShopOwnerController {
       }
 
       // Get reservation and verify ownership
-      const { data: reservation, error: fetchError } = await this.supabase
+      const { data: reservation, error: reservationFetchError } = await this.supabase
         .from('reservations')
         .select(`
           *,
@@ -551,7 +551,7 @@ export class ShopOwnerController {
         .eq('id', reservationId)
         .single();
 
-      if (fetchError || !reservation) {
+      if (reservationFetchError || !reservation) {
         res.status(404).json({
           error: {
             code: 'RESERVATION_NOT_FOUND',
@@ -574,39 +574,55 @@ export class ShopOwnerController {
         return;
       }
 
-      // Prepare update data
-      const updateData: any = {
+      // Use state machine to execute status transition
+      const { reservationStateMachine } = await import('../services/reservation-state-machine.service');
+      
+      const transitionResult = await reservationStateMachine.executeTransition(
+        reservationId,
         status,
-        updated_at: new Date().toISOString()
-      };
+        'shop',
+        userId,
+        notes || `Status updated to ${status} by shop owner`,
+        {
+          updated_at: new Date().toISOString(),
+          ...(status === 'confirmed' && { confirmed_at: new Date().toISOString() }),
+          ...(status === 'completed' && { completed_at: new Date().toISOString() }),
+          ...(status === 'cancelled_by_shop' && { 
+            cancelled_at: new Date().toISOString(),
+            ...(notes && { cancellation_reason: notes })
+          })
+        }
+      );
 
-      // Set appropriate timestamp based on status
-      switch (status) {
-        case 'confirmed':
-          updateData.confirmed_at = new Date().toISOString();
-          break;
-        case 'completed':
-          updateData.completed_at = new Date().toISOString();
-          break;
-        case 'cancelled_by_shop':
-          updateData.cancelled_at = new Date().toISOString();
-          if (notes) {
-            updateData.cancellation_reason = notes;
+      if (!transitionResult.success) {
+        logger.error('Failed to update reservation status via state machine', {
+          errors: transitionResult.errors,
+          warnings: transitionResult.warnings,
+          reservationId,
+          status,
+          userId
+        });
+
+        res.status(400).json({
+          error: {
+            code: 'STATE_TRANSITION_FAILED',
+            message: '예약 상태 업데이트에 실패했습니다.',
+            details: transitionResult.errors.join(', ')
           }
-          break;
+        });
+        return;
       }
 
-      // Update reservation
-      const { data: updatedReservation, error: updateError } = await this.supabase
+      // Get updated reservation
+      const { data: updatedReservation, error: updatedReservationFetchError } = await this.supabase
         .from('reservations')
-        .update(updateData)
+        .select('*')
         .eq('id', reservationId)
-        .select()
         .single();
 
-      if (updateError) {
-        logger.error('Failed to update reservation status', {
-          error: updateError.message,
+      if (updatedReservationFetchError) {
+        logger.error('Failed to fetch updated reservation after state transition', {
+          error: updatedReservationFetchError.message,
           reservationId,
           status,
           userId
@@ -614,8 +630,8 @@ export class ShopOwnerController {
 
         res.status(500).json({
           error: {
-            code: 'RESERVATION_UPDATE_FAILED',
-            message: '예약 상태 업데이트에 실패했습니다.',
+            code: 'RESERVATION_FETCH_FAILED',
+            message: '예약 정보 조회에 실패했습니다.',
             details: '잠시 후 다시 시도해주세요.'
           }
         });
@@ -653,6 +669,824 @@ export class ShopOwnerController {
       });
     }
   }
+
+  /**
+   * GET /api/shop-owner/reservations/pending
+   * Get pending reservations (requested status) for shop owners
+   */
+  async getPendingReservations(req: ReservationListRequest, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      const {
+        page = '1',
+        limit = '20',
+        search
+      } = req.query;
+
+      // Get user's shops
+      const { data: shops, error: shopsError } = await this.supabase
+        .from('shops')
+        .select('id, name')
+        .eq('owner_id', userId)
+        .eq('shop_status', 'active');
+
+      if (shopsError || !shops || shops.length === 0) {
+        res.status(404).json({
+          error: {
+            code: 'NO_SHOPS_FOUND',
+            message: '활성화된 샵이 없습니다.',
+            details: '샵을 등록하거나 활성화해주세요.'
+          }
+        });
+        return;
+      }
+
+      const shopIds = shops.map(shop => shop.id);
+      const pageNum = parseInt(page as string) || 1;
+      const limitNum = parseInt(limit as string) || 20;
+      const offset = (pageNum - 1) * limitNum;
+
+      // Build query specifically for pending (requested) reservations
+      let query = this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          users!inner(name, phone_number, email),
+          shops!inner(name, address),
+          reservation_services(
+            quantity,
+            unit_price,
+            total_price,
+            shop_services!inner(name, description)
+          ),
+          payments(
+            id,
+            amount,
+            payment_status,
+            is_deposit,
+            paid_at
+          )
+        `)
+        .in('shop_id', shopIds)
+        .eq('status', 'requested'); // Only requested status reservations
+
+      // Apply search filter if provided
+      if (search) {
+        query = query.or(`users.name.ilike.%${search}%,users.phone_number.ilike.%${search}%,users.email.ilike.%${search}%`);
+      }
+
+      // Apply pagination and ordering
+      query = query.order('created_at', { ascending: false })
+        .range(offset, offset + limitNum - 1);
+
+      const { data: reservations, error: reservationsError, count } = await query;
+
+      if (reservationsError) {
+        logger.error('Failed to get pending reservations', { error: reservationsError.message, userId });
+        res.status(500).json({
+          error: {
+            code: 'PENDING_RESERVATIONS_FETCH_FAILED',
+            message: '대기 중인 예약 목록 조회에 실패했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Format response with additional pending-specific information
+      const formattedReservations = reservations?.map(reservation => ({
+        id: reservation.id,
+        reservationDate: reservation.reservation_date,
+        reservationTime: reservation.reservation_time,
+        status: reservation.status,
+        totalAmount: reservation.total_amount,
+        depositAmount: reservation.deposit_amount,
+        remainingAmount: reservation.remaining_amount,
+        pointsUsed: reservation.points_used,
+        specialRequests: reservation.special_requests,
+        customer: {
+          name: reservation.users?.name,
+          phoneNumber: reservation.users?.phone_number,
+          email: reservation.users?.email
+        },
+        shop: {
+          name: reservation.shops?.name,
+          address: reservation.shops?.address
+        },
+        services: reservation.reservation_services?.map(rs => ({
+          name: rs.shop_services?.name,
+          description: rs.shop_services?.description,
+          quantity: rs.quantity,
+          unitPrice: rs.unit_price,
+          totalPrice: rs.total_price
+        })) || [],
+        payments: reservation.payments?.map(payment => ({
+          id: payment.id,
+          amount: payment.amount,
+          status: payment.payment_status,
+          isDeposit: payment.is_deposit,
+          paidAt: payment.paid_at
+        })) || [],
+        createdAt: reservation.created_at,
+        updatedAt: reservation.updated_at,
+        // Additional pending-specific fields
+        waitingTime: this.calculateWaitingTime(reservation.created_at),
+        urgencyLevel: this.calculateUrgencyLevel(reservation.reservation_date, reservation.created_at)
+      })) || [];
+
+      logger.info('Pending reservations retrieved', { 
+        userId, 
+        count: formattedReservations.length,
+        page: pageNum,
+        limit: limitNum,
+        shopCount: shops.length
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reservations: formattedReservations,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total: count || 0,
+            totalPages: Math.ceil((count || 0) / limitNum)
+          },
+          summary: {
+            totalPending: count || 0,
+            shopsWithPending: shops.length
+          }
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in getPendingReservations', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '대기 중인 예약 목록 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Calculate waiting time since reservation was created
+   */
+  private calculateWaitingTime(createdAt: string): string {
+    const created = new Date(createdAt);
+    const now = new Date();
+    const diffMs = now.getTime() - created.getTime();
+    const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+    const diffMinutes = Math.floor((diffMs % (1000 * 60 * 60)) / (1000 * 60));
+
+    if (diffHours > 24) {
+      const days = Math.floor(diffHours / 24);
+      return `${days}일 ${diffHours % 24}시간`;
+    } else if (diffHours > 0) {
+      return `${diffHours}시간 ${diffMinutes}분`;
+    } else {
+      return `${diffMinutes}분`;
+    }
+  }
+
+  /**
+   * Calculate urgency level based on reservation date and creation time
+   */
+  private calculateUrgencyLevel(reservationDate: string, createdAt: string): 'low' | 'medium' | 'high' {
+    const reservation = new Date(reservationDate);
+    const created = new Date(createdAt);
+    const now = new Date();
+    
+    const daysUntilReservation = Math.ceil((reservation.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+    const hoursSinceCreated = Math.floor((now.getTime() - created.getTime()) / (1000 * 60 * 60));
+
+    // High urgency: reservation is tomorrow or today and created more than 2 hours ago
+    if (daysUntilReservation <= 1 && hoursSinceCreated > 2) {
+      return 'high';
+    }
+    
+    // Medium urgency: reservation is within 3 days or created more than 12 hours ago
+    if (daysUntilReservation <= 3 || hoursSinceCreated > 12) {
+      return 'medium';
+    }
+    
+    // Low urgency: all other cases
+    return 'low';
+  }
+
+  /**
+   * PUT /api/shop-owner/reservations/:reservationId/confirm
+   * Confirm a pending reservation (requested -> confirmed)
+   */
+  async confirmReservation(req: ReservationStatusRequest, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      const { reservationId } = req.params;
+      const { notes } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (!reservationId) {
+        res.status(400).json({
+          error: {
+            code: 'MISSING_RESERVATION_ID',
+            message: '예약 ID가 필요합니다.',
+            details: '예약 ID를 제공해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Get reservation and verify ownership
+      const { data: reservation, error: confirmReservationFetchError } = await this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          shops!inner(owner_id, name),
+          users!inner(name, email, phone_number),
+          reservation_services(
+            quantity,
+            unit_price,
+            total_price,
+            shop_services!inner(name)
+          ),
+          payments(
+            id,
+            amount,
+            payment_status,
+            is_deposit,
+            paid_at
+          )
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (confirmReservationFetchError || !reservation) {
+        res.status(404).json({
+          error: {
+            code: 'RESERVATION_NOT_FOUND',
+            message: '예약을 찾을 수 없습니다.',
+            details: '예약이 존재하지 않거나 삭제되었습니다.'
+          }
+        });
+        return;
+      }
+
+      // Verify shop ownership
+      if (reservation.shops?.owner_id !== userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: '이 예약을 관리할 권한이 없습니다.',
+            details: '자신의 샵 예약만 관리할 수 있습니다.'
+          }
+        });
+        return;
+      }
+
+      // Verify reservation is in 'requested' status
+      if (reservation.status !== 'requested') {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_STATUS_TRANSITION',
+            message: '이 예약은 확정할 수 없습니다.',
+            details: `현재 상태: ${reservation.status}. 'requested' 상태의 예약만 확정할 수 있습니다.`
+          }
+        });
+        return;
+      }
+
+      // Check if deposit is required and paid
+      const hasDepositPayment = reservation.payments?.some(payment => 
+        payment.payment_status === 'deposit_paid' && payment.is_deposit
+      );
+
+      if (reservation.deposit_amount && reservation.deposit_amount > 0 && !hasDepositPayment) {
+        res.status(400).json({
+          error: {
+            code: 'DEPOSIT_NOT_PAID',
+            message: '예약금이 결제되지 않았습니다.',
+            details: '예약금 결제 후 예약을 확정할 수 있습니다.'
+          }
+        });
+        return;
+      }
+
+      // Use state machine to execute confirmation transition
+      const { reservationStateMachine } = await import('../services/reservation-state-machine.service');
+      
+      const transitionResult = await reservationStateMachine.executeTransition(
+        reservationId,
+        'confirmed',
+        'shop',
+        userId,
+        notes || 'Shop owner confirmed reservation',
+        {
+          confirmation_notes: notes,
+          confirmed_at: new Date().toISOString()
+        }
+      );
+
+      if (!transitionResult.success) {
+        logger.error('Failed to confirm reservation via state machine', {
+          errors: transitionResult.errors,
+          warnings: transitionResult.warnings,
+          reservationId,
+          userId
+        });
+
+        res.status(400).json({
+          error: {
+            code: 'STATE_TRANSITION_FAILED',
+            message: '예약 확정에 실패했습니다.',
+            details: transitionResult.errors.join(', ')
+          }
+        });
+        return;
+      }
+
+      // Get updated reservation with related data
+      const { data: updatedReservation, error: fetchError } = await this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          shops!inner(name),
+          users!inner(name, email, phone_number),
+          reservation_services(
+            quantity,
+            unit_price,
+            total_price,
+            shop_services!inner(name)
+          )
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (fetchError) {
+        logger.error('Failed to fetch updated reservation after state transition', {
+          error: fetchError.message,
+          reservationId,
+          userId
+        });
+
+        res.status(500).json({
+          error: {
+            code: 'RESERVATION_FETCH_FAILED',
+            message: '예약 정보 조회에 실패했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Send confirmation notification to customer
+      try {
+        const { customerNotificationService } = await import('../services/customer-notification.service');
+        
+        await customerNotificationService.notifyCustomerOfReservationUpdate({
+          customerId: reservation.user_id,
+          reservationId: reservation.id,
+          shopName: updatedReservation.shops?.name || 'Unknown Shop',
+          reservationDate: updatedReservation.reservation_date,
+          reservationTime: updatedReservation.reservation_time,
+          services: updatedReservation.reservation_services?.map((rs: any) => ({
+            serviceName: rs.shop_services?.name || 'Unknown Service',
+            quantity: rs.quantity,
+            unitPrice: rs.unit_price,
+            totalPrice: rs.total_price
+          })) || [],
+          totalAmount: updatedReservation.total_amount,
+          depositAmount: updatedReservation.deposit_amount,
+          remainingAmount: updatedReservation.remaining_amount,
+          specialRequests: updatedReservation.special_requests,
+          notificationType: 'reservation_confirmed',
+          additionalData: {
+            confirmationNotes: notes
+          }
+        });
+      } catch (notificationError) {
+        logger.warn('Failed to send confirmation notification', {
+          reservationId,
+          error: notificationError instanceof Error ? notificationError.message : 'Unknown error'
+        });
+        // Don't fail the confirmation if notification fails
+      }
+
+      // Log successful confirmation
+      logger.info('Reservation confirmed successfully', {
+        reservationId,
+        userId,
+        customerId: reservation.user_id,
+        shopId: reservation.shop_id,
+        reservationDate: reservation.reservation_date,
+        reservationTime: reservation.reservation_time,
+        notes: notes || null
+      });
+
+      // Format response
+      const formattedReservation = {
+        id: updatedReservation.id,
+        reservationDate: updatedReservation.reservation_date,
+        reservationTime: updatedReservation.reservation_time,
+        status: updatedReservation.status,
+        confirmedAt: updatedReservation.confirmed_at,
+        confirmationNotes: updatedReservation.confirmation_notes,
+        totalAmount: updatedReservation.total_amount,
+        depositAmount: updatedReservation.deposit_amount,
+        customer: {
+          name: updatedReservation.users?.name,
+          email: updatedReservation.users?.email,
+          phoneNumber: updatedReservation.users?.phone_number
+        },
+        shop: {
+          name: updatedReservation.shops?.name
+        },
+        services: updatedReservation.reservation_services?.map((rs: any) => ({
+          name: rs.shop_services?.name,
+          quantity: rs.quantity,
+          unitPrice: rs.unit_price,
+          totalPrice: rs.total_price
+        })) || []
+      };
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reservation: formattedReservation,
+          message: '예약이 성공적으로 확정되었습니다.'
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in confirmReservation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.reservationId,
+        userId: (req as any).user?.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 확정 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+
+  /**
+   * PUT /api/shop-owner/reservations/:reservationId/reject
+   * Reject a pending reservation (requested -> cancelled_by_shop)
+   */
+  async rejectReservation(req: ReservationStatusRequest, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      const { reservationId } = req.params;
+      const { notes } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (!reservationId) {
+        res.status(400).json({
+          error: {
+            code: 'MISSING_RESERVATION_ID',
+            message: '예약 ID가 필요합니다.',
+            details: '예약 ID를 제공해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Get reservation and verify ownership
+      const { data: reservation, error: rejectReservationFetchError } = await this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          shops!inner(owner_id, name),
+          users!inner(name, email, phone_number),
+          reservation_services(
+            quantity,
+            unit_price,
+            total_price,
+            shop_services!inner(name)
+          ),
+          payments(
+            id,
+            amount,
+            payment_status,
+            is_deposit,
+            paid_at
+          )
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (rejectReservationFetchError || !reservation) {
+        res.status(404).json({
+          error: {
+            code: 'RESERVATION_NOT_FOUND',
+            message: '예약을 찾을 수 없습니다.',
+            details: '예약이 존재하지 않거나 삭제되었습니다.'
+          }
+        });
+        return;
+      }
+
+      // Verify shop ownership
+      if (reservation.shops?.owner_id !== userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: '이 예약을 관리할 권한이 없습니다.',
+            details: '자신의 샵 예약만 관리할 수 있습니다.'
+          }
+        });
+        return;
+      }
+
+      // Verify reservation is in 'requested' status
+      if (reservation.status !== 'requested') {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_STATUS_TRANSITION',
+            message: '이 예약은 거절할 수 없습니다.',
+            details: `현재 상태: ${reservation.status}. 'requested' 상태의 예약만 거절할 수 있습니다.`
+          }
+        });
+        return;
+      }
+
+      // Use state machine to execute rejection transition
+      const { reservationStateMachine } = await import('../services/reservation-state-machine.service');
+      
+      const rejectionReason = notes || '샵 사정으로 인한 예약 거절';
+      
+      const transitionResult = await reservationStateMachine.executeTransition(
+        reservationId,
+        'cancelled_by_shop',
+        'shop',
+        userId,
+        rejectionReason,
+        {
+          cancellation_reason: rejectionReason,
+          cancelled_at: new Date().toISOString()
+        }
+      );
+
+      if (!transitionResult.success) {
+        logger.error('Failed to reject reservation via state machine', {
+          errors: transitionResult.errors,
+          warnings: transitionResult.warnings,
+          reservationId,
+          userId
+        });
+
+        res.status(400).json({
+          error: {
+            code: 'STATE_TRANSITION_FAILED',
+            message: '예약 거절에 실패했습니다.',
+            details: transitionResult.errors.join(', ')
+          }
+        });
+        return;
+      }
+
+      // Get updated reservation with related data
+      const { data: updatedReservation, error: fetchError } = await this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          shops!inner(name),
+          users!inner(name, email, phone_number),
+          reservation_services(
+            quantity,
+            unit_price,
+            total_price,
+            shop_services!inner(name)
+          )
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (fetchError) {
+        logger.error('Failed to fetch updated reservation after state transition', {
+          error: fetchError.message,
+          reservationId,
+          userId
+        });
+
+        res.status(500).json({
+          error: {
+            code: 'RESERVATION_FETCH_FAILED',
+            message: '예약 정보 조회에 실패했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Process refund if deposit was paid
+      let refundProcessed = false;
+      const depositPayment = reservation.payments?.find(payment => 
+        payment.payment_status === 'deposit_paid' && payment.is_deposit
+      );
+
+      if (depositPayment && reservation.deposit_amount && reservation.deposit_amount > 0) {
+        try {
+          await this.processDepositRefund(reservation, depositPayment);
+          refundProcessed = true;
+          logger.info('Deposit refund processed for rejected reservation', {
+            reservationId,
+            depositAmount: reservation.deposit_amount,
+            paymentId: depositPayment.id
+          });
+        } catch (refundError) {
+          logger.error('Failed to process deposit refund for rejected reservation', {
+            reservationId,
+            depositAmount: reservation.deposit_amount,
+            error: refundError instanceof Error ? refundError.message : 'Unknown error'
+          });
+          // Continue with rejection even if refund fails - manual processing may be needed
+        }
+      }
+
+      // Send rejection notification to customer
+      try {
+        const { customerNotificationService } = await import('../services/customer-notification.service');
+        
+        await customerNotificationService.notifyCustomerOfReservationUpdate({
+          customerId: reservation.user_id,
+          reservationId: reservation.id,
+          shopName: updatedReservation.shops?.name || 'Unknown Shop',
+          reservationDate: updatedReservation.reservation_date,
+          reservationTime: updatedReservation.reservation_time,
+          services: updatedReservation.reservation_services?.map((rs: any) => ({
+            serviceName: rs.shop_services?.name || 'Unknown Service',
+            quantity: rs.quantity,
+            unitPrice: rs.unit_price,
+            totalPrice: rs.total_price
+          })) || [],
+          totalAmount: updatedReservation.total_amount,
+          depositAmount: updatedReservation.deposit_amount,
+          remainingAmount: updatedReservation.remaining_amount,
+          specialRequests: updatedReservation.special_requests,
+          notificationType: 'reservation_rejected',
+          additionalData: {
+            rejectionReason: rejectionReason,
+            refundProcessed,
+            refundAmount: refundProcessed ? reservation.deposit_amount : undefined
+          }
+        });
+      } catch (notificationError) {
+        logger.warn('Failed to send rejection notification', {
+          reservationId,
+          error: notificationError instanceof Error ? notificationError.message : 'Unknown error'
+        });
+        // Don't fail the rejection if notification fails
+      }
+
+      // Log successful rejection
+      logger.info('Reservation rejected successfully', {
+        reservationId,
+        userId,
+        customerId: reservation.user_id,
+        shopId: reservation.shop_id,
+        reservationDate: reservation.reservation_date,
+        reservationTime: reservation.reservation_time,
+        rejectionReason: rejectionReason,
+        refundProcessed
+      });
+
+      // Format response
+      const formattedReservation = {
+        id: updatedReservation.id,
+        reservationDate: updatedReservation.reservation_date,
+        reservationTime: updatedReservation.reservation_time,
+        status: updatedReservation.status,
+        cancelledAt: updatedReservation.cancelled_at,
+        cancellationReason: updatedReservation.cancellation_reason,
+        totalAmount: updatedReservation.total_amount,
+        depositAmount: updatedReservation.deposit_amount,
+        refundProcessed,
+        customer: {
+          name: updatedReservation.users?.name,
+          email: updatedReservation.users?.email,
+          phoneNumber: updatedReservation.users?.phone_number
+        },
+        shop: {
+          name: updatedReservation.shops?.name
+        },
+        services: updatedReservation.reservation_services?.map((rs: any) => ({
+          name: rs.shop_services?.name,
+          quantity: rs.quantity,
+          unitPrice: rs.unit_price,
+          totalPrice: rs.total_price
+        })) || []
+      };
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reservation: formattedReservation,
+          message: refundProcessed 
+            ? '예약이 거절되었고 예약금이 환불 처리되었습니다.'
+            : '예약이 거절되었습니다.'
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in rejectReservation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.reservationId,
+        userId: (req as any).user?.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 거절 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Process deposit refund for rejected reservation
+   */
+  private async processDepositRefund(reservation: any, depositPayment: any): Promise<void> {
+    try {
+      // Update payment status to refunded
+      await this.supabase
+        .from('payments')
+        .update({
+          payment_status: 'refunded',
+          refunded_at: new Date().toISOString(),
+          refund_amount: depositPayment.amount,
+          metadata: {
+            ...depositPayment.metadata,
+            refund_reason: 'reservation_rejected_by_shop',
+            refund_processed_at: new Date().toISOString()
+          }
+        })
+        .eq('id', depositPayment.id);
+
+      // TODO: Integrate with actual payment provider refund API (TossPayments, etc.)
+      // For now, we just mark the payment as refunded in our system
+      // In production, this would call the actual payment provider's refund API
+
+      logger.info('Payment marked as refunded for rejected reservation', {
+        paymentId: depositPayment.id,
+        amount: depositPayment.amount,
+        reservationId: reservation.id
+      });
+
+    } catch (error) {
+      logger.error('Failed to process payment refund', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        paymentId: depositPayment.id,
+        reservationId: reservation.id
+      });
+      throw error;
+    }
+  }
+
 
   /**
    * GET /api/shop-owner/profile

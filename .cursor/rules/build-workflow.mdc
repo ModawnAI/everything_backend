@@ -1,0 +1,56 @@
+---
+description: Build process workflow - only run npm run build after task completion
+globs: **/*
+alwaysApply: true
+---
+
+# Build Workflow Rule
+
+## **Build Timing Requirements**
+- **Only run `npm run build` after a task is completely finished**
+  - Task must be marked as `done` in Task Master
+  - All implementation work must be complete and tested
+  - No build runs during active development
+
+## **Workflow Sequence**
+- **During Development:**
+  - Work on tasks using `npm run dev` or development mode
+  - Use TypeScript compiler in watch mode for incremental builds
+  - Test functionality without full production build
+
+- **After Task Completion:**
+  - Mark task as complete: `task-master set-status --id=<id> --status=done`
+  - Run full build: `npm run build`
+  - Verify build success before proceeding to next task
+
+## **Build Validation**
+- **Build Success Criteria:**
+  - No TypeScript compilation errors
+  - All imports resolve correctly
+  - Generated JavaScript files in `dist/` directory
+  - No runtime errors during build process
+
+- **If Build Fails:**
+  - Fix compilation errors immediately
+  - Do not proceed to next task until build succeeds
+  - Update task details with build issues if needed
+
+## **Integration with Task Master**
+- **Task Completion Checklist:**
+  1. Implementation complete
+  2. Tests passing (if applicable)
+  3. Code reviewed/validated
+  4. Task marked as `done`
+  5. `npm run build` executed successfully
+  6. Next task retrieved with `task-master next`
+
+## **Exceptions**
+- **Emergency Fixes:** Can run build immediately for critical production issues
+- **CI/CD Pipeline:** Automated builds in deployment pipeline are separate from this rule
+- **Development Servers:** Hot reload and watch mode builds are exempt
+
+## **Best Practices**
+- **Always verify build before task completion**
+- **Document any build-related issues in task details**
+- **Use development mode during active coding**
+- **Run build as final validation step**

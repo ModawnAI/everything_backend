@@ -526,10 +526,25 @@ export class TossPaymentsService {
         }
       });
 
-      // Update reservation status if deposit payment
-      if (paymentRecord.is_deposit) {
-        await this.updateReservationStatus(paymentRecord.reservation_id, 'confirmed');
-      }
+      // v3.1 Flow: Do not automatically update reservation status after payment
+      // Reservations remain in 'requested' status until shop owner confirms
+      logger.info('Payment confirmed - reservation remains in requested status (v3.1 flow)', {
+        reservationId: paymentRecord.reservation_id,
+        isDeposit: paymentRecord.is_deposit,
+        note: 'Reservation status unchanged - will be confirmed by shop owner action'
+      });
+
+      // Note: If future changes require automatic status updates after payment confirmation,
+      // they should use the state machine validation to ensure proper business rules:
+      // const { reservationStateMachine } = await import('./reservation-state-machine.service');
+      // const result = await reservationStateMachine.executeTransition(
+      //   paymentRecord.reservation_id,
+      //   newStatus,
+      //   'system',
+      //   'payment-system',
+      //   'Automatic status update after payment confirmation',
+      //   { paymentStatus: newStatus, paymentId: paymentRecord.id }
+      // );
 
       logger.info('TossPayments payment confirmed successfully', {
         paymentId: paymentRecord.id,
@@ -644,10 +659,14 @@ export class TossPaymentsService {
           }
         });
 
-        // Update reservation status if deposit payment and status is confirmed
-        if (paymentRecord.is_deposit && newStatus === 'deposit_paid') {
-          await this.updateReservationStatus(paymentRecord.reservation_id, 'confirmed');
-        }
+        // v3.1 Flow: Do not automatically update reservation status after webhook payment confirmation
+        // Reservations remain in 'requested' status until shop owner confirms
+        logger.info('Webhook payment processed - reservation remains in requested status (v3.1 flow)', {
+          reservationId: paymentRecord.reservation_id,
+          isDeposit: paymentRecord.is_deposit,
+          paymentStatus: newStatus,
+          note: 'Reservation status unchanged - will be confirmed by shop owner action'
+        });
 
         // Send notification for successful payment
         if (newStatus === 'deposit_paid' || newStatus === 'fully_paid') {

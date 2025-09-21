@@ -9,6 +9,8 @@ import { logger } from './logger';
 import { userStatusWorkflowService } from '../services/user-status-workflow.service';
 import { noShowDetectionService } from '../services/no-show-detection.service';
 import { pointProcessingService } from '../services/point-processing.service';
+import { automaticStateProgressionService } from '../services/automatic-state-progression.service';
+import { auditTrailService } from '../services/audit-trail.service';
 
 // Simple in-memory scheduler for development
 // In production, consider using a proper job queue like Bull, Agenda, or AWS EventBridge
@@ -37,7 +39,16 @@ class Scheduler {
       }
     });
 
-    // Schedule no-show detection (every 15 minutes)
+    // Schedule automatic state progression (every 10 minutes)
+    this.scheduleJob('automatic-state-progression', 10 * 60 * 1000, async () => {
+      try {
+        await automaticStateProgressionService.processWithRetry();
+      } catch (error) {
+        logger.error('Error in automatic state progression job:', error);
+      }
+    });
+
+    // Schedule no-show detection (every 15 minutes) - kept for backward compatibility
     this.scheduleJob('no-show-detection', 15 * 60 * 1000, async () => {
       try {
         await noShowDetectionService.processAutomaticNoShowDetection();
@@ -73,12 +84,38 @@ class Scheduler {
       }
     });
 
+    // Schedule daily metrics reset (daily at midnight)
+    this.scheduleDailyJob('metrics-reset', 0, 0, async () => {
+      try {
+        automaticStateProgressionService.resetDailyMetrics();
+      } catch (error) {
+        logger.error('Error in metrics reset job:', error);
+      }
+    });
+
     // Schedule database maintenance (weekly on Sunday at 3 AM)
     this.scheduleWeeklyJob('database-maintenance', 0, 3, 0, async () => {
       try {
         await this.performDatabaseMaintenance();
       } catch (error) {
         logger.error('Error in database maintenance job:', error);
+      }
+    });
+
+    // Schedule audit trail cleanup (daily at 4 AM, but only run on 1st of month)
+    this.scheduleDailyJob('audit-trail-cleanup', 4, 0, async () => {
+      try {
+        // Only run on the 1st day of the month
+        const today = new Date();
+        if (today.getDate() === 1) {
+          const result = await auditTrailService.cleanupOldEntries(365); // 1 year retention
+          logger.info('Scheduled audit trail cleanup completed', {
+            deletedCount: result.deletedCount,
+            errors: result.errors
+          });
+        }
+      } catch (error) {
+        logger.error('Error in audit trail cleanup job:', error);
       }
     });
 
