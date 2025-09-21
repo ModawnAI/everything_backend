@@ -183,12 +183,36 @@ export const API_TAGS: OpenAPITag[] = [
     description: 'Redis 캐시 관리 API'
   },
   {
+    name: 'CDN',
+    description: 'CDN 이미지 URL 생성 및 최적화 API'
+  },
+  {
+    name: 'Favorites',
+    description: '사용자 즐겨찾기 관리 API'
+  },
+  {
+    name: 'Shop Image Metadata',
+    description: '샵 이미지 메타데이터 관리 API'
+  },
+  {
+    name: 'Shop Contact Methods',
+    description: '샵 연락처 방법 관리 API'
+  },
+  {
     name: '셧다운',
     description: '그레이스풀 셧다운 관리 API'
   },
   {
     name: '건강 체크',
     description: '시스템 상태 확인 API'
+  },
+  {
+    name: 'Shop Categories',
+    description: '샵 카테고리 및 서비스 카탈로그 관리 API'
+  },
+  {
+    name: 'Service Catalog',
+    description: '서비스 카탈로그 및 메타데이터 관리 API'
   }
 ];
 
@@ -778,6 +802,1245 @@ export const DATABASE_SCHEMAS = {
       error: { type: 'string', description: '오류 메시지' }
     },
     required: ['isShuttingDown', 'completedSteps', 'remainingSteps']
+  },
+
+  // Request/Response 스키마들
+  LoginRequest: {
+    type: 'object',
+    description: '로그인 요청',
+    properties: {
+      email: { 
+        type: 'string', 
+        format: 'email', 
+        description: '이메일 주소',
+        example: 'user@example.com'
+      },
+      password: { 
+        type: 'string', 
+        minLength: 8,
+        description: '비밀번호 (최소 8자)',
+        example: 'password123'
+      }
+    },
+    required: ['email', 'password']
+  },
+
+  LoginResponse: {
+    type: 'object',
+    description: '로그인 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      user: { $ref: '#/components/schemas/User' },
+      token: { 
+        type: 'string', 
+        description: 'JWT 액세스 토큰',
+        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+      },
+      refreshToken: { 
+        type: 'string', 
+        description: 'JWT 리프레시 토큰',
+        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+      }
+    },
+    required: ['success', 'user', 'token']
+  },
+
+  PaymentPrepareRequest: {
+    type: 'object',
+    description: '결제 준비 요청',
+    properties: {
+      reservationId: {
+        type: 'string',
+        format: 'uuid',
+        description: '예약 ID',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+      },
+      amount: {
+        type: 'number',
+        minimum: 100,
+        description: '결제 금액 (원)',
+        example: 50000
+      },
+      isDeposit: {
+        type: 'boolean',
+        default: true,
+        description: '예약금 여부',
+        example: true
+      },
+      successUrl: {
+        type: 'string',
+        format: 'uri',
+        description: '결제 성공 시 리다이렉트 URL',
+        example: 'https://app.reviewthing.com/payment/success'
+      },
+      failUrl: {
+        type: 'string',
+        format: 'uri',
+        description: '결제 실패 시 리다이렉트 URL',
+        example: 'https://app.reviewthing.com/payment/fail'
+      }
+    },
+    required: ['reservationId', 'amount']
+  },
+
+  PaymentPrepareResponse: {
+    type: 'object',
+    description: '결제 준비 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          paymentId: {
+            type: 'string',
+            format: 'uuid',
+            description: '내부 결제 ID',
+            example: 'pay_123e4567-e89b-12d3-a456-426614174000'
+          },
+          orderId: {
+            type: 'string',
+            description: 'TossPayments 주문 ID',
+            example: 'order_20240115_123456'
+          },
+          amount: {
+            type: 'number',
+            description: '결제 금액',
+            example: 50000
+          },
+          customerName: {
+            type: 'string',
+            description: '고객명',
+            example: '홍길동'
+          }
+        }
+      }
+    },
+    required: ['success', 'data']
+  },
+
+  ReservationCreateRequest: {
+    type: 'object',
+    description: '예약 생성 요청',
+    properties: {
+      shopId: {
+        type: 'string',
+        format: 'uuid',
+        description: '샵 ID',
+        example: '123e4567-e89b-12d3-a456-426614174000'
+      },
+      serviceIds: {
+        type: 'array',
+        items: {
+          type: 'string',
+          format: 'uuid'
+        },
+        description: '서비스 ID 목록',
+        example: ['service-1', 'service-2']
+      },
+      reservationDate: {
+        type: 'string',
+        format: 'date',
+        description: '예약 날짜',
+        example: '2024-03-15'
+      },
+      reservationTime: {
+        type: 'string',
+        pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$',
+        description: '예약 시간 (HH:MM)',
+        example: '14:30'
+      },
+      specialRequests: {
+        type: 'string',
+        description: '특별 요청사항',
+        example: '알레르기가 있어서 천연 제품 사용 부탁드립니다.'
+      },
+      pointsToUse: {
+        type: 'number',
+        minimum: 0,
+        description: '사용할 포인트',
+        example: 5000
+      }
+    },
+    required: ['shopId', 'serviceIds', 'reservationDate', 'reservationTime']
+  },
+
+  ShopSearchResult: {
+    type: 'object',
+    description: '검색된 샵 정보',
+    properties: {
+      id: { type: 'string', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174000' },
+      name: { type: 'string', example: '네일아트 전문점' },
+      description: { type: 'string', example: '프리미엄 네일아트 서비스를 제공합니다' },
+      address: { type: 'string', example: '서울시 강남구 테헤란로 123' },
+      detailedAddress: { type: 'string', example: '2층 201호' },
+      latitude: { type: 'number', example: 37.5665 },
+      longitude: { type: 'number', example: 126.9780 },
+      distance: { type: 'number', description: '거리 (km)', example: 1.2 },
+      shopType: { 
+        type: 'string', 
+        enum: ['partnered', 'non_partnered'],
+        example: 'partnered' 
+      },
+      shopStatus: { 
+        type: 'string', 
+        enum: ['active', 'inactive', 'pending_approval', 'suspended'],
+        example: 'active' 
+      },
+      mainCategory: { 
+        type: 'string', 
+        enum: ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair'],
+        example: 'nail' 
+      },
+      subCategories: {
+        type: 'array',
+        items: { 
+          type: 'string', 
+          enum: ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair'] 
+        },
+        example: ['nail', 'eyelash']
+      },
+      isFeatured: { type: 'boolean', example: true },
+      featuredUntil: { type: 'string', format: 'date-time', nullable: true },
+      partnershipStartedAt: { type: 'string', format: 'date-time', nullable: true },
+      phoneNumber: { type: 'string', example: '02-1234-5678' },
+      operatingHours: {
+        type: 'object',
+        description: '영업시간 정보',
+        additionalProperties: {
+          type: 'object',
+          properties: {
+            open: { type: 'string', example: '09:00' },
+            close: { type: 'string', example: '21:00' },
+            isOpen: { type: 'boolean', example: true }
+          }
+        }
+      },
+      paymentMethods: {
+        type: 'array',
+        items: { 
+          type: 'string',
+          enum: ['cash', 'card', 'transfer', 'mobile_pay', 'point']
+        },
+        example: ['card', 'mobile_pay']
+      },
+      totalBookings: { type: 'integer', example: 1250 },
+      commissionRate: { type: 'number', example: 10.5 },
+      images: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            imageUrl: { type: 'string', format: 'uri' },
+            altText: { type: 'string' },
+            isPrimary: { type: 'boolean' },
+            displayOrder: { type: 'integer' }
+          }
+        }
+      },
+      services: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            id: { type: 'string', format: 'uuid' },
+            name: { type: 'string' },
+            category: { type: 'string' },
+            priceMin: { type: 'number' },
+            priceMax: { type: 'number' },
+            duration: { type: 'integer' },
+            isAvailable: { type: 'boolean' }
+          }
+        }
+      },
+      createdAt: { type: 'string', format: 'date-time' },
+      updatedAt: { type: 'string', format: 'date-time' }
+    },
+    required: ['id', 'name', 'address', 'latitude', 'longitude', 'shopType', 'shopStatus', 'mainCategory']
+  },
+
+  ShopSearchMetadata: {
+    type: 'object',
+    description: '검색 메타데이터',
+    properties: {
+      query: { type: 'string', example: '네일아트' },
+      filters: {
+        type: 'object',
+        description: '적용된 필터',
+        properties: {
+          category: { type: 'string' },
+          shopType: { type: 'string' },
+          status: { type: 'string' },
+          onlyFeatured: { type: 'boolean' },
+          onlyOpen: { type: 'boolean' },
+          priceRange: {
+            type: 'object',
+            properties: {
+              min: { type: 'number' },
+              max: { type: 'number' }
+            }
+          },
+          rating: {
+            type: 'object',
+            properties: {
+              min: { type: 'number' },
+              max: { type: 'number' }
+            }
+          },
+          location: {
+            type: 'object',
+            properties: {
+              latitude: { type: 'number' },
+              longitude: { type: 'number' },
+              radiusKm: { type: 'number' }
+            }
+          },
+          bounds: {
+            type: 'object',
+            properties: {
+              northEast: {
+                type: 'object',
+                properties: {
+                  latitude: { type: 'number' },
+                  longitude: { type: 'number' }
+                }
+              },
+              southWest: {
+                type: 'object',
+                properties: {
+                  latitude: { type: 'number' },
+                  longitude: { type: 'number' }
+                }
+              }
+            }
+          },
+          sortBy: { type: 'string' },
+          sortOrder: { type: 'string' },
+          limit: { type: 'integer' },
+          offset: { type: 'integer' }
+        }
+      },
+      executionTime: { type: 'number', description: '실행 시간 (ms)', example: 45.2 },
+      searchType: { 
+        type: 'string', 
+        enum: ['text', 'location', 'bounds', 'filter', 'hybrid'],
+        example: 'hybrid' 
+      },
+      sortedBy: { type: 'string', example: 'relevance desc' },
+      cacheMetrics: {
+        type: 'object',
+        description: '캐시 성능 메트릭',
+        properties: {
+          hit: { type: 'boolean', example: true },
+          key: { type: 'string', example: 'shop_search:a1b2c3d4...' },
+          ttl: { type: 'integer', description: 'TTL (초)', example: 600 }
+        },
+        required: ['hit']
+      }
+    },
+    required: ['executionTime', 'searchType', 'sortedBy', 'cacheMetrics']
+  },
+
+  ShopSearchResponse: {
+    type: 'object',
+    description: '샵 검색 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          shops: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/ShopSearchResult' }
+          },
+          totalCount: {
+            type: 'integer',
+            description: '총 검색 결과 수',
+            example: 45
+          },
+          hasMore: {
+            type: 'boolean',
+            description: '더 많은 결과 존재 여부',
+            example: true
+          },
+          currentPage: {
+            type: 'integer',
+            description: '현재 페이지',
+            example: 1
+          },
+          totalPages: {
+            type: 'integer',
+            description: '총 페이지 수',
+            example: 3
+          },
+          searchMetadata: { $ref: '#/components/schemas/ShopSearchMetadata' }
+        },
+        required: ['shops', 'totalCount', 'hasMore', 'currentPage', 'totalPages', 'searchMetadata']
+      },
+      message: {
+        type: 'string',
+        example: '네일아트 검색 결과 45개를 찾았습니다.'
+      }
+    },
+    required: ['success', 'data']
+  },
+
+  ShopService: {
+    type: 'object',
+    description: '샵 서비스 정보',
+    properties: {
+      id: { type: 'string', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174000' },
+      name: { type: 'string', example: '젤네일' },
+      category: { 
+        type: 'string', 
+        enum: ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair'],
+        example: 'nail' 
+      },
+      price_min: { type: 'number', example: 30000 },
+      price_max: { type: 'number', example: 50000 },
+      duration: { type: 'integer', description: '소요 시간 (분)', example: 60 },
+      description: { type: 'string', example: '고품질 젤네일 서비스' },
+      is_available: { type: 'boolean', example: true },
+      display_order: { type: 'integer', example: 1 },
+      created_at: { type: 'string', format: 'date-time' },
+      updated_at: { type: 'string', format: 'date-time' }
+    },
+    required: ['id', 'name', 'category', 'price_min', 'price_max', 'duration', 'is_available']
+  },
+
+  ShopImage: {
+    type: 'object',
+    description: '샵 이미지 정보',
+    properties: {
+      id: { type: 'string', format: 'uuid', example: '123e4567-e89b-12d3-a456-426614174000' },
+      image_url: { type: 'string', format: 'uri', example: 'https://example.com/images/shop1.jpg' },
+      alt_text: { type: 'string', example: '샵 내부 전경' },
+      is_primary: { type: 'boolean', example: true },
+      display_order: { type: 'integer', example: 1 },
+      created_at: { type: 'string', format: 'date-time' }
+    },
+    required: ['id', 'image_url', 'is_primary', 'display_order']
+  },
+
+  TimeSlot: {
+    type: 'object',
+    description: '시간 슬롯',
+    properties: {
+      startTime: {
+        type: 'string',
+        pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$',
+        description: '시작 시간',
+        example: '10:00'
+      },
+      endTime: {
+        type: 'string',
+        pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$',
+        description: '종료 시간',
+        example: '10:30'
+      },
+      available: {
+        type: 'boolean',
+        description: '예약 가능 여부',
+        example: true
+      },
+      capacity: {
+        type: 'integer',
+        minimum: 1,
+        description: '수용 인원',
+        example: 2
+      },
+      booked: {
+        type: 'integer',
+        minimum: 0,
+        description: '예약된 인원',
+        example: 0
+      }
+    },
+    required: ['startTime', 'endTime', 'available']
+  },
+
+  AvailableSlotsResponse: {
+    type: 'object',
+    description: '예약 가능 시간 조회 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          shopId: {
+            type: 'string',
+            format: 'uuid',
+            example: '123e4567-e89b-12d3-a456-426614174000'
+          },
+          date: {
+            type: 'string',
+            format: 'date',
+            example: '2024-03-15'
+          },
+          availableSlots: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/TimeSlot' }
+          },
+          totalSlots: {
+            type: 'integer',
+            description: '총 시간 슬롯 수',
+            example: 16
+          },
+          availableCount: {
+            type: 'integer',
+            description: '예약 가능한 슬롯 수',
+            example: 12
+          }
+        }
+      }
+    },
+    required: ['success', 'data']
+  },
+
+  ErrorResponse: {
+    type: 'object',
+    description: '에러 응답',
+    properties: {
+      success: { type: 'boolean', example: false },
+      error: {
+        type: 'object',
+        properties: {
+          code: {
+            type: 'string',
+            description: '에러 코드',
+            example: 'VALIDATION_ERROR'
+          },
+          message: {
+            type: 'string',
+            description: '에러 메시지',
+            example: '입력 데이터가 유효하지 않습니다.'
+          },
+          details: {
+            type: 'string',
+            description: '상세 에러 정보',
+            example: '필수 필드가 누락되었습니다.'
+          },
+          timestamp: {
+            type: 'string',
+            format: 'date-time',
+            description: '에러 발생 시간',
+            example: '2024-01-15T10:30:00Z'
+          }
+        },
+        required: ['code', 'message']
+      }
+    },
+    required: ['success', 'error']
+  },
+
+  SuccessResponse: {
+    type: 'object',
+    description: '성공 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      message: {
+        type: 'string',
+        description: '성공 메시지',
+        example: '작업이 성공적으로 완료되었습니다.'
+      },
+      data: {
+        type: 'object',
+        description: '응답 데이터 (선택적)'
+      }
+    },
+    required: ['success']
+  },
+
+  // User Management Schemas
+  UserProfile: {
+    type: 'object',
+    description: '사용자 프로필 정보',
+    properties: {
+      id: { type: 'string', format: 'uuid', description: '사용자 고유 ID' },
+      email: { type: 'string', format: 'email', description: '이메일 주소' },
+      name: { type: 'string', description: '사용자 이름' },
+      nickname: { type: 'string', description: '닉네임' },
+      phoneNumber: { type: 'string', description: '전화번호' },
+      phoneVerified: { type: 'boolean', description: '전화번호 인증 여부' },
+      birthDate: { type: 'string', format: 'date', description: '생년월일' },
+      gender: { 
+        type: 'string', 
+        enum: ['male', 'female', 'other', 'prefer_not_to_say'],
+        description: '성별'
+      },
+      profileImageUrl: { type: 'string', description: '프로필 이미지 URL' },
+      userRole: { 
+        type: 'string', 
+        enum: ['user', 'shop_owner', 'admin', 'influencer'],
+        description: '사용자 역할'
+      },
+      userStatus: { 
+        type: 'string', 
+        enum: ['active', 'inactive', 'suspended', 'deleted'],
+        description: '계정 상태'
+      },
+      isInfluencer: { type: 'boolean', description: '인플루언서 여부' },
+      referralCode: { type: 'string', description: '개인 추천 코드' },
+      totalPoints: { type: 'integer', description: '총 포인트' },
+      availablePoints: { type: 'integer', description: '사용 가능한 포인트' },
+      marketingConsent: { type: 'boolean', description: '마케팅 정보 수신 동의' },
+      createdAt: { type: 'string', format: 'date-time', description: '가입일' },
+      updatedAt: { type: 'string', format: 'date-time', description: '수정일' }
+    },
+    required: ['id', 'name', 'userRole', 'userStatus']
+  },
+
+  UserSettings: {
+    type: 'object',
+    description: '사용자 설정 정보',
+    properties: {
+      userId: { type: 'string', format: 'uuid', description: '사용자 ID' },
+      pushNotificationsEnabled: { type: 'boolean', description: '푸시 알림 활성화' },
+      reservationNotifications: { type: 'boolean', description: '예약 관련 알림' },
+      eventNotifications: { type: 'boolean', description: '이벤트 알림' },
+      marketingNotifications: { type: 'boolean', description: '마케팅 알림' },
+      locationTrackingEnabled: { type: 'boolean', description: '위치 추적 허용' },
+      languagePreference: { 
+        type: 'string', 
+        enum: ['ko', 'en'],
+        default: 'ko',
+        description: '언어 설정'
+      },
+      currencyPreference: { 
+        type: 'string', 
+        enum: ['KRW', 'USD'],
+        default: 'KRW',
+        description: '통화 설정'
+      },
+      themePreference: { 
+        type: 'string', 
+        enum: ['light', 'dark', 'auto'],
+        default: 'light',
+        description: '테마 설정'
+      },
+      createdAt: { type: 'string', format: 'date-time', description: '생성일' },
+      updatedAt: { type: 'string', format: 'date-time', description: '수정일' }
+    },
+    required: ['userId']
+  },
+
+  UserStatistics: {
+    type: 'object',
+    description: '사용자 통계 정보',
+    properties: {
+      totalUsers: { type: 'integer', description: '총 사용자 수' },
+      activeUsers: { type: 'integer', description: '활성 사용자 수' },
+      newUsersToday: { type: 'integer', description: '오늘 신규 가입자 수' },
+      newUsersThisWeek: { type: 'integer', description: '이번 주 신규 가입자 수' },
+      newUsersThisMonth: { type: 'integer', description: '이번 달 신규 가입자 수' },
+      usersByRole: {
+        type: 'object',
+        properties: {
+          user: { type: 'integer' },
+          shop_owner: { type: 'integer' },
+          admin: { type: 'integer' },
+          influencer: { type: 'integer' }
+        }
+      },
+      usersByStatus: {
+        type: 'object',
+        properties: {
+          active: { type: 'integer' },
+          inactive: { type: 'integer' },
+          suspended: { type: 'integer' },
+          deleted: { type: 'integer' }
+        }
+      },
+      averagePointsPerUser: { type: 'number', description: '사용자당 평균 포인트' },
+      totalReferrals: { type: 'integer', description: '총 추천 수' },
+      phoneVerificationRate: { type: 'number', description: '전화번호 인증률 (%)' }
+    }
+  },
+
+  NotificationSettings: {
+    type: 'object',
+    description: '알림 설정 정보',
+    properties: {
+      userId: { type: 'string', format: 'uuid', description: '사용자 ID' },
+      pushEnabled: { type: 'boolean', description: '푸시 알림 활성화' },
+      emailEnabled: { type: 'boolean', description: '이메일 알림 활성화' },
+      smsEnabled: { type: 'boolean', description: 'SMS 알림 활성화' },
+      reservationUpdates: { type: 'boolean', description: '예약 업데이트 알림' },
+      paymentNotifications: { type: 'boolean', description: '결제 관련 알림' },
+      promotionalMessages: { type: 'boolean', description: '프로모션 메시지' },
+      systemAlerts: { type: 'boolean', description: '시스템 알림' },
+      userManagementAlerts: { type: 'boolean', description: '사용자 관리 알림' },
+      securityAlerts: { type: 'boolean', description: '보안 알림' },
+      profileUpdateConfirmations: { type: 'boolean', description: '프로필 업데이트 확인' },
+      adminActionNotifications: { type: 'boolean', description: '관리자 액션 알림' },
+      updatedAt: { type: 'string', format: 'date-time', description: '수정일' }
+    },
+    required: ['userId']
+  },
+
+  // CDN 관련 스키마
+  CDNResult: {
+    type: 'object',
+    description: 'CDN URL 결과',
+    properties: {
+      url: { type: 'string', format: 'uri', description: '원본 URL' },
+      cdnUrl: { type: 'string', format: 'uri', description: 'CDN URL' },
+      transformations: { type: 'object', description: '이미지 변환 옵션' },
+      cacheHeaders: { type: 'object', description: '캐시 헤더' },
+      expiresAt: { type: 'string', format: 'date-time', description: '만료 시간' }
+    },
+    required: ['url', 'cdnUrl', 'cacheHeaders']
+  },
+
+  CDNConfig: {
+    type: 'object',
+    description: 'CDN 설정',
+    properties: {
+      enabled: { type: 'boolean', description: 'CDN 활성화 여부' },
+      baseUrl: { type: 'string', format: 'uri', description: 'CDN 기본 URL' },
+      fallbackUrl: { type: 'string', format: 'uri', description: '폴백 URL' },
+      cacheHeaders: {
+        type: 'object',
+        properties: {
+          maxAge: { type: 'integer', description: '최대 캐시 시간 (초)' },
+          sMaxAge: { type: 'integer', description: '공유 캐시 최대 시간 (초)' },
+          staleWhileRevalidate: { type: 'integer', description: '재검증 중 오래된 캐시 허용 시간 (초)' }
+        }
+      },
+      imageTransformation: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean', description: '이미지 변환 활성화' },
+          quality: { type: 'integer', minimum: 1, maximum: 100, description: '이미지 품질' },
+          format: { type: 'string', enum: ['auto', 'webp', 'jpeg', 'png'], description: '이미지 포맷' },
+          progressive: { type: 'boolean', description: '프로그레시브 JPEG 사용' }
+        }
+      },
+      onDemandResizing: {
+        type: 'object',
+        properties: {
+          enabled: { type: 'boolean', description: '온디맨드 리사이징 활성화' },
+          maxWidth: { type: 'integer', description: '최대 너비' },
+          maxHeight: { type: 'integer', description: '최대 높이' },
+          quality: { type: 'integer', minimum: 1, maximum: 100, description: '리사이징 품질' }
+        }
+      }
+    },
+    required: ['enabled', 'baseUrl', 'fallbackUrl']
+  },
+
+  ImageTransformationOptions: {
+    type: 'object',
+    description: '이미지 변환 옵션',
+    properties: {
+      width: { type: 'integer', minimum: 1, maximum: 4000, description: '너비' },
+      height: { type: 'integer', minimum: 1, maximum: 4000, description: '높이' },
+      quality: { type: 'integer', minimum: 1, maximum: 100, description: '품질' },
+      format: { type: 'string', enum: ['webp', 'jpeg', 'png', 'auto'], description: '포맷' },
+      fit: { type: 'string', enum: ['cover', 'contain', 'fill', 'inside', 'outside'], description: '피팅 방식' },
+      position: { type: 'string', description: '위치' },
+      background: { type: 'string', description: '배경색' },
+      blur: { type: 'number', minimum: 0, maximum: 100, description: '블러 강도' },
+      sharpen: { type: 'number', minimum: 0, maximum: 100, description: '샤프닝 강도' },
+      brightness: { type: 'number', minimum: -100, maximum: 100, description: '밝기' },
+      contrast: { type: 'number', minimum: -100, maximum: 100, description: '대비' },
+      saturation: { type: 'number', minimum: -100, maximum: 100, description: '채도' },
+      hue: { type: 'number', minimum: -180, maximum: 180, description: '색조' },
+      gamma: { type: 'number', minimum: 0.1, maximum: 3, description: '감마' },
+      progressive: { type: 'boolean', description: '프로그레시브 JPEG' },
+      stripMetadata: { type: 'boolean', description: '메타데이터 제거' }
+    }
+  },
+
+  ResponsiveImageUrls: {
+    type: 'object',
+    description: '반응형 이미지 URL',
+    properties: {
+      srcSet: { type: 'string', description: 'srcset 속성 값' },
+      sizes: { type: 'string', description: 'sizes 속성 값' },
+      urls: { type: 'object', description: '각 브레이크포인트별 URL' }
+    },
+    required: ['srcSet', 'sizes', 'urls']
+  },
+
+  WebPUrls: {
+    type: 'object',
+    description: 'WebP URL과 폴백 URL',
+    properties: {
+      webp: { $ref: '#/components/schemas/CDNResult' },
+      fallback: { $ref: '#/components/schemas/CDNResult' }
+    },
+    required: ['webp', 'fallback']
+  },
+
+  OptimizedCDNUrls: {
+    type: 'object',
+    description: '최적화된 CDN URL',
+    properties: {
+      original: { $ref: '#/components/schemas/CDNResult' },
+      thumbnail: { $ref: '#/components/schemas/CDNResult' },
+      medium: { $ref: '#/components/schemas/CDNResult' },
+      large: { $ref: '#/components/schemas/CDNResult' },
+      webp: {
+        type: 'object',
+        properties: {
+          original: { $ref: '#/components/schemas/CDNResult' },
+          thumbnail: { $ref: '#/components/schemas/CDNResult' },
+          medium: { $ref: '#/components/schemas/CDNResult' },
+          large: { $ref: '#/components/schemas/CDNResult' }
+        }
+      },
+      responsive: { $ref: '#/components/schemas/ResponsiveImageUrls' }
+    },
+    required: ['original', 'thumbnail', 'medium', 'large']
+  },
+
+  // 즐겨찾기 관련 스키마
+  UserFavorites: {
+    type: 'object',
+    description: '사용자 즐겨찾기 정보',
+    properties: {
+      id: { type: 'string', format: 'uuid', description: '즐겨찾기 고유 ID' },
+      user_id: { type: 'string', format: 'uuid', description: '사용자 ID' },
+      shop_id: { type: 'string', format: 'uuid', description: '샵 ID' },
+      created_at: { type: 'string', format: 'date-time', description: '즐겨찾기 추가 시간' }
+    },
+    required: ['id', 'user_id', 'shop_id', 'created_at']
+  },
+
+  FavoriteShop: {
+    type: 'object',
+    description: '즐겨찾기한 샵 정보',
+    properties: {
+      id: { type: 'string', format: 'uuid', description: '즐겨찾기 고유 ID' },
+      shopId: { type: 'string', format: 'uuid', description: '샵 ID' },
+      shop: {
+        $ref: '#/components/schemas/Shop'
+      },
+      addedAt: { type: 'string', format: 'date-time', description: '즐겨찾기 추가 시간' }
+    },
+    required: ['id', 'shopId', 'shop', 'addedAt']
+  },
+
+  FavoritesStats: {
+    type: 'object',
+    description: '즐겨찾기 통계 정보',
+    properties: {
+      totalFavorites: { type: 'integer', description: '총 즐겨찾기 수' },
+      favoriteCategories: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            category: { type: 'string', description: '카테고리명' },
+            count: { type: 'integer', description: '해당 카테고리의 즐겨찾기 수' }
+          },
+          required: ['category', 'count']
+        },
+        description: '카테고리별 즐겨찾기 통계'
+      },
+      recentlyAdded: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            shopId: { type: 'string', format: 'uuid', description: '샵 ID' },
+            shopName: { type: 'string', description: '샵 이름' },
+            addedAt: { type: 'string', format: 'date-time', description: '즐겨찾기 추가 시간' }
+          },
+          required: ['shopId', 'shopName', 'addedAt']
+        },
+        description: '최근 추가된 즐겨찾기 목록'
+      }
+    },
+    required: ['totalFavorites', 'favoriteCategories', 'recentlyAdded']
+  },
+
+  BulkFavoritesRequest: {
+    type: 'object',
+    description: '대량 즐겨찾기 요청',
+    properties: {
+      shopIds: {
+        type: 'array',
+        items: { type: 'string', format: 'uuid' },
+        minItems: 1,
+        maxItems: 100,
+        description: '샵 ID 배열'
+      },
+      action: {
+        type: 'string',
+        enum: ['add', 'remove'],
+        description: '수행할 작업 (추가 또는 제거)'
+      }
+    },
+    required: ['shopIds', 'action']
+  },
+
+  BulkFavoritesResponse: {
+    type: 'object',
+    description: '대량 즐겨찾기 응답',
+    properties: {
+      added: {
+        type: 'array',
+        items: { type: 'string', format: 'uuid' },
+        description: '추가된 샵 ID 배열'
+      },
+      removed: {
+        type: 'array',
+        items: { type: 'string', format: 'uuid' },
+        description: '제거된 샵 ID 배열'
+      },
+      failed: {
+        type: 'array',
+        items: {
+          type: 'object',
+          properties: {
+            shopId: { type: 'string', format: 'uuid', description: '샵 ID' },
+            reason: { type: 'string', description: '실패 사유' }
+          },
+          required: ['shopId', 'reason']
+        },
+        description: '실패한 작업 목록'
+      },
+      summary: {
+        type: 'object',
+        properties: {
+          total: { type: 'integer', description: '총 요청 수' },
+          successful: { type: 'integer', description: '성공한 작업 수' },
+          failed: { type: 'integer', description: '실패한 작업 수' }
+        },
+        required: ['total', 'successful', 'failed']
+      }
+    },
+    required: ['added', 'removed', 'failed', 'summary']
+  },
+
+  // Shop Contact Methods Schemas
+  ContactMethod: {
+    type: 'object',
+    description: '연락처 방법 정보',
+    properties: {
+      method_type: {
+        type: 'string',
+        enum: ['phone', 'email', 'kakao_channel', 'instagram', 'facebook', 'website', 'other'],
+        description: '연락처 방법 유형'
+      },
+      value: {
+        type: 'string',
+        description: '연락처 정보 (전화번호, 이메일, URL 등)'
+      },
+      description: {
+        type: 'string',
+        maxLength: 255,
+        description: '연락처 방법에 대한 선택적 설명'
+      },
+      is_primary: {
+        type: 'boolean',
+        description: '해당 유형의 주요 연락처 방법인지 여부'
+      },
+      display_order: {
+        type: 'integer',
+        minimum: 0,
+        description: '연락처 방법이 표시되어야 하는 순서'
+      },
+      is_active: {
+        type: 'boolean',
+        description: '연락처 방법이 현재 활성화되어 있는지 여부'
+      }
+    },
+    required: ['method_type', 'value']
+  },
+
+  ShopContactMethod: {
+    type: 'object',
+    description: '샵 연락처 방법 정보',
+    properties: {
+      id: {
+        type: 'string',
+        format: 'uuid',
+        description: '연락처 방법 고유 ID'
+      },
+      shop_id: {
+        type: 'string',
+        format: 'uuid',
+        description: '이 연락처 방법이 속한 샵의 ID'
+      },
+      method_type: {
+        type: 'string',
+        enum: ['phone', 'email', 'kakao_channel', 'instagram', 'facebook', 'website', 'other'],
+        description: '연락처 방법 유형'
+      },
+      value: {
+        type: 'string',
+        description: '연락처 정보'
+      },
+      description: {
+        type: 'string',
+        description: '연락처 방법에 대한 선택적 설명'
+      },
+      is_primary: {
+        type: 'boolean',
+        description: '해당 유형의 주요 연락처 방법인지 여부'
+      },
+      display_order: {
+        type: 'integer',
+        description: '표시 순서'
+      },
+      is_active: {
+        type: 'boolean',
+        description: '연락처 방법이 현재 활성화되어 있는지 여부'
+      },
+      created_at: {
+        type: 'string',
+        format: 'date-time',
+        description: '연락처 방법이 생성된 시점'
+      },
+      updated_at: {
+        type: 'string',
+        format: 'date-time',
+        description: '연락처 방법이 마지막으로 업데이트된 시점'
+      }
+    },
+    required: ['id', 'shop_id', 'method_type', 'value', 'is_primary', 'display_order', 'is_active', 'created_at', 'updated_at']
+  },
+
+  ContactMethodsUpdateRequest: {
+    type: 'object',
+    description: '샵 연락처 방법 업데이트 요청',
+    required: ['contactMethods'],
+    properties: {
+      contactMethods: {
+        type: 'array',
+        items: {
+          $ref: '#/components/schemas/ContactMethod'
+        },
+        description: '업데이트할 연락처 방법 배열'
+      }
+    }
+  },
+
+  ContactMethodsResponse: {
+    type: 'object',
+    description: '샵 연락처 방법 응답',
+    properties: {
+      success: {
+        type: 'boolean',
+        description: '요청이 성공했는지 여부'
+      },
+      message: {
+        type: 'string',
+        description: '성공 또는 오류 메시지'
+      },
+      data: {
+        type: 'object',
+        properties: {
+          contactMethods: {
+            type: 'array',
+            items: {
+              $ref: '#/components/schemas/ShopContactMethod'
+            },
+            description: '연락처 방법 배열'
+          }
+        }
+      }
+    },
+    required: ['success', 'message', 'data']
+  },
+
+  // Shop Categories 관련 스키마
+  CategoryMetadata: {
+    type: 'object',
+    description: '카테고리 메타데이터',
+    properties: {
+      id: { 
+        type: 'string', 
+        enum: ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair'],
+        description: '카테고리 ID' 
+      },
+      displayName: { type: 'string', description: '표시 이름' },
+      description: { type: 'string', description: '카테고리 설명' },
+      icon: { type: 'string', description: '아이콘 이모지' },
+      color: { type: 'string', description: '카테고리 색상' },
+      subcategories: {
+        type: 'array',
+        items: { 
+          type: 'string',
+          enum: ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair']
+        },
+        description: '하위 카테고리 목록'
+      },
+      isActive: { type: 'boolean', description: '활성 상태' },
+      sortOrder: { type: 'integer', description: '정렬 순서' },
+      serviceTypes: {
+        type: 'array',
+        items: { $ref: '#/components/schemas/ServiceTypeInfo' },
+        description: '서비스 타입 목록'
+      }
+    },
+    required: ['id', 'displayName', 'description', 'isActive', 'sortOrder', 'serviceTypes']
+  },
+
+  ServiceTypeInfo: {
+    type: 'object',
+    description: '서비스 타입 정보',
+    properties: {
+      id: { type: 'string', description: '서비스 타입 ID' },
+      name: { type: 'string', description: '서비스 이름' },
+      description: { type: 'string', description: '서비스 설명' },
+      priceRange: {
+        type: 'object',
+        description: '가격 범위',
+        properties: {
+          min: { type: 'number', description: '최소 가격' },
+          max: { type: 'number', description: '최대 가격' }
+        },
+        required: ['min', 'max']
+      },
+      durationMinutes: { type: 'integer', description: '소요 시간 (분)' },
+      isPopular: { type: 'boolean', description: '인기 서비스 여부' },
+      requirements: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '서비스 요구사항'
+      },
+      benefits: {
+        type: 'array',
+        items: { type: 'string' },
+        description: '서비스 혜택'
+      }
+    },
+    required: ['id', 'name', 'description', 'priceRange', 'durationMinutes', 'isPopular']
+  },
+
+  CategoriesResponse: {
+    type: 'object',
+    description: '카테고리 목록 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          categories: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/CategoryMetadata' }
+          },
+          total: { type: 'integer', description: '총 카테고리 수' },
+          metadata: {
+            type: 'object',
+            properties: {
+              includeInactive: { type: 'boolean' },
+              withServiceTypes: { type: 'boolean' },
+              categoryFilter: { type: 'string', nullable: true }
+            }
+          }
+        },
+        required: ['categories', 'total', 'metadata']
+      }
+    },
+    required: ['success', 'data']
+  },
+
+  CategoryDetailsResponse: {
+    type: 'object',
+    description: '카테고리 상세 정보 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          category: { $ref: '#/components/schemas/CategoryMetadata' }
+        },
+        required: ['category']
+      }
+    },
+    required: ['success', 'data']
+  },
+
+  ServiceTypesResponse: {
+    type: 'object',
+    description: '서비스 타입 목록 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          categoryId: { type: 'string' },
+          serviceTypes: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/ServiceTypeInfo' }
+          },
+          total: { type: 'integer' }
+        },
+        required: ['categoryId', 'serviceTypes', 'total']
+      }
+    },
+    required: ['success', 'data']
+  },
+
+  CategorySearchResponse: {
+    type: 'object',
+    description: '카테고리 검색 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          query: { type: 'string' },
+          results: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                category: { $ref: '#/components/schemas/CategoryMetadata' },
+                serviceTypes: {
+                  type: 'array',
+                  items: { $ref: '#/components/schemas/ServiceTypeInfo' }
+                },
+                matchType: { 
+                  type: 'string',
+                  enum: ['category', 'service']
+                }
+              }
+            }
+          },
+          total: { type: 'integer' }
+        },
+        required: ['query', 'results', 'total']
+      }
+    },
+    required: ['success', 'data']
+  },
+
+  PopularServicesResponse: {
+    type: 'object',
+    description: '인기 서비스 목록 응답',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          services: {
+            type: 'array',
+            items: {
+              allOf: [
+                { $ref: '#/components/schemas/ServiceTypeInfo' },
+                {
+                  type: 'object',
+                  properties: {
+                    categoryId: { type: 'string' }
+                  },
+                  required: ['categoryId']
+                }
+              ]
+            }
+          },
+          total: { type: 'integer' },
+          limit: { type: 'integer' }
+        },
+        required: ['services', 'total', 'limit']
+      }
+    },
+    required: ['success', 'data']
   }
 };
 
@@ -800,7 +2063,86 @@ export const createOpenAPIDocument = (): any => ({
       bearerAuth: []
     }
   ],
-  paths: {} // Empty paths object for compatibility
+  paths: {
+    // Admin User Management API Endpoints
+    '/api/admin/users': {
+      get: {
+        tags: ['관리자'],
+        summary: '사용자 목록 조회 (고급 검색)',
+        description: '관리자용 사용자 목록을 고급 검색 및 필터링 옵션과 함께 조회합니다.',
+        security: [{ bearerAuth: [] }],
+        parameters: [
+          {
+            name: 'search',
+            in: 'query',
+            description: '이름, 이메일, 전화번호로 검색',
+            schema: { type: 'string' }
+          },
+          {
+            name: 'role',
+            in: 'query',
+            description: '사용자 역할 필터',
+            schema: { 
+              type: 'string', 
+              enum: ['user', 'shop_owner', 'admin', 'influencer'] 
+            }
+          },
+          {
+            name: 'status',
+            in: 'query',
+            description: '계정 상태 필터',
+            schema: { 
+              type: 'string', 
+              enum: ['active', 'inactive', 'suspended', 'deleted'] 
+            }
+          },
+          {
+            name: 'page',
+            in: 'query',
+            description: '페이지 번호',
+            schema: { type: 'integer', minimum: 1, default: 1 }
+          },
+          {
+            name: 'limit',
+            in: 'query',
+            description: '페이지당 항목 수',
+            schema: { type: 'integer', minimum: 1, maximum: 100, default: 20 }
+          }
+        ],
+        responses: {
+          '200': {
+            description: '사용자 목록 조회 성공',
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    success: { type: 'boolean', example: true },
+                    data: {
+                      type: 'object',
+                      properties: {
+                        users: {
+                          type: 'array',
+                          items: { $ref: '#/components/schemas/User' }
+                        },
+                        totalCount: { type: 'integer', example: 150 },
+                        hasMore: { type: 'boolean', example: true },
+                        currentPage: { type: 'integer', example: 1 },
+                        totalPages: { type: 'integer', example: 8 }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          '401': { $ref: '#/components/responses/401' },
+          '403': { $ref: '#/components/responses/403' },
+          '500': { $ref: '#/components/responses/500' }
+        }
+      }
+    }
+  } // End of paths
 });
 
 /**

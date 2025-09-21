@@ -572,6 +572,95 @@ router.get('/:id',
   }
 );
 
+/**
+ * @swagger
+ * /api/shops/{id}/contact-info:
+ *   get:
+ *     summary: Get public contact information for a shop
+ *     description: Retrieve public contact information for a specific shop including phone, email, social media, etc.
+ *     tags: [Shops]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Shop ID
+ *     responses:
+ *       200:
+ *         description: Public contact information retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shopId:
+ *                       type: string
+ *                       format: uuid
+ *                     contactMethods:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           method_type:
+ *                             type: string
+ *                             enum: [phone, email, kakao_channel, instagram, facebook, website, other]
+ *                           value:
+ *                             type: string
+ *                           description:
+ *                             type: string
+ *                           display_order:
+ *                             type: integer
+ *       400:
+ *         description: Invalid shop ID
+ *       404:
+ *         description: Shop not found
+ *       429:
+ *         description: Rate limit exceeded
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/:id/contact-info',
+  rateLimit({
+    config: {
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 60, // Limit each IP to 60 requests per windowMs for public contact info
+      message: {
+        success: false,
+        error: 'RATE_LIMIT_EXCEEDED',
+        message: 'Too many contact info requests, please try again later'
+      },
+      enableHeaders: true
+    }
+  }),
+  async (req, res) => {
+    try {
+      // Import the shop contact methods controller
+      const { shopContactMethodsController } = await import('../controllers/shop-contact-methods.controller');
+      await shopContactMethodsController.getPublicShopContactInfo(req, res);
+    } catch (error) {
+      logger.error('Error in shop contact info route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId: req.params.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'INTERNAL_ERROR',
+        message: 'An error occurred while retrieving contact information'
+      });
+    }
+  }
+);
+
 // Error handling middleware for shop routes
 router.use((error: any, req: any, res: any, next: any) => {
   logger.error('Unhandled error in shop routes', {

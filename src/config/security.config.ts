@@ -97,8 +97,8 @@ const createCSPDirectives = (environment: 'development' | 'staging' | 'productio
     'form-action': ["'self'"],
     'frame-ancestors': ["'none'"],
     'base-uri': ["'self'"],
-    'upgrade-insecure-requests': environment === 'production',
-    'block-all-mixed-content': environment === 'production'
+    ...(environment === 'production' ? { 'upgrade-insecure-requests': true } : {}),
+    ...(environment === 'production' ? { 'block-all-mixed-content': true } : {})
   };
 
   // Production-specific hardening
@@ -107,6 +107,17 @@ const createCSPDirectives = (environment: 'development' | 'staging' | 'productio
     baseDirectives['require-sri-for'] = ['script', 'style'];
     baseDirectives['trusted-types'] = ['default'];
     baseDirectives['require-trusted-types-for'] = ["'script'"];
+    // Enhanced XSS protection
+    baseDirectives['script-src-attr'] = ["'none'"];
+    baseDirectives['script-src-elem'] = ["'self'", 'https://cdn.jsdelivr.net'];
+    baseDirectives['style-src-attr'] = ["'self'", "'unsafe-inline'"];
+    baseDirectives['style-src-elem'] = ["'self'", 'https://fonts.googleapis.com'];
+    // Additional security directives
+    baseDirectives['connect-src'] = ["'self'", 'https://*.supabase.co', 'wss://*.supabase.co'];
+    baseDirectives['frame-ancestors'] = ["'none'"];
+    baseDirectives['object-src'] = ["'none'"];
+    baseDirectives['base-uri'] = ["'self'"];
+    baseDirectives['form-action'] = ["'self'"];
   }
 
   return baseDirectives;
@@ -166,6 +177,43 @@ export const PERMISSIONS_POLICY: PermissionsPolicyDirectives = {
   usb: ["'none'"],
   'web-share': ["'self'"],
   'xr-spatial-tracking': ["'none'"]
+};
+
+/**
+ * CSRF Configuration
+ */
+const createCSRFConfig = (environment: 'development' | 'staging' | 'production') => {
+  const baseConfig = {
+    enabled: true,
+    secret: process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production',
+    saltLength: 12,
+    secretLength: 24,
+    cookie: {
+      name: 'csrf-token',
+      secure: environment === 'production',
+      httpOnly: true,
+      sameSite: 'strict' as const,
+      maxAge: 3600000 // 1 hour
+    },
+    // Enhanced CSRF protection
+    tokenLength: 32,
+    algorithm: 'sha256',
+    expiresIn: 3600000, // 1 hour
+    ignoreMethods: ['GET', 'HEAD', 'OPTIONS'],
+    skipSuccessfulRequests: false,
+    skipFailedRequests: false,
+    // Additional security options
+    whitelist: environment === 'development' ? ['/api/health', '/api/security/csp-report'] : [],
+    blacklist: [],
+    // Rate limiting for CSRF token generation
+    rateLimit: {
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      max: 100, // 100 requests per window
+      skipSuccessfulRequests: true
+    }
+  };
+
+  return baseConfig;
 };
 
 /**
@@ -235,6 +283,7 @@ const DEVELOPMENT_CONFIG: SecurityHeadersConfig = {
     useDefaults: false
   },
   cors: createCORSConfig('development'),
+  csrf: createCSRFConfig('development'),
   hsts: createHSTSConfig('development'),
   frameOptions: 'SAMEORIGIN',
   noSniff: true,
@@ -266,6 +315,7 @@ const STAGING_CONFIG: SecurityHeadersConfig = {
     reportUri: '/api/security/csp-report'
   },
   cors: createCORSConfig('staging'),
+  csrf: createCSRFConfig('staging'),
   hsts: createHSTSConfig('staging'),
   frameOptions: 'DENY',
   noSniff: true,
@@ -326,6 +376,7 @@ const PRODUCTION_CONFIG: SecurityHeadersConfig = {
     reportUri: '/api/security/csp-report'
   },
   cors: createCORSConfig('production'),
+  csrf: createCSRFConfig('production'),
   hsts: {
     maxAge: 31536000, // 1 year - within optimal range
     includeSubDomains: true,

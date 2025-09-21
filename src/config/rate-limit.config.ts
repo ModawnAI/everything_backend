@@ -105,9 +105,9 @@ export const USER_ROLE_LIMITS: UserRoleLimits = {
  * Stricter limits for sensitive operations
  */
 export const ENDPOINT_LIMITS: EndpointLimits = {
-  // Authentication endpoints - relaxed limits for development/testing
+  // Authentication endpoints - strict limits for security
   login: createBaseConfig(
-    1000,   // 1000 login attempts per 15 minutes (effectively unlimited for testing)
+    5,      // 5 login attempts per 15 minutes
     TIME_WINDOWS.FIFTEEN_MINUTES,
     'fixed_window',
     'ip'
@@ -136,7 +136,7 @@ export const ENDPOINT_LIMITS: EndpointLimits = {
 
   // Payment operations - strict limits for financial security
   payment_process: createBaseConfig(
-    10,  // 10 payment attempts per hour
+    3,   // 3 payment attempts per hour
     TIME_WINDOWS.ONE_HOUR,
     'sliding_window',
     'user'
@@ -190,7 +190,7 @@ export const REDIS_RATE_LIMIT_CONFIG: RedisRateLimitConfig = {
   host: process.env.REDIS_HOST || 'localhost',
   port: parseInt(process.env.REDIS_PORT || '6379'),
   ...(process.env.REDIS_PASSWORD && { password: process.env.REDIS_PASSWORD }),
-  db: parseInt(process.env.REDIS_RATE_LIMIT_DB || '1'), // Separate DB for rate limiting
+  db: parseInt(process.env.REDIS_RATE_LIMIT_DB || '0'), // Use database 0 for rate limiting
   keyPrefix: 'rl:', // Rate limit key prefix
   maxRetriesPerRequest: 3,
   connectTimeout: 5000,

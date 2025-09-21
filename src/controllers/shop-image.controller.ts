@@ -85,6 +85,7 @@ export class ShopImageController {
         shopId,
         file.buffer,
         file.originalname,
+        file.mimetype,
         uploadOptions
       );
 

@@ -5,10 +5,11 @@
  */
 
 import Joi from 'joi';
+import { securitySafeStringSchema, passwordStrengthSchema } from './security.validators';
 
 // Profile update validation schema
 export const profileUpdateSchema = Joi.object({
-  name: Joi.string()
+  name: securitySafeStringSchema
     .min(1)
     .max(100)
     .trim()
@@ -19,7 +20,7 @@ export const profileUpdateSchema = Joi.object({
       'string.empty': '이름을 입력해주세요.'
     }),
 
-  nickname: Joi.string()
+  nickname: securitySafeStringSchema
     .max(50)
     .trim()
     .optional()
@@ -138,11 +139,9 @@ export const accountDeletionSchema = Joi.object({
       'string.max': '탈퇴 사유는 최대 500자까지 입력 가능합니다.'
     }),
 
-  password: Joi.string()
-    .min(6)
+  password: passwordStrengthSchema
     .optional()
     .messages({
-      'string.min': '비밀번호는 최소 6자 이상이어야 합니다.',
       'string.empty': '비밀번호를 입력해주세요.'
     })
 });

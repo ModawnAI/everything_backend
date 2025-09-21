@@ -18,7 +18,7 @@ const envSchema = Joi.object({
 
   // Authentication & Security
   JWT_SECRET: Joi.string().min(32).required(),
-  JWT_EXPIRES_IN: Joi.string().default('7d'),
+  JWT_EXPIRES_IN: Joi.string().default('24h'),
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('30d'),
   BCRYPT_SALT_ROUNDS: Joi.number().default(12),
 
@@ -58,6 +58,21 @@ const envSchema = Joi.object({
   SUPABASE_STORAGE_BUCKET: Joi.string().default('shop-images'),
   MAX_FILE_SIZE: Joi.number().default(5242880), // 5MB
   ALLOWED_FILE_TYPES: Joi.string().default('image/jpeg,image/png,image/webp'),
+  
+  // CDN Configuration
+  CDN_ENABLED: Joi.boolean().default(false),
+  CDN_BASE_URL: Joi.string().uri().optional(),
+  CDN_CACHE_MAX_AGE: Joi.number().default(31536000), // 1 year
+  CDN_CACHE_S_MAX_AGE: Joi.number().default(86400), // 1 day
+  CDN_STALE_WHILE_REVALIDATE: Joi.number().default(604800), // 1 week
+  CDN_IMAGE_TRANSFORMATION: Joi.boolean().default(true),
+  CDN_IMAGE_QUALITY: Joi.number().min(1).max(100).default(85),
+  CDN_IMAGE_FORMAT: Joi.string().valid('auto', 'webp', 'jpeg', 'png').default('auto'),
+  CDN_IMAGE_PROGRESSIVE: Joi.boolean().default(true),
+  CDN_ON_DEMAND_RESIZING: Joi.boolean().default(true),
+  CDN_MAX_WIDTH: Joi.number().default(2048),
+  CDN_MAX_HEIGHT: Joi.number().default(2048),
+  CDN_RESIZE_QUALITY: Joi.number().min(1).max(100).default(80),
 
   // Email & SMS Configuration
   SMTP_HOST: Joi.string().optional(),
@@ -183,6 +198,29 @@ export const config = {
     bucket: envVars.SUPABASE_STORAGE_BUCKET as string,
     maxFileSize: envVars.MAX_FILE_SIZE as number,
     allowedFileTypes: (envVars.ALLOWED_FILE_TYPES as string).split(','),
+  },
+
+  cdn: {
+    enabled: envVars.CDN_ENABLED as boolean,
+    baseUrl: envVars.CDN_BASE_URL as string,
+    fallbackUrl: envVars.SUPABASE_URL as string,
+    cacheHeaders: {
+      maxAge: envVars.CDN_CACHE_MAX_AGE as number,
+      sMaxAge: envVars.CDN_CACHE_S_MAX_AGE as number,
+      staleWhileRevalidate: envVars.CDN_STALE_WHILE_REVALIDATE as number,
+    },
+    imageTransformation: {
+      enabled: envVars.CDN_IMAGE_TRANSFORMATION as boolean,
+      quality: envVars.CDN_IMAGE_QUALITY as number,
+      format: envVars.CDN_IMAGE_FORMAT as string,
+      progressive: envVars.CDN_IMAGE_PROGRESSIVE as boolean,
+    },
+    onDemandResizing: {
+      enabled: envVars.CDN_ON_DEMAND_RESIZING as boolean,
+      maxWidth: envVars.CDN_MAX_WIDTH as number,
+      maxHeight: envVars.CDN_MAX_HEIGHT as number,
+      quality: envVars.CDN_RESIZE_QUALITY as number,
+    },
   },
 
   email: {

@@ -107,7 +107,7 @@ const logoutSchema = Joi.object({
  *         $ref: '#/components/responses/TooManyRequests'
  */
 router.post('/social-login',
-  loginRateLimit(), // Use strict rate limiting for login attempts
+  socialAuthController.socialLoginRateLimit, // Use enhanced rate limiting with progressive penalties
   validateRequestBody(socialLoginSchema),
   socialAuthController.socialLogin
 );

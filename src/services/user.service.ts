@@ -6,7 +6,10 @@
 
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
+import { adminUserManagementService } from './admin-user-management.service';
 import { UserProfile } from '../types/social-auth.types';
+import { phoneValidationService, PhoneValidationResult } from './phone-validation.service';
+import { referralCodeService, ReferralCodeValidationResult } from './referral-code.service';
 
 export interface UserRegistrationData {
   name: string;
@@ -56,68 +59,51 @@ class UserServiceImpl {
   private supabase = getSupabaseClient();
 
   /**
-   * Generate unique referral code
+   * Generate unique referral code using enhanced service
    */
   async generateReferralCode(): Promise<string> {
-    const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-    let attempts = 0;
-    const maxAttempts = 10;
-
-    while (attempts < maxAttempts) {
-      let code = '';
-      for (let i = 0; i < 8; i++) {
-        code += characters.charAt(Math.floor(Math.random() * characters.length));
-      }
-
-      // Check if code is unique
-      const { data, error } = await this.supabase
-        .from('users')
-        .select('id')
-        .eq('referral_code', code)
-        .single();
-
-      if (error && error.code === 'PGRST116') { // No rows returned
-        return code;
-      }
-
-      attempts++;
+    try {
+      return await referralCodeService.generateReferralCode({
+        length: 8,
+        excludeSimilar: true,
+        excludeProfanity: true,
+        maxAttempts: 50
+      });
+    } catch (error) {
+      logger.error('Failed to generate referral code', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw new UserServiceError(
+        'Failed to generate unique referral code',
+        'REFERRAL_CODE_GENERATION_FAILED',
+        500
+      );
     }
-
-    throw new UserServiceError(
-      'Failed to generate unique referral code',
-      'REFERRAL_CODE_GENERATION_FAILED',
-      500
-    );
   }
 
   /**
-   * Validate referral code and get referrer info
+   * Validate referral code and get referrer info using enhanced service
    */
   async validateReferralCode(code: string): Promise<ReferralCodeInfo> {
     try {
-      const { data: referrer, error } = await this.supabase
-        .from('users')
-        .select('id, name, user_status')
-        .eq('referral_code', code.toUpperCase())
-        .eq('user_status', 'active')
-        .single();
-
-      if (error || !referrer) {
+      const result = await referralCodeService.validateReferralCode(code);
+      
+      if (!result.isValid) {
         return {
-          code: code.toUpperCase(),
+          code: result.normalizedCode,
           userId: '',
           isValid: false
         };
       }
 
       return {
-        code: code.toUpperCase(),
-        userId: referrer.id,
+        code: result.normalizedCode,
+        userId: result.referrerId || '',
         isValid: true,
-        referrerInfo: {
-          id: referrer.id,
-          name: referrer.name
-        }
+        referrerInfo: result.referrerInfo ? {
+          id: result.referrerInfo.id,
+          name: result.referrerInfo.name
+        } : undefined
       };
     } catch (error) {
       logger.error('Error validating referral code', {
@@ -134,27 +120,76 @@ class UserServiceImpl {
   }
 
   /**
+   * Validate Korean phone number format
+   */
+  validatePhoneNumber(phoneNumber: string): PhoneValidationResult {
+    return phoneValidationService.validateKoreanPhoneNumber(phoneNumber);
+  }
+
+  /**
    * Check if phone number is already registered
    */
-  async isPhoneNumberRegistered(phoneNumber: string): Promise<boolean> {
+  async isPhoneNumberRegistered(phoneNumber: string): Promise<{
+    isRegistered: boolean;
+    validationResult: PhoneValidationResult;
+  }> {
     try {
-      // Normalize phone number (remove dots and hyphens)
-      const normalizedPhone = phoneNumber.replace(/[-.\s]/g, '');
+      // First validate the phone number format
+      const validationResult = this.validatePhoneNumber(phoneNumber);
+      
+      if (!validationResult.isValid) {
+        return {
+          isRegistered: false,
+          validationResult
+        };
+      }
 
-             const { data, error } = await this.supabase
-         .from('users')
-         .select('id')
-         .eq('phone_number', normalizedPhone)
-         .single();
+      // Use normalized phone number for database check
+      const { data, error } = await this.supabase
+        .from('users')
+        .select('id')
+        .eq('phone_number', validationResult.normalized)
+        .single();
 
-       return !error && data !== null;
+      const isRegistered = !error && data !== null;
+
+      logger.debug('Phone number registration check', {
+        original: phoneNumber,
+        normalized: validationResult.normalized,
+        isRegistered,
+        isValid: validationResult.isValid
+      });
+
+      return {
+        isRegistered,
+        validationResult
+      };
+
     } catch (error) {
       logger.error('Error checking phone number registration', {
         phoneNumber,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
-      return false;
+
+      return {
+        isRegistered: false,
+        validationResult: {
+          isValid: false,
+          normalized: '',
+          formatted: '',
+          type: 'unknown',
+          errors: ['Database error occurred while checking phone number']
+        }
+      };
     }
+  }
+
+  /**
+   * Check if phone number is already registered (legacy method for backward compatibility)
+   */
+  async isPhoneNumberRegisteredLegacy(phoneNumber: string): Promise<boolean> {
+    const result = await this.isPhoneNumberRegistered(phoneNumber);
+    return result.isRegistered;
   }
 
   /**
@@ -209,18 +244,26 @@ class UserServiceImpl {
    */
   async registerUser(userId: string, registrationData: UserRegistrationData): Promise<UserProfile> {
     try {
-      // Normalize phone number
-      const normalizedPhone = registrationData.phoneNumber.replace(/[-.\s]/g, '');
+      // Validate and normalize phone number
+      const phoneCheck = await this.isPhoneNumberRegistered(registrationData.phoneNumber);
+      
+      if (!phoneCheck.validationResult.isValid) {
+        throw new UserServiceError(
+          `잘못된 휴대폰 번호 형식입니다: ${phoneCheck.validationResult.errors.join(', ')}`,
+          'INVALID_PHONE_NUMBER_FORMAT',
+          400
+        );
+      }
 
-      // Check if phone number is already registered
-      const phoneExists = await this.isPhoneNumberRegistered(normalizedPhone);
-      if (phoneExists) {
+      if (phoneCheck.isRegistered) {
         throw new UserServiceError(
           '이미 등록된 휴대폰 번호입니다.',
           'PHONE_NUMBER_ALREADY_EXISTS',
           409
         );
       }
+
+      const normalizedPhone = phoneCheck.validationResult.normalized;
 
       // Check if email is already registered (if provided)
       if (registrationData.email) {
@@ -289,55 +332,180 @@ class UserServiceImpl {
         updated_at: new Date().toISOString()
       };
 
-      // Insert user data
-      const { data: user, error } = await this.supabase
-        .from('users')
-        .insert(userData)
-        .select(`
-          id,
-          email,
-          name,
-          user_role,
-          user_status,
-          profile_image_url,
-          phone_number,
-          birth_date,
-          created_at,
-          updated_at
-        `)
-        .single();
+      // Begin transaction-like operations with rollback capability
+      let createdUser: any = null;
+      let referralCountUpdated = false;
 
-      if (error) {
-        throw new UserServiceError(
-          `사용자 등록에 실패했습니다: ${error.message}`,
-          'USER_REGISTRATION_FAILED',
-          500
-        );
+      try {
+        // Step 1: Insert user data
+        const { data: user, error } = await this.supabase
+          .from('users')
+          .insert(userData)
+          .select(`
+            id,
+            email,
+            name,
+            user_role,
+            user_status,
+            profile_image_url,
+            phone_number,
+            birth_date,
+            created_at,
+            updated_at
+          `)
+          .single();
+
+        if (error) {
+          throw new UserServiceError(
+            `사용자 등록에 실패했습니다: ${error.message}`,
+            'USER_REGISTRATION_FAILED',
+            500
+          );
+        }
+
+        createdUser = user;
+        logger.info('User created successfully', { userId: user.id });
+
+        // Step 2: Update referrer's referral count if applicable
+        if (referralInfo?.isValid && referralInfo.referrerInfo) {
+          try {
+            await this.incrementReferralCount(referralInfo.referrerInfo.id);
+            referralCountUpdated = true;
+            logger.info('Referral count updated successfully', { 
+              referrerId: referralInfo.referrerInfo.id,
+              newUserId: user.id 
+            });
+          } catch (referralError) {
+            logger.error('Failed to update referral count, rolling back user creation', {
+              error: referralError instanceof Error ? referralError.message : 'Unknown error',
+              userId: user.id,
+              referrerId: referralInfo.referrerInfo.id
+            });
+            
+            // Rollback: Delete the created user
+            await this.rollbackUserCreation(user.id);
+            
+            throw new UserServiceError(
+              '추천인 정보 업데이트에 실패했습니다. 등록이 취소되었습니다.',
+              'REFERRAL_UPDATE_FAILED',
+              500
+            );
+          }
+        }
+
+        // Step 3: Create user settings with default preferences
+        try {
+          const defaultSettings = {
+            user_id: user.id,
+            push_notifications_enabled: true,
+            reservation_notifications: true,
+            event_notifications: true,
+            marketing_notifications: registrationData.marketingConsent || false,
+            location_tracking_enabled: true,
+            language_preference: 'ko',
+            currency_preference: 'KRW',
+            theme_preference: 'light',
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          };
+
+          const { error: settingsError } = await this.supabase
+            .from('user_settings')
+            .insert(defaultSettings);
+
+          if (settingsError) {
+            logger.error('Failed to create user settings, rolling back user creation', {
+              error: settingsError.message,
+              userId: user.id
+            });
+            
+            // Rollback: Delete the created user and any referral updates
+            await this.rollbackUserCreation(user.id);
+            if (referralCountUpdated && referralInfo?.referrerInfo) {
+              await this.decrementReferralCount(referralInfo.referrerInfo.id);
+            }
+            
+            throw new UserServiceError(
+              '사용자 설정 생성에 실패했습니다. 등록이 취소되었습니다.',
+              'USER_SETTINGS_CREATION_FAILED',
+              500
+            );
+          }
+
+          logger.info('User settings created successfully', { userId: user.id });
+        } catch (settingsError) {
+          logger.error('Failed to create user settings, rolling back registration', {
+            error: settingsError instanceof Error ? settingsError.message : 'Unknown error',
+            userId: user.id
+          });
+          
+          // Rollback user creation and referral updates
+          await this.rollbackUserCreation(user.id);
+          if (referralCountUpdated && referralInfo?.referrerInfo) {
+            await this.decrementReferralCount(referralInfo.referrerInfo.id);
+          }
+          
+          throw settingsError instanceof UserServiceError ? settingsError : new UserServiceError(
+            '사용자 설정 생성 중 오류가 발생했습니다. 등록이 취소되었습니다.',
+            'USER_SETTINGS_ERROR',
+            500
+          );
+        }
+
+        logger.info('User registration transaction completed successfully', {
+          userId: user.id,
+          hasReferrer: !!referralInfo?.isValid,
+          referrerUserId: referralInfo?.referrerInfo?.id,
+          referralCountUpdated
+        });
+
+        // Send welcome notification to new user
+        try {
+          await adminUserManagementService.sendWelcomeNotification(user.id, user.name);
+        } catch (notificationError) {
+          // Don't fail registration if notification fails
+          logger.warn('Failed to send welcome notification', {
+            error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+            userId: user.id
+          });
+        }
+
+        return {
+          id: user.id,
+          email: user.email || '',
+          name: user.name,
+          user_role: user.user_role,
+          user_status: user.user_status,
+          profile_image_url: user.profile_image_url,
+          phone: user.phone_number,
+          birth_date: user.birth_date,
+          created_at: user.created_at,
+          updated_at: user.updated_at
+        };
+
+      } catch (transactionError) {
+        // If we have a created user but something failed later, attempt rollback
+        if (createdUser && !referralCountUpdated) {
+          logger.error('Registration transaction failed, attempting rollback', {
+            error: transactionError instanceof Error ? transactionError.message : 'Unknown error',
+            userId: createdUser.id
+          });
+          
+          try {
+            await this.rollbackUserCreation(createdUser.id);
+            logger.info('User creation rollback completed', { userId: createdUser.id });
+          } catch (rollbackError) {
+            logger.error('Failed to rollback user creation', {
+              error: rollbackError instanceof Error ? rollbackError.message : 'Unknown error',
+              userId: createdUser.id
+            });
+            // Continue to throw the original error
+          }
+        }
+        
+        // Re-throw the original error or the UserServiceError we created
+        throw transactionError;
       }
-
-      // Update referrer's referral count if applicable
-      if (referralInfo?.isValid && referralInfo.referrerInfo) {
-        await this.incrementReferralCount(referralInfo.referrerInfo.id);
-      }
-
-      logger.info('User registered successfully', {
-        userId: user.id,
-        hasReferrer: !!referralInfo?.isValid,
-        referrerUserId: referralInfo?.referrerInfo?.id
-      });
-
-      return {
-        id: user.id,
-        email: user.email || '',
-        name: user.name,
-        user_role: user.user_role,
-        user_status: user.user_status,
-        profile_image_url: user.profile_image_url,
-        phone: user.phone_number,
-        birth_date: user.birth_date,
-        created_at: user.created_at,
-        updated_at: user.updated_at
-      };
     } catch (error) {
       logger.error('User registration failed', {
         userId,
@@ -516,6 +684,106 @@ class UserServiceImpl {
         referrerId,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
+    }
+  }
+
+  /**
+   * Decrement referral count for a user (used in rollback scenarios)
+   */
+  private async decrementReferralCount(referrerId: string): Promise<void> {
+    try {
+      // First get the current referral count
+      const { data: currentUser, error: fetchError } = await this.supabase
+        .from('users')
+        .select('total_referrals')
+        .eq('id', referrerId)
+        .single();
+
+      if (fetchError || !currentUser || currentUser.total_referrals <= 0) {
+        logger.warn('Cannot decrement referral count - user not found or count already zero', {
+          referrerId,
+          currentCount: currentUser?.total_referrals || 0
+        });
+        return;
+      }
+
+      const { error } = await this.supabase
+        .from('users')
+        .update({
+          total_referrals: currentUser.total_referrals - 1,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', referrerId);
+
+      if (error) {
+        logger.error('Failed to decrement referral count', {
+          referrerId,
+          error: error.message
+        });
+        throw error;
+      }
+
+      logger.info('Referral count decremented successfully', { referrerId });
+    } catch (error) {
+      logger.warn('Error decrementing referral count', {
+        referrerId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Rollback user creation by deleting the user record
+   * Used for transaction rollback when registration fails
+   */
+  private async rollbackUserCreation(userId: string): Promise<void> {
+    try {
+      logger.warn('Attempting to rollback user creation', { userId });
+
+      // Delete user record
+      const { error: deleteError } = await this.supabase
+        .from('users')
+        .delete()
+        .eq('id', userId);
+
+      if (deleteError) {
+        throw new Error(`Failed to delete user during rollback: ${deleteError.message}`);
+      }
+
+      // Also clean up any related records that might have been created
+      // (user settings, phone verifications, sessions, etc.)
+      try {
+        await this.supabase
+          .from('user_settings')
+          .delete()
+          .eq('user_id', userId);
+
+        await this.supabase
+          .from('phone_verifications')
+          .delete()
+          .eq('user_id', userId);
+
+        await this.supabase
+          .from('refresh_tokens')
+          .delete()
+          .eq('user_id', userId);
+
+        logger.info('User rollback completed successfully', { userId });
+      } catch (cleanupError) {
+        // Log cleanup errors but don't fail the rollback
+        logger.warn('Some cleanup operations failed during rollback', {
+          userId,
+          error: cleanupError instanceof Error ? cleanupError.message : 'Unknown error'
+        });
+      }
+
+    } catch (error) {
+      logger.error('Failed to rollback user creation', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
     }
   }
 

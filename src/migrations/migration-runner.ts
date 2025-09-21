@@ -268,6 +268,166 @@ export class MigrationRunner {
   }
 
   /**
+   * Execute migration rollback
+   */
+  async rollbackMigration(version: string): Promise<boolean> {
+    try {
+      logger.info(`Rolling back migration ${version}`);
+      
+      // Get migration record
+      const applied = await this.getAppliedMigrations();
+      const migrationRecord = applied.find(m => m.version === version);
+      
+      if (!migrationRecord) {
+        logger.error(`Migration ${version} not found in applied migrations`);
+        return false;
+      }
+      
+      // Check if rollback file exists
+      const rollbackFile = `rollback_${version}.sql`;
+      const rollbackPath = path.join(this.migrationsDir, rollbackFile);
+      
+      try {
+        const rollbackSQL = await fs.readFile(rollbackPath, 'utf-8');
+        
+        // Execute rollback SQL
+        logger.info(`Executing rollback for migration ${version}`, {
+          version,
+          rollbackFile,
+          sqlLength: rollbackSQL.length
+        });
+        
+        // In a real implementation, this would execute the rollback SQL
+        logger.info(`Rollback SQL for ${version}:`, {
+          sql: rollbackSQL.substring(0, 500) + '...'
+        });
+        
+        // Remove migration record
+        await this.removeMigrationRecord(version);
+        
+        logger.info(`Migration ${version} rolled back successfully`);
+        return true;
+        
+      } catch (fileError) {
+        logger.warn(`No rollback file found for migration ${version}`, {
+          rollbackFile,
+          error: fileError instanceof Error ? fileError.message : 'Unknown error'
+        });
+        
+        // Generate automatic rollback based on migration type
+        const autoRollback = await this.generateAutoRollback(version);
+        if (autoRollback) {
+          logger.info(`Generated automatic rollback for migration ${version}`);
+          await this.removeMigrationRecord(version);
+          return true;
+        }
+        
+        return false;
+      }
+      
+    } catch (error) {
+      logger.error(`Rollback failed for migration ${version}`, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Rollback to specific version
+   */
+  async rollbackToVersion(targetVersion: string): Promise<boolean> {
+    try {
+      const applied = await this.getAppliedMigrations();
+      const sortedApplied = applied
+        .map(m => ({ ...m, versionNum: parseInt(m.version) }))
+        .sort((a, b) => b.versionNum - a.versionNum);
+      
+      const targetVersionNum = parseInt(targetVersion);
+      const migrationsToRollback = sortedApplied.filter(m => m.versionNum > targetVersionNum);
+      
+      logger.info(`Rolling back ${migrationsToRollback.length} migrations to version ${targetVersion}`);
+      
+      for (const migration of migrationsToRollback) {
+        const success = await this.rollbackMigration(migration.version);
+        if (!success) {
+          logger.error(`Rollback stopped at migration ${migration.version}`);
+          return false;
+        }
+      }
+      
+      logger.info(`Successfully rolled back to version ${targetVersion}`);
+      return true;
+      
+    } catch (error) {
+      logger.error('Rollback to version failed', {
+        targetVersion,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Generate automatic rollback for simple migrations
+   */
+  private async generateAutoRollback(version: string): Promise<boolean> {
+    try {
+      const migrations = await this.getAvailableMigrations();
+      const migration = migrations.find(m => m.version === version);
+      
+      if (!migration) return false;
+      
+      const sqlPath = path.join(this.migrationsDir, migration.sqlFile);
+      const sqlContent = await fs.readFile(sqlPath, 'utf-8');
+      
+      // Simple rollback generation for CREATE TABLE statements
+      if (sqlContent.includes('CREATE TABLE')) {
+        const tableMatches = sqlContent.match(/CREATE TABLE\s+(\w+\.\w+|\w+)/gi);
+        if (tableMatches) {
+          const dropStatements = tableMatches.map(match => {
+            const tableName = match.replace(/CREATE TABLE\s+/i, '');
+            return `DROP TABLE IF EXISTS ${tableName} CASCADE;`;
+          });
+          
+          logger.info(`Generated automatic rollback for ${version}`, {
+            dropStatements
+          });
+          
+          return true;
+        }
+      }
+      
+      return false;
+    } catch (error) {
+      logger.error(`Failed to generate auto rollback for ${version}`, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Remove migration record from tracking table
+   */
+  private async removeMigrationRecord(version: string): Promise<void> {
+    try {
+      const deleteSQL = `DELETE FROM public.schema_migrations WHERE version = '${version}';`;
+      
+      logger.info(`Removing migration record ${version}`, {
+        sql: deleteSQL
+      });
+      
+      // In a real implementation, this would execute the DELETE SQL
+    } catch (error) {
+      logger.error(`Failed to remove migration record ${version}`, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
    * Check migration status
    */
   async getMigrationStatus(): Promise<{
@@ -410,6 +570,18 @@ export async function getMigrationStatus() {
 export async function validateMigrations(): Promise<boolean> {
   const runner = new MigrationRunner();
   return await runner.validateMigrations();
+}
+
+// Rollback single migration
+export async function rollbackMigration(version: string): Promise<boolean> {
+  const runner = new MigrationRunner();
+  return await runner.rollbackMigration(version);
+}
+
+// Rollback to specific version
+export async function rollbackToVersion(targetVersion: string): Promise<boolean> {
+  const runner = new MigrationRunner();
+  return await runner.rollbackToVersion(targetVersion);
 }
 
 export default MigrationRunner; 

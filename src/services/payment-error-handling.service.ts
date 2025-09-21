@@ -432,22 +432,22 @@ export class PaymentErrorHandlingService {
       const alertSeverity = this.determineAlertSeverity(paymentError.errorType);
       const alertType = this.determineAlertType(paymentError.errorType);
 
-      const securityAlert: Omit<SecurityAlert, 'id' | 'createdAt' | 'updatedAt'> = {
-        type: alertType,
-        severity: alertSeverity,
-        title: `Payment Error: ${paymentError.errorType}`,
-        message: `Payment error occurred: ${paymentError.errorMessage}`,
-        userId: context.userId,
-        paymentId: context.paymentId,
-        reservationId: context.reservationId,
-        ipAddress: context.ipAddress,
-        userAgent: context.userAgent,
-        metadata: {
-          errorId: paymentError.id,
-          errorCode: paymentError.errorCode,
-          errorDetails: paymentError.errorDetails
-        },
-        isResolved: false
+      // Create security alert using the security-monitoring service's interface
+      const securityAlert = {
+        alert_type: `payment_error_${paymentError.errorType}`,
+        severity: alertSeverity as 'low' | 'medium' | 'high',
+        description: `Payment error occurred: ${paymentError.errorMessage}`,
+        source_events: [paymentError.id],
+        affected_ips: context.ipAddress ? [context.ipAddress] : [],
+        recommendations: [
+          'Review payment error details',
+          'Check payment gateway status',
+          'Monitor for similar errors'
+        ],
+        source_ip: context.ipAddress,
+        user_id: context.userId,
+        endpoint: '/api/payments',
+        user_agent: context.userAgent
       };
 
       await securityMonitoringService.generateSecurityAlert(securityAlert);

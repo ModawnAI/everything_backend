@@ -12,6 +12,8 @@ import { getSupabaseClient } from '../config/database';
 import { findNearbyShops, getShopsInBounds, validateCoordinates } from '../utils/spatial';
 import { logger } from '../utils/logger';
 import { Shop, ServiceCategory, ShopType, ShopStatus } from '../types/database.types';
+import { shopContactMethodsService } from '../services/shop-contact-methods.service';
+import { shopCategoriesService } from '../services/shop-categories.service';
 
 // Request interfaces
 interface NearbyShopsRequest extends Request {
@@ -24,6 +26,7 @@ interface NearbyShopsRequest extends Request {
     onlyFeatured?: string;
     limit?: string;
     offset?: string;
+    disableGeofencing?: string;
   };
 }
 
@@ -41,8 +44,213 @@ interface BoundsShopsRequest extends Request {
 
 export class ShopController {
   /**
-   * GET /api/shops/nearby
-   * Find nearby shops within specified radius using PostGIS spatial queries
+   * @swagger
+   * /api/shops/nearby:
+   *   get:
+   *     summary: Find nearby shops
+   *     description: Find shops within a specified radius using PostGIS spatial queries with optional filtering by category and type
+   *     tags: [Shops]
+   *     parameters:
+   *       - in: query
+   *         name: latitude
+   *         required: true
+   *         schema:
+   *           type: number
+   *           minimum: -90
+   *           maximum: 90
+   *         description: Latitude coordinate
+   *         example: 37.5665
+   *       - in: query
+   *         name: longitude
+   *         required: true
+   *         schema:
+   *           type: number
+   *           minimum: -180
+   *           maximum: 180
+   *         description: Longitude coordinate
+   *         example: 126.9780
+   *       - in: query
+   *         name: radius
+   *         required: false
+   *         schema:
+   *           type: number
+   *           minimum: 0.1
+   *           maximum: 50
+   *           default: 5
+   *         description: Search radius in kilometers
+   *         example: 2.5
+   *       - in: query
+   *         name: category
+   *         required: false
+   *         schema:
+   *           type: string
+   *           enum: [hair, nail, skin, makeup, massage, eyebrow, eyelash]
+   *         description: Filter by service category
+   *         example: "hair"
+   *       - in: query
+   *         name: shopType
+   *         required: false
+   *         schema:
+   *           type: string
+   *           enum: [salon, individual, home_service]
+   *         description: Filter by shop type
+   *         example: "salon"
+   *       - in: query
+   *         name: onlyFeatured
+   *         required: false
+   *         schema:
+   *           type: boolean
+   *           default: false
+   *         description: Show only featured shops
+   *         example: false
+   *       - in: query
+   *         name: limit
+   *         required: false
+   *         schema:
+   *           type: integer
+   *           minimum: 1
+   *           maximum: 100
+   *           default: 20
+   *         description: Maximum number of results
+   *         example: 20
+   *       - in: query
+   *         name: offset
+   *         required: false
+   *         schema:
+   *           type: integer
+   *           minimum: 0
+   *           default: 0
+   *         description: Number of results to skip (for pagination)
+   *         example: 0
+   *       - in: query
+   *         name: disableGeofencing
+   *         required: false
+   *         schema:
+   *           type: boolean
+   *           default: false
+   *         description: Disable Seoul city boundary validation
+   *         example: false
+   *     responses:
+   *       200:
+   *         description: Nearby shops retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     shops:
+   *                       type: array
+   *                       items:
+   *                         type: object
+   *                         properties:
+   *                           id:
+   *                             type: string
+   *                             format: uuid
+   *                             example: "123e4567-e89b-12d3-a456-426614174000"
+   *                           name:
+   *                             type: string
+   *                             example: "뷰티살롱 ABC"
+   *                           description:
+   *                             type: string
+   *                             example: "전문적인 헤어 및 네일 서비스를 제공합니다"
+   *                           address:
+   *                             type: string
+   *                             example: "서울시 강남구 테헤란로 123"
+   *                           latitude:
+   *                             type: number
+   *                             example: 37.5665
+   *                           longitude:
+   *                             type: number
+   *                             example: 126.9780
+   *                           distance:
+   *                             type: number
+   *                             description: Distance in kilometers
+   *                             example: 1.2
+   *                           mainCategory:
+   *                             type: string
+   *                             example: "hair"
+   *                           subCategories:
+   *                             type: array
+   *                             items:
+   *                               type: string
+   *                             example: ["cut", "color", "perm"]
+   *                           shopType:
+   *                             type: string
+   *                             enum: [salon, individual, home_service]
+   *                             example: "salon"
+   *                           status:
+   *                             type: string
+   *                             enum: [pending, approved, rejected, suspended]
+   *                             example: "approved"
+   *                           rating:
+   *                             type: number
+   *                             minimum: 0
+   *                             maximum: 5
+   *                             example: 4.5
+   *                           reviewCount:
+   *                             type: integer
+   *                             minimum: 0
+   *                             example: 127
+   *                           isOpen:
+   *                             type: boolean
+   *                             example: true
+   *                           isFeatured:
+   *                             type: boolean
+   *                             example: false
+   *                           images:
+   *                             type: array
+   *                             items:
+   *                               type: string
+   *                               format: uri
+   *                             example: ["https://storage.supabase.co/v1/object/public/shop-images/image1.jpg"]
+   *                     totalCount:
+   *                       type: integer
+   *                       description: Total number of shops found
+   *                       example: 45
+   *                     searchRadius:
+   *                       type: number
+   *                       description: Search radius used (km)
+   *                       example: 2.5
+   *                     center:
+   *                       type: object
+   *                       properties:
+   *                         latitude:
+   *                           type: number
+   *                           example: 37.5665
+   *                         longitude:
+   *                           type: number
+   *                           example: 126.9780
+   *       400:
+   *         description: Bad request - Invalid coordinates or parameters
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "INVALID_COORDINATES"
+   *                     message:
+   *                       type: string
+   *                       example: "유효하지 않은 좌표입니다."
+   *                     details:
+   *                       type: string
+   *                       example: "위도와 경도는 필수이며 유효한 범위 내에 있어야 합니다."
+   *       500:
+   *         description: Internal server error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
    */
   async getNearbyShops(req: NearbyShopsRequest, res: Response): Promise<void> {
     try {
@@ -54,7 +262,8 @@ export class ShopController {
         shopType,
         onlyFeatured = 'false',
         limit = '50',
-        offset = '0'
+        offset = '0',
+        disableGeofencing = 'false'
       } = req.query;
 
       // Validate required parameters
@@ -75,7 +284,6 @@ export class ShopController {
       const radiusKm = parseFloat(radius);
       const limitNum = parseInt(limit);
       const offsetNum = parseInt(offset);
-      const onlyFeaturedBool = onlyFeatured === 'true';
 
       // Validate coordinate ranges
       if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
@@ -124,13 +332,51 @@ export class ShopController {
         return;
       }
 
-      // Call the spatial utility function
+      // Parse boolean parameters
+      const onlyFeaturedBool = onlyFeatured === 'true';
+      const disableGeofencingBool = disableGeofencing === 'true';
+
+      // Validate category using categories service
+      if (category) {
+        try {
+          const categories = await shopCategoriesService.getAllCategories({ includeInactive: false, withServiceTypes: false });
+          const validCategories = categories.map(cat => cat.id as ServiceCategory);
+          
+          if (!validCategories.includes(category)) {
+            res.status(400).json({
+              error: {
+                code: 'INVALID_CATEGORY',
+                message: '유효하지 않은 카테고리입니다.',
+                details: `유효한 카테고리: ${validCategories.join(', ')}`
+              }
+            });
+            return;
+          }
+        } catch (error) {
+          logger.error('Error validating category', { error, category });
+          // Fallback to hardcoded validation if service fails
+          const validCategories: ServiceCategory[] = ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair'];
+          if (!validCategories.includes(category)) {
+            res.status(400).json({
+              error: {
+                code: 'INVALID_CATEGORY',
+                message: '유효하지 않은 카테고리입니다.',
+                details: `유효한 카테고리: ${validCategories.join(', ')}`
+              }
+            });
+            return;
+          }
+        }
+      }
+
+      // Call the optimized spatial utility function with configurable geofencing
       const params: any = {
         userLocation: { latitude: lat, longitude: lng },
         radiusKm,
         onlyFeatured: onlyFeaturedBool,
         limit: limitNum,
-        offset: offsetNum
+        offset: offsetNum,
+        enforceSeoulBoundary: !disableGeofencingBool // Configurable Seoul city boundary validation
       };
 
       if (category) {
@@ -154,28 +400,96 @@ export class ShopController {
         offset: offsetNum
       });
 
+      // Fetch contact methods for all shops
+      const shopIds = nearbyShops.map(shop => shop.id);
+      const contactMethodsMap = new Map<string, any[]>();
+      
+      if (shopIds.length > 0) {
+        try {
+          const { data: allContactMethods, error: contactError } = await getSupabaseClient()
+            .from('shop_contact_methods')
+            .select('*')
+            .in('shop_id', shopIds)
+            .eq('is_active', true)
+            .order('display_order', { ascending: true });
+
+          if (!contactError && allContactMethods) {
+            allContactMethods.forEach(contactMethod => {
+              if (!contactMethodsMap.has(contactMethod.shop_id)) {
+                contactMethodsMap.set(contactMethod.shop_id, []);
+              }
+              contactMethodsMap.get(contactMethod.shop_id)!.push(contactMethod);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch contact methods for nearby shops', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
+      }
+
+      // Enhanced response with performance metrics and detailed shop data
+      const responseData = {
+        shops: nearbyShops.map(shop => ({
+          id: shop.id,
+          name: shop.name,
+          address: shop.address,
+          detailed_address: shop.detailed_address,
+          latitude: shop.latitude,
+          longitude: shop.longitude,
+          distance: {
+            km: shop.distance_km,
+            meters: shop.distance_m
+          },
+          shop_type: shop.shop_type,
+          shop_status: shop.shop_status,
+          main_category: shop.main_category,
+          sub_categories: shop.sub_categories || [],
+          is_featured: shop.is_featured,
+          featured_until: shop.featured_until,
+          partnership_started_at: shop.partnership_started_at,
+          phone_number: shop.phone_number,
+          description: shop.description,
+          operating_hours: shop.operating_hours,
+          payment_methods: shop.payment_methods || [],
+          total_bookings: shop.total_bookings || 0,
+          commission_rate: shop.commission_rate,
+          contact_methods: contactMethodsMap.get(shop.id) || []
+        })),
+        searchParams: {
+          latitude: lat,
+          longitude: lng,
+          radiusKm,
+          category,
+          shopType,
+          onlyFeatured: onlyFeaturedBool,
+          limit: limitNum,
+          offset: offsetNum
+        },
+        pagination: {
+          total: nearbyShops.length,
+          limit: limitNum,
+          offset: offsetNum,
+          hasMore: nearbyShops.length === limitNum,
+          currentPage: Math.floor(offsetNum / limitNum) + 1
+        },
+        performance: {
+          sortingAlgorithm: 'PRD 2.1 (partnered → partnership_date → featured → distance)',
+          indexesUsed: [
+            category ? 'idx_shops_active_category_location' : null,
+            shopType ? 'idx_shops_type_status_location' : null,
+            onlyFeaturedBool ? 'idx_shops_featured_location' : null
+          ].filter(Boolean),
+          geofencing: 'Seoul city boundary enforced'
+        }
+      };
+
       // Return successful response
       res.status(200).json({
         success: true,
-        data: {
-          shops: nearbyShops,
-          searchParams: {
-            latitude: lat,
-            longitude: lng,
-            radiusKm,
-            category,
-            shopType,
-            onlyFeatured: onlyFeaturedBool,
-            limit: limitNum,
-            offset: offsetNum
-          },
-          pagination: {
-            total: nearbyShops.length,
-            limit: limitNum,
-            offset: offsetNum,
-            hasMore: nearbyShops.length === limitNum
-          }
-        }
+        data: responseData,
+        message: `반경 ${radiusKm}km 내 ${nearbyShops.length}개의 샵을 찾았습니다.`
       });
 
     } catch (error) {
@@ -258,6 +572,39 @@ export class ShopController {
 
       const onlyFeaturedBool = onlyFeatured === 'true';
 
+      // Validate category using categories service
+      if (category) {
+        try {
+          const categories = await shopCategoriesService.getAllCategories({ includeInactive: false, withServiceTypes: false });
+          const validCategories = categories.map(cat => cat.id as ServiceCategory);
+          
+          if (!validCategories.includes(category)) {
+            res.status(400).json({
+              error: {
+                code: 'INVALID_CATEGORY',
+                message: '유효하지 않은 카테고리입니다.',
+                details: `유효한 카테고리: ${validCategories.join(', ')}`
+              }
+            });
+            return;
+          }
+        } catch (error) {
+          logger.error('Error validating category in bounds search', { error, category });
+          // Fallback to hardcoded validation if service fails
+          const validCategories: ServiceCategory[] = ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair'];
+          if (!validCategories.includes(category)) {
+            res.status(400).json({
+              error: {
+                code: 'INVALID_CATEGORY',
+                message: '유효하지 않은 카테고리입니다.',
+                details: `유효한 카테고리: ${validCategories.join(', ')}`
+              }
+            });
+            return;
+          }
+        }
+      }
+
       // Call the spatial utility function
       const filters: any = {
         onlyFeatured: onlyFeaturedBool
@@ -272,20 +619,55 @@ export class ShopController {
 
       const shopsInBounds = await getShopsInBounds(northEast, southWest, filters);
 
+      // Fetch contact methods for all shops
+      const shopIds = shopsInBounds.map(shop => shop.id);
+      const contactMethodsMap = new Map<string, any[]>();
+      
+      if (shopIds.length > 0) {
+        try {
+          const { data: allContactMethods, error: contactError } = await getSupabaseClient()
+            .from('shop_contact_methods')
+            .select('*')
+            .in('shop_id', shopIds)
+            .eq('is_active', true)
+            .order('display_order', { ascending: true });
+
+          if (!contactError && allContactMethods) {
+            allContactMethods.forEach(contactMethod => {
+              if (!contactMethodsMap.has(contactMethod.shop_id)) {
+                contactMethodsMap.set(contactMethod.shop_id, []);
+              }
+              contactMethodsMap.get(contactMethod.shop_id)!.push(contactMethod);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch contact methods for shops in bounds', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
+      }
+
+      // Add contact methods to each shop
+      const shopsWithContactMethods = shopsInBounds.map(shop => ({
+        ...shop,
+        contact_methods: contactMethodsMap.get(shop.id) || []
+      }));
+
       // Log successful search
       logger.info('Shops in bounds search completed', {
         bounds: { northEast, southWest },
         category,
         shopType,
         onlyFeatured: onlyFeaturedBool,
-        resultCount: shopsInBounds.length
+        resultCount: shopsWithContactMethods.length
       });
 
       // Return successful response
       res.status(200).json({
         success: true,
         data: {
-          shops: shopsInBounds,
+          shops: shopsWithContactMethods,
           bounds: {
             northEast,
             southWest
@@ -295,7 +677,7 @@ export class ShopController {
             shopType,
             onlyFeatured: onlyFeaturedBool
           },
-          total: shopsInBounds.length
+          total: shopsWithContactMethods.length
         }
       });
 
@@ -336,9 +718,12 @@ export class ShopController {
         return;
       }
 
+      // Extract contact methods from shop data if provided
+      const { contact_methods, ...shopDataWithoutContactMethods } = shopData;
+
       // Set default values
       const newShop = {
-        ...shopData,
+        ...shopDataWithoutContactMethods,
         shop_status: 'pending_approval',
         verification_status: 'pending',
         created_at: new Date().toISOString(),
@@ -372,11 +757,29 @@ export class ShopController {
         return;
       }
 
+      // Create contact methods if provided
+      let contactMethods = [];
+      if (contact_methods && Array.isArray(contact_methods)) {
+        try {
+          contactMethods = await shopContactMethodsService.updateShopContactMethods(shop.id, contact_methods);
+          logger.info('Contact methods created successfully', { shopId: shop.id, count: contactMethods.length });
+        } catch (contactError) {
+          logger.error('Failed to create contact methods', {
+            error: contactError instanceof Error ? contactError.message : 'Unknown error',
+            shopId: shop.id
+          });
+          // Don't fail the entire creation, just log the error
+        }
+      }
+
       logger.info('Shop created successfully', { shopId: shop.id });
 
       res.status(201).json({
         success: true,
-        data: shop,
+        data: {
+          ...shop,
+          contact_methods: contactMethods
+        },
         message: '샵이 성공적으로 생성되었습니다.'
       });
 
@@ -452,19 +855,54 @@ export class ShopController {
         return;
       }
 
+      // Fetch contact methods for all shops
+      const shopIds = shops?.map(shop => shop.id) || [];
+      const contactMethodsMap = new Map<string, any[]>();
+      
+      if (shopIds.length > 0) {
+        try {
+          const { data: allContactMethods, error: contactError } = await client
+            .from('shop_contact_methods')
+            .select('*')
+            .in('shop_id', shopIds)
+            .eq('is_active', true)
+            .order('display_order', { ascending: true });
+
+          if (!contactError && allContactMethods) {
+            allContactMethods.forEach(contactMethod => {
+              if (!contactMethodsMap.has(contactMethod.shop_id)) {
+                contactMethodsMap.set(contactMethod.shop_id, []);
+              }
+              contactMethodsMap.get(contactMethod.shop_id)!.push(contactMethod);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch contact methods for shops', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
+      }
+
+      // Add contact methods to each shop
+      const shopsWithContactMethods = (shops || []).map(shop => ({
+        ...shop,
+        contact_methods: contactMethodsMap.get(shop.id) || []
+      }));
+
       logger.info('Shops retrieved successfully', {
-        count: shops?.length || 0,
+        count: shopsWithContactMethods.length,
         filters: req.query
       });
 
       res.status(200).json({
         success: true,
         data: {
-          shops: shops || [],
+          shops: shopsWithContactMethods,
           pagination: {
             limit: limitNum,
             offset: offsetNum,
-            total: shops?.length || 0
+            total: shopsWithContactMethods.length
           }
         }
       });
@@ -514,6 +952,9 @@ export class ShopController {
           shop_services!inner(
             id, name, description, category, price_min, price_max,
             duration_minutes, is_available, display_order
+          ),
+          shop_contact_methods!inner(
+            id, method_type, value, description, is_primary, display_order, is_active
           )
         `)
         .eq('id', id)
@@ -625,12 +1066,15 @@ export class ShopController {
         updateData.location = `POINT(${updateData.longitude} ${updateData.latitude})`;
       }
 
+      // Extract contact methods from update data if provided
+      const { contact_methods, ...shopUpdateData } = updateData;
+
       // Add updated timestamp
-      updateData.updated_at = new Date().toISOString();
+      shopUpdateData.updated_at = new Date().toISOString();
 
       const { data: updatedShop, error } = await client
         .from('shops')
-        .update(updateData)
+        .update(shopUpdateData)
         .eq('id', id)
         .select()
         .single();
@@ -652,11 +1096,42 @@ export class ShopController {
         return;
       }
 
+      // Update contact methods if provided
+      let contactMethods = null;
+      if (contact_methods && Array.isArray(contact_methods)) {
+        try {
+          contactMethods = await shopContactMethodsService.updateShopContactMethods(id, contact_methods);
+          logger.info('Contact methods updated successfully', { shopId: id, count: contactMethods.length });
+        } catch (contactError) {
+          logger.error('Failed to update contact methods', {
+            error: contactError instanceof Error ? contactError.message : 'Unknown error',
+            shopId: id
+          });
+          // Don't fail the entire update, just log the error
+        }
+      }
+
+      // Get updated contact methods if not already fetched
+      if (!contactMethods) {
+        try {
+          contactMethods = await shopContactMethodsService.getShopContactMethods(id);
+        } catch (contactError) {
+          logger.error('Failed to fetch contact methods', {
+            error: contactError instanceof Error ? contactError.message : 'Unknown error',
+            shopId: id
+          });
+          contactMethods = [];
+        }
+      }
+
       logger.info('Shop updated successfully', { shopId: id });
 
       res.status(200).json({
         success: true,
-        data: updatedShop,
+        data: {
+          ...updatedShop,
+          contact_methods: contactMethods
+        },
         message: '샵 정보가 성공적으로 업데이트되었습니다.'
       });
 

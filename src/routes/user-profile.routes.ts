@@ -8,8 +8,19 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { userProfileController } from '../controllers/user-profile.controller';
+import { userSettingsController } from '../controllers/user-settings.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
+import { 
+  requireEnhancedAuth, 
+  sensitiveOperationRateLimit, 
+  logProfileSecurityEvent 
+} from '../middleware/profile-security.middleware';
+import { 
+  sanitizeProfileInput, 
+  sanitizePrivacySettingsInput, 
+  sanitizeAccountDeletionInput 
+} from '../middleware/input-sanitization.middleware';
 import { validateRequestBody, validateQueryParams } from '../middleware/validation.middleware';
 import {
   profileUpdateSchema,
@@ -22,6 +33,26 @@ import {
   settingsQuerySchema,
   profileQuerySchema
 } from '../validators/user-profile.validators';
+import {
+  validateProfileUpdate,
+  validatePrivacySettingsUpdate,
+  validateAccountDeletion,
+  validateTermsAcceptance,
+  validatePrivacyAcceptance,
+  validateProfileImageUpload,
+  validateProfileQuery,
+  validateSettingsQuery,
+  validateProfileCompletionQuery,
+  handleValidationErrors,
+  sanitizeProfileData,
+  validateFileUpload
+} from '../validators/user-profile.express-validator';
+import {
+  validateUserSettingsUpdate,
+  validateBulkSettingsUpdate,
+  validateSettingsReset,
+  handleValidationErrors as handleSettingsValidationErrors
+} from '../validators/user-settings.express-validator';
 
 const router = Router();
 
@@ -53,7 +84,8 @@ const upload = multer({
 router.get('/profile',
   rateLimit(),
   authenticateJWT(),
-  validateQueryParams(profileQuerySchema),
+  validateProfileQuery,
+  handleValidationErrors,
   userProfileController.getProfile
 );
 
@@ -64,7 +96,16 @@ router.get('/profile',
 router.put('/profile',
   rateLimit(),
   authenticateJWT(),
-  validateRequestBody(profileUpdateSchema),
+  sanitizeProfileInput,
+  requireEnhancedAuth({
+    operation: 'profile_update',
+    riskLevel: 'medium',
+    requiresRecentAuth: true
+  }),
+  sensitiveOperationRateLimit('profile_update'),
+  validateProfileUpdate,
+  handleValidationErrors,
+  sanitizeProfileData,
   userProfileController.updateProfile
 );
 
@@ -75,7 +116,8 @@ router.put('/profile',
 router.get('/profile/completion',
   rateLimit(),
   authenticateJWT(),
-  validateQueryParams(profileCompletionQuerySchema),
+  validateProfileCompletionQuery,
+  handleValidationErrors,
   userProfileController.getProfileCompletion
 );
 
@@ -86,47 +128,16 @@ router.get('/profile/completion',
 router.post('/profile/image',
   rateLimit(),
   authenticateJWT(),
+  requireEnhancedAuth({
+    operation: 'image_upload',
+    riskLevel: 'medium',
+    requiresRecentAuth: true
+  }),
+  sensitiveOperationRateLimit('image_upload'),
   upload.single('image'),
-  (req: any, res: any, next: any) => {
-    // Validate uploaded file
-    if (!req.file) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'NO_FILE_PROVIDED',
-          message: '업로드할 이미지 파일을 선택해주세요.',
-          timestamp: new Date().toISOString()
-        }
-      });
-    }
-
-    // Validate file type
-    const allowedMimeTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (!allowedMimeTypes.includes(req.file.mimetype)) {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'INVALID_FILE_TYPE',
-          message: 'JPG, PNG, WebP 형식의 이미지만 업로드 가능합니다.',
-          timestamp: new Date().toISOString()
-        }
-      });
-    }
-
-    // Validate file size
-    if (req.file.size > 5 * 1024 * 1024) { // 5MB
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 'FILE_TOO_LARGE',
-          message: '이미지 파일 크기는 5MB 이하여야 합니다.',
-          timestamp: new Date().toISOString()
-        }
-      });
-    }
-
-    next();
-  },
+  validateFileUpload,
+  validateProfileImageUpload,
+  handleValidationErrors,
   userProfileController.uploadProfileImage
 );
 
@@ -136,24 +147,82 @@ router.post('/profile/image',
 
 /**
  * GET /api/users/settings
- * Get current user's privacy settings
+ * Get current user's comprehensive settings
  */
 router.get('/settings',
   rateLimit(),
   authenticateJWT(),
-  validateQueryParams(settingsQuerySchema),
-  userProfileController.getSettings
+  validateSettingsQuery,
+  handleValidationErrors,
+  userSettingsController.getSettings
 );
 
 /**
  * PUT /api/users/settings
- * Update current user's privacy settings
+ * Update current user's comprehensive settings
  */
 router.put('/settings',
   rateLimit(),
   authenticateJWT(),
-  validateRequestBody(privacySettingsUpdateSchema),
-  userProfileController.updateSettings
+  sanitizePrivacySettingsInput,
+  requireEnhancedAuth({
+    operation: 'settings_update',
+    riskLevel: 'high',
+    requiresRecentAuth: true
+  }),
+  sensitiveOperationRateLimit('settings_update'),
+  validateUserSettingsUpdate,
+  handleSettingsValidationErrors,
+  sanitizeProfileData,
+  userSettingsController.updateSettings
+);
+
+/**
+ * PUT /api/users/settings/bulk
+ * Bulk update user settings
+ */
+router.put('/settings/bulk',
+  rateLimit(),
+  authenticateJWT(),
+  sanitizePrivacySettingsInput,
+  requireEnhancedAuth({
+    operation: 'settings_update',
+    riskLevel: 'high',
+    requiresRecentAuth: true
+  }),
+  sensitiveOperationRateLimit('settings_update'),
+  validateBulkSettingsUpdate,
+  handleSettingsValidationErrors,
+  sanitizeProfileData,
+  userSettingsController.bulkUpdateSettings
+);
+
+/**
+ * POST /api/users/settings/reset
+ * Reset user settings to defaults
+ */
+router.post('/settings/reset',
+  rateLimit(),
+  authenticateJWT(),
+  requireEnhancedAuth({
+    operation: 'settings_update',
+    riskLevel: 'high',
+    requiresRecentAuth: true
+  }),
+  sensitiveOperationRateLimit('settings_reset'),
+  validateSettingsReset,
+  handleSettingsValidationErrors,
+  userSettingsController.resetSettings
+);
+
+/**
+ * GET /api/users/settings/defaults
+ * Get default settings values
+ */
+router.get('/settings/defaults',
+  rateLimit(),
+  authenticateJWT(),
+  userSettingsController.getDefaultSettings
 );
 
 // =============================================
@@ -167,7 +236,8 @@ router.put('/settings',
 router.post('/terms/accept',
   rateLimit(),
   authenticateJWT(),
-  validateRequestBody(termsAcceptanceSchema),
+  validateTermsAcceptance,
+  handleValidationErrors,
   userProfileController.acceptTerms
 );
 
@@ -178,7 +248,8 @@ router.post('/terms/accept',
 router.post('/privacy/accept',
   rateLimit(),
   authenticateJWT(),
-  validateRequestBody(privacyAcceptanceSchema),
+  validatePrivacyAcceptance,
+  handleValidationErrors,
   userProfileController.acceptPrivacy
 );
 
@@ -193,7 +264,17 @@ router.post('/privacy/accept',
 router.delete('/account',
   rateLimit(),
   authenticateJWT(),
-  validateRequestBody(accountDeletionSchema),
+  sanitizeAccountDeletionInput,
+  requireEnhancedAuth({
+    operation: 'account_deletion',
+    riskLevel: 'critical',
+    requiresRecentAuth: true,
+    requiresDeviceVerification: true
+  }),
+  sensitiveOperationRateLimit('account_deletion'),
+  validateAccountDeletion,
+  handleValidationErrors,
+  sanitizeProfileData,
   userProfileController.deleteAccount
 );
 

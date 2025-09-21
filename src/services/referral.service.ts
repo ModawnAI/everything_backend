@@ -7,6 +7,7 @@
 
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
+import { referralRelationshipService } from './referral-relationship.service';
 import {
   ReferralRecord,
   ReferralStatus,
@@ -46,7 +47,7 @@ class ReferralServiceImpl {
   private supabase = getSupabaseClient();
 
   /**
-   * Create a new referral record
+   * Create a new referral record with enhanced relationship tracking
    */
   async createReferral(request: CreateReferralRequest): Promise<ReferralRecord> {
     try {
@@ -55,6 +56,19 @@ class ReferralServiceImpl {
         referredId: request.referredId,
         referralCode: request.referralCode
       });
+
+      // Use the enhanced relationship service for validation
+      const relationshipValidation = await referralRelationshipService.validateReferralEligibility(
+        request.referrerId,
+        request.referredId
+      );
+
+      if (!relationshipValidation.canRefer) {
+        throw new ReferralValidationError(
+          'referralEligibility', 
+          relationshipValidation.reason || 'Cannot create referral relationship'
+        );
+      }
 
       // Validate referrer exists and is active
       const { data: referrer, error: referrerError } = await this.supabase
@@ -132,6 +146,37 @@ class ReferralServiceImpl {
         throw new ReferralError(
           '추천 기록 생성에 실패했습니다.',
           'REFERRAL_CREATION_FAILED',
+          500
+        );
+      }
+
+      // Create referral relationship for tracking
+      try {
+        await referralRelationshipService.createReferralRelationship(
+          request.referrerId,
+          request.referredId,
+          request.referralCode
+        );
+        logger.info('Referral relationship created', {
+          referrerId: request.referrerId,
+          referredId: request.referredId
+        });
+      } catch (relationshipError) {
+        // If relationship creation fails, we should rollback the referral record
+        logger.error('Failed to create referral relationship, rolling back referral record', {
+          error: relationshipError instanceof Error ? relationshipError.message : 'Unknown error',
+          referralId: newReferral.id
+        });
+        
+        // Rollback the referral record
+        await this.supabase
+          .from('referrals')
+          .delete()
+          .eq('id', newReferral.id);
+        
+        throw new ReferralError(
+          'Failed to create referral relationship',
+          'RELATIONSHIP_CREATION_FAILED',
           500
         );
       }

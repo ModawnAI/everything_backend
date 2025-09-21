@@ -345,4 +345,74 @@ export default class AdminAnalyticsController {
       });
     }
   }
+
+  /**
+   * GET /api/admin/shops/:shopId/analytics
+   * Get detailed analytics for a specific shop
+   */
+  async getShopAnalytics(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const adminId = req.user?.id;
+      if (!adminId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '관리자 인증이 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      const { shopId } = req.params;
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.',
+            details: 'URL 경로에 유효한 샵 ID를 포함해주세요.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // Extract query parameters
+      const filters: AnalyticsFilters = {
+        startDate: req.query.startDate as string,
+        endDate: req.query.endDate as string,
+        period: req.query.period as 'day' | 'week' | 'month' | 'quarter' | 'year',
+        category: req.query.category as string,
+        shopId: shopId,
+        userId: req.query.userId as string,
+        includeCache: req.query.includeCache !== 'false'
+      };
+
+      logger.info('Getting shop analytics', { adminId, shopId, filters });
+
+      const shopAnalytics = await this.analyticsService.getShopAnalytics(adminId, shopId, filters);
+
+      res.status(200).json({
+        success: true,
+        message: '샵 분석 데이터를 성공적으로 조회했습니다.',
+        data: shopAnalytics,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error in getShopAnalytics:', error);
+      
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'SHOP_ANALYTICS_ERROR',
+          message: '샵 분석 데이터 조회 중 오류가 발생했습니다.',
+          details: error instanceof Error ? error.message : 'Unknown error',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  }
 } 

@@ -16,6 +16,9 @@ export { default as userProfileRoutes } from './user-profile.routes';
 // Shop Routes
 export { default as shopRoutes } from './shop.routes';
 
+// Shop Categories Routes
+export { default as shopCategoriesRoutes } from './shop-categories.routes';
+
 // Shop Image Routes
 export { default as shopImageRoutes } from './shop-image.routes';
 

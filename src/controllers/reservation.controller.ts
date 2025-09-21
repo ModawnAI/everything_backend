@@ -16,17 +16,163 @@ import { logger } from '../utils/logger';
 
 export class ReservationController {
   /**
-   * GET /api/shops/:shopId/available-slots
-   * Get available time slots for a shop on a specific date
-   * 
-   * Query Parameters:
-   * - date: Date in YYYY-MM-DD format (required)
-   * - serviceIds[]: Array of service UUIDs (required)
-   * - startTime: Optional start time filter (HH:MM format)
-   * - endTime: Optional end time filter (HH:MM format)
-   * - interval: Optional interval in minutes (default: 30)
-   * 
-   * Example: GET /api/shops/123e4567-e89b-12d3-a456-426614174000/available-slots?date=2024-03-15&serviceIds[]=uuid1&serviceIds[]=uuid2
+   * @swagger
+   * /api/shops/{shopId}/available-slots:
+   *   get:
+   *     summary: Get available time slots
+   *     description: Retrieve available time slots for a shop on a specific date for selected services
+   *     tags: [Reservations]
+   *     parameters:
+   *       - in: path
+   *         name: shopId
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: uuid
+   *         description: Shop ID
+   *         example: "123e4567-e89b-12d3-a456-426614174000"
+   *       - in: query
+   *         name: date
+   *         required: true
+   *         schema:
+   *           type: string
+   *           format: date
+   *           pattern: '^\d{4}-\d{2}-\d{2}$'
+   *         description: Date in YYYY-MM-DD format
+   *         example: "2024-03-15"
+   *       - in: query
+   *         name: serviceIds
+   *         required: true
+   *         schema:
+   *           type: array
+   *           items:
+   *             type: string
+   *             format: uuid
+   *         style: form
+   *         explode: true
+   *         description: Array of service UUIDs
+   *         example: ["service-uuid-1", "service-uuid-2"]
+   *       - in: query
+   *         name: startTime
+   *         required: false
+   *         schema:
+   *           type: string
+   *           pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+   *         description: Optional start time filter (HH:MM format)
+   *         example: "09:00"
+   *       - in: query
+   *         name: endTime
+   *         required: false
+   *         schema:
+   *           type: string
+   *           pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+   *         description: Optional end time filter (HH:MM format)
+   *         example: "18:00"
+   *       - in: query
+   *         name: interval
+   *         required: false
+   *         schema:
+   *           type: integer
+   *           minimum: 15
+   *           maximum: 120
+   *           default: 30
+   *         description: Time slot interval in minutes
+   *         example: 30
+   *     responses:
+   *       200:
+   *         description: Available time slots retrieved successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     shopId:
+   *                       type: string
+   *                       format: uuid
+   *                       example: "123e4567-e89b-12d3-a456-426614174000"
+   *                     date:
+   *                       type: string
+   *                       format: date
+   *                       example: "2024-03-15"
+   *                     availableSlots:
+   *                       type: array
+   *                       items:
+   *                         type: object
+   *                         properties:
+   *                           startTime:
+   *                             type: string
+   *                             pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+   *                             example: "10:00"
+   *                           endTime:
+   *                             type: string
+   *                             pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$'
+   *                             example: "10:30"
+   *                           available:
+   *                             type: boolean
+   *                             example: true
+   *                           capacity:
+   *                             type: integer
+   *                             minimum: 1
+   *                             example: 2
+   *                           booked:
+   *                             type: integer
+   *                             minimum: 0
+   *                             example: 0
+   *                     totalSlots:
+   *                       type: integer
+   *                       description: Total number of time slots
+   *                       example: 16
+   *                     availableCount:
+   *                       type: integer
+   *                       description: Number of available slots
+   *                       example: 12
+   *       400:
+   *         description: Bad request - Invalid parameters
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "MISSING_REQUIRED_PARAMETERS"
+   *                     message:
+   *                       type: string
+   *                       example: "필수 파라미터가 누락되었습니다."
+   *                     details:
+   *                       type: string
+   *                       example: "date와 serviceIds는 필수입니다."
+   *       404:
+   *         description: Shop not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "SHOP_NOT_FOUND"
+   *                     message:
+   *                       type: string
+   *                       example: "샵을 찾을 수 없습니다."
+   *       500:
+   *         description: Internal server error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/schemas/Error'
    */
   async getAvailableSlots(req: Request, res: Response): Promise<void> {
     try {

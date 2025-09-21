@@ -110,6 +110,20 @@ export interface CrossOriginConfig {
   resourcePolicy?: 'same-site' | 'same-origin' | 'cross-origin';
 }
 
+// CSRF protection configuration
+export interface CSRFConfig {
+  enabled: boolean;
+  secret?: string;
+  saltLength?: number;
+  secretLength?: number;
+  cookie?: {
+    name: string;
+    secure: boolean;
+    httpOnly: boolean;
+    sameSite: 'strict' | 'lax' | 'none';
+  };
+}
+
 // Comprehensive security headers configuration
 export interface SecurityHeadersConfig {
   // Content Security Policy
@@ -117,6 +131,9 @@ export interface SecurityHeadersConfig {
   
   // CORS configuration
   cors?: CorsOptions;
+  
+  // CSRF protection
+  csrf?: CSRFConfig;
   
   // HTTP Strict Transport Security
   hsts?: HSTSConfig;
@@ -328,4 +345,67 @@ export interface DynamicSecurityConfig {
   adaptiveHSTSMaxAge: boolean;
   enableGeoBlocking: boolean;
   geoBlockedCountries?: string[];
+}
+
+// =============================================
+// REFRESH TOKEN TYPES
+// =============================================
+
+export interface RefreshTokenData {
+  id: string;
+  user_id: string;
+  token_hash: string;
+  device_id?: string;
+  expires_at: string;
+  is_active: boolean;
+  created_at: string;
+  revoked_at?: string;
+  user_agent?: string;
+  ip_address?: string;
+  last_used_at?: string;
+  revoked?: boolean;
+}
+
+export interface TokenPair {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+  refreshExpiresIn: number;
+}
+
+export interface RefreshTokenService {
+  generateTokenPair(userId: string, deviceId?: string): Promise<TokenPair>;
+  refreshAccessToken(refreshToken: string): Promise<TokenPair>;
+  revokeRefreshToken(tokenId: string): Promise<void>;
+  revokeAllUserTokens(userId: string): Promise<void>;
+  cleanupExpiredTokens(): Promise<number>;
+  getUserActiveTokens(userId: string): Promise<RefreshTokenData[]>;
+}
+
+export class RefreshTokenError extends Error {
+  public statusCode: number = 401;
+  public code: string = 'REFRESH_TOKEN_ERROR';
+
+  constructor(message: string, public originalError?: Error) {
+    super(message);
+    this.name = 'RefreshTokenError';
+  }
+}
+
+export class RefreshTokenExpiredError extends RefreshTokenError {
+  public code: string = 'REFRESH_TOKEN_EXPIRED';
+
+  constructor(message: string = 'Refresh token has expired') {
+    super(message);
+    this.name = 'RefreshTokenExpiredError';
+  }
+}
+
+export class RefreshTokenRevokedError extends RefreshTokenError {
+  public code: string = 'REFRESH_TOKEN_REVOKED';
+
+  constructor(message: string = 'Refresh token has been revoked') {
+    super(message);
+    this.name = 'RefreshTokenRevokedError';
+  }
 } 

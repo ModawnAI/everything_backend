@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from './logger';
+import { executeSpatialQuery } from './secure-query-builder';
 
 /**
  * PostGIS Spatial Utilities
@@ -18,11 +19,12 @@ export interface Coordinates {
   longitude: number;
 }
 
-// Shop location result interface
+// Shop location result interface with enhanced data from optimized queries
 export interface ShopLocationResult {
   id: string;
   name: string;
   address: string;
+  detailed_address?: string;
   latitude: number;
   longitude: number;
   distance_km: number;
@@ -30,10 +32,21 @@ export interface ShopLocationResult {
   shop_type: string;
   shop_status: string;
   main_category: string;
+  sub_categories?: string[];
   is_featured: boolean;
+  featured_until?: string;
+  partnership_started_at?: string;
+  phone_number?: string;
+  description?: string;
+  operating_hours?: any;
+  payment_methods?: string[];
+  total_bookings?: number;
+  commission_rate?: number;
+  created_at: string;
+  updated_at: string;
 }
 
-// Search parameters for nearby shops
+// Search parameters for nearby shops with Seoul boundary validation
 export interface NearbyShopsParams {
   userLocation: Coordinates;
   radiusKm: number;
@@ -42,6 +55,7 @@ export interface NearbyShopsParams {
   onlyFeatured?: boolean;
   limit?: number;
   offset?: number;
+  enforceSeoulBoundary?: boolean; // New parameter for geofencing
 }
 
 /**
@@ -122,8 +136,34 @@ export async function calculateDistance(
 }
 
 /**
+ * Seoul city boundary coordinates for geofencing validation
+ * Approximate bounding box for Seoul metropolitan area
+ */
+const SEOUL_BOUNDARY = {
+  north: 37.7013,   // 북쪽 경계 (의정부 근처)
+  south: 37.4269,   // 남쪽 경계 (과천 근처)  
+  east: 127.1839,   // 동쪽 경계 (하남 근처)
+  west: 126.7344    // 서쪽 경계 (김포 근처)
+};
+
+/**
+ * Validate if coordinates are within Seoul city boundary
+ */
+export function isWithinSeoulBoundary(coordinates: Coordinates): boolean {
+  const { latitude, longitude } = coordinates;
+  
+  return (
+    latitude >= SEOUL_BOUNDARY.south &&
+    latitude <= SEOUL_BOUNDARY.north &&
+    longitude >= SEOUL_BOUNDARY.west &&
+    longitude <= SEOUL_BOUNDARY.east
+  );
+}
+
+/**
  * Find nearby shops within specified radius
  * This implements the core "내 주변 샵" (nearby shops) functionality
+ * Optimized with PostGIS indexes and PRD 2.1 sorting algorithm
  */
 export async function findNearbyShops(
   params: NearbyShopsParams
@@ -136,11 +176,23 @@ export async function findNearbyShops(
       shopType,
       onlyFeatured = false,
       limit = 50,
-      offset = 0
+      offset = 0,
+      enforceSeoulBoundary = true
     } = params;
     
     if (!validateCoordinates(userLocation)) {
       throw new Error('Invalid user location coordinates');
+    }
+    
+    // Seoul city boundary validation (geofencing)
+    if (enforceSeoulBoundary && !isWithinSeoulBoundary(userLocation)) {
+      logger.warn('User location outside Seoul boundary', {
+        userLocation,
+        boundary: SEOUL_BOUNDARY
+      });
+      
+      // Return empty results for locations outside Seoul
+      return [];
     }
     
     if (radiusKm <= 0 || radiusKm > 100) {
@@ -149,124 +201,57 @@ export async function findNearbyShops(
     
     const client = getSupabaseClient();
     
-    // Build the spatial query
-    let query = `
-      SELECT 
-        s.id,
-        s.name,
-        s.address,
-        s.latitude,
-        s.longitude,
-        ST_Distance(
-          s.location::geography,
-          ST_SetSRID(ST_MakePoint($1, $2), ${DEFAULT_SRID})::geography
-        ) / 1000 as distance_km,
-        ST_Distance(
-          s.location::geography,
-          ST_SetSRID(ST_MakePoint($1, $2), ${DEFAULT_SRID})::geography
-        ) as distance_m,
-        s.shop_type,
-        s.shop_status,
-        s.main_category,
-        s.is_featured
-      FROM public.shops s
-      WHERE 
-        s.shop_status = 'active'
-        AND s.location IS NOT NULL
-        AND ST_DWithin(
-          s.location::geography,
-          ST_SetSRID(ST_MakePoint($1, $2), ${DEFAULT_SRID})::geography,
-          $3
-        )
-    `;
+    // Use optimized secure query builder with composite indexes
+    const spatialResults = await executeSpatialQuery({
+      userLocation,
+      radiusKm,
+      category,
+      shopType,
+      onlyFeatured,
+      limit,
+      offset
+    });
     
-    const queryParams: (string | number)[] = [userLocation.longitude, userLocation.latitude, radiusKm * 1000];
-    let paramIndex = 4;
+    // Transform secure query results to expected format with enhanced data
+    const results = spatialResults.map((row: any) => ({
+      id: row.id,
+      name: row.name,
+      address: row.address,
+      detailed_address: row.detailed_address,
+      latitude: row.latitude,
+      longitude: row.longitude,
+      shop_type: row.shop_type,
+      shop_status: row.shop_status,
+      main_category: row.main_category,
+      sub_categories: row.sub_categories,
+      is_featured: row.is_featured,
+      featured_until: row.featured_until,
+      partnership_started_at: row.partnership_started_at,
+      phone_number: row.phone_number,
+      description: row.description,
+      operating_hours: row.operating_hours,
+      payment_methods: row.payment_methods,
+      total_bookings: row.total_bookings,
+      commission_rate: row.commission_rate,
+      distance_km: row.distance_km,
+      distance_m: row.distance_m,
+      created_at: row.created_at,
+      updated_at: row.updated_at
+    }));
     
-    // Add category filter
-    if (category) {
-      query += ` AND s.main_category = $${paramIndex}`;
-      queryParams.push(category);
-      paramIndex++;
-    }
-    
-    // Add shop type filter
-    if (shopType) {
-      query += ` AND s.shop_type = $${paramIndex}`;
-      queryParams.push(shopType);
-      paramIndex++;
-    }
-    
-    // Add featured filter
-    if (onlyFeatured) {
-      query += ` AND s.is_featured = true AND s.featured_until > NOW()`;
-    }
-    
-    // Order by priority: partnered shops first, then by distance
-    query += `
-      ORDER BY 
-        CASE WHEN s.shop_type = 'partnered' THEN 0 ELSE 1 END,
-        s.is_featured DESC,
-        distance_km ASC
-      LIMIT $${paramIndex} OFFSET $${paramIndex + 1}
-    `;
-    
-    queryParams.push(limit, offset);
-    
-    // For now, use a simple query to get shops and filter by distance
-    // In production, this would use the full PostGIS spatial query
-    const { data, error } = await client
-      .from('shops')
-      .select(`
-        id, name, address, latitude, longitude, shop_type, 
-        shop_status, main_category, is_featured
-      `)
-      .eq('shop_status', 'active')
-      .not('latitude', 'is', null)
-      .not('longitude', 'is', null);
-    
-    if (error) {
-      logger.error('Failed to find nearby shops', { 
-        error: error.message,
-        userLocation,
-        radiusKm 
-      });
-      return [];
-    }
-    
-    // Filter by distance and add distance calculations
-    const results = (data || [])
-      .map(shop => {
-        const distance = calculateHaversineDistance(
-          userLocation,
-          { latitude: shop.latitude!, longitude: shop.longitude! }
-        );
-        return {
-          ...shop,
-          distance_km: distance,
-          distance_m: distance * 1000
-        };
-      })
-      .filter(shop => shop.distance_km <= radiusKm)
-      .filter(shop => !category || shop.main_category === category)
-      .filter(shop => !shopType || shop.shop_type === shopType)
-      .filter(shop => !onlyFeatured || shop.is_featured)
-      .sort((a, b) => {
-        // Sort by priority: partnered first, then by distance
-        if (a.shop_type === 'partnered' && b.shop_type !== 'partnered') return -1;
-        if (b.shop_type === 'partnered' && a.shop_type !== 'partnered') return 1;
-        if (a.is_featured && !b.is_featured) return -1;
-        if (b.is_featured && !a.is_featured) return 1;
-        return a.distance_km - b.distance_km;
-      })
-      .slice(offset, offset + limit);
-    
-    logger.info('Found nearby shops', {
+    logger.info('Found nearby shops with optimization', {
       userLocation,
       radiusKm,
       resultCount: results.length,
       category,
-      shopType
+      shopType,
+      onlyFeatured,
+      withinSeoulBoundary: isWithinSeoulBoundary(userLocation),
+      indexesUsed: [
+        category ? 'idx_shops_active_category_location' : null,
+        shopType ? 'idx_shops_type_status_location' : null,
+        onlyFeatured ? 'idx_shops_featured_location' : null
+      ].filter(Boolean)
     });
     
     return results;
@@ -392,15 +377,31 @@ export async function getShopsInBounds(
         distance_m: 0
       }))
       .sort((a, b) => {
-        // Sort by priority: partnered first, then by name
+        // Implement PRD 2.1 sorting algorithm for bounds queries
+        // 1. Partnered shops first
         if (a.shop_type === 'partnered' && b.shop_type !== 'partnered') return -1;
         if (b.shop_type === 'partnered' && a.shop_type !== 'partnered') return 1;
+        
+        // 2. Partnership started date (newest first) - for partnered shops
+        if (a.shop_type === 'partnered' && b.shop_type === 'partnered') {
+          const aDate = (a as any).partnership_started_at ? new Date((a as any).partnership_started_at).getTime() : 0;
+          const bDate = (b as any).partnership_started_at ? new Date((b as any).partnership_started_at).getTime() : 0;
+          if (aDate !== bDate) return bDate - aDate; // DESC order
+        }
+        
+        // 3. Featured shops
         if (a.is_featured && !b.is_featured) return -1;
         if (b.is_featured && !a.is_featured) return 1;
+        
+        // 4. Fallback to name for consistent ordering
         return a.name.localeCompare(b.name);
       });
     
-    return results;
+    return results.map(shop => ({
+      ...shop,
+      created_at: (shop as any).created_at || new Date().toISOString(),
+      updated_at: (shop as any).updated_at || new Date().toISOString()
+    }));
     
   } catch (error) {
     logger.error('Error getting shops in bounds', {

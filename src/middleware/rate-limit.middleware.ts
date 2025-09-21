@@ -34,11 +34,15 @@ import {
   generateRateLimitKey
 } from '../config/rate-limit.config';
 import { getRedisRateLimitStore } from '../utils/redis-rate-limit-store';
+import { getRateLimiterFlexibleService } from '../services/rate-limiter-flexible.service';
+import { ipBlockingService } from '../services/ip-blocking.service';
 
 /**
  * Rate Limiting Service
+ * Updated to use rate-limiter-flexible for better performance and Redis support
  */
 class RateLimitService {
+  private flexibleService = getRateLimiterFlexibleService();
   private store: RateLimitStore;
 
   constructor() {
@@ -57,58 +61,22 @@ class RateLimitService {
   }
 
   /**
-   * Check rate limit for a request
+   * Set store for testing
+   */
+  setStore(store: RateLimitStore): void {
+    this.store = store;
+  }
+
+  /**
+   * Check rate limit for a request using rate-limiter-flexible
    */
   async checkRateLimit(
     context: RateLimitContext,
     config: RateLimitConfig
   ): Promise<RateLimitResult> {
     try {
-      // Generate unique key for this request
-      const key = this.generateKey(context, config);
-      
-      // Get current rate limit data
-      const currentData = await this.store.get(key);
-      const now = new Date();
-      const windowStart = new Date(now.getTime() - config.windowMs);
-
-      // Determine if we're in a new window
-      const isNewWindow = !currentData || currentData.resetTime <= windowStart;
-
-      let totalHits: number;
-      let resetTime: Date;
-
-      if (isNewWindow) {
-        // Start new window
-        totalHits = 1;
-        resetTime = new Date(now.getTime() + config.windowMs);
-        
-        await this.store.set(key, {
-          totalHits,
-          resetTime,
-          remainingRequests: Math.max(0, config.max - totalHits)
-        }, config.windowMs);
-      } else {
-        // Increment in existing window
-        const incrementedData = await this.store.increment(key, config.windowMs);
-        totalHits = incrementedData.totalHits;
-        resetTime = incrementedData.resetTime;
-      }
-
-      const remainingRequests = Math.max(0, config.max - totalHits);
-      const allowed = totalHits <= config.max;
-      const result: RateLimitResult = {
-        allowed,
-        totalHits,
-        remainingRequests,
-        resetTime
-      };
-
-      if (!allowed) {
-        result.retryAfter = Math.ceil((resetTime.getTime() - now.getTime()) / 1000);
-      }
-
-      return result;
+      // Use rate-limiter-flexible for better performance
+      return await this.flexibleService.checkRateLimit(context, config);
 
     } catch (error) {
       logger.error('Rate limit check failed', {
@@ -127,7 +95,7 @@ class RateLimitService {
   }
 
   /**
-   * Generate rate limit key
+   * Generate rate limit key (kept for compatibility)
    */
   private generateKey(context: RateLimitContext, config: RateLimitConfig): string {
     const { userRole, userId, ip, endpoint } = context;
@@ -178,6 +146,11 @@ class RateLimitService {
       const violationKey = generateRateLimitKey('violation', context.ip, new Date().toDateString());
       await this.store.increment(violationKey, 86400); // 24 hours
 
+      // Apply progressive penalties for repeat offenders
+      if (result.totalHits > config.max * 2) {
+        await this.flexibleService.penalizeUser(context, config, 2);
+      }
+
     } catch (error) {
       logger.error('Failed to log rate limit violation', {
         error: error instanceof Error ? error.message : 'Unknown error'
@@ -195,6 +168,26 @@ class RateLimitService {
       cpu: Math.random() * 100,
       memory: Math.random() * 100
     };
+  }
+
+  /**
+   * Get rate limit status without consuming points
+   */
+  async getRateLimitStatus(
+    context: RateLimitContext,
+    config: RateLimitConfig
+  ): Promise<RateLimitResult> {
+    return await this.flexibleService.getRateLimitStatus(context, config);
+  }
+
+  /**
+   * Reset rate limit for a user
+   */
+  async resetRateLimit(
+    context: RateLimitContext,
+    config: RateLimitConfig
+  ): Promise<boolean> {
+    return await this.flexibleService.resetRateLimit(context, config);
   }
 }
 
@@ -262,6 +255,28 @@ export function rateLimit(options: RateLimitMiddlewareOptions = {}) {
         return next();
       }
 
+      // Check if IP is blocked
+      const blockInfo = await ipBlockingService.isIPBlocked(context.ip);
+      if (blockInfo) {
+        logger.warn('Blocked IP attempted access', {
+          ip: context.ip,
+          endpoint: context.endpoint,
+          blockedAt: blockInfo.blockedAt,
+          blockedUntil: blockInfo.blockedUntil,
+          reason: blockInfo.reason
+        });
+
+        res.status(403).json({
+          error: {
+            code: 'IP_BLOCKED',
+            message: 'Your IP address has been temporarily blocked due to suspicious activity.',
+            blockedUntil: blockInfo.blockedUntil.toISOString(),
+            reason: blockInfo.reason
+          }
+        });
+        return;
+      }
+
       // Determine rate limit configuration
       let config: RateLimitConfig;
 
@@ -305,6 +320,21 @@ export function rateLimit(options: RateLimitMiddlewareOptions = {}) {
       if (!result.allowed) {
         // Log violation
         await rateLimitService.logViolation(context, result, config);
+
+        // Record IP violation for blocking system
+        await ipBlockingService.recordViolation({
+          ip: context.ip,
+          timestamp: new Date(),
+          violationType: 'rate_limit',
+          endpoint: context.endpoint,
+          userAgent: context.userAgent,
+          severity: result.totalHits > config.max * 2 ? 'high' : 'medium',
+          details: {
+            limit: config.max,
+            actual: result.totalHits,
+            windowMs: config.windowMs
+          }
+        });
 
         // Call custom handler if provided
         if (options.onLimitReached) {
@@ -477,7 +507,7 @@ export async function getRateLimitStatus(
     };
 
     const config = getRoleLimitConfig('user'); // Default to user role
-    return await rateLimitService.checkRateLimit(context, config);
+    return await rateLimitService.getRateLimitStatus(context, config);
 
   } catch (error) {
     logger.error('Failed to get rate limit status', {
@@ -499,25 +529,19 @@ export async function resetRateLimit(
   endpoint?: string
 ): Promise<boolean> {
   try {
-    const store = getRedisRateLimitStore();
-    
-    if (endpoint) {
-      const key = generateRateLimitKey('user', userId, endpoint);
-      await store.reset(key);
-    } else {
-      // Reset all limits for user
-      const patterns = [
-        generateRateLimitKey('user', userId),
-        generateRateLimitKey('ip', ip)
-      ];
-      
-      for (const pattern of patterns) {
-        await store.reset(pattern);
-      }
-    }
+    const context: RateLimitContext = {
+      req: {} as Request,
+      userId,
+      ip,
+      endpoint: endpoint || 'all',
+      method: 'GET'
+    };
+
+    const config = getRoleLimitConfig('user'); // Default to user role
+    const result = await rateLimitService.resetRateLimit(context, config);
 
     logger.info('Rate limit reset', { userId, ip, endpoint });
-    return true;
+    return result;
 
   } catch (error) {
     logger.error('Failed to reset rate limit', {

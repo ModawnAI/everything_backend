@@ -10,7 +10,7 @@ export type UserStatus = 'active' | 'inactive' | 'suspended' | 'deleted';
 export type UserRole = 'user' | 'shop_owner' | 'admin' | 'influencer';
 export type SocialProvider = 'kakao' | 'apple' | 'google' | 'email';
 
-export type ShopStatus = 'active' | 'inactive' | 'pending_approval' | 'suspended' | 'deleted';
+export type ShopStatus = 'active' | 'inactive' | 'pending_approval' | 'suspended' | 'deleted' | 'flagged' | 'under_review' | 'moderation_blocked';
 export type ShopType = 'partnered' | 'non_partnered';
 export type ServiceCategory = 'nail' | 'eyelash' | 'waxing' | 'eyebrow_tattoo' | 'hair';
 export type ShopVerificationStatus = 'pending' | 'verified' | 'rejected';

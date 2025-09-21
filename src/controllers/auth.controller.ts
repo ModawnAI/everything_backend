@@ -40,8 +40,124 @@ interface RefreshTokenResponse {
 
 export class AuthController {
   /**
-   * POST /api/auth/refresh
-   * Refresh access token using refresh token
+   * @swagger
+   * /api/auth/refresh:
+   *   post:
+   *     summary: Refresh access token
+   *     description: Refresh an expired access token using a valid refresh token
+   *     tags: [Authentication]
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - refreshToken
+   *             properties:
+   *               refreshToken:
+   *                 type: string
+   *                 description: Valid refresh token
+   *                 example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   *               deviceInfo:
+   *                 type: object
+   *                 description: Optional device information for security tracking
+   *                 properties:
+   *                   deviceId:
+   *                     type: string
+   *                     description: Unique device identifier
+   *                     example: "device-123-456"
+   *                   platform:
+   *                     type: string
+   *                     enum: [ios, android, web]
+   *                     description: Platform type
+   *                     example: "ios"
+   *                   version:
+   *                     type: string
+   *                     description: App version
+   *                     example: "1.0.0"
+   *     responses:
+   *       200:
+   *         description: Token refreshed successfully
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     accessToken:
+   *                       type: string
+   *                       description: New JWT access token
+   *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   *                     refreshToken:
+   *                       type: string
+   *                       description: New refresh token (rotated)
+   *                       example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   *                     expiresIn:
+   *                       type: number
+   *                       description: Token expiration time in seconds
+   *                       example: 3600
+   *                     tokenType:
+   *                       type: string
+   *                       example: "Bearer"
+   *       400:
+   *         description: Bad request - Invalid refresh token format
+   *         content:
+   *           application/json:
+   *             schema:
+   *               $ref: '#/components/responses/BadRequest'
+   *       401:
+   *         description: Unauthorized - Invalid or expired refresh token
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "REFRESH_TOKEN_EXPIRED"
+   *                     message:
+   *                       type: string
+   *                       example: "리프레시 토큰이 만료되었습니다. 다시 로그인해주세요."
+   *                     timestamp:
+   *                       type: string
+   *                       format: date-time
+   *                       example: "2024-01-15T10:30:00Z"
+   *       429:
+   *         $ref: '#/components/responses/TooManyRequests'
+   *       500:
+   *         description: Internal server error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "INTERNAL_ERROR"
+   *                     message:
+   *                       type: string
+   *                       example: "토큰 갱신 중 오류가 발생했습니다."
+   *                     timestamp:
+   *                       type: string
+   *                       format: date-time
    */
   static async refreshToken(
     req: RefreshTokenRequest,
@@ -153,8 +269,87 @@ export class AuthController {
   }
 
   /**
-   * POST /api/auth/logout
-   * Revoke refresh token (logout from current device)
+   * @swagger
+   * /api/auth/logout:
+   *   post:
+   *     summary: Logout user
+   *     description: Revoke refresh token and logout user from current device
+   *     tags: [Authentication]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - refreshToken
+   *             properties:
+   *               refreshToken:
+   *                 type: string
+   *                 description: Refresh token to revoke
+   *                 example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+   *     responses:
+   *       200:
+   *         description: Logout successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 message:
+   *                   type: string
+   *                   example: "로그아웃되었습니다."
+   *       400:
+   *         description: Bad request - Missing refresh token
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "MISSING_REFRESH_TOKEN"
+   *                     message:
+   *                       type: string
+   *                       example: "Refresh token is required"
+   *                     timestamp:
+   *                       type: string
+   *                       format: date-time
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
+   *       500:
+   *         description: Internal server error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "INTERNAL_SERVER_ERROR"
+   *                     message:
+   *                       type: string
+   *                       example: "Internal server error occurred"
+   *                     timestamp:
+   *                       type: string
+   *                       format: date-time
    */
   static async logout(
     req: AuthenticatedRequest,

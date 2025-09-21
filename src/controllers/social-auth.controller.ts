@@ -11,6 +11,8 @@ import { userService, UserServiceError, UserRegistrationData } from '../services
 import { passService } from '../services/pass.service';
 import { refreshTokenService } from '../services/refresh-token.service';
 import { logger } from '../utils/logger';
+import { websocketService } from '../services/websocket.service';
+import { rateLimit, loginRateLimit } from '../middleware/rate-limit.middleware';
 import {
   SocialLoginRequest,
   SocialLoginResponse,
@@ -96,6 +98,82 @@ interface PassCallbackRequest extends Request {
  */
 export class SocialAuthController {
   private supabase = getSupabaseClient();
+
+  /**
+   * Rate limiting middleware for social login with progressive penalties
+   */
+  public socialLoginRateLimit = rateLimit({
+    config: {
+      max: 5, // 5 attempts per 15 minutes
+      windowMs: 15 * 60 * 1000, // 15 minutes
+      strategy: 'sliding_window',
+      scope: 'ip',
+      enableHeaders: true,
+      message: {
+        error: 'Too many social login attempts. Please try again in 15 minutes.',
+        code: 'SOCIAL_LOGIN_RATE_LIMIT_EXCEEDED'
+      }
+    },
+    onLimitReached: async (req: Request, res: Response, result: any) => {
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      const userAgent = req.get('User-Agent') || 'unknown';
+      const provider = req.body?.provider || 'unknown';
+
+      // Log security incident
+      logger.error('Social login rate limit exceeded - potential abuse', {
+        ip: ipAddress,
+        userAgent,
+        provider,
+        attempts: result.totalHits,
+        resetTime: result.resetTime
+      });
+
+      // Record violation for IP blocking system
+      try {
+        const { ipBlockingService } = await import('../services/ip-blocking.service');
+        await ipBlockingService.recordViolation({
+          ip: ipAddress,
+          timestamp: new Date(),
+          violationType: 'rate_limit',
+          endpoint: '/api/auth/social-login',
+          userAgent,
+          severity: result.totalHits > 10 ? 'high' : 'medium',
+          details: {
+            provider,
+            attempts: result.totalHits,
+            windowMs: 15 * 60 * 1000,
+            endpointType: 'social_login'
+          }
+        });
+      } catch (error) {
+        logger.error('Failed to record rate limit violation', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+
+      // Progressive penalty response
+      let penaltyMessage = 'Too many social login attempts. Please try again in 15 minutes.';
+      let penaltyCode = 'SOCIAL_LOGIN_RATE_LIMIT_EXCEEDED';
+
+      if (result.totalHits > 10) {
+        penaltyMessage = 'Excessive login attempts detected. Your IP may be temporarily blocked.';
+        penaltyCode = 'EXCESSIVE_LOGIN_ATTEMPTS';
+      } else if (result.totalHits > 7) {
+        penaltyMessage = 'Multiple failed login attempts. Please wait 30 minutes before trying again.';
+        penaltyCode = 'MULTIPLE_FAILED_ATTEMPTS';
+      }
+
+      res.status(429).json({
+        success: false,
+        error: {
+          code: penaltyCode,
+          message: penaltyMessage,
+          retryAfter: result.retryAfter,
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  });
 
   /**
    * POST /api/auth/send-verification-code
@@ -565,14 +643,49 @@ export class SocialAuthController {
         userAgent
       });
 
-      // Validate provider
+      // Enhanced provider validation
       if (!['kakao', 'apple', 'google'].includes(provider)) {
+        logger.warn('Invalid social provider attempted', { 
+          provider, 
+          ipAddress, 
+          userAgent, 
+          requestId 
+        });
         throw new SocialAuthError('Invalid provider', 'INVALID_PROVIDER', 400);
       }
 
-      // Validate token
+      // Enhanced token validation
       if (!token || typeof token !== 'string' || token.trim().length === 0) {
+        logger.warn('Social login attempted without token', { 
+          provider, 
+          ipAddress, 
+          userAgent, 
+          requestId 
+        });
         throw new SocialAuthError('Token is required', 'MISSING_TOKEN', 400);
+      }
+
+      // Additional security checks
+      if (token.length > 10000) { // Prevent extremely large tokens
+        logger.warn('Suspiciously large token provided', { 
+          provider, 
+          tokenLength: token.length, 
+          ipAddress, 
+          requestId 
+        });
+        throw new SocialAuthError('Invalid token format', 'INVALID_TOKEN_FORMAT', 400);
+      }
+
+      // Validate device info if provided
+      if (deviceInfo) {
+        if (deviceInfo.platform && !['ios', 'android', 'web'].includes(deviceInfo.platform)) {
+          logger.warn('Invalid platform in device info', { 
+            provider, 
+            platform: deviceInfo.platform, 
+            ipAddress, 
+            requestId 
+          });
+        }
       }
 
       // Authenticate with Supabase Auth
@@ -721,6 +834,17 @@ export class SocialAuthController {
         duration,
         requestId
       });
+
+      // Broadcast login activity to admin monitoring
+      if (websocketService) {
+        websocketService.broadcastUserLogin(
+          authResult.user.id,
+          authResult.user.user_metadata?.full_name || user?.name || 'Unknown User',
+          authResult.user.email || user?.email,
+          ipAddress,
+          userAgent
+        );
+      }
 
       // Prepare response
       const response: SocialLoginResponse = {

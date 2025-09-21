@@ -8,6 +8,7 @@
 import { Request, Response, NextFunction } from 'express';
 import helmet, { HelmetOptions } from 'helmet';
 import cors from 'cors';
+import Tokens from 'csrf';
 import { logger } from '../utils/logger';
 import {
   SecurityHeadersConfig,
@@ -229,11 +230,21 @@ function createHelmetConfig(config: SecurityHeadersConfig): HelmetOptions {
 
   // Content Security Policy
   if (config.csp) {
+    const directives = { ...config.csp.directives };
+    
+    // Handle boolean directives properly for helmet
+    if (directives['upgrade-insecure-requests']) {
+      directives['upgradeInsecureRequests'] = [];
+      delete directives['upgrade-insecure-requests'];
+    }
+    if (directives['block-all-mixed-content']) {
+      directives['blockAllMixedContent'] = [];
+      delete directives['block-all-mixed-content'];
+    }
+    
     helmetConfig.contentSecurityPolicy = {
-      directives: config.csp.directives as any,
+      directives: directives as any,
       reportOnly: config.csp.reportOnly || false,
-      // setAllHeaders: config.csp.setAllHeaders, // Property not supported in this version
-      // disableAndroid: config.csp.disableAndroid, // Property not supported in this version
       useDefaults: config.csp.useDefaults || false
     };
   }
@@ -410,6 +421,62 @@ export function securityHeaders(options: SecurityMiddlewareOptions = {}) {
   // CORS middleware
   if (finalConfig.cors) {
     middlewares.push(cors(finalConfig.cors));
+  }
+
+  // CSRF protection middleware
+  if (finalConfig.csrf && finalConfig.csrf.enabled) {
+    const tokens = new Tokens({
+      secretLength: finalConfig.csrf.secretLength || 18,
+      saltLength: finalConfig.csrf.saltLength || 8
+    });
+
+    middlewares.push((req: Request, res: Response, next: NextFunction) => {
+      // Skip CSRF for GET requests and API endpoints that don't need it
+      if (req.method === 'GET' || req.path.startsWith('/api/health') || req.path.startsWith('/api/security/csp-report')) {
+        return next();
+      }
+
+      try {
+        const token = req.headers['x-csrf-token'] as string;
+        const secret = req.headers['x-csrf-secret'] as string;
+
+        if (!token || !secret) {
+          logger.warn('CSRF token missing', {
+            ip: req.ip,
+            userAgent: req.get('User-Agent'),
+            path: req.path
+          });
+          return res.status(403).json({ 
+            error: 'CSRF token required',
+            code: 'CSRF_TOKEN_MISSING'
+          });
+        }
+
+        if (!tokens.verify(secret, token)) {
+          logger.warn('CSRF token verification failed', {
+            ip: req.ip,
+            userAgent: req.get('User-Agent'),
+            path: req.path
+          });
+          return res.status(403).json({ 
+            error: 'Invalid CSRF token',
+            code: 'CSRF_TOKEN_INVALID'
+          });
+        }
+
+        next();
+      } catch (error) {
+        logger.error('CSRF verification error', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          ip: req.ip,
+          path: req.path
+        });
+        return res.status(500).json({ 
+          error: 'CSRF verification failed',
+          code: 'CSRF_VERIFICATION_ERROR'
+        });
+      }
+    });
   }
 
   // Helmet middleware

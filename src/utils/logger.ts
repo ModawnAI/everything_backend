@@ -7,12 +7,24 @@ const logFormat = winston.format.combine(
   winston.format.errors({ stack: true }),
   winston.format.json(),
   winston.format.printf(({ timestamp, level, message, ...meta }) => {
+    // Custom replacer to handle circular references
+    const seen = new WeakSet();
+    const replacer = (key: string, value: any) => {
+      if (typeof value === 'object' && value !== null) {
+        if (seen.has(value)) {
+          return '[Circular]';
+        }
+        seen.add(value);
+      }
+      return value;
+    };
+    
     return JSON.stringify({
       timestamp,
       level,
       message,
       ...meta,
-    });
+    }, replacer);
   })
 );
 

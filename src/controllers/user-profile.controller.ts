@@ -12,42 +12,34 @@
 import { Request, Response, NextFunction } from 'express';
 import { userProfileService, ProfileUpdateRequest, PrivacySettingsUpdateRequest } from '../services/user-profile.service';
 import { logger } from '../utils/logger';
+import { logProfileSecurityEvent } from '../middleware/profile-security.middleware';
+import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 // Request interfaces
-export interface GetProfileRequest extends Request {
-  user?: { id: string };
-}
+export interface GetProfileRequest extends AuthenticatedRequest {}
 
-export interface UpdateProfileRequest extends Request {
-  user?: { id: string };
+export interface UpdateProfileRequest extends AuthenticatedRequest {
   body: ProfileUpdateRequest;
 }
 
-export interface UpdateSettingsRequest extends Request {
-  user?: { id: string };
+export interface UpdateSettingsRequest extends AuthenticatedRequest {
   body: PrivacySettingsUpdateRequest;
 }
 
-export interface UploadImageRequest extends Request {
-  user?: { id: string };
+export interface UploadImageRequest extends AuthenticatedRequest {
   file?: Express.Multer.File;
 }
 
-export interface DeleteAccountRequest extends Request {
-  user?: { id: string };
+export interface DeleteAccountRequest extends AuthenticatedRequest {
   body: {
     reason?: string;
     password?: string; // For additional verification
   };
 }
 
-export interface AcceptTermsRequest extends Request {
-  user?: { id: string };
-}
+export interface AcceptTermsRequest extends AuthenticatedRequest {}
 
-export interface AcceptPrivacyRequest extends Request {
-  user?: { id: string };
-}
+export interface AcceptPrivacyRequest extends AuthenticatedRequest {}
 
 export class UserProfileController {
   /**
@@ -129,6 +121,12 @@ export class UserProfileController {
 
       const updatedProfile = await userProfileService.updateUserProfile(userId, updates);
 
+      // Log successful profile update
+      await logProfileSecurityEvent(req, 'profile_update', true, {
+        updatedFields: Object.keys(updates),
+        profileId: updatedProfile.id
+      });
+
       res.status(200).json({
         success: true,
         data: {
@@ -137,6 +135,11 @@ export class UserProfileController {
         }
       });
     } catch (error) {
+      // Log failed profile update
+      await logProfileSecurityEvent(req, 'profile_update', false, {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
       logger.error('UserProfileController.updateProfile error:', { error });
       next(error);
     }
@@ -210,6 +213,12 @@ export class UserProfileController {
 
       const updatedSettings = await userProfileService.updateUserSettings(userId, updates);
 
+      // Log successful settings update
+      await logProfileSecurityEvent(req, 'settings_update', true, {
+        updatedFields: Object.keys(updates),
+        userId
+      });
+
       res.status(200).json({
         success: true,
         data: {
@@ -218,6 +227,12 @@ export class UserProfileController {
         }
       });
     } catch (error) {
+      // Log failed settings update
+      await logProfileSecurityEvent(req, 'settings_update', false, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
       logger.error('UserProfileController.updateSettings error:', { error });
       next(error);
     }
@@ -292,6 +307,15 @@ export class UserProfileController {
       const result = await userProfileService.uploadProfileImage(userId, file.buffer, file.originalname);
 
       if (!result.success) {
+        // Log failed image upload
+        await logProfileSecurityEvent(req, 'image_upload', false, {
+          error: result.error || 'Upload failed',
+          fileName: file.originalname,
+          fileSize: file.size,
+          fileType: file.mimetype,
+          userId
+        });
+
         res.status(400).json({
           success: false,
           error: {
@@ -303,14 +327,34 @@ export class UserProfileController {
         return;
       }
 
+      // Log successful image upload
+      await logProfileSecurityEvent(req, 'image_upload', true, {
+        fileName: file.originalname,
+        fileSize: file.size,
+        fileType: file.mimetype,
+        imageUrl: result.imageUrl,
+        thumbnailUrl: result.thumbnailUrl,
+        originalSize: result.metadata?.originalSize,
+        optimizedSize: result.metadata?.optimizedSize,
+        userId
+      });
+
       res.status(200).json({
         success: true,
         data: {
           imageUrl: result.imageUrl,
+          thumbnailUrl: result.thumbnailUrl,
+          metadata: result.metadata,
           message: '프로필 이미지가 성공적으로 업로드되었습니다.'
         }
       });
     } catch (error) {
+      // Log failed image upload
+      await logProfileSecurityEvent(req, 'image_upload', false, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
       logger.error('UserProfileController.uploadProfileImage error:', { error });
       next(error);
     }
@@ -339,6 +383,12 @@ export class UserProfileController {
 
       await userProfileService.deleteUserAccount(userId, reason);
 
+      // Log successful account deletion
+      await logProfileSecurityEvent(req, 'account_deletion', true, {
+        reason: reason || 'No reason provided',
+        userId
+      });
+
       res.status(200).json({
         success: true,
         data: {
@@ -346,6 +396,12 @@ export class UserProfileController {
         }
       });
     } catch (error) {
+      // Log failed account deletion
+      await logProfileSecurityEvent(req, 'account_deletion', false, {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
       logger.error('UserProfileController.deleteAccount error:', { error });
       next(error);
     }

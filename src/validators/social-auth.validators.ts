@@ -7,6 +7,7 @@
 
 import Joi from 'joi';
 import { SocialProvider } from '../types/social-auth.types';
+import { securitySafeStringSchema, passwordStrengthSchema } from './security.validators';
 
 /**
  * Device info validation schema
@@ -184,7 +185,7 @@ export const passCallbackSchema = Joi.object({
  * User registration validation schema
  */
 export const userRegistrationSchema = Joi.object({
-  name: Joi.string()
+  name: securitySafeStringSchema
     .trim()
     .min(2)
     .max(50)

@@ -19,8 +19,169 @@ export class PaymentController {
   private supabase = getSupabaseClient();
 
   /**
-   * POST /api/payments/toss/prepare
-   * Initialize payment with TossPayments
+   * @swagger
+   * /api/payments/toss/prepare:
+   *   post:
+   *     summary: Initialize payment with TossPayments
+   *     description: Prepare a payment transaction with TossPayments for reservation deposit or full payment
+   *     tags: [Payments]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - reservationId
+   *               - amount
+   *             properties:
+   *               reservationId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: ID of the reservation to pay for
+   *                 example: "123e4567-e89b-12d3-a456-426614174000"
+   *               amount:
+   *                 type: number
+   *                 minimum: 100
+   *                 description: Payment amount in KRW (minimum 100원)
+   *                 example: 50000
+   *               isDeposit:
+   *                 type: boolean
+   *                 default: true
+   *                 description: Whether this is a deposit payment (true) or full payment (false)
+   *                 example: true
+   *               successUrl:
+   *                 type: string
+   *                 format: uri
+   *                 description: URL to redirect to after successful payment
+   *                 example: "https://app.reviewthing.com/payment/success"
+   *               failUrl:
+   *                 type: string
+   *                 format: uri
+   *                 description: URL to redirect to after failed payment
+   *                 example: "https://app.reviewthing.com/payment/fail"
+   *     responses:
+   *       200:
+   *         description: Payment preparation successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     paymentId:
+   *                       type: string
+   *                       format: uuid
+   *                       description: Internal payment ID
+   *                       example: "pay_123e4567-e89b-12d3-a456-426614174000"
+   *                     orderId:
+   *                       type: string
+   *                       description: TossPayments order ID
+   *                       example: "order_20240115_123456"
+   *                     amount:
+   *                       type: number
+   *                       description: Payment amount
+   *                       example: 50000
+   *                     customerName:
+   *                       type: string
+   *                       description: Customer name
+   *                       example: "홍길동"
+   *                     successUrl:
+   *                       type: string
+   *                       description: Success redirect URL
+   *                     failUrl:
+   *                       type: string
+   *                       description: Failure redirect URL
+   *       400:
+   *         description: Bad request - Invalid input data
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "INVALID_AMOUNT"
+   *                     message:
+   *                       type: string
+   *                       example: "결제 금액이 유효하지 않습니다."
+   *                     details:
+   *                       type: string
+   *                       example: "최소 결제 금액은 100원입니다."
+   *       401:
+   *         $ref: '#/components/responses/Unauthorized'
+   *       404:
+   *         description: Reservation not found
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "RESERVATION_NOT_FOUND"
+   *                     message:
+   *                       type: string
+   *                       example: "예약을 찾을 수 없습니다."
+   *       409:
+   *         description: Payment already exists
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "PAYMENT_ALREADY_EXISTS"
+   *                     message:
+   *                       type: string
+   *                       example: "이미 진행 중인 결제가 있습니다."
+   *       429:
+   *         $ref: '#/components/responses/TooManyRequests'
+   *       500:
+   *         description: Internal server error
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: false
+   *                 error:
+   *                   type: object
+   *                   properties:
+   *                     code:
+   *                       type: string
+   *                       example: "PAYMENT_INITIALIZATION_FAILED"
+   *                     message:
+   *                       type: string
+   *                       example: "결제 초기화에 실패했습니다."
    */
   async preparePayment(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {

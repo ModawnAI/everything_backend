@@ -58,6 +58,39 @@ export interface ReservationUpdate {
   data?: Record<string, any>;
 }
 
+export interface SettingsUpdate {
+  userId: string;
+  updateType: 'single' | 'bulk' | 'reset';
+  changedFields: string[];
+  newValues: Record<string, any>;
+  timestamp: string;
+  source?: 'web' | 'mobile' | 'api';
+}
+
+export interface UserActivityEvent {
+  id: string;
+  userId: string;
+  userName: string;
+  userEmail?: string;
+  activityType: 'login' | 'logout' | 'status_change' | 'role_change' | 'profile_update' | 'admin_action' | 'reservation_update' | 'payment_update';
+  description: string;
+  metadata?: Record<string, any>;
+  ipAddress?: string;
+  userAgent?: string;
+  timestamp: string;
+  severity: 'low' | 'medium' | 'high' | 'critical';
+}
+
+export interface AdminActivityFilter {
+  userId?: string;
+  activityTypes?: string[];
+  severity?: string[];
+  startDate?: string;
+  endDate?: string;
+  limit?: number;
+  offset?: number;
+}
+
 export class WebSocketService {
   private io: SocketIOServer;
   private supabase = getSupabaseClient();
@@ -110,6 +143,11 @@ export class WebSocketService {
         this.handleReservationUpdate(socket, data);
       });
 
+      // Handle settings updates
+      socket.on('settings_update', (data: SettingsUpdate) => {
+        this.handleSettingsUpdate(socket, data);
+      });
+
       // Handle user typing
       socket.on('typing', (data: { roomId: string; userId: string; isTyping: boolean }) => {
         this.handleTyping(socket, data);
@@ -136,7 +174,8 @@ export class WebSocketService {
       { id: 'admin-reservations', name: 'Reservation Updates', type: 'admin' as const },
       { id: 'admin-payments', name: 'Payment Updates', type: 'admin' as const },
       { id: 'admin-shops', name: 'Shop Approvals', type: 'admin' as const },
-      { id: 'admin-system', name: 'System Alerts', type: 'admin' as const }
+      { id: 'admin-system', name: 'System Alerts', type: 'admin' as const },
+      { id: 'admin-activity', name: 'User Activity Monitoring', type: 'admin' as const }
     ];
 
     adminRooms.forEach(room => {
@@ -188,7 +227,7 @@ export class WebSocketService {
 
       // Join admin rooms if user is admin
       if (connection.userRole === 'admin') {
-        const adminRooms = ['admin-general', 'admin-reservations', 'admin-payments', 'admin-shops', 'admin-system'];
+        const adminRooms = ['admin-general', 'admin-reservations', 'admin-payments', 'admin-shops', 'admin-system', 'admin-activity'];
         adminRooms.forEach(roomId => {
           socket.join(roomId);
           connection.rooms.push(roomId);
@@ -366,6 +405,45 @@ export class WebSocketService {
   }
 
   /**
+   * Handle settings updates
+   */
+  private handleSettingsUpdate(socket: Socket, update: SettingsUpdate): void {
+    try {
+      const connection = this.connections.get(socket.id);
+      if (!connection) {
+        socket.emit('error', { message: '연결이 인증되지 않았습니다.' });
+        return;
+      }
+
+      // Verify that the user can only update their own settings
+      if (connection.userId !== update.userId) {
+        socket.emit('error', { message: '다른 사용자의 설정을 변경할 권한이 없습니다.' });
+        return;
+      }
+
+      // Broadcast settings update to all user's connected devices
+      this.io.to(`user-${update.userId}`).emit('settings_update', {
+        ...update,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info('Settings update broadcasted', {
+        userId: update.userId,
+        updateType: update.updateType,
+        changedFields: update.changedFields,
+        source: update.source
+      });
+
+    } catch (error) {
+      logger.error('Error handling settings update', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        update
+      });
+      socket.emit('error', { message: '설정 업데이트 처리 중 오류가 발생했습니다.' });
+    }
+  }
+
+  /**
    * Handle typing indicators
    */
   private handleTyping(socket: Socket, data: { roomId: string; userId: string; isTyping: boolean }): void {
@@ -510,6 +588,29 @@ export class WebSocketService {
   }
 
   /**
+   * Broadcast settings update to all user's connected devices
+   */
+  public broadcastSettingsUpdate(userId: string, changedFields: string[], newValues: Record<string, any>, source?: string): void {
+    const settingsUpdate: SettingsUpdate = {
+      userId,
+      updateType: changedFields.length === 1 ? 'single' : 'bulk',
+      changedFields,
+      newValues,
+      timestamp: new Date().toISOString(),
+      source: (source || 'api') as 'mobile' | 'web' | 'api'
+    };
+
+    this.io.to(`user-${userId}`).emit('settings_update', settingsUpdate);
+
+    logger.info('Settings update broadcasted to user', {
+      userId,
+      changedFields,
+      source,
+      updateType: settingsUpdate.updateType
+    });
+  }
+
+  /**
    * Get connection statistics
    */
   public getConnectionStats(): {
@@ -565,6 +666,187 @@ export class WebSocketService {
         logger.info('Cleaned up inactive connection', { socketId, userId: connection.userId });
       }
     });
+  }
+
+  /**
+   * Broadcast user activity event to admin monitoring room
+   */
+  public broadcastUserActivity(activity: UserActivityEvent): void {
+    try {
+      this.io.to('admin-activity').emit('user_activity', {
+        ...activity,
+        timestamp: new Date().toISOString()
+      });
+
+      logger.info('User activity broadcasted to admins', {
+        activityId: activity.id,
+        userId: activity.userId,
+        activityType: activity.activityType,
+        severity: activity.severity
+      });
+    } catch (error) {
+      logger.error('Failed to broadcast user activity', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        activity
+      });
+    }
+  }
+
+  /**
+   * Create and broadcast user login activity
+   */
+  public broadcastUserLogin(userId: string, userName: string, userEmail?: string, ipAddress?: string, userAgent?: string): void {
+    const activity: UserActivityEvent = {
+      id: `login_${userId}_${Date.now()}`,
+      userId,
+      userName,
+      userEmail,
+      activityType: 'login',
+      description: `${userName} logged in`,
+      metadata: {
+        loginMethod: 'social_auth',
+        deviceInfo: userAgent ? this.parseUserAgent(userAgent) : undefined
+      },
+      ipAddress,
+      userAgent,
+      timestamp: new Date().toISOString(),
+      severity: 'low'
+    };
+
+    this.broadcastUserActivity(activity);
+  }
+
+  /**
+   * Create and broadcast user logout activity
+   */
+  public broadcastUserLogout(userId: string, userName: string, userEmail?: string): void {
+    const activity: UserActivityEvent = {
+      id: `logout_${userId}_${Date.now()}`,
+      userId,
+      userName,
+      userEmail,
+      activityType: 'logout',
+      description: `${userName} logged out`,
+      timestamp: new Date().toISOString(),
+      severity: 'low'
+    };
+
+    this.broadcastUserActivity(activity);
+  }
+
+  /**
+   * Create and broadcast user status change activity
+   */
+  public broadcastUserStatusChange(
+    userId: string, 
+    userName: string, 
+    previousStatus: string, 
+    newStatus: string, 
+    reason?: string,
+    adminId?: string,
+    adminName?: string
+  ): void {
+    const activity: UserActivityEvent = {
+      id: `status_${userId}_${Date.now()}`,
+      userId,
+      userName,
+      activityType: 'status_change',
+      description: `${userName}'s status changed from ${previousStatus} to ${newStatus}`,
+      metadata: {
+        previousStatus,
+        newStatus,
+        reason,
+        changedBy: adminId ? 'admin' : 'system',
+        adminId,
+        adminName
+      },
+      timestamp: new Date().toISOString(),
+      severity: newStatus === 'suspended' || newStatus === 'deleted' ? 'high' : 'medium'
+    };
+
+    this.broadcastUserActivity(activity);
+  }
+
+  /**
+   * Create and broadcast user role change activity
+   */
+  public broadcastUserRoleChange(
+    userId: string, 
+    userName: string, 
+    previousRole: string, 
+    newRole: string, 
+    reason?: string,
+    adminId?: string,
+    adminName?: string
+  ): void {
+    const activity: UserActivityEvent = {
+      id: `role_${userId}_${Date.now()}`,
+      userId,
+      userName,
+      activityType: 'role_change',
+      description: `${userName}'s role changed from ${previousRole} to ${newRole}`,
+      metadata: {
+        previousRole,
+        newRole,
+        reason,
+        adminId,
+        adminName
+      },
+      timestamp: new Date().toISOString(),
+      severity: newRole === 'admin' ? 'critical' : 'medium'
+    };
+
+    this.broadcastUserActivity(activity);
+  }
+
+  /**
+   * Create and broadcast admin action activity
+   */
+  public broadcastAdminAction(
+    adminId: string,
+    adminName: string,
+    actionType: string,
+    targetUserId?: string,
+    targetUserName?: string,
+    description?: string,
+    metadata?: Record<string, any>
+  ): void {
+    const activity: UserActivityEvent = {
+      id: `admin_${adminId}_${Date.now()}`,
+      userId: adminId,
+      userName: adminName,
+      activityType: 'admin_action',
+      description: description || `Admin ${adminName} performed ${actionType}`,
+      metadata: {
+        actionType,
+        targetUserId,
+        targetUserName,
+        ...metadata
+      },
+      timestamp: new Date().toISOString(),
+      severity: 'medium'
+    };
+
+    this.broadcastUserActivity(activity);
+  }
+
+  /**
+   * Parse user agent string for device information
+   */
+  private parseUserAgent(userAgent: string): Record<string, any> {
+    // Simple user agent parsing - in production, consider using a library like ua-parser-js
+    const isMobile = /Mobile|Android|iPhone|iPad/.test(userAgent);
+    const isTablet = /iPad|Tablet/.test(userAgent);
+    const browser = userAgent.match(/(Chrome|Firefox|Safari|Edge|Opera)\/[\d.]+/)?.[1] || 'Unknown';
+    const os = userAgent.match(/(Windows|Mac OS|Linux|Android|iOS)/)?.[1] || 'Unknown';
+
+    return {
+      isMobile,
+      isTablet,
+      browser,
+      os,
+      deviceType: isTablet ? 'tablet' : isMobile ? 'mobile' : 'desktop'
+    };
   }
 }
 

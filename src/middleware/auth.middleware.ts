@@ -1,9 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 // Supabase client imported from database config
 import jwt from 'jsonwebtoken';
+import crypto from 'crypto';
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { config } from '../config/environment';
+import { securityMonitoringService } from '../services/security-monitoring.service';
 
 /**
  * JWT Authentication Middleware
@@ -12,7 +14,7 @@ import { config } from '../config/environment';
  * Handles token extraction, verification, user population, and error scenarios.
  */
 
-// Extended Request interface with authenticated user
+// Extended Request interface with authenticated user and session info
 export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
@@ -31,6 +33,13 @@ export interface AuthenticatedRequest extends Request {
     app_metadata?: Record<string, any>;
   };
   token?: string;
+  session?: {
+    id: string;
+    deviceId: string;
+    deviceFingerprint?: string;
+    lastActivity: Date;
+    isNewDevice: boolean;
+  };
 }
 
 // JWT Payload interface for Supabase tokens
@@ -225,6 +234,296 @@ export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJ
 }
 
 /**
+ * Enhanced device fingerprint interface
+ */
+export interface EnhancedDeviceFingerprint {
+  fingerprint: string;
+  userAgent: string;
+  ipAddress: string;
+  acceptLanguage: string;
+  acceptEncoding: string;
+  timezone?: string;
+  screenResolution?: string;
+  platform?: string;
+  browser?: {
+    name: string;
+    version: string;
+  };
+  os?: {
+    name: string;
+    version: string;
+  };
+  deviceType?: 'mobile' | 'tablet' | 'desktop' | 'unknown';
+}
+
+/**
+ * Parse user agent to extract browser and OS information
+ */
+function parseUserAgent(userAgent: string): { browser: { name: string; version: string }, os: { name: string; version: string }, platform: string, deviceType: 'mobile' | 'tablet' | 'desktop' | 'unknown' } {
+  const browser = { name: 'unknown', version: 'unknown' };
+  const os = { name: 'unknown', version: 'unknown' };
+  let platform = 'unknown';
+  let deviceType: 'mobile' | 'tablet' | 'desktop' | 'unknown' = 'unknown';
+
+  // Browser detection
+  if (userAgent.includes('Chrome')) {
+    browser.name = 'Chrome';
+    const match = userAgent.match(/Chrome\/([0-9.]+)/);
+    if (match) browser.version = match[1];
+  } else if (userAgent.includes('Firefox')) {
+    browser.name = 'Firefox';
+    const match = userAgent.match(/Firefox\/([0-9.]+)/);
+    if (match) browser.version = match[1];
+  } else if (userAgent.includes('Safari') && !userAgent.includes('Chrome')) {
+    browser.name = 'Safari';
+    const match = userAgent.match(/Version\/([0-9.]+)/);
+    if (match) browser.version = match[1];
+  } else if (userAgent.includes('Edge')) {
+    browser.name = 'Edge';
+    const match = userAgent.match(/Edge\/([0-9.]+)/);
+    if (match) browser.version = match[1];
+  }
+
+  // OS detection
+  if (userAgent.includes('Windows')) {
+    os.name = 'Windows';
+    if (userAgent.includes('Windows NT 10.0')) os.version = '10';
+    else if (userAgent.includes('Windows NT 6.3')) os.version = '8.1';
+    else if (userAgent.includes('Windows NT 6.2')) os.version = '8';
+    else if (userAgent.includes('Windows NT 6.1')) os.version = '7';
+    platform = 'Windows';
+    deviceType = 'desktop';
+  } else if (userAgent.includes('Mac OS X')) {
+    os.name = 'macOS';
+    const match = userAgent.match(/Mac OS X ([0-9_]+)/);
+    if (match) os.version = match[1].replace(/_/g, '.');
+    platform = 'macOS';
+    deviceType = userAgent.includes('Mobile') ? 'mobile' : 'desktop';
+  } else if (userAgent.includes('Linux')) {
+    os.name = 'Linux';
+    platform = 'Linux';
+    deviceType = 'desktop';
+  } else if (userAgent.includes('Android')) {
+    os.name = 'Android';
+    const match = userAgent.match(/Android ([0-9.]+)/);
+    if (match) os.version = match[1];
+    platform = 'Android';
+    deviceType = userAgent.includes('Mobile') ? 'mobile' : 'tablet';
+  } else if (userAgent.includes('iPhone') || userAgent.includes('iPad')) {
+    os.name = 'iOS';
+    const match = userAgent.match(/OS ([0-9_]+)/);
+    if (match) os.version = match[1].replace(/_/g, '.');
+    platform = 'iOS';
+    deviceType = userAgent.includes('iPad') ? 'tablet' : 'mobile';
+  }
+
+  return { browser, os, platform, deviceType };
+}
+
+/**
+ * Generate comprehensive device fingerprint from request headers and client info
+ */
+export function generateEnhancedDeviceFingerprint(req: Request, clientInfo?: any): EnhancedDeviceFingerprint {
+  const userAgent = req.headers['user-agent'] || '';
+  const acceptLanguage = req.headers['accept-language'] || '';
+  const acceptEncoding = req.headers['accept-encoding'] || '';
+  const ipAddress = req.ip || req.connection.remoteAddress || '';
+  const timezone = clientInfo?.timezone || req.headers['x-timezone'] || '';
+  const screenResolution = clientInfo?.screenResolution || req.headers['x-screen-resolution'] || '';
+
+  // Parse user agent for detailed device info
+  const { browser, os, platform, deviceType } = parseUserAgent(userAgent);
+
+  // Create comprehensive fingerprint data
+  const fingerprintData = [
+    userAgent,
+    acceptLanguage,
+    acceptEncoding,
+    ipAddress,
+    timezone,
+    screenResolution,
+    platform,
+    browser.name,
+    browser.version,
+    os.name,
+    os.version
+  ].join('|');
+
+  const fingerprint = crypto.createHash('sha256').update(fingerprintData).digest('hex');
+
+  return {
+    fingerprint,
+    userAgent,
+    ipAddress,
+    acceptLanguage,
+    acceptEncoding,
+    timezone,
+    screenResolution,
+    platform,
+    browser,
+    os,
+    deviceType
+  };
+}
+
+/**
+ * Generate simple device fingerprint from request headers (backward compatibility)
+ */
+export function generateDeviceFingerprint(req: Request): string {
+  return generateEnhancedDeviceFingerprint(req).fingerprint;
+}
+
+/**
+ * Validate and track user session
+ */
+export async function validateAndTrackSession(
+  userId: string, 
+  token: string, 
+  req: Request
+): Promise<{
+  sessionId: string;
+  deviceId: string;
+  deviceFingerprint: string;
+  isNewDevice: boolean;
+  lastActivity: Date;
+  enhancedFingerprint: EnhancedDeviceFingerprint;
+}> {
+  const supabase = getSupabaseClient();
+  const enhancedFingerprint = generateEnhancedDeviceFingerprint(req, {
+    timezone: req.headers['x-timezone'],
+    screenResolution: req.headers['x-screen-resolution']
+  });
+  const deviceFingerprint = enhancedFingerprint.fingerprint;
+  const now = new Date();
+
+  try {
+    // Check if we have an active session for this token
+    const { data: existingSession, error: sessionError } = await supabase
+      .from('refresh_tokens')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('device_fingerprint', deviceFingerprint)
+      .eq('is_active', true)
+      .gt('expires_at', now.toISOString())
+      .order('last_activity', { ascending: false })
+      .limit(1)
+      .single();
+
+    let sessionId: string;
+    let deviceId: string;
+    let isNewDevice = false;
+
+    if (sessionError || !existingSession) {
+      // New device/session
+      isNewDevice = true;
+      sessionId = `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      deviceId = `device_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      logger.info('New device detected for user', {
+        userId,
+        deviceFingerprint,
+        deviceType: enhancedFingerprint.deviceType,
+        browser: enhancedFingerprint.browser,
+        os: enhancedFingerprint.os,
+        ipAddress: req.ip,
+        userAgent: req.headers['user-agent']
+      });
+
+      // Log security event for new device
+      await securityMonitoringService.logSecurityEvent({
+        event_type: 'suspicious_activity',
+        user_id: userId,
+        source_ip: req.ip || 'unknown',
+        user_agent: req.headers['user-agent'] || 'unknown',
+        endpoint: req.path,
+        severity: 'medium',
+        details: {
+          deviceFingerprint,
+          isNewDevice: true,
+          activity_type: 'new_device_login',
+          deviceInfo: {
+            deviceType: enhancedFingerprint.deviceType,
+            browser: enhancedFingerprint.browser,
+            os: enhancedFingerprint.os,
+            platform: enhancedFingerprint.platform
+          }
+        }
+      });
+    } else {
+      // Existing session
+      sessionId = existingSession.id;
+      deviceId = existingSession.device_id;
+
+      // Update session activity
+      await supabase
+        .from('refresh_tokens')
+        .update({
+          last_activity: now.toISOString(),
+          updated_at: now.toISOString()
+        })
+        .eq('id', sessionId);
+    }
+
+    return {
+      sessionId,
+      deviceId,
+      deviceFingerprint,
+      isNewDevice,
+      lastActivity: now,
+      enhancedFingerprint
+    };
+
+  } catch (error) {
+    logger.error('Session validation failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId,
+      deviceFingerprint
+    });
+
+    // Return minimal session info on error
+    return {
+      sessionId: `fallback_${Date.now()}`,
+      deviceId: `fallback_device_${Date.now()}`,
+      deviceFingerprint,
+      isNewDevice: true,
+      lastActivity: now,
+      enhancedFingerprint
+    };
+  }
+}
+
+/**
+ * Enhanced token validation with expiration checks
+ */
+export async function validateTokenExpiration(tokenPayload: SupabaseJWTPayload): Promise<void> {
+  const now = Math.floor(Date.now() / 1000);
+  
+  // Check if token is expired
+  if (tokenPayload.exp && tokenPayload.exp < now) {
+    throw new TokenExpiredError('Access token has expired');
+  }
+
+  // Check if token is too old (beyond refresh threshold)
+  const tokenAge = now - (tokenPayload.iat || 0);
+  const maxTokenAge = 24 * 60 * 60; // 24 hours in seconds
+  
+  if (tokenAge > maxTokenAge) {
+    logger.warn('Token is beyond maximum age', {
+      tokenAge,
+      maxTokenAge,
+      userId: tokenPayload.sub
+    });
+    throw new TokenExpiredError('Token is too old and needs refresh');
+  }
+
+  // Check if token was issued in the future (clock skew protection)
+  const clockSkewTolerance = 300; // 5 minutes
+  if (tokenPayload.iat && tokenPayload.iat > (now + clockSkewTolerance)) {
+    throw new InvalidTokenError('Token issued in the future');
+  }
+}
+
+/**
  * Get user data from database using token payload
  */
 export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promise<any> {
@@ -297,8 +596,29 @@ export function authenticateJWT() {
       // Verify the JWT token
       const tokenPayload = await verifySupabaseToken(token);
 
+      // Enhanced token validation with expiration checks
+      await validateTokenExpiration(tokenPayload);
+
       // Get user data from database
       const userData = await getUserFromToken(tokenPayload);
+
+      // Validate and track session with device fingerprinting
+      const sessionInfo = await validateAndTrackSession(userData.id, token, req);
+
+      // Log authentication event for security monitoring
+      await securityMonitoringService.logSecurityEvent({
+        event_type: 'auth_success',
+        user_id: userData.id,
+        source_ip: req.ip || 'unknown',
+        user_agent: req.headers['user-agent'] || 'unknown',
+        endpoint: req.path,
+        severity: 'low',
+        details: {
+          deviceFingerprint: sessionInfo.deviceFingerprint,
+          isNewDevice: sessionInfo.isNewDevice,
+          sessionId: sessionInfo.sessionId
+        }
+      });
 
       // Populate request with user information
       req.user = {
@@ -319,21 +639,45 @@ export function authenticateJWT() {
       };
 
       req.token = token;
+      req.session = {
+        id: sessionInfo.sessionId,
+        deviceId: sessionInfo.deviceId,
+        deviceFingerprint: sessionInfo.deviceFingerprint,
+        lastActivity: sessionInfo.lastActivity,
+        isNewDevice: sessionInfo.isNewDevice
+      };
 
       logger.debug('User authenticated successfully', {
         userId: userData.id,
         email: userData.email,
-        role: userData.user_role
+        role: userData.user_role,
+        sessionId: sessionInfo.sessionId,
+        isNewDevice: sessionInfo.isNewDevice
       });
 
       next();
     } catch (error) {
       if (error instanceof AuthenticationError) {
+        // Log authentication failure for security monitoring
+        await securityMonitoringService.logSecurityEvent({
+          event_type: 'auth_failure',
+          source_ip: req.ip || 'unknown',
+          user_agent: req.headers['user-agent'] || 'unknown',
+          endpoint: req.path,
+          severity: error.code === 'TOKEN_EXPIRED' ? 'low' : 'medium',
+          details: {
+            errorCode: error.code,
+            errorMessage: error.message,
+            deviceFingerprint: generateDeviceFingerprint(req)
+          }
+        });
+
         logger.warn('Authentication failed', {
           error: error.message,
           code: error.code,
           ip: req.ip,
-          userAgent: req.get('User-Agent')
+          userAgent: req.get('User-Agent'),
+          deviceFingerprint: generateDeviceFingerprint(req)
         });
         
         res.status(error.statusCode).json({
@@ -483,8 +827,14 @@ export function requireVerification() {
   };
 }
 
+/**
+ * Alias for authenticateJWT for backward compatibility
+ */
+export const authenticateToken = authenticateJWT;
+
 export default {
   authenticateJWT,
+  authenticateToken,
   optionalAuth,
   requireRole,
   requireVerification,

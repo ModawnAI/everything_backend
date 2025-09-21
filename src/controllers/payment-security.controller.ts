@@ -171,7 +171,7 @@ export class PaymentSecurityController {
         return;
       }
 
-      const metrics = await securityMonitoringService.getSecurityMetrics(timeRange);
+      const metrics = await securityMonitoringService.getSecurityMetrics();
 
       res.status(200).json({
         success: true,
@@ -216,7 +216,8 @@ export class PaymentSecurityController {
         return;
       }
 
-      const alerts = await securityMonitoringService.getUnresolvedAlerts(limitNumber);
+      const allAlerts = await securityMonitoringService.getUnresolvedAlerts();
+      const alerts = allAlerts.slice(0, limitNumber);
 
       res.status(200).json({
         success: true,
@@ -373,11 +374,7 @@ export class PaymentSecurityController {
         return;
       }
 
-      const report = await securityMonitoringService.generateComplianceReport(
-        reportType,
-        timeRange,
-        adminId
-      );
+      const report = await securityMonitoringService.generateComplianceReport();
 
       res.status(200).json({
         success: true,
@@ -724,10 +721,11 @@ export class PaymentSecurityController {
       };
 
       // Get security metrics
-      const metrics = await securityMonitoringService.getSecurityMetrics(timeRangeObj);
+      const metrics = await securityMonitoringService.getSecurityMetrics();
 
       // Get recent alerts
-      const recentAlerts = await securityMonitoringService.getUnresolvedAlerts(10);
+      const allRecentAlerts = await securityMonitoringService.getUnresolvedAlerts();
+      const recentAlerts = allRecentAlerts.slice(0, 10);
 
       // Get recent errors
       const { data: recentErrors } = await this.supabase

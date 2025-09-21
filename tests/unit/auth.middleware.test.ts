@@ -18,6 +18,9 @@ import {
 // Mock dependencies
 jest.mock('../../src/config/database', () => ({
   getSupabaseClient: jest.fn(() => ({
+    auth: {
+      getUser: jest.fn()
+    },
     from: jest.fn(() => ({
       select: jest.fn(() => ({
         eq: jest.fn(() => ({
@@ -69,12 +72,15 @@ describe('Auth Middleware Tests', () => {
     
     mockNext = jest.fn();
 
-    // Reset mocks
-    jest.clearAllMocks();
-    
-    // Setup database mock
+    // Setup database mock first
     const { getSupabaseClient } = require('../../src/config/database');
     mockSupabaseClient = getSupabaseClient();
+    
+    // Reset mocks but preserve the mock functions
+    jest.clearAllMocks();
+    
+    // Re-setup the mock after clearing
+    mockSupabaseClient.auth.getUser = jest.fn();
   });
 
   describe('extractTokenFromHeader', () => {
@@ -119,28 +125,26 @@ describe('Auth Middleware Tests', () => {
     });
 
     test('should verify valid token successfully', async () => {
-      const mockPayload = {
-        sub: 'user-123',
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
         aud: 'authenticated',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        iss: 'test-supabase',
-        email: 'test@example.com'
+        role: 'authenticated',
+        user_metadata: {},
+        app_metadata: {}
       };
 
-      mockJwtVerify.mockReturnValue(mockPayload);
+      // Mock Supabase auth.getUser to return success
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null
+      });
 
       const result = await verifySupabaseToken('valid-token');
 
-      expect(result).toEqual(mockPayload);
-      expect(mockJwtVerify).toHaveBeenCalledWith(
-        'valid-token',
-        'test-secret',
-        {
-          issuer: 'test-supabase',
-          audience: 'authenticated'
-        }
-      );
+      expect(result.sub).toBe('user-123');
+      expect(result.email).toBe('test@example.com');
+      expect(mockSupabaseClient.auth.getUser).toHaveBeenCalledWith('valid-token');
     });
 
     test('should throw InvalidTokenError for missing JWT secret', async () => {
@@ -151,49 +155,41 @@ describe('Auth Middleware Tests', () => {
     });
 
     test('should throw TokenExpiredError for expired token', async () => {
-      mockJwtVerify.mockImplementation(() => {
-        const error = new Error('Token expired');
-        error.name = 'TokenExpiredError';
-        throw error;
+      // Mock Supabase auth.getUser to return error for expired token
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'JWT expired' }
       });
 
       await expect(verifySupabaseToken('expired-token')).rejects.toThrow(TokenExpiredError);
     });
 
     test('should throw InvalidTokenError for malformed token', async () => {
-      mockJwtVerify.mockImplementation(() => {
-        const error = new Error('Invalid token');
-        error.name = 'JsonWebTokenError';
-        throw error;
+      // Mock Supabase auth.getUser to return error for malformed token
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' }
       });
 
       await expect(verifySupabaseToken('invalid-token')).rejects.toThrow(InvalidTokenError);
     });
 
     test('should throw InvalidTokenError for token missing user ID', async () => {
-      const mockPayload = {
-        aud: 'authenticated',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        iss: 'test-supabase'
-        // Missing sub field
-      };
-
-      mockJwtVerify.mockReturnValue(mockPayload);
+      // Mock Supabase auth.getUser to return user without ID
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: null
+      });
 
       await expect(verifySupabaseToken('token')).rejects.toThrow(InvalidTokenError);
     });
 
     test('should throw TokenExpiredError for expired timestamp', async () => {
-      const mockPayload = {
-        sub: 'user-123',
-        aud: 'authenticated',
-        exp: Math.floor(Date.now() / 1000) - 3600, // Expired 1 hour ago
-        iat: Math.floor(Date.now() / 1000) - 7200,
-        iss: 'test-supabase'
-      };
-
-      mockJwtVerify.mockReturnValue(mockPayload);
+      // Mock Supabase auth.getUser to return error for expired token
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'JWT expired' }
+      });
 
       await expect(verifySupabaseToken('token')).rejects.toThrow(TokenExpiredError);
     });
@@ -275,13 +271,13 @@ describe('Auth Middleware Tests', () => {
     });
 
     test('should authenticate valid token successfully', async () => {
-      const mockPayload = {
-        sub: 'user-123',
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
         aud: 'authenticated',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        iss: 'test-supabase',
-        email: 'test@example.com'
+        role: 'authenticated',
+        user_metadata: {},
+        app_metadata: {}
       };
 
       const mockUserData = {
@@ -293,7 +289,14 @@ describe('Auth Middleware Tests', () => {
       };
 
       mockRequest.headers!.authorization = 'Bearer valid-token';
-      mockJwtVerify.mockReturnValue(mockPayload);
+      
+      // Mock Supabase auth.getUser
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null
+      });
+      
+      // Mock database query
       mockSupabaseClient.from().select().eq().single.mockResolvedValue({
         data: mockUserData,
         error: null
@@ -325,8 +328,11 @@ describe('Auth Middleware Tests', () => {
 
     test('should return 401 for invalid token', async () => {
       mockRequest.headers!.authorization = 'Bearer invalid-token';
-      mockJwtVerify.mockImplementation(() => {
-        throw new Error('Invalid token');
+      
+      // Mock Supabase auth.getUser to return error
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' }
       });
 
       const middleware = authenticateJWT();
@@ -337,12 +343,13 @@ describe('Auth Middleware Tests', () => {
     });
 
     test('should return 403 for inactive user', async () => {
-      const mockPayload = {
-        sub: 'user-123',
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
         aud: 'authenticated',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        iss: 'test-supabase'
+        role: 'authenticated',
+        user_metadata: {},
+        app_metadata: {}
       };
 
       const mockUserData = {
@@ -351,7 +358,14 @@ describe('Auth Middleware Tests', () => {
       };
 
       mockRequest.headers!.authorization = 'Bearer valid-token';
-      mockJwtVerify.mockReturnValue(mockPayload);
+      
+      // Mock Supabase auth.getUser
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null
+      });
+      
+      // Mock database query
       mockSupabaseClient.from().select().eq().single.mockResolvedValue({
         data: mockUserData,
         error: null
@@ -377,12 +391,13 @@ describe('Auth Middleware Tests', () => {
     });
 
     test('should authenticate when valid token is provided', async () => {
-      const mockPayload = {
-        sub: 'user-123',
+      const mockUser = {
+        id: 'user-123',
+        email: 'test@example.com',
         aud: 'authenticated',
-        exp: Math.floor(Date.now() / 1000) + 3600,
-        iat: Math.floor(Date.now() / 1000),
-        iss: 'test-supabase'
+        role: 'authenticated',
+        user_metadata: {},
+        app_metadata: {}
       };
 
       const mockUserData = {
@@ -392,7 +407,14 @@ describe('Auth Middleware Tests', () => {
       };
 
       mockRequest.headers!.authorization = 'Bearer valid-token';
-      mockJwtVerify.mockReturnValue(mockPayload);
+      
+      // Mock Supabase auth.getUser
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: mockUser },
+        error: null
+      });
+      
+      // Mock database query
       mockSupabaseClient.from().select().eq().single.mockResolvedValue({
         data: mockUserData,
         error: null
@@ -407,8 +429,11 @@ describe('Auth Middleware Tests', () => {
 
     test('should continue without authentication for invalid token', async () => {
       mockRequest.headers!.authorization = 'Bearer invalid-token';
-      mockJwtVerify.mockImplementation(() => {
-        throw new Error('Invalid token');
+      
+      // Mock Supabase auth.getUser to return error
+      mockSupabaseClient.auth.getUser.mockResolvedValue({
+        data: { user: null },
+        error: { message: 'Invalid token' }
       });
 
       const middleware = optionalAuth();

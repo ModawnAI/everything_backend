@@ -24,7 +24,8 @@ const mockRedisStore = {
 };
 
 jest.mock('../../src/utils/redis-rate-limit-store', () => ({
-  RedisRateLimitStore: jest.fn(() => mockRedisStore)
+  RedisRateLimitStore: jest.fn(() => mockRedisStore),
+  getRedisRateLimitStore: jest.fn(() => mockRedisStore)
 }));
 
 jest.mock('../../src/utils/logger', () => ({
@@ -45,36 +46,53 @@ describe('Rate Limiting Security Tests', () => {
 
     // Test endpoints with different rate limits
     app.get('/api/public', 
-      rateLimit(),
+      rateLimit({
+        config: {
+          max: 10, // 10 requests per 15 minutes for testing
+          windowMs: 15 * 60 * 1000, // 15 minutes
+          strategy: 'sliding_window',
+          scope: 'ip',
+          enableHeaders: true
+        }
+      }),
       (req, res) => res.json({ success: true, message: 'Public endpoint' })
     );
 
     app.post('/api/login',
       rateLimit({ 
-        windowMs: 60000, // 1 minute
-        max: 5, // 5 attempts per minute
-        standardHeaders: true,
-        legacyHeaders: false
+        config: {
+          max: 5, // 5 attempts per minute
+          windowMs: 60000, // 1 minute
+          strategy: 'fixed_window',
+          scope: 'ip',
+          enableHeaders: true
+        }
       }),
       (req, res) => res.json({ success: true, message: 'Login endpoint' })
     );
 
     app.get('/api/strict',
       rateLimit({
-        windowMs: 60000, // 1 minute  
-        max: 2, // 2 requests per minute
-        standardHeaders: true,
-        legacyHeaders: false
+        config: {
+          max: 2, // 2 requests per minute
+          windowMs: 60000, // 1 minute
+          strategy: 'fixed_window',
+          scope: 'ip',
+          enableHeaders: true
+        }
       }),
       (req, res) => res.json({ success: true, message: 'Strict endpoint' })
     );
 
     app.get('/api/payment',
       rateLimit({
-        windowMs: 300000, // 5 minutes
-        max: 3, // 3 payment attempts per 5 minutes
-        standardHeaders: true,
-        legacyHeaders: false
+        config: {
+          max: 3, // 3 payment attempts per 5 minutes
+          windowMs: 300000, // 5 minutes
+          strategy: 'sliding_window',
+          scope: 'user',
+          enableHeaders: true
+        }
       }),
       (req, res) => res.json({ success: true, message: 'Payment endpoint' })
     );
@@ -84,21 +102,23 @@ describe('Rate Limiting Security Tests', () => {
     jest.clearAllMocks();
     
     // Default mock behavior - allow requests
+    mockRedisStore.get.mockResolvedValue(null); // Default to new window
+    mockRedisStore.set.mockResolvedValue(undefined);
     mockRedisStore.increment.mockResolvedValue({
-      count: 1,
-      resetTime: Date.now() + 60000
-    });
-    mockRedisStore.get.mockResolvedValue({
-      count: 1,
-      resetTime: Date.now() + 60000
+      totalHits: 1,
+      resetTime: new Date(Date.now() + 60000),
+      remainingRequests: 999
     });
   });
 
   describe('Basic Rate Limiting', () => {
     test('should allow requests within rate limit', async () => {
+      mockRedisStore.get.mockResolvedValue(null); // New window
+      mockRedisStore.set.mockResolvedValue(undefined);
       mockRedisStore.increment.mockResolvedValue({
-        count: 1,
-        resetTime: Date.now() + 60000
+        totalHits: 1,
+        resetTime: new Date(Date.now() + 60000),
+        remainingRequests: 999
       });
 
       const response = await request(app)
@@ -109,9 +129,17 @@ describe('Rate Limiting Security Tests', () => {
     });
 
     test('should block requests exceeding rate limit', async () => {
+      // Mock the store to return data indicating rate limit exceeded
+      mockRedisStore.get.mockResolvedValue({
+        totalHits: 10, // At the limit
+        resetTime: new Date(Date.now() + 60000),
+        remainingRequests: 0
+      });
+      
       mockRedisStore.increment.mockResolvedValue({
-        count: 11, // Exceeds default limit of 10
-        resetTime: Date.now() + 60000
+        totalHits: 11, // Exceeds limit
+        resetTime: new Date(Date.now() + 60000),
+        remainingRequests: 0
       });
 
       const response = await request(app)
@@ -122,9 +150,11 @@ describe('Rate Limiting Security Tests', () => {
     });
 
     test('should include rate limit headers', async () => {
+      mockRedisStore.get.mockResolvedValue(null); // New window
       mockRedisStore.increment.mockResolvedValue({
-        count: 3,
-        resetTime: Date.now() + 60000
+        totalHits: 3,
+        resetTime: new Date(Date.now() + 60000),
+        remainingRequests: 0
       });
 
       const response = await request(app)

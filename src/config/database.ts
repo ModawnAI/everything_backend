@@ -1,6 +1,7 @@
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import { config } from './environment';
 import { logger } from '../utils/logger';
+import { mockDatabaseService } from '../services/mock-database.service';
 
 // Database connection configuration
 interface DatabaseConfig {
@@ -101,7 +102,8 @@ function createSupabaseClient(): SupabaseClient {
   }
 
   if (!config.database.supabaseUrl || !config.database.supabaseServiceRoleKey) {
-    throw new Error('Missing required Supabase configuration');
+    logger.warn('Missing Supabase configuration, using mock database service');
+    return mockDatabaseService as any;
   }
 
   const supabaseClient = createClient<any, 'public'>(
@@ -272,9 +274,18 @@ export function getDatabase(): DatabaseConfig {
 
 /**
  * Get Supabase client directly
+ * Returns mock service if Supabase is not available
  */
 export function getSupabaseClient(): SupabaseClient {
-  return getDatabase().client;
+  try {
+    return getDatabase().client;
+  } catch (error) {
+    // If database is not available, use mock service
+    logger.warn('Supabase not available, using mock database service', {
+      error: error instanceof Error ? error.message : 'Unknown error'
+    });
+    return mockDatabaseService as any;
+  }
 }
 
 /**

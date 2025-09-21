@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { ShopStatus, ShopVerificationStatus, ServiceCategory } from '../types/database.types';
+import { notificationService } from './notification.service';
 
 export interface ShopApprovalFilters {
   status?: ShopStatus;
@@ -735,11 +736,43 @@ export class AdminShopApprovalService {
    */
   private async sendApprovalNotification(ownerId: string, action: string, reason?: string): Promise<void> {
     try {
-      // This would integrate with the notification system
-      // For now, just log the notification
-      logger.info('Shop approval notification would be sent', { ownerId, action, reason });
+      // Determine notification template based on action
+      const templateId = action === 'approve' ? 'shop_approved' : 'shop_rejected';
+      
+      // Prepare custom data for the notification
+      const customData: Record<string, string> = {
+        action: action,
+        timestamp: new Date().toISOString()
+      };
+      
+      // Add reason if provided
+      if (reason) {
+        customData.reason = reason;
+      }
+      
+      // Send notification using the notification service
+      const notificationResult = await notificationService.sendTemplateNotification(
+        ownerId,
+        templateId,
+        customData
+      );
+      
+      logger.info('Shop approval notification sent successfully', {
+        ownerId,
+        action,
+        reason,
+        notificationId: notificationResult.id,
+        templateId
+      });
+      
     } catch (error) {
-      logger.error('Error sending shop approval notification', { error, ownerId, action });
+      logger.error('Error sending shop approval notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        ownerId,
+        action,
+        reason
+      });
+      // Don't fail the approval process if notification fails
     }
   }
 }

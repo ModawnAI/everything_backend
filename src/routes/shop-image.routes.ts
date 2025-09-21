@@ -11,6 +11,12 @@ import { shopImageController } from '../controllers/shop-image.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validateRequestBody } from '../middleware/validation.middleware';
+import { 
+  enhancedImageUploadSecurity, 
+  enhancedImageDownloadSecurity, 
+  enhancedImageUpdateSecurity, 
+  enhancedImageDeleteSecurity 
+} from '../middleware/image-security.middleware';
 import Joi from 'joi';
 
 const router = Router();
@@ -123,8 +129,7 @@ const primaryRateLimit = rateLimit({
  * Upload shop image with optimization
  */
 router.post('/:shopId/images',
-  uploadRateLimit,
-  authenticateJWT(),
+  ...enhancedImageUploadSecurity(),
   upload.single('image'),
   (req: any, res: any, next: any) => {
     // Validate uploaded file
@@ -175,7 +180,7 @@ router.post('/:shopId/images',
  * Get shop images
  */
 router.get('/:shopId/images',
-  publicRateLimit,
+  ...enhancedImageDownloadSecurity(),
   shopImageController.getShopImages
 );
 
@@ -184,8 +189,7 @@ router.get('/:shopId/images',
  * Delete shop image
  */
 router.delete('/:shopId/images/:imageId',
-  deleteRateLimit,
-  authenticateJWT(),
+  ...enhancedImageDeleteSecurity(),
   shopImageController.deleteShopImage
 );
 
@@ -194,8 +198,7 @@ router.delete('/:shopId/images/:imageId',
  * Update shop image metadata
  */
 router.put('/:shopId/images/:imageId',
-  updateRateLimit,
-  authenticateJWT(),
+  ...enhancedImageUpdateSecurity(),
   validateRequestBody(updateShopImageSchema),
   shopImageController.updateShopImage
 );
@@ -205,8 +208,7 @@ router.put('/:shopId/images/:imageId',
  * Set image as primary
  */
 router.post('/:shopId/images/:imageId/set-primary',
-  primaryRateLimit,
-  authenticateJWT(),
+  ...enhancedImageUpdateSecurity(),
   shopImageController.setPrimaryImage
 );
 

@@ -269,10 +269,131 @@ export function customValidation(
   };
 }
 
+/**
+ * Validate request query parameters against Joi schema
+ */
+export function validateRequestQuery(schema: Joi.Schema) {
+  return (req: Request, res: Response, next: NextFunction): void => {
+    try {
+      const { error, value } = schema.validate(req.query, {
+        abortEarly: false,
+        stripUnknown: true,
+        allowUnknown: false
+      });
+
+      if (error) {
+        const validationErrors: ValidationError[] = error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message,
+          value: detail.context?.value
+        }));
+
+        logger.warn('Query validation failed', {
+          errors: validationErrors,
+          query: req.query,
+          endpoint: req.originalUrl
+        });
+
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'QUERY_VALIDATION_ERROR',
+            message: 'Query parameters validation failed',
+            details: validationErrors,
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      req.query = value;
+      next();
+    } catch (error) {
+      logger.error('Query validation middleware error', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'VALIDATION_MIDDLEWARE_ERROR',
+          message: 'Query validation middleware error',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  };
+}
+
+/**
+ * Express-validator validateRequest function
+ * This is a compatibility function for express-validator integration
+ */
+export function validateRequest(req: Request, res: Response, next: NextFunction): void {
+  // This function is used by express-validator
+  // The actual validation is handled by the express-validator middleware
+  next();
+}
+
+/**
+ * Validate request with schema and type
+ */
+export function validateRequestWithSchema(schema: Joi.Schema, type: 'query' | 'body' | 'params' = 'body') {
+  return (req: Request, res: Response, next: NextFunction) => {
+    let dataToValidate: any;
+    
+    switch (type) {
+      case 'query':
+        dataToValidate = req.query;
+        break;
+      case 'params':
+        dataToValidate = req.params;
+        break;
+      case 'body':
+      default:
+        dataToValidate = req.body;
+        break;
+    }
+
+    const { error, value } = schema.validate(dataToValidate, { abortEarly: false });
+    
+    if (error) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation error',
+        errors: error.details.map(detail => ({
+          field: detail.path.join('.'),
+          message: detail.message
+        }))
+      });
+    }
+
+    // Replace the original data with validated data
+    switch (type) {
+      case 'query':
+        req.query = value;
+        break;
+      case 'params':
+        req.params = value;
+        break;
+      case 'body':
+      default:
+        req.body = value;
+        break;
+    }
+
+    next();
+  };
+}
+
 export default {
   validateRequestBody,
   validateQueryParams,
+  validateRequestQuery,
   validateHeaders,
   customValidation,
+  validateRequest,
+  validateRequestWithSchema,
   RequestValidationError
 }; 

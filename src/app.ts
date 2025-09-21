@@ -19,6 +19,7 @@ initializeDatabase();
 
 // Import routes
 import authRoutes from './routes/auth.routes';
+import registrationRoutes from './routes/registration.routes';
 import userProfileRoutes from './routes/user-profile.routes';
 import userStatusRoutes from './routes/user-status.routes';
 import shopRoutes from './routes/shop.routes';
@@ -42,6 +43,8 @@ import influencerBonusRoutes from './routes/influencer-bonus.routes';
 import adminAdjustmentRoutes from './routes/admin-adjustment.routes';
 import adminPaymentRoutes from './routes/admin-payment.routes';
 import adminAnalyticsRoutes from './routes/admin-analytics.routes';
+import ipBlockingRoutes from './routes/admin/ip-blocking.routes';
+import securityRoutes from './routes/security.routes';
 import notificationRoutes from './routes/notification.routes';
 import websocketRoutes from './routes/websocket.routes';
 import testErrorRoutes from './routes/test-error.routes';
@@ -51,6 +54,31 @@ import adminUserManagementRoutes from './routes/admin-user-management.routes';
 import cacheRoutes from './routes/cache.routes';
 import monitoringRoutes from './routes/monitoring.routes';
 import shutdownRoutes from './routes/shutdown.routes';
+import userSessionsRoutes from './routes/user-sessions.routes';
+import adminSecurityRoutes from './routes/admin-security.routes';
+import adminSecurityEnhancedRoutes from './routes/admin-security-enhanced.routes';
+import adminSecurityEventsRoutes from './routes/admin-security-events.routes';
+import authAnalyticsRoutes from './routes/auth-analytics.routes';
+import referralCodeRoutes from './routes/referral-code.routes';
+import referralRelationshipRoutes from './routes/referral-relationship.routes';
+import influencerQualificationRoutes from './routes/influencer-qualification.routes';
+import referralEarningsRoutes from './routes/referral-earnings.routes';
+import referralAnalyticsRoutes from './routes/referral-analytics.routes';
+import { userSettingsRoutes } from './routes/user-settings.routes';
+import shopRegistrationRoutes from './routes/shop-registration.routes';
+import shopSearchRoutes from './routes/shop-search.routes';
+import shopProfileRoutes from './routes/shop-profile.routes';
+import shopServiceRoutes from './routes/shop-service.routes';
+import shopOperatingHoursRoutes from './routes/shop-operating-hours.routes';
+import shopDashboardRoutes from './routes/shop-dashboard.routes';
+import imageMetadataRoutes from './routes/image-metadata.routes';
+import cdnRoutes from './routes/cdn.routes';
+import favoritesRoutes from './routes/favorites.routes';
+import shopContactMethodsRoutes from './routes/shop-contact-methods.routes';
+import shopReportingRoutes from './routes/shop-reporting.routes';
+import adminModerationRoutes from './routes/admin-moderation.routes';
+import shopCategoriesRoutes from './routes/shop-categories.routes';
+import serviceCatalogRoutes from './routes/service-catalog.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -64,6 +92,7 @@ import {} from '@/config';
 import {} from '@/validators';
 import {} from '@/constants';
 import { initializeWebSocketService } from './services/websocket.service';
+import { influencerSchedulerService } from './services/influencer-scheduler.service';
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -74,209 +103,33 @@ app.use(performanceLoggingMiddleware);
 app.use(requestLoggingMiddleware);
 app.use(morganFormat);
 
-// Basic middleware setup
-app.use(helmet());
-app.use(cors());
+// Comprehensive security middleware setup
+import { securityHeaders } from './middleware/security.middleware';
+import { securityEventDetection, securityEventResponseHandler } from './middleware/security-event-detection.middleware';
+import { sqlInjectionPrevention } from './middleware/sql-injection-prevention.middleware';
+import { rpcSecurityMiddleware } from './middleware/rpc-security.middleware';
+import { xssProtection, csrfProtection } from './middleware/xss-csrf-protection.middleware';
+import { securityEventLoggingMiddleware } from './middleware/security-event-logging.middleware';
+import { applyResponseStandardization } from './middleware/response-standardization.middleware';
+app.use(securityHeaders());
+app.use(securityEventDetection());
+app.use(securityEventResponseHandler());
+app.use(sqlInjectionPrevention());
+app.use(rpcSecurityMiddleware());
+app.use(xssProtection());
+app.use(csrfProtection());
+app.use(securityEventLoggingMiddleware());
+// Apply response standardization middleware
+app.use(applyResponseStandardization());
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Import comprehensive OpenAPI configuration - TEMPORARILY DISABLED DUE TO TYPE ERRORS
-// import { API_INFO, API_SERVERS, API_TAGS, SECURITY_SCHEMES, COMMON_RESPONSES, COMMON_PARAMETERS, DATABASE_SCHEMAS } from './config/openapi.config';
+// Import comprehensive OpenAPI configuration
+import { OPENAPI_GENERATION_CONFIG } from './config/openapi.config';
 
-// Swagger configuration using comprehensive OpenAPI config - TEMPORARILY DISABLED
-const swaggerOptions = {
-  definition: {
-    openapi: '3.0.0',
-    info: {
-      title: '에뷰리띵 백엔드 API',
-      version: '1.0.0',
-      description: 'Everything Backend API for Review Thing App',
-    },
-    servers: [
-      {
-        url: process.env.NODE_ENV === 'production' ? 'https://api.reviewthing.com' : `http://localhost:${PORT}`,
-        description: process.env.NODE_ENV === 'production' ? 'Production server' : 'Development server'
-      }
-    ],
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
-        }
-      },
-      schemas: {
-        User: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            name: { type: 'string' },
-            email: { type: 'string', format: 'email' },
-            phoneNumber: { type: 'string' },
-            birthDate: { type: 'string', format: 'date' },
-            gender: { type: 'string', enum: ['male', 'female', 'other'] },
-            nickname: { type: 'string' },
-            profileImage: { type: 'string' },
-            referralCode: { type: 'string' },
-            status: { type: 'string', enum: ['active', 'inactive', 'suspended'] },
-            createdAt: { type: 'string', format: 'date-time' },
-            updatedAt: { type: 'string', format: 'date-time' }
-          }
-        },
-        TokenPair: {
-          type: 'object',
-          properties: {
-            accessToken: { type: 'string' },
-            refreshToken: { type: 'string' },
-            expiresIn: { type: 'number' }
-          }
-        },
-        Shop: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            name: { type: 'string' },
-            description: { type: 'string' },
-            phoneNumber: { type: 'string' },
-            email: { type: 'string', format: 'email' },
-            address: { type: 'string' },
-            detailedAddress: { type: 'string' },
-            postalCode: { type: 'string' },
-            latitude: { type: 'number' },
-            longitude: { type: 'number' },
-            mainCategory: { type: 'string' },
-            subCategories: { type: 'array', items: { type: 'string' } },
-            operatingHours: { type: 'object' },
-            paymentMethods: { type: 'array', items: { type: 'string' } },
-            kakaoChannelUrl: { type: 'string' },
-            businessLicenseNumber: { type: 'string' },
-            status: { type: 'string', enum: ['pending', 'approved', 'rejected', 'suspended'] },
-            createdAt: { type: 'string', format: 'date-time' },
-            updatedAt: { type: 'string', format: 'date-time' }
-          }
-        },
-        Reservation: {
-          type: 'object',
-          properties: {
-            id: { type: 'string', format: 'uuid' },
-            userId: { type: 'string', format: 'uuid' },
-            shopId: { type: 'string', format: 'uuid' },
-            services: { type: 'array', items: { $ref: '#/components/schemas/ReservationService' } },
-            reservationDate: { type: 'string', format: 'date' },
-            reservationTime: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$' },
-            status: { type: 'string', enum: ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'] },
-            totalAmount: { type: 'number' },
-            pointsUsed: { type: 'number' },
-            specialRequests: { type: 'string' },
-            createdAt: { type: 'string', format: 'date-time' },
-            updatedAt: { type: 'string', format: 'date-time' }
-          }
-        },
-        ReservationService: {
-          type: 'object',
-          properties: {
-            serviceId: { type: 'string', format: 'uuid' },
-            quantity: { type: 'integer', minimum: 1 },
-            price: { type: 'number' }
-          }
-        },
-        TimeSlot: {
-          type: 'object',
-          properties: {
-            startTime: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$' },
-            endTime: { type: 'string', pattern: '^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$' },
-            available: { type: 'boolean' },
-            capacity: { type: 'integer' },
-            booked: { type: 'integer' }
-          }
-        },
-        Error: {
-          type: 'object',
-          properties: {
-            code: { type: 'string' },
-            message: { type: 'string' },
-            details: { type: 'string' }
-          }
-        }
-      },
-      responses: {
-        BadRequest: {
-          description: 'Bad Request',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  error: { $ref: '#/components/schemas/Error' }
-                }
-              }
-            }
-          }
-        },
-        Unauthorized: {
-          description: 'Unauthorized',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  error: { $ref: '#/components/schemas/Error' }
-                }
-              }
-            }
-          }
-        },
-        Forbidden: {
-          description: 'Forbidden',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  error: { $ref: '#/components/schemas/Error' }
-                }
-              }
-            }
-          }
-        },
-        NotFound: {
-          description: 'Not Found',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  error: { $ref: '#/components/schemas/Error' }
-                }
-              }
-            }
-          }
-        },
-        TooManyRequests: {
-          description: 'Too Many Requests',
-          content: {
-            'application/json': {
-              schema: {
-                type: 'object',
-                properties: {
-                  error: { $ref: '#/components/schemas/Error' }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    security: [
-      {
-        bearerAuth: []
-      }
-    ]
-  },
-  apis: ['./src/routes/*.ts', './src/app.ts']
-};
+// Swagger configuration using comprehensive OpenAPI config
+const swaggerOptions = OPENAPI_GENERATION_CONFIG;
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
 
@@ -308,6 +161,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
 
 // API Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/registration', registrationRoutes);
 app.use('/api/users', userProfileRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/admin/shops', adminShopRoutes);
@@ -317,8 +171,22 @@ app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
 app.use('/api/storage', storageRoutes);
+app.use('/api/shops/categories', shopCategoriesRoutes);
+app.use('/api/service-catalog', serviceCatalogRoutes);
+app.use('/api/shops/search', shopSearchRoutes);
 app.use('/api/shops', shopRoutes);
 app.use('/api/shops', shopImageRoutes);
+app.use('/api/shop/register', shopRegistrationRoutes);
+app.use('/api/shop/profile', shopProfileRoutes);
+app.use('/api/shop/services', shopServiceRoutes);
+app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
+app.use('/api/shop/dashboard', shopDashboardRoutes);
+app.use('/api/shop/images', imageMetadataRoutes);
+app.use('/api/cdn', cdnRoutes);
+app.use('/api', favoritesRoutes);
+app.use('/api/shop', shopContactMethodsRoutes);
+app.use('/api/shops', shopReportingRoutes);
+app.use('/api/admin', adminModerationRoutes);
 app.use('/api', reservationRoutes);
 app.use('/api/admin/no-show', noShowDetectionRoutes);
 app.use('/api', reservationReschedulingRoutes);
@@ -334,6 +202,8 @@ app.use('/api', influencerBonusRoutes);
 app.use('/api', adminAdjustmentRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
+app.use('/api/admin', ipBlockingRoutes);
+app.use('/api/security', securityRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/websocket', websocketRoutes);
 app.use('/api/test-error', testErrorRoutes);
@@ -341,6 +211,17 @@ app.use('/health', healthRoutes);
 app.use('/api/cache', cacheRoutes);
 app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/shutdown', shutdownRoutes);
+app.use('/api/user/sessions', userSessionsRoutes);
+app.use('/api/admin/security', adminSecurityRoutes);
+app.use('/api/admin/security-enhanced', adminSecurityEnhancedRoutes);
+app.use('/api/admin/security-events', adminSecurityEventsRoutes);
+app.use('/api/analytics/auth', authAnalyticsRoutes);
+app.use('/api/referral-codes', referralCodeRoutes);
+app.use('/api/referral-relationships', referralRelationshipRoutes);
+app.use('/api/influencer-qualification', influencerQualificationRoutes);
+app.use('/api/referral-earnings', referralEarningsRoutes);
+app.use('/api/referral-analytics', referralAnalyticsRoutes);
+app.use('/api/users', userSettingsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -374,6 +255,10 @@ if (require.main === module) {
     // Initialize WebSocket service
     initializeWebSocketService(server);
     console.log(`🔌 WebSocket 서비스가 초기화되었습니다.`);
+    
+    // Start influencer qualification scheduler
+    influencerSchedulerService.startScheduler();
+    console.log(`⭐ 인플루언서 자격 관리 스케줄러가 시작되었습니다.`);
   });
 }
 

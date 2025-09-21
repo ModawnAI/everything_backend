@@ -1,0 +1,93 @@
+{
+  "table": "shops",
+  "environment": ["development", "test"],
+  "dependencies": ["users"],
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000101",
+      "owner_id": "00000000-0000-0000-0000-000000000002",
+      "name": "강남 프리미엄 네일샵",
+      "description": "강남역 인근의 고급 네일아트 전문샵입니다. 최신 트렌드의 디자인과 프리미엄 재료만을 사용합니다.",
+      "address": "서울시 강남구 강남대로 123",
+      "phone_number": "02-123-4567",
+      "kakao_channel_url": "https://pf.kakao.com/_nailshop123",
+      "instagram_handle": "@gangnam_nails",
+      "business_license_number": "123-45-67890",
+      "main_category": "nail",
+      "shop_status": "active",
+      "shop_type": "partnered",
+      "verification_status": "verified",
+      "commission_rate": 10.0,
+      "location": "POINT(127.0276 37.4979)",
+      "operating_hours": {
+        "monday": { "open": "10:00", "close": "20:00", "closed": false },
+        "tuesday": { "open": "10:00", "close": "20:00", "closed": false },
+        "wednesday": { "open": "10:00", "close": "20:00", "closed": false },
+        "thursday": { "open": "10:00", "close": "20:00", "closed": false },
+        "friday": { "open": "10:00", "close": "21:00", "closed": false },
+        "saturday": { "open": "10:00", "close": "21:00", "closed": false },
+        "sunday": { "open": "11:00", "close": "19:00", "closed": false }
+      },
+      "average_rating": 4.8,
+      "total_reviews": 127,
+      "partnership_started_at": "2024-01-15T00:00:00Z",
+      "created_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000102",
+      "owner_id": "00000000-0000-0000-0000-000000000002",
+      "name": "홍대 아이래시 스튜디오",
+      "description": "홍대에서 가장 인기 있는 속눈썹 연장 전문샵입니다. 자연스럽고 아름다운 래쉬를 만들어드립니다.",
+      "address": "서울시 마포구 홍익로 456",
+      "phone_number": "02-234-5678",
+      "kakao_channel_url": "https://pf.kakao.com/_lashstudio456",
+      "instagram_handle": "@hongdae_lashes",
+      "business_license_number": "234-56-78901",
+      "main_category": "eyelash",
+      "shop_status": "active",
+      "shop_type": "partnered",
+      "verification_status": "verified",
+      "commission_rate": 10.0,
+      "location": "POINT(126.9250 37.5563)",
+      "operating_hours": {
+        "monday": { "open": "11:00", "close": "21:00", "closed": false },
+        "tuesday": { "open": "11:00", "close": "21:00", "closed": false },
+        "wednesday": { "open": "11:00", "close": "21:00", "closed": false },
+        "thursday": { "open": "11:00", "close": "21:00", "closed": false },
+        "friday": { "open": "11:00", "close": "22:00", "closed": false },
+        "saturday": { "open": "10:00", "close": "22:00", "closed": false },
+        "sunday": { "open": "12:00", "close": "20:00", "closed": false }
+      },
+      "average_rating": 4.6,
+      "total_reviews": 89,
+      "partnership_started_at": "2024-02-01T00:00:00Z",
+      "created_at": "2024-02-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000103",
+      "name": "신촌 왁싱&케어",
+      "description": "신촌 지역 최고의 왁싱 전문샵입니다. 깔끔하고 위생적인 환경에서 전문적인 서비스를 제공합니다.",
+      "address": "서울시 서대문구 신촌로 789",
+      "phone_number": "02-345-6789",
+      "business_license_number": "345-67-89012",
+      "main_category": "waxing",
+      "shop_status": "active",
+      "shop_type": "non_partnered",
+      "verification_status": "verified",
+      "commission_rate": 0.0,
+      "location": "POINT(126.9348 37.5596)",
+      "operating_hours": {
+        "monday": { "open": "09:00", "close": "19:00", "closed": false },
+        "tuesday": { "open": "09:00", "close": "19:00", "closed": false },
+        "wednesday": { "open": "09:00", "close": "19:00", "closed": false },
+        "thursday": { "open": "09:00", "close": "19:00", "closed": false },
+        "friday": { "open": "09:00", "close": "20:00", "closed": false },
+        "saturday": { "open": "09:00", "close": "20:00", "closed": false },
+        "sunday": { "open": "00:00", "close": "00:00", "closed": true }
+      },
+      "average_rating": 4.2,
+      "total_reviews": 45,
+      "created_at": "2024-02-15T00:00:00Z"
+    }
+  ]
+}

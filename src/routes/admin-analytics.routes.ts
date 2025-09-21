@@ -501,4 +501,341 @@ router.get('/health',
   adminAnalyticsController.getAnalyticsHealth.bind(adminAnalyticsController)
 );
 
+/**
+ * @swagger
+ * /api/admin/shops/{shopId}/analytics:
+ *   get:
+ *     summary: Get detailed analytics for a specific shop
+ *     description: |
+ *       Retrieve comprehensive analytics and performance metrics for a specific shop including:
+ *       - Shop basic information and status
+ *       - Performance metrics (reservations, revenue, services)
+ *       - Registration and approval timeline
+ *       - User engagement metrics (favorites, reviews)
+ *       - Discovery and trending data
+ *       
+ *       **Authorization:** Requires admin role and valid JWT token.
+ *     tags: [Admin Analytics]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: shopId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Shop ID
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for analytics period
+ *         example: "2024-01-01"
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for analytics period
+ *         example: "2024-01-31"
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [day, week, month, quarter, year]
+ *         description: Analysis period
+ *         example: "month"
+ *       - in: query
+ *         name: includeCache
+ *         schema:
+ *           type: boolean
+ *           default: true
+ *         description: Include cached data
+ *         example: true
+ *     responses:
+ *       200:
+ *         description: Shop analytics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "샵 분석 데이터를 성공적으로 조회했습니다."
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shop:
+ *                       type: object
+ *                       properties:
+ *                         id:
+ *                           type: string
+ *                           format: uuid
+ *                         name:
+ *                           type: string
+ *                         description:
+ *                           type: string
+ *                         mainCategory:
+ *                           type: string
+ *                         subCategories:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                         status:
+ *                           type: string
+ *                         verificationStatus:
+ *                           type: string
+ *                         createdAt:
+ *                           type: string
+ *                           format: date-time
+ *                         updatedAt:
+ *                           type: string
+ *                           format: date-time
+ *                         ownerId:
+ *                           type: string
+ *                           format: uuid
+ *                         address:
+ *                           type: string
+ *                         location:
+ *                           type: object
+ *                           properties:
+ *                             latitude:
+ *                               type: number
+ *                             longitude:
+ *                               type: number
+ *                         contact:
+ *                           type: object
+ *                           properties:
+ *                             phone:
+ *                               type: string
+ *                             email:
+ *                               type: string
+ *                         businessLicense:
+ *                           type: string
+ *                         isFeatured:
+ *                           type: boolean
+ *                         rating:
+ *                           type: number
+ *                         reviewCount:
+ *                           type: integer
+ *                     performance:
+ *                       type: object
+ *                       properties:
+ *                         reservations:
+ *                           type: object
+ *                           properties:
+ *                             total:
+ *                               type: integer
+ *                             completed:
+ *                               type: integer
+ *                             cancelled:
+ *                               type: integer
+ *                             noShow:
+ *                               type: integer
+ *                             completionRate:
+ *                               type: number
+ *                             averageValue:
+ *                               type: number
+ *                         revenue:
+ *                           type: object
+ *                           properties:
+ *                             total:
+ *                               type: number
+ *                             averagePerReservation:
+ *                               type: number
+ *                         services:
+ *                           type: object
+ *                           properties:
+ *                             total:
+ *                               type: integer
+ *                             available:
+ *                               type: integer
+ *                             categories:
+ *                               type: array
+ *                               items:
+ *                                 type: string
+ *                     registration:
+ *                       type: object
+ *                       properties:
+ *                         registrationTime:
+ *                           type: integer
+ *                           description: Days to complete registration
+ *                         approvalTime:
+ *                           type: integer
+ *                           description: Days to get approved
+ *                         profileCompleteness:
+ *                           type: integer
+ *                           description: Profile completeness percentage
+ *                         status:
+ *                           type: string
+ *                         verificationStatus:
+ *                           type: string
+ *                     engagement:
+ *                       type: object
+ *                       properties:
+ *                         favorites:
+ *                           type: object
+ *                           properties:
+ *                             total:
+ *                               type: integer
+ *                             newThisPeriod:
+ *                               type: integer
+ *                         reviews:
+ *                           type: object
+ *                           properties:
+ *                             total:
+ *                               type: integer
+ *                             averageRating:
+ *                               type: number
+ *                         engagement:
+ *                           type: object
+ *                           properties:
+ *                             totalInteractions:
+ *                               type: integer
+ *                             engagementRate:
+ *                               type: number
+ *                     discovery:
+ *                       type: object
+ *                       properties:
+ *                         searchAppearances:
+ *                           type: integer
+ *                         profileViews:
+ *                           type: integer
+ *                         discoverySources:
+ *                           type: object
+ *                           properties:
+ *                             search:
+ *                               type: integer
+ *                             recommendations:
+ *                               type: integer
+ *                             direct:
+ *                               type: integer
+ *                         trendingScore:
+ *                           type: number
+ *                     period:
+ *                       type: object
+ *                       properties:
+ *                         startDate:
+ *                           type: string
+ *                           format: date
+ *                         endDate:
+ *                           type: string
+ *                           format: date
+ *                         period:
+ *                           type: string
+ *                     generatedAt:
+ *                       type: string
+ *                       format: date-time
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Bad request - Invalid shop ID or parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: object
+ *                   properties:
+ *                     code:
+ *                       type: string
+ *                       example: "MISSING_SHOP_ID"
+ *                     message:
+ *                       type: string
+ *                       example: "샵 ID가 필요합니다."
+ *                     details:
+ *                       type: string
+ *                       example: "URL 경로에 유효한 샵 ID를 포함해주세요."
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ *       401:
+ *         description: Unauthorized - Admin authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: object
+ *                   properties:
+ *                     code:
+ *                       type: string
+ *                       example: "UNAUTHORIZED"
+ *                     message:
+ *                       type: string
+ *                       example: "관리자 인증이 필요합니다."
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ *       404:
+ *         description: Shop not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: object
+ *                   properties:
+ *                     code:
+ *                       type: string
+ *                       example: "SHOP_NOT_FOUND"
+ *                     message:
+ *                       type: string
+ *                       example: "샵을 찾을 수 없습니다."
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ *       500:
+ *         description: Internal server error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: false
+ *                 error:
+ *                   type: object
+ *                   properties:
+ *                     code:
+ *                       type: string
+ *                       example: "SHOP_ANALYTICS_ERROR"
+ *                     message:
+ *                       type: string
+ *                       example: "샵 분석 데이터 조회 중 오류가 발생했습니다."
+ *                     details:
+ *                       type: string
+ *                       example: "Unknown error"
+ *                     timestamp:
+ *                       type: string
+ *                       format: date-time
+ */
+router.get('/shops/:shopId/analytics',
+  authenticateJWT,
+  requireRole('admin'),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  adminAnalyticsController.getShopAnalytics.bind(adminAnalyticsController)
+);
+
 export default router; 
