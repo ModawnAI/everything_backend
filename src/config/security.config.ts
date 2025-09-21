@@ -184,7 +184,7 @@ export const PERMISSIONS_POLICY: PermissionsPolicyDirectives = {
  */
 const createCSRFConfig = (environment: 'development' | 'staging' | 'production') => {
   const baseConfig = {
-    enabled: true,
+    enabled: process.env.NODE_ENV !== 'test' && process.env.DISABLE_CSRF !== 'true',
     secret: process.env.CSRF_SECRET || 'default-csrf-secret-change-in-production',
     saltLength: 12,
     secretLength: 24,

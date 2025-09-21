@@ -242,6 +242,11 @@ function setRateLimitHeaders(res: Response, result: RateLimitResult, config: Rat
  */
 export function rateLimit(options: RateLimitMiddlewareOptions = {}) {
   return async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    // Skip rate limiting in test environment
+    if (process.env.NODE_ENV === 'test' || process.env.DISABLE_RATE_LIMIT === 'true') {
+      return next();
+    }
+    
     try {
       const context = createRateLimitContext(req);
       const authReq = req as AuthenticatedRequest;

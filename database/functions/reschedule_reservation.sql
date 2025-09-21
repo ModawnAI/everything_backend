@@ -24,22 +24,20 @@ RETURNS TABLE(
   updated_at TIMESTAMP WITH TIME ZONE
 ) AS $$
 DECLARE
-  v_reservation reservations%ROWTYPE;
   v_shop_id UUID;
   v_user_id UUID;
+  v_reservation_date DATE;
+  v_reservation_time TIME;
 BEGIN
   -- Get current reservation details
-  SELECT * INTO v_reservation
+  SELECT shop_id, user_id, reservation_date, reservation_time 
+  INTO v_shop_id, v_user_id, v_reservation_date, v_reservation_time
   FROM reservations
   WHERE id = p_reservation_id;
   
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Reservation not found';
   END IF;
-  
-  -- Store shop and user IDs for history logging
-  v_shop_id := v_reservation.shop_id;
-  v_user_id := v_reservation.user_id;
   
   -- Update the reservation
   UPDATE reservations
@@ -64,8 +62,8 @@ BEGIN
   ) VALUES (
     p_reservation_id,
     v_shop_id,
-    v_reservation.reservation_date,
-    v_reservation.reservation_time,
+    v_reservation_date,
+    v_reservation_time,
     p_new_date,
     p_new_time,
     p_reason,

@@ -1,0 +1,12 @@
+-- =============================================
+-- SCHEMA CHUNK 1
+-- =============================================
+-- Upload this file to Supabase SQL Editor
+-- Size: 0.3KB
+-- =============================================
+
+-- =============================================
+-- 에뷰리띵 앱 - SUPABASE 데이터베이스 구조
+-- EBEAUTYTHING APP - SUPABASE DATABASE STRUCTURE
+-- Version: 3.3 - Enhanced with Shop Categories, Moderation System, CDN Integration, and Security Features
+-- Based on PRD v3.3, Phase 3 Shop System, Phase 4 Reservation System, and latest migrations

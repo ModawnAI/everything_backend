@@ -159,6 +159,16 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   customSiteTitle: '에뷰리띵 API Documentation'
 }));
 
+// OpenAPI spec endpoint - provides JSON version of the API documentation
+app.get('/api/openapi.json', (_req, res) => {
+  res.json(swaggerSpec);
+});
+
+// Alternative Swagger JSON endpoint
+app.get('/swagger.json', (_req, res) => {
+  res.json(swaggerSpec);
+});
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);

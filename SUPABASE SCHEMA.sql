@@ -1,8 +1,8 @@
 -- =============================================
 -- 에뷰리띵 앱 - SUPABASE 데이터베이스 구조
 -- EBEAUTYTHING APP - SUPABASE DATABASE STRUCTURE
--- Version: 3.2 - Updated for React/Next.js Hybrid App with Social Feed
--- Based on PRD v3.2, React/Next.js Development Guide, and Web Admin Guide
+-- Version: 3.3 - Enhanced with Shop Categories, Moderation System, CDN Integration, and Security Features
+-- Based on PRD v3.3, Phase 3 Shop System, Phase 4 Reservation System, and latest migrations
 -- =============================================
 
 -- PostgreSQL 확장 기능 활성화
@@ -80,16 +80,61 @@ CREATE TYPE notification_type AS ENUM (
 -- 알림 상태: 알림 목록 화면에서 읽음/읽지않음 표시
 CREATE TYPE notification_status AS ENUM ('unread', 'read', 'deleted');
 
--- 신고 관련 ENUM
--- 신고 사유: 컨텐츠 모더레이션을 위한 신고 카테고리
-CREATE TYPE report_reason AS ENUM ('spam', 'inappropriate_content', 'harassment', 'other');
-
 -- 관리자 액션 ENUM
 -- 관리자 작업 로그: 웹 관리자 대시보드에서 수행된 작업 추적
 CREATE TYPE admin_action_type AS ENUM (
     'user_suspended', 'user_activated', 'shop_approved', 'shop_rejected', 'shop_suspended',
     'refund_processed', 'points_adjusted', 'content_moderated', 'post_hidden', 
-    'post_restored', 'user_promoted_influencer', 'reservation_force_completed'
+    'post_restored', 'user_promoted_influencer', 'reservation_force_completed', 'user_role_update'
+);
+
+-- 신고 관련 ENUM (업데이트됨)
+-- 신고 사유: 컨텐츠 모더레이션을 위한 신고 카테고리
+CREATE TYPE report_reason AS ENUM (
+    'inappropriate_content', 'spam', 'fake_shop', 'harassment', 'illegal_services',
+    'misleading_information', 'copyright_violation', 'other'
+);
+
+-- 신고 상태 ENUM
+CREATE TYPE report_status AS ENUM (
+    'pending', 'under_review', 'resolved', 'dismissed', 'escalated'
+);
+
+-- 연락처 방법 타입 ENUM
+CREATE TYPE contact_method_type AS ENUM (
+    'phone', 'email', 'kakaotalk_channel', 'kakaotalk_id', 'instagram',
+    'facebook', 'youtube', 'naver_blog', 'tiktok', 'website',
+    'whatsapp', 'telegram', 'discord', 'custom'
+);
+
+-- 연락처 방법 상태 ENUM
+CREATE TYPE contact_method_status AS ENUM (
+    'active', 'inactive', 'verified', 'pending_verification', 'suspended'
+);
+
+-- 모더레이션 룰 타입 ENUM
+CREATE TYPE moderation_rule_type AS ENUM (
+    'keyword_filter', 'image_content_filter', 'spam_detection', 'duplicate_content',
+    'inappropriate_language', 'fake_shop_detection', 'copyright_violation',
+    'custom_regex', 'ml_content_analysis', 'user_behavior_pattern'
+);
+
+-- 모더레이션 룰 액션 ENUM
+CREATE TYPE moderation_rule_action AS ENUM (
+    'flag_for_review', 'auto_reject', 'auto_approve', 'send_warning',
+    'suspend_shop', 'send_notification', 'escalate_to_admin', 'log_incident', 'custom_action'
+);
+
+-- 모더레이션 룰 상태 ENUM
+CREATE TYPE moderation_rule_status AS ENUM (
+    'active', 'inactive', 'testing', 'deprecated'
+);
+
+-- 모더레이션 액션 타입 ENUM
+CREATE TYPE moderation_action_type AS ENUM (
+    'warning_issued', 'content_removed', 'shop_suspended', 'shop_terminated',
+    'report_dismissed', 'no_action_required', 'escalated_to_admin',
+    'contact_shop_owner', 'content_edited', 'other'
 );
 
 -- 피드 관련 ENUM (v3.2 신규)
@@ -191,7 +236,7 @@ CREATE TABLE public.shops (
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
--- 샵 이미지 테이블
+-- 샵 이미지 테이블 (v3.3 확장됨)
 -- 샵 상세 화면의 이미지 슬라이더를 위한 여러 이미지 저장
 -- display_order로 노출 순서 제어 가능
 CREATE TABLE public.shop_images (
@@ -201,7 +246,31 @@ CREATE TABLE public.shop_images (
     alt_text VARCHAR(255), -- 접근성을 위한 대체 텍스트
     is_primary BOOLEAN DEFAULT FALSE, -- 대표 이미지 여부
     display_order INTEGER DEFAULT 0, -- 이미지 노출 순서
-    created_at TIMESTAMPTZ DEFAULT NOW()
+    -- v3.3 확장 필드들
+    thumbnail_url TEXT,
+    medium_url TEXT,
+    large_url TEXT,
+    thumbnail_webp_url TEXT,
+    medium_webp_url TEXT,
+    large_webp_url TEXT,
+    title VARCHAR(255),
+    description TEXT,
+    tags TEXT[], -- Array of tags for categorization
+    category VARCHAR(50), -- Image category (exterior, interior, service, etc.)
+    file_size BIGINT, -- Original file size in bytes
+    width INTEGER, -- Image width in pixels
+    height INTEGER, -- Image height in pixels
+    format VARCHAR(10), -- Image format (jpeg, png, webp)
+    compression_ratio DECIMAL(5,2), -- Compression ratio percentage
+    metadata JSONB, -- Additional metadata (EXIF, etc.)
+    is_optimized BOOLEAN DEFAULT FALSE, -- Whether image has been optimized
+    optimization_date TIMESTAMPTZ, -- When image was last optimized
+    last_accessed TIMESTAMPTZ, -- Last time image was accessed
+    access_count INTEGER DEFAULT 0, -- Number of times image has been accessed
+    is_archived BOOLEAN DEFAULT FALSE, -- Whether image is archived
+    archived_at TIMESTAMPTZ, -- When image was archived
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- 샵 서비스 테이블
@@ -268,9 +337,7 @@ CREATE TABLE public.reservations (
     shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
     reservation_date DATE NOT NULL, -- 예약 날짜
     reservation_time TIME NOT NULL, -- 예약 시간
-    reservation_datetime TIMESTAMPTZ GENERATED ALWAYS AS (
-        (reservation_date || ' ' || reservation_time)::TIMESTAMPTZ AT TIME ZONE 'Asia/Seoul'
-    ) STORED, -- 날짜+시간 결합 (인덱스 및 정렬용, 한국 시간대 기준)
+    reservation_datetime TIMESTAMPTZ, -- 날짜+시간 결합 (인덱스 및 정렬용, 한국 시간대 기준)
     status reservation_status DEFAULT 'requested', -- 예약 상태
     total_amount INTEGER NOT NULL, -- 총 서비스 금액
     deposit_amount INTEGER NOT NULL, -- 결제한 예약금
@@ -477,7 +544,127 @@ CREATE TABLE public.comment_likes (
     UNIQUE(comment_id, user_id) -- 동일 댓글 중복 좋아요 방지
 );
 
--- 샵 연락처 정보 테이블 (v3.2 신규)
+-- =============================================
+-- 샵 카테고리 시스템 (SHOP CATEGORY SYSTEM) - v3.3 신규
+-- =============================================
+
+-- 샵 카테고리 테이블
+-- 서비스 카테고리의 상세한 관리를 위한 확장 테이블
+CREATE TABLE public.shop_categories (
+    id TEXT PRIMARY KEY,
+    display_name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    icon TEXT,
+    color TEXT,
+    subcategories TEXT[] DEFAULT '{}',
+    is_active BOOLEAN DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by UUID REFERENCES auth.users(id),
+    updated_by UUID REFERENCES auth.users(id)
+);
+
+-- 서비스 타입 테이블
+-- 각 카테고리별 상세 서비스 타입 정의
+CREATE TABLE public.service_types (
+    id TEXT PRIMARY KEY,
+    category_id TEXT NOT NULL REFERENCES public.shop_categories(id) ON DELETE CASCADE,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL,
+    price_range JSONB NOT NULL DEFAULT '{"min": 0, "max": 0}',
+    duration_minutes INTEGER NOT NULL DEFAULT 60,
+    is_popular BOOLEAN DEFAULT FALSE,
+    requirements TEXT[] DEFAULT '{}',
+    benefits TEXT[] DEFAULT '{}',
+    is_active BOOLEAN DEFAULT TRUE,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    created_by UUID REFERENCES auth.users(id),
+    updated_by UUID REFERENCES auth.users(id)
+);
+
+-- 카테고리 메타데이터 테이블
+CREATE TABLE public.category_metadata (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    category_id TEXT NOT NULL REFERENCES public.shop_categories(id) ON DELETE CASCADE,
+    metadata_key TEXT NOT NULL,
+    metadata_value JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(category_id, metadata_key)
+);
+
+-- 서비스 타입 메타데이터 테이블
+CREATE TABLE public.service_type_metadata (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    service_type_id TEXT NOT NULL REFERENCES public.service_types(id) ON DELETE CASCADE,
+    metadata_key TEXT NOT NULL,
+    metadata_value JSONB NOT NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(service_type_id, metadata_key)
+);
+
+-- 카테고리 계층 구조 테이블
+CREATE TABLE public.category_hierarchy (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    parent_category_id TEXT NOT NULL REFERENCES public.shop_categories(id) ON DELETE CASCADE,
+    child_category_id TEXT NOT NULL REFERENCES public.shop_categories(id) ON DELETE CASCADE,
+    hierarchy_level INTEGER NOT NULL DEFAULT 1,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    UNIQUE(parent_category_id, child_category_id),
+    CHECK (parent_category_id != child_category_id)
+);
+
+-- =============================================
+-- 샵 연락처 관리 시스템 (SHOP CONTACT MANAGEMENT) - v3.3 신규
+-- =============================================
+
+-- 샵 연락처 방법 테이블
+-- "가게 메시지 보내기" 기능을 위한 다양한 연락 수단 관리
+CREATE TABLE public.shop_contact_methods (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+    contact_type contact_method_type NOT NULL,
+    contact_value TEXT NOT NULL,
+    display_name VARCHAR(255), -- Human-readable name for the contact method
+    is_primary BOOLEAN DEFAULT FALSE, -- Primary contact method for this type
+    is_public BOOLEAN DEFAULT TRUE, -- Whether this contact method is visible to customers
+    verification_status contact_method_status DEFAULT 'pending_verification',
+    verification_token VARCHAR(255), -- Token for verification process
+    verification_expires_at TIMESTAMPTZ,
+    verified_at TIMESTAMPTZ,
+    metadata JSONB DEFAULT '{}', -- Additional metadata (e.g., KakaoTalk channel info, social media handles)
+    display_order INTEGER DEFAULT 0, -- Order for displaying multiple contact methods
+    click_count INTEGER DEFAULT 0, -- Track how many times this contact method was accessed
+    last_accessed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Ensure only one primary contact method per type per shop
+    UNIQUE(shop_id, contact_type, is_primary) DEFERRABLE INITIALLY DEFERRED,
+    
+    -- Ensure unique contact values within the same type (case-insensitive)
+    UNIQUE(contact_type, LOWER(contact_value))
+);
+
+-- 연락처 방법 접근 로그 테이블
+-- Track access to contact methods for analytics and security
+CREATE TABLE public.contact_method_access_logs (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    contact_method_id UUID NOT NULL REFERENCES public.shop_contact_methods(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL, -- NULL for anonymous access
+    ip_address INET,
+    user_agent TEXT,
+    referrer TEXT,
+    access_type VARCHAR(50) DEFAULT 'view', -- 'view', 'click', 'call', 'message'
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 샵 연락처 정보 테이블 (v3.2 레거시 - 호환성 유지)
 -- "가게 메시지 보내기" 기능을 위한 다양한 연락 수단 관리
 -- JSONB 구조로 통합하여 중복 제거
 CREATE TABLE public.shop_contacts (
@@ -549,10 +736,107 @@ CREATE TABLE public.push_tokens (
 );
 
 -- =============================================
--- 컨텐츠 모더레이션 & 신고 (CONTENT MODERATION & REPORTING)
+-- 컨텐츠 모더레이션 & 신고 (CONTENT MODERATION & REPORTING) - v3.3 확장
 -- =============================================
 
--- 컨텐츠 신고 테이블
+-- 샵 신고 테이블 (확장됨)
+-- 샵에 대한 신고 및 모더레이션을 위한 전용 테이블
+CREATE TABLE public.shop_reports (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    reporter_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+    reason report_reason NOT NULL,
+    description TEXT, -- Optional detailed description from reporter
+    status report_status DEFAULT 'pending',
+    reviewed_by UUID REFERENCES public.users(id) ON DELETE SET NULL, -- Admin who reviewed
+    reviewed_at TIMESTAMPTZ,
+    resolution_notes TEXT, -- Notes from the moderator/admin
+    priority INTEGER DEFAULT 1, -- 1=low, 2=medium, 3=high, 4=urgent
+    is_escalated BOOLEAN DEFAULT FALSE, -- Flag for escalated reports
+    escalation_reason TEXT, -- Reason for escalation
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Ensure a user can only report the same shop once (unless previous report is resolved/dismissed)
+    UNIQUE(reporter_id, shop_id) DEFERRABLE INITIALLY DEFERRED
+);
+
+-- 모더레이션 룰 테이블
+-- 자동화된 컨텐츠 모더레이션 룰 관리
+CREATE TABLE public.moderation_rules (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    rule_type moderation_rule_type NOT NULL,
+    rule_action moderation_rule_action NOT NULL,
+    rule_config JSONB NOT NULL, -- Configuration for the rule (patterns, thresholds, etc.)
+    priority INTEGER DEFAULT 1, -- 1=low, 2=medium, 3=high, 4=critical
+    status moderation_rule_status DEFAULT 'active',
+    is_automated BOOLEAN DEFAULT TRUE,
+    trigger_conditions JSONB, -- Conditions that must be met for the rule to trigger
+    action_config JSONB, -- Configuration for the action to be taken
+    created_by UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW(),
+    last_triggered_at TIMESTAMPTZ,
+    trigger_count INTEGER DEFAULT 0,
+    false_positive_count INTEGER DEFAULT 0,
+    accuracy_score DECIMAL(5,4) -- Accuracy score (0.0000 to 1.0000)
+);
+
+-- 모더레이션 액션 테이블
+-- 신고에 대한 모더레이션 액션 추적
+CREATE TABLE public.moderation_actions (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    report_id UUID NOT NULL REFERENCES public.shop_reports(id) ON DELETE CASCADE,
+    action_type moderation_action_type NOT NULL,
+    description TEXT NOT NULL, -- Detailed description of the action taken
+    moderator_id UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE, -- Denormalized for easier querying
+    action_data JSONB, -- Additional data related to the action (e.g., suspension duration, content changes)
+    is_automated BOOLEAN DEFAULT FALSE, -- Whether this action was taken automatically
+    automation_rule_id UUID, -- Reference to the rule that triggered automated action
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 모더레이션 감사 추적 테이블
+-- 모든 모더레이션 결정과 액션의 감사 추적
+CREATE TABLE public.moderation_audit_trail (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+    action VARCHAR(50) NOT NULL CHECK (action IN (
+        'suspend', 'activate', 'flag', 'block', 'warn', 'approve', 'reject', 
+        'auto_suspend', 'auto_flag', 'auto_block', 'auto_warn'
+    )),
+    moderator_id UUID NOT NULL REFERENCES public.users(id) ON DELETE SET NULL,
+    reason TEXT NOT NULL,
+    details JSONB DEFAULT '{}',
+    previous_status VARCHAR(50),
+    new_status VARCHAR(50),
+    report_id UUID REFERENCES public.shop_reports(id) ON DELETE SET NULL,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 보안 이벤트 테이블
+-- 종합적인 보안 이벤트 로깅 및 모니터링
+CREATE TABLE public.security_events (
+    id TEXT PRIMARY KEY,
+    type VARCHAR(50) NOT NULL,
+    severity VARCHAR(20) NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    user_id UUID REFERENCES public.users(id) ON DELETE SET NULL,
+    ip INET NOT NULL,
+    user_agent TEXT,
+    endpoint TEXT NOT NULL,
+    details JSONB,
+    timestamp TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    blocked BOOLEAN DEFAULT FALSE,
+    reason TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 컨텐츠 신고 테이블 (레거시 - 호환성 유지)
 -- 향후 피드 기능 및 부적절한 샵/사용자 신고 기능 지원
 CREATE TABLE public.content_reports (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
@@ -566,6 +850,104 @@ CREATE TABLE public.content_reports (
     reviewed_at TIMESTAMPTZ, -- 검토 완료 시간
     resolution_notes TEXT, -- 처리 결과 메모
     created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- =============================================
+-- 웹훅 및 결제 시스템 (WEBHOOK & PAYMENT SYSTEM) - v3.3 신규
+-- =============================================
+
+-- 웹훅 로그 테이블
+-- 토스페이먼츠 웹훅 처리를 위한 멱등성 및 실패 추적
+CREATE TABLE public.webhook_logs (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    payment_key TEXT NOT NULL,
+    status TEXT NOT NULL,
+    webhook_id TEXT NOT NULL,
+    processed BOOLEAN DEFAULT false,
+    processed_at TIMESTAMPTZ,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 웹훅 실패 테이블
+-- 웹훅 실패 추적 및 재시도 관리
+CREATE TABLE public.webhook_failures (
+    id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+    webhook_id TEXT NOT NULL,
+    payment_key TEXT NOT NULL,
+    order_id TEXT NOT NULL,
+    status TEXT NOT NULL,
+    payload JSONB NOT NULL,
+    error_message TEXT,
+    error_stack TEXT,
+    failed_at TIMESTAMPTZ DEFAULT NOW(),
+    retry_count INTEGER DEFAULT 0,
+    retried_at TIMESTAMPTZ,
+    resolved BOOLEAN DEFAULT false,
+    resolved_at TIMESTAMPTZ,
+    resolution_notes TEXT
+);
+
+-- 충돌 추적 테이블
+-- 예약 시스템의 모든 충돌 감지 및 해결 작업 추적
+CREATE TABLE public.conflicts (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    type TEXT NOT NULL CHECK (type IN (
+        'time_overlap', 'resource_shortage', 'staff_unavailable', 
+        'capacity_exceeded', 'double_booking', 'service_conflict', 'payment_conflict'
+    )),
+    severity TEXT NOT NULL CHECK (severity IN ('low', 'medium', 'high', 'critical')),
+    description TEXT NOT NULL,
+    affected_reservations UUID[] NOT NULL, -- Array of reservation IDs
+    shop_id UUID NOT NULL REFERENCES public.shops(id) ON DELETE CASCADE,
+    detected_at TIMESTAMPTZ DEFAULT NOW(),
+    resolved_at TIMESTAMPTZ,
+    resolved_by UUID REFERENCES public.users(id),
+    resolution_method TEXT CHECK (resolution_method IN (
+        'automatic_reschedule', 'manual_reschedule', 'cancellation', 
+        'compensation', 'priority_override', 'resource_reallocation'
+    )),
+    compensation JSONB, -- Compensation details
+    metadata JSONB -- Additional conflict data
+);
+
+-- 예약 상태 로그 테이블
+-- 예약 상태 변경의 감사 추적
+CREATE TABLE public.reservation_status_logs (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    reservation_id UUID NOT NULL REFERENCES public.reservations(id) ON DELETE CASCADE,
+    from_status reservation_status NOT NULL,
+    to_status reservation_status NOT NULL,
+    changed_by TEXT NOT NULL CHECK (changed_by IN ('user', 'shop', 'system', 'admin')),
+    changed_by_id UUID NOT NULL,
+    reason TEXT,
+    metadata JSONB DEFAULT '{}',
+    timestamp TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- 사용자 역할 변경 기록 테이블
+-- 사용자 역할 변경의 상세 추적
+CREATE TABLE public.user_role_history (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    previous_role user_role NOT NULL,
+    new_role user_role NOT NULL,
+    changed_by UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
+    reason TEXT,
+    admin_notes TEXT,
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+-- CDN 설정 테이블
+-- CDN 통합을 위한 변환 프리셋 관리
+CREATE TABLE public.cdn_configurations (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    bucket_id TEXT NOT NULL REFERENCES storage.buckets(id),
+    transformation_preset TEXT NOT NULL,
+    config JSONB NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    updated_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- =============================================
@@ -620,31 +1002,75 @@ CREATE TABLE public.faqs (
 );
 
 -- =============================================
--- STORAGE BUCKETS 설정
+-- STORAGE BUCKETS 설정 (v3.3 CDN 통합)
 -- =============================================
 
 -- Supabase Storage 버킷 설정
 -- 이미지 업로드 및 관리를 위한 버킷들
 
--- 프로필 이미지 버킷 (공개)
+-- 프로필 이미지 버킷 (공개) - v3.3 업데이트
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES ('profile-images', 'profile-images', true, 5242880, ARRAY['image/jpeg', 'image/png', 'image/webp']);
+VALUES ('profile-images', 'profile-images', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- 샵 이미지 버킷 (공개) - 샵 상세 화면 이미지 슬라이더용
+-- 샵 이미지 버킷 (공개) - v3.3 업데이트 (CDN 최적화)
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES ('shop-images', 'shop-images', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp']);
+VALUES ('shop-images', 'shop-images', true, 20971520, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/heic'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
 
--- 서비스 이미지 버킷 (공개) - 서비스별 이미지들
+-- 서비스 이미지 버킷 (공개) - v3.3 업데이트
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES ('service-images', 'service-images', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp']);
+VALUES ('service-images', 'service-images', true, 16777216, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- 피드 이미지 버킷 (공개) - v3.2 피드 기능용
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
 VALUES ('feed-images', 'feed-images', true, 10485760, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/gif']);
 
--- 사업자등록증 등 문서 버킷 (비공개) - 입점 심사용
+-- 사업자등록증 등 문서 버킷 (비공개) - v3.3 업데이트
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
-VALUES ('business-documents', 'business-documents', false, 20971520, ARRAY['image/jpeg', 'image/png', 'application/pdf']);
+VALUES ('business-documents', 'business-documents', false, 52428800, ARRAY['image/jpeg', 'image/png', 'application/pdf'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- =============================================
+-- CDN 최적화 버킷들 (v3.3 신규)
+-- =============================================
+
+-- CDN 샵 이미지 버킷
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
+VALUES ('shop-images-cdn', 'shop-images-cdn', true, 52428800, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- CDN 프로필 이미지 버킷
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
+VALUES ('profile-images-cdn', 'profile-images-cdn', true, 20971520, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- CDN 서비스 이미지 버킷
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
+VALUES ('service-images-cdn', 'service-images-cdn', true, 16777216, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
+
+-- 이미지 캐시 버킷
+INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types) 
+VALUES ('image-cache', 'image-cache', true, 104857600, ARRAY['image/jpeg', 'image/png', 'image/webp', 'image/avif'])
+ON CONFLICT (id) DO UPDATE SET
+    file_size_limit = EXCLUDED.file_size_limit,
+    allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- Storage RLS 정책 설정
 -- 프로필 이미지: 소유자만 업로드, 모든 사용자 조회 가능
@@ -681,6 +1107,62 @@ CREATE POLICY "Shop owners can manage business documents" ON storage.objects
     );
 
 -- =============================================
+-- CDN 버킷 RLS 정책들 (v3.3 신규)
+-- =============================================
+
+-- CDN 샵 이미지 정책
+CREATE POLICY "cdn_shop_images_owner_manage" ON storage.objects
+    FOR ALL USING (
+        bucket_id = 'shop-images-cdn'
+        AND EXISTS (
+            SELECT 1 FROM public.shops 
+            WHERE owner_id = auth.uid() 
+            AND id::text = (storage.foldername(name))[1]
+        )
+    );
+
+CREATE POLICY "cdn_shop_images_public_read" ON storage.objects
+    FOR SELECT USING (bucket_id = 'shop-images-cdn');
+
+-- CDN 프로필 이미지 정책
+CREATE POLICY "cdn_profile_images_own" ON storage.objects
+    FOR ALL USING (
+        bucket_id = 'profile-images-cdn' 
+        AND auth.uid()::text = (storage.foldername(name))[1]
+    );
+
+CREATE POLICY "cdn_profile_images_public_read" ON storage.objects
+    FOR SELECT USING (bucket_id = 'profile-images-cdn');
+
+-- CDN 서비스 이미지 정책
+CREATE POLICY "cdn_service_images_owner_manage" ON storage.objects
+    FOR ALL USING (
+        bucket_id = 'service-images-cdn'
+        AND EXISTS (
+            SELECT 1 FROM public.shops s
+            JOIN public.shop_services ss ON s.id = ss.shop_id
+            WHERE s.owner_id = auth.uid() 
+            AND ss.id::text = (storage.foldername(name))[1]
+        )
+    );
+
+CREATE POLICY "cdn_service_images_public_read" ON storage.objects
+    FOR SELECT USING (bucket_id = 'service-images-cdn');
+
+-- 이미지 캐시 정책 (시스템 관리)
+CREATE POLICY "image_cache_system_manage" ON storage.objects
+    FOR ALL USING (
+        bucket_id = 'image-cache'
+        AND (
+            -- System can manage cache
+            auth.uid() IS NOT NULL
+            OR
+            -- Public read access for cached images
+            TRUE
+        )
+    );
+
+-- =============================================
 -- 성능 최적화 인덱스들 (INDEXES FOR PERFORMANCE)
 -- =============================================
 
@@ -691,12 +1173,37 @@ CREATE INDEX idx_users_phone_number ON public.users(phone_number);
 CREATE INDEX idx_users_email ON public.users(email);
 CREATE INDEX idx_users_status ON public.users(user_status); -- 활성 사용자 필터링
 
--- 샵 테이블 인덱스
+-- 샵 테이블 인덱스 (v3.3 업데이트됨)
 -- location은 GIST 인덱스로 공간 검색 최적화 (내 주변 샵 찾기)
 CREATE INDEX idx_shops_location ON public.shops USING GIST(location);
-CREATE INDEX idx_shops_status ON public.shops(shop_status); -- 활성 샵 필터링
-CREATE INDEX idx_shops_type ON public.shops(shop_type); -- 입점/비입점 구분
-CREATE INDEX idx_shops_category ON public.shops(main_category); -- 카테고리별 검색
+
+-- v3.3 복합 공간 인덱스들
+-- 가장 일반적인 쿼리 패턴: 카테고리별 활성 샵 위치 검색
+CREATE INDEX idx_shops_active_category_location ON public.shops USING GIST (
+    location, main_category
+) WHERE shop_status = 'active' AND location IS NOT NULL;
+
+-- 샵 타입 + 위치 복합 인덱스 (입점샵 우선 정렬)
+CREATE INDEX idx_shops_type_status_location ON public.shops USING GIST (
+    location, shop_type
+) WHERE shop_status = 'active' AND location IS NOT NULL;
+
+-- 종합 복합 인덱스 (카테고리, 상태, 위치)
+CREATE INDEX idx_shops_category_status_location ON public.shops USING GIST (
+    location, main_category, shop_status
+) WHERE location IS NOT NULL;
+
+-- 추천 샵 공간 인덱스
+CREATE INDEX idx_shops_featured_location ON public.shops USING GIST (location) 
+WHERE is_featured = true AND featured_until > NOW() AND shop_status = 'active' AND location IS NOT NULL;
+
+-- 최적화된 B-tree 인덱스들
+CREATE INDEX idx_shops_category_active ON public.shops (main_category) WHERE shop_status = 'active';
+CREATE INDEX idx_shops_type_active ON public.shops (shop_type) WHERE shop_status = 'active';
+CREATE INDEX idx_shops_status_btree ON public.shops (shop_status);
+CREATE INDEX idx_shops_featured_time ON public.shops (is_featured, featured_until) WHERE shop_status = 'active';
+CREATE INDEX idx_shops_type_category_active ON public.shops (shop_type, main_category) WHERE shop_status = 'active';
+CREATE INDEX idx_shops_owner_status ON public.shops (owner_id, shop_status);
 
 -- 예약 테이블 인덱스
 -- 사용자별, 샵별, 날짜별 예약 조회 최적화
@@ -788,6 +1295,138 @@ CREATE INDEX idx_admin_stats_created ON public.users(user_status, created_at) WH
 CREATE INDEX idx_admin_reservations_stats ON public.reservations(status, created_at, total_amount) WHERE status = 'completed';
 
 -- =============================================
+-- 새로운 테이블들의 인덱스 (v3.3 신규)
+-- =============================================
+
+-- 샵 카테고리 테이블 인덱스
+CREATE INDEX idx_shop_categories_active ON public.shop_categories(is_active);
+CREATE INDEX idx_shop_categories_sort_order ON public.shop_categories(sort_order);
+
+-- 서비스 타입 테이블 인덱스
+CREATE INDEX idx_service_types_category_id ON public.service_types(category_id);
+CREATE INDEX idx_service_types_active ON public.service_types(is_active);
+CREATE INDEX idx_service_types_popular ON public.service_types(is_popular);
+CREATE INDEX idx_service_types_sort_order ON public.service_types(sort_order);
+
+-- 카테고리 메타데이터 인덱스
+CREATE INDEX idx_category_metadata_category_id ON public.category_metadata(category_id);
+
+-- 서비스 타입 메타데이터 인덱스
+CREATE INDEX idx_service_type_metadata_service_type_id ON public.service_type_metadata(service_type_id);
+
+-- 카테고리 계층 구조 인덱스
+CREATE INDEX idx_category_hierarchy_parent ON public.category_hierarchy(parent_category_id);
+CREATE INDEX idx_category_hierarchy_child ON public.category_hierarchy(child_category_id);
+
+-- 샵 연락처 방법 인덱스
+CREATE INDEX idx_shop_contact_methods_shop_id ON public.shop_contact_methods(shop_id);
+CREATE INDEX idx_shop_contact_methods_type ON public.shop_contact_methods(contact_type);
+CREATE INDEX idx_shop_contact_methods_status ON public.shop_contact_methods(verification_status);
+CREATE INDEX idx_shop_contact_methods_primary ON public.shop_contact_methods(shop_id, contact_type, is_primary);
+CREATE INDEX idx_shop_contact_methods_public ON public.shop_contact_methods(shop_id, is_public, verification_status);
+CREATE INDEX idx_shop_contact_methods_display_order ON public.shop_contact_methods(shop_id, display_order);
+
+-- 연락처 방법 접근 로그 인덱스
+CREATE INDEX idx_contact_access_logs_contact_method_id ON public.contact_method_access_logs(contact_method_id);
+CREATE INDEX idx_contact_access_logs_user_id ON public.contact_method_access_logs(user_id);
+CREATE INDEX idx_contact_access_logs_created_at ON public.contact_method_access_logs(created_at);
+CREATE INDEX idx_contact_access_logs_ip_address ON public.contact_method_access_logs(ip_address);
+CREATE INDEX idx_contact_access_logs_analytics ON public.contact_method_access_logs(contact_method_id, created_at, access_type);
+
+-- 샵 신고 테이블 인덱스
+CREATE INDEX idx_shop_reports_shop_id ON public.shop_reports(shop_id);
+CREATE INDEX idx_shop_reports_reporter_id ON public.shop_reports(reporter_id);
+CREATE INDEX idx_shop_reports_status ON public.shop_reports(status);
+CREATE INDEX idx_shop_reports_reviewed_by ON public.shop_reports(reviewed_by);
+CREATE INDEX idx_shop_reports_created_at ON public.shop_reports(created_at DESC);
+CREATE INDEX idx_shop_reports_priority_status ON public.shop_reports(priority DESC, status, created_at DESC);
+CREATE INDEX idx_shop_reports_escalated ON public.shop_reports(is_escalated) WHERE is_escalated = TRUE;
+CREATE INDEX idx_shop_reports_moderation_queue ON public.shop_reports(status, priority DESC, created_at ASC) 
+    WHERE status IN ('pending', 'under_review');
+
+-- 모더레이션 룰 인덱스
+CREATE INDEX idx_moderation_rules_type ON public.moderation_rules(rule_type);
+CREATE INDEX idx_moderation_rules_status ON public.moderation_rules(status);
+CREATE INDEX idx_moderation_rules_priority ON public.moderation_rules(priority DESC);
+CREATE INDEX idx_moderation_rules_automated ON public.moderation_rules(is_automated);
+CREATE INDEX idx_moderation_rules_created_by ON public.moderation_rules(created_by);
+CREATE INDEX idx_moderation_rules_active ON public.moderation_rules(status, priority DESC) WHERE status = 'active';
+CREATE INDEX idx_moderation_rules_accuracy ON public.moderation_rules(accuracy_score DESC);
+
+-- 모더레이션 액션 인덱스
+CREATE INDEX idx_moderation_actions_report_id ON public.moderation_actions(report_id);
+CREATE INDEX idx_moderation_actions_shop_id ON public.moderation_actions(shop_id);
+CREATE INDEX idx_moderation_actions_moderator_id ON public.moderation_actions(moderator_id);
+CREATE INDEX idx_moderation_actions_action_type ON public.moderation_actions(action_type);
+CREATE INDEX idx_moderation_actions_created_at ON public.moderation_actions(created_at DESC);
+CREATE INDEX idx_moderation_actions_automated ON public.moderation_actions(is_automated);
+CREATE INDEX idx_moderation_actions_shop_created ON public.moderation_actions(shop_id, created_at DESC);
+CREATE INDEX idx_moderation_actions_shop_history ON public.moderation_actions(shop_id, action_type, created_at DESC);
+
+-- 모더레이션 감사 추적 인덱스
+CREATE INDEX idx_moderation_audit_trail_shop_id ON public.moderation_audit_trail(shop_id);
+CREATE INDEX idx_moderation_audit_trail_action ON public.moderation_audit_trail(action);
+CREATE INDEX idx_moderation_audit_trail_moderator_id ON public.moderation_audit_trail(moderator_id);
+CREATE INDEX idx_moderation_audit_trail_created_at ON public.moderation_audit_trail(created_at);
+CREATE INDEX idx_moderation_audit_trail_shop_action ON public.moderation_audit_trail(shop_id, action);
+CREATE INDEX idx_moderation_audit_trail_shop_created ON public.moderation_audit_trail(shop_id, created_at DESC);
+
+-- 보안 이벤트 인덱스
+CREATE INDEX idx_security_events_type ON public.security_events(type);
+CREATE INDEX idx_security_events_severity ON public.security_events(severity);
+CREATE INDEX idx_security_events_user_id ON public.security_events(user_id);
+CREATE INDEX idx_security_events_ip ON public.security_events(ip);
+CREATE INDEX idx_security_events_timestamp ON public.security_events(timestamp);
+CREATE INDEX idx_security_events_blocked ON public.security_events(blocked);
+CREATE INDEX idx_security_events_endpoint ON public.security_events(endpoint);
+CREATE INDEX idx_security_events_ip_timestamp ON public.security_events(ip, timestamp);
+CREATE INDEX idx_security_events_user_timestamp ON public.security_events(user_id, timestamp);
+CREATE INDEX idx_security_events_type_severity ON public.security_events(type, severity);
+CREATE INDEX idx_security_events_ip_type ON public.security_events(ip, type);
+CREATE INDEX idx_security_events_details ON public.security_events USING GIN(details);
+
+-- 웹훅 로그 인덱스
+CREATE INDEX idx_webhook_logs_payment_key_status ON public.webhook_logs(payment_key, status);
+CREATE INDEX idx_webhook_logs_processed ON public.webhook_logs(processed);
+CREATE UNIQUE INDEX idx_webhook_logs_unique ON public.webhook_logs(payment_key, status, webhook_id);
+
+-- 웹훅 실패 인덱스
+CREATE INDEX idx_webhook_failures_payment_key ON public.webhook_failures(payment_key);
+CREATE INDEX idx_webhook_failures_resolved ON public.webhook_failures(resolved);
+CREATE INDEX idx_webhook_failures_retry_count ON public.webhook_failures(retry_count);
+
+-- 충돌 추적 인덱스
+CREATE INDEX idx_conflicts_shop_id ON public.conflicts(shop_id);
+CREATE INDEX idx_conflicts_type ON public.conflicts(type);
+CREATE INDEX idx_conflicts_severity ON public.conflicts(severity);
+CREATE INDEX idx_conflicts_detected_at ON public.conflicts(detected_at);
+CREATE INDEX idx_conflicts_resolved_at ON public.conflicts(resolved_at);
+
+-- 예약 상태 로그 인덱스
+CREATE INDEX idx_reservation_status_logs_reservation_id ON public.reservation_status_logs(reservation_id);
+CREATE INDEX idx_reservation_status_logs_timestamp ON public.reservation_status_logs(timestamp);
+CREATE INDEX idx_reservation_status_logs_changed_by ON public.reservation_status_logs(changed_by);
+CREATE INDEX idx_reservation_status_logs_from_status ON public.reservation_status_logs(from_status);
+CREATE INDEX idx_reservation_status_logs_to_status ON public.reservation_status_logs(to_status);
+
+-- 사용자 역할 변경 기록 인덱스
+CREATE INDEX idx_user_role_history_user_id ON public.user_role_history(user_id);
+CREATE INDEX idx_user_role_history_changed_by ON public.user_role_history(changed_by);
+CREATE INDEX idx_user_role_history_created_at ON public.user_role_history(created_at);
+
+-- CDN 설정 인덱스
+CREATE INDEX idx_cdn_configurations_bucket_preset ON public.cdn_configurations(bucket_id, transformation_preset, is_active);
+
+-- 샵 이미지 확장 인덱스 (v3.3)
+CREATE INDEX idx_shop_images_category ON public.shop_images(category);
+CREATE INDEX idx_shop_images_tags ON public.shop_images USING GIN(tags);
+CREATE INDEX idx_shop_images_metadata ON public.shop_images USING GIN(metadata);
+CREATE INDEX idx_shop_images_optimized ON public.shop_images(is_optimized);
+CREATE INDEX idx_shop_images_archived ON public.shop_images(is_archived);
+CREATE INDEX idx_shop_images_updated_at ON public.shop_images(updated_at);
+CREATE INDEX idx_shop_images_display_order ON public.shop_images(shop_id, display_order);
+
+-- =============================================
 -- 행 수준 보안 (ROW LEVEL SECURITY - RLS)
 -- =============================================
 
@@ -806,6 +1445,26 @@ ALTER TABLE public.post_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.post_comments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.comment_likes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shop_contacts ENABLE ROW LEVEL SECURITY;
+
+-- 새로운 테이블들에 RLS 활성화 (v3.3)
+ALTER TABLE public.shop_categories ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.service_types ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.category_metadata ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.service_type_metadata ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.category_hierarchy ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shop_contact_methods ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.contact_method_access_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.shop_reports ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.moderation_rules ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.moderation_actions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.moderation_audit_trail ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.security_events ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.webhook_failures ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.conflicts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservation_status_logs ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.user_role_history ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cdn_configurations ENABLE ROW LEVEL SECURITY;
 
 -- 기본 RLS 정책들
 
@@ -980,6 +1639,401 @@ CREATE POLICY "Admins can manage all comments" ON public.post_comments
             WHERE id = auth.uid() AND user_role = 'admin'
         )
     );
+
+-- =============================================
+-- 새로운 테이블들의 RLS 정책 (v3.3)
+-- =============================================
+
+-- 샵 카테고리 정책
+CREATE POLICY "Allow public read access to active shop categories" ON public.shop_categories
+    FOR SELECT USING (is_active = TRUE);
+
+CREATE POLICY "Allow authenticated users to read all shop categories" ON public.shop_categories
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow admin full access to shop categories" ON public.shop_categories
+    FOR ALL USING (auth.role() = 'service_role');
+
+-- 서비스 타입 정책
+CREATE POLICY "Allow public read access to active service types" ON public.service_types
+    FOR SELECT USING (is_active = TRUE);
+
+CREATE POLICY "Allow authenticated users to read all service types" ON public.service_types
+    FOR SELECT USING (auth.role() = 'authenticated');
+
+CREATE POLICY "Allow admin full access to service types" ON public.service_types
+    FOR ALL USING (auth.role() = 'service_role');
+
+-- 카테고리 메타데이터 정책
+CREATE POLICY "Allow public read access to category metadata" ON public.category_metadata
+    FOR SELECT USING (TRUE);
+
+CREATE POLICY "Allow admin full access to category metadata" ON public.category_metadata
+    FOR ALL USING (auth.role() = 'service_role');
+
+-- 서비스 타입 메타데이터 정책
+CREATE POLICY "Allow public read access to service type metadata" ON public.service_type_metadata
+    FOR SELECT USING (TRUE);
+
+CREATE POLICY "Allow admin full access to service type metadata" ON public.service_type_metadata
+    FOR ALL USING (auth.role() = 'service_role');
+
+-- 카테고리 계층 구조 정책
+CREATE POLICY "Allow public read access to category hierarchy" ON public.category_hierarchy
+    FOR SELECT USING (TRUE);
+
+CREATE POLICY "Allow admin full access to category hierarchy" ON public.category_hierarchy
+    FOR ALL USING (auth.role() = 'service_role');
+
+-- 샵 연락처 방법 정책
+CREATE POLICY "Shop owners can manage shop contact methods" ON public.shop_contact_methods
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.shops 
+            WHERE shops.id = shop_contact_methods.shop_id 
+            AND shops.owner_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Public can read verified shop contact methods" ON public.shop_contact_methods
+    FOR SELECT USING (
+        is_public = TRUE 
+        AND verification_status = 'verified'
+        AND EXISTS (
+            SELECT 1 FROM public.shops 
+            WHERE shops.id = shop_contact_methods.shop_id 
+            AND shops.shop_status = 'active'
+        )
+    );
+
+-- 연락처 방법 접근 로그 정책
+CREATE POLICY "Authenticated users can log contact access" ON public.contact_method_access_logs
+    FOR INSERT WITH CHECK (auth.uid() = user_id OR user_id IS NULL);
+
+CREATE POLICY "Shop owners can view their contact access logs" ON public.contact_method_access_logs
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.shop_contact_methods scm
+            JOIN public.shops s ON scm.shop_id = s.id
+            WHERE scm.id = contact_method_access_logs.contact_method_id
+            AND s.owner_id = auth.uid()
+        )
+    );
+
+-- 샵 신고 정책
+CREATE POLICY "Authenticated users can create shop reports" ON public.shop_reports
+    FOR INSERT WITH CHECK (auth.uid() = reporter_id);
+
+CREATE POLICY "Users can view their own reports" ON public.shop_reports
+    FOR SELECT USING (auth.uid() = reporter_id);
+
+CREATE POLICY "Shop owners can view reports about their shops" ON public.shop_reports
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.shops 
+            WHERE shops.id = shop_reports.shop_id 
+            AND shops.owner_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Admins can manage all shop reports" ON public.shop_reports
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = auth.uid() 
+            AND users.user_role = 'admin'
+        )
+    );
+
+-- 모더레이션 룰 정책
+CREATE POLICY "Authenticated users can view active moderation rules" ON public.moderation_rules
+    FOR SELECT USING (status = 'active');
+
+CREATE POLICY "Moderators can view all moderation rules" ON public.moderation_rules
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = auth.uid() 
+            AND users.user_role IN ('admin', 'moderator')
+        )
+    );
+
+CREATE POLICY "Admins can manage moderation rules" ON public.moderation_rules
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = auth.uid() 
+            AND users.user_role = 'admin'
+        )
+    );
+
+-- 모더레이션 액션 정책
+CREATE POLICY "Authenticated users can view moderation actions" ON public.moderation_actions
+    FOR SELECT USING (TRUE);
+
+CREATE POLICY "Shop owners can view actions on their shops" ON public.moderation_actions
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.shops 
+            WHERE shops.id = moderation_actions.shop_id 
+            AND shops.owner_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Moderators can create moderation actions" ON public.moderation_actions
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = auth.uid() 
+            AND users.user_role IN ('admin', 'moderator')
+        )
+        AND auth.uid() = moderator_id
+    );
+
+CREATE POLICY "Admins can manage all moderation actions" ON public.moderation_actions
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = auth.uid() 
+            AND users.user_role = 'admin'
+        )
+    );
+
+-- 모더레이션 감사 추적 정책
+CREATE POLICY "Admins can view all moderation audit trail entries" ON public.moderation_audit_trail
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = auth.uid() 
+            AND users.user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "Shop owners can view their shop's moderation audit trail" ON public.moderation_audit_trail
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.shops 
+            WHERE shops.id = moderation_audit_trail.shop_id 
+            AND shops.owner_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "System can insert moderation audit trail entries" ON public.moderation_audit_trail
+    FOR INSERT WITH CHECK (true);
+
+CREATE POLICY "Admins can update moderation audit trail entries" ON public.moderation_audit_trail
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE users.id = auth.uid() 
+            AND users.user_role = 'admin'
+        )
+    );
+
+-- 보안 이벤트 정책
+CREATE POLICY "Users can view their own security events" ON public.security_events
+    FOR SELECT USING (user_id = auth.uid());
+
+CREATE POLICY "Admins can view all security events" ON public.security_events
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "System can insert security events" ON public.security_events
+    FOR INSERT WITH CHECK (true);
+
+-- 웹훅 로그 정책 (관리자만 접근)
+CREATE POLICY "Admin can view webhook logs" ON public.webhook_logs
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "Admin can insert webhook logs" ON public.webhook_logs
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "Admin can update webhook logs" ON public.webhook_logs
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+-- 웹훅 실패 정책 (관리자만 접근)
+CREATE POLICY "Admin can view webhook failures" ON public.webhook_failures
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "Admin can insert webhook failures" ON public.webhook_failures
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "Admin can update webhook failures" ON public.webhook_failures
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+-- 충돌 추적 정책
+CREATE POLICY "Shop owners can view shop conflicts" ON public.conflicts
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.shops s 
+            WHERE s.id = conflicts.shop_id 
+            AND s.owner_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Admins can view all conflicts" ON public.conflicts
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.users u 
+            WHERE u.id = auth.uid() 
+            AND u.user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "Shop owners can update shop conflicts" ON public.conflicts
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.shops s 
+            WHERE s.id = conflicts.shop_id 
+            AND s.owner_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Admins can update all conflicts" ON public.conflicts
+    FOR UPDATE USING (
+        EXISTS (
+            SELECT 1 FROM public.users u 
+            WHERE u.id = auth.uid() 
+            AND u.user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "System can insert conflicts" ON public.conflicts
+    FOR INSERT WITH CHECK (true);
+
+-- 예약 상태 로그 정책
+CREATE POLICY "Users can view their own reservation status logs" ON public.reservation_status_logs
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.reservations r
+            WHERE r.id = reservation_status_logs.reservation_id
+            AND r.user_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Shop owners can view their shop's reservation status logs" ON public.reservation_status_logs
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.reservations r
+            JOIN public.shops s ON r.shop_id = s.id
+            WHERE r.id = reservation_status_logs.reservation_id
+            AND s.owner_id = auth.uid()
+        )
+    );
+
+CREATE POLICY "Admins can view all reservation status logs" ON public.reservation_status_logs
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.users u
+            WHERE u.id = auth.uid()
+            AND u.user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "System can insert reservation status logs" ON public.reservation_status_logs
+    FOR INSERT WITH CHECK (changed_by = 'system');
+
+CREATE POLICY "Users can insert logs for their own reservations" ON public.reservation_status_logs
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.reservations r
+            WHERE r.id = reservation_status_logs.reservation_id
+            AND r.user_id = auth.uid()
+        )
+        AND changed_by = 'user'
+    );
+
+CREATE POLICY "Shop owners can insert logs for their shop's reservations" ON public.reservation_status_logs
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.reservations r
+            JOIN public.shops s ON r.shop_id = s.id
+            WHERE r.id = reservation_status_logs.reservation_id
+            AND s.owner_id = auth.uid()
+        )
+        AND changed_by = 'shop'
+    );
+
+CREATE POLICY "Admins can insert reservation status logs" ON public.reservation_status_logs
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.users u
+            WHERE u.id = auth.uid()
+            AND u.user_role = 'admin'
+        )
+        AND changed_by = 'admin'
+    );
+
+-- 사용자 역할 변경 기록 정책
+CREATE POLICY "Admins can view all role history" ON public.user_role_history
+    FOR SELECT USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() AND user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "Admins can insert role history" ON public.user_role_history
+    FOR INSERT WITH CHECK (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() AND user_role = 'admin'
+        )
+    );
+
+-- CDN 설정 정책
+CREATE POLICY "cdn_configurations_admin_manage" ON public.cdn_configurations
+    FOR ALL USING (
+        EXISTS (
+            SELECT 1 FROM public.users 
+            WHERE id = auth.uid() 
+            AND user_role = 'admin'
+        )
+    );
+
+CREATE POLICY "cdn_configurations_public_read" ON public.cdn_configurations
+    FOR SELECT USING (is_active = TRUE);
 
 -- =============================================
 -- 자동 업데이트 트리거들 (TRIGGERS FOR AUTOMATIC UPDATES)
@@ -1593,6 +2647,362 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- =============================================
+-- 새로운 비즈니스 로직 함수들 (v3.3)
+-- =============================================
+
+-- 예약 재스케줄링 함수
+CREATE OR REPLACE FUNCTION reschedule_reservation(
+    p_reservation_id UUID,
+    p_new_date DATE,
+    p_new_time TIME,
+    p_reason TEXT DEFAULT NULL,
+    p_requested_by TEXT DEFAULT 'user',
+    p_requested_by_id UUID DEFAULT NULL,
+    p_fees INTEGER DEFAULT 0
+)
+RETURNS TABLE(
+    id UUID,
+    shop_id UUID,
+    user_id UUID,
+    reservation_date DATE,
+    reservation_time TIME,
+    status TEXT,
+    total_amount INTEGER,
+    points_used INTEGER,
+    special_requests TEXT,
+    created_at TIMESTAMPTZ,
+    updated_at TIMESTAMPTZ
+) AS $$
+DECLARE
+    v_reservation reservations%ROWTYPE;
+    v_shop_id UUID;
+    v_user_id UUID;
+BEGIN
+    -- Get current reservation details
+    SELECT * INTO v_reservation
+    FROM reservations
+    WHERE id = p_reservation_id;
+    
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Reservation not found';
+    END IF;
+    
+    -- Store shop and user IDs for history logging
+    v_shop_id := v_reservation.shop_id;
+    v_user_id := v_reservation.user_id;
+    
+    -- Update the reservation
+    UPDATE reservations
+    SET 
+        reservation_date = p_new_date,
+        reservation_time = p_new_time,
+        updated_at = NOW()
+    WHERE id = p_reservation_id;
+    
+    -- Log the reschedule history
+    INSERT INTO reservation_reschedule_history (
+        reservation_id,
+        shop_id,
+        old_date,
+        old_time,
+        new_date,
+        new_time,
+        reason,
+        requested_by,
+        requested_by_id,
+        fees
+    ) VALUES (
+        p_reservation_id,
+        v_shop_id,
+        v_reservation.reservation_date,
+        v_reservation.reservation_time,
+        p_new_date,
+        p_new_time,
+        p_reason,
+        p_requested_by,
+        COALESCE(p_requested_by_id, v_user_id),
+        p_fees
+    );
+    
+    -- Return updated reservation
+    RETURN QUERY
+    SELECT 
+        r.id,
+        r.shop_id,
+        r.user_id,
+        r.reservation_date,
+        r.reservation_time,
+        r.status,
+        r.total_amount,
+        r.points_used,
+        r.special_requests,
+        r.created_at,
+        r.updated_at
+    FROM reservations r
+    WHERE r.id = p_reservation_id;
+    
+EXCEPTION
+    WHEN OTHERS THEN
+        -- Rollback any changes
+        RAISE EXCEPTION 'Failed to reschedule reservation: %', SQLERRM;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 모더레이션 룰 통계 업데이트 함수
+CREATE OR REPLACE FUNCTION update_rule_stats_on_trigger(rule_id UUID, is_false_positive BOOLEAN DEFAULT FALSE)
+RETURNS VOID AS $$
+BEGIN
+    UPDATE public.moderation_rules 
+    SET 
+        last_triggered_at = NOW(),
+        trigger_count = trigger_count + 1,
+        false_positive_count = CASE 
+            WHEN is_false_positive THEN false_positive_count + 1 
+            ELSE false_positive_count 
+        END,
+        accuracy_score = CASE 
+            WHEN trigger_count > 0 THEN 
+                GREATEST(0, (trigger_count::DECIMAL - false_positive_count::DECIMAL) / trigger_count::DECIMAL)
+            ELSE accuracy_score
+        END
+    WHERE id = rule_id;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 보안 메트릭 조회 함수
+CREATE OR REPLACE FUNCTION get_security_metrics(
+    p_time_range INTERVAL DEFAULT INTERVAL '24 hours'
+)
+RETURNS TABLE(
+    total_events BIGINT,
+    blocked_events BIGINT,
+    unique_ips BIGINT,
+    high_severity_events BIGINT,
+    critical_events BIGINT,
+    top_threats JSONB
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        COUNT(*) as total_events,
+        COUNT(*) FILTER (WHERE blocked = TRUE) as blocked_events,
+        COUNT(DISTINCT ip) as unique_ips,
+        COUNT(*) FILTER (WHERE severity = 'high') as high_severity_events,
+        COUNT(*) FILTER (WHERE severity = 'critical') as critical_events,
+        jsonb_agg(
+            jsonb_build_object(
+                'type', threat_type,
+                'count', threat_count,
+                'severity', threat_severity
+            ) ORDER BY threat_count DESC
+        ) as top_threats
+    FROM (
+        SELECT 
+            type as threat_type,
+            severity as threat_severity,
+            COUNT(*) as threat_count
+        FROM public.security_events
+        WHERE timestamp >= NOW() - p_time_range
+        GROUP BY type, severity
+        ORDER BY threat_count DESC
+        LIMIT 10
+    ) threat_stats;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 의심스러운 IP 탐지 함수
+CREATE OR REPLACE FUNCTION detect_suspicious_ips(
+    p_time_window INTERVAL DEFAULT INTERVAL '1 hour',
+    p_threshold INTEGER DEFAULT 10
+)
+RETURNS TABLE(
+    ip INET,
+    event_count BIGINT,
+    severity_distribution JSONB,
+    last_activity TIMESTAMPTZ,
+    suspicious_score INTEGER
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        se.ip,
+        COUNT(*) as event_count,
+        jsonb_object_agg(se.severity, severity_count) as severity_distribution,
+        MAX(se.timestamp) as last_activity,
+        CASE 
+            WHEN COUNT(*) > p_threshold * 2 THEN 100
+            WHEN COUNT(*) > p_threshold THEN 75
+            WHEN COUNT(*) > p_threshold / 2 THEN 50
+            ELSE 25
+        END as suspicious_score
+    FROM public.security_events se
+    JOIN (
+        SELECT 
+            ip,
+            severity,
+            COUNT(*) as severity_count
+        FROM public.security_events
+        WHERE timestamp >= NOW() - p_time_window
+        GROUP BY ip, severity
+    ) severity_stats ON se.ip = severity_stats.ip
+    WHERE se.timestamp >= NOW() - p_time_window
+    GROUP BY se.ip
+    HAVING COUNT(*) > p_threshold
+    ORDER BY suspicious_score DESC, event_count DESC;
+END;
+$$ LANGUAGE plpgsql;
+
+-- CDN URL 생성 함수
+CREATE OR REPLACE FUNCTION public.get_cdn_url(
+    bucket_name TEXT,
+    file_path TEXT,
+    preset TEXT DEFAULT 'original'
+)
+RETURNS TEXT
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    base_url TEXT;
+    cdn_config JSONB;
+    transform_params TEXT := '';
+BEGIN
+    -- Get base URL from environment or use default
+    base_url := current_setting('app.supabase_url', true);
+    IF base_url IS NULL THEN
+        base_url := 'https://your-project.supabase.co';
+    END IF;
+    
+    -- Get transformation configuration
+    SELECT config INTO cdn_config
+    FROM public.cdn_configurations
+    WHERE bucket_id = bucket_name || '-cdn'
+        AND transformation_preset = preset
+        AND is_active = TRUE;
+    
+    -- Build transformation parameters if config exists
+    IF cdn_config IS NOT NULL THEN
+        IF cdn_config->>'width' IS NOT NULL THEN
+            transform_params := transform_params || '&width=' || (cdn_config->>'width');
+        END IF;
+        
+        IF cdn_config->>'height' IS NOT NULL THEN
+            transform_params := transform_params || '&height=' || (cdn_config->>'height');
+        END IF;
+        
+        IF cdn_config->>'quality' IS NOT NULL THEN
+            transform_params := transform_params || '&quality=' || (cdn_config->>'quality');
+        END IF;
+        
+        IF cdn_config->>'format' IS NOT NULL THEN
+            transform_params := transform_params || '&format=' || (cdn_config->>'format');
+        END IF;
+        
+        IF cdn_config->>'fit' IS NOT NULL THEN
+            transform_params := transform_params || '&fit=' || (cdn_config->>'fit');
+        END IF;
+        
+        IF (cdn_config->>'progressive')::boolean = TRUE THEN
+            transform_params := transform_params || '&progressive=true';
+        END IF;
+        
+        IF (cdn_config->>'stripMetadata')::boolean = TRUE THEN
+            transform_params := transform_params || '&stripMetadata=true';
+        END IF;
+        
+        -- Remove leading & and add ?
+        IF length(transform_params) > 0 THEN
+            transform_params := '?' || substring(transform_params from 2);
+        END IF;
+    END IF;
+    
+    -- Return CDN URL
+    RETURN base_url || '/storage/v1/object/public/' || bucket_name || '-cdn/' || file_path || transform_params;
+END;
+$$;
+
+-- 만료된 CDN 캐시 정리 함수
+CREATE OR REPLACE FUNCTION public.clean_expired_cdn_cache()
+RETURNS INTEGER
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    deleted_count INTEGER := 0;
+BEGIN
+    -- Delete expired cache entries
+    WITH deleted AS (
+        DELETE FROM storage.objects
+        WHERE bucket_id = 'image-cache'
+            AND cache_expires_at IS NOT NULL
+            AND cache_expires_at < NOW()
+        RETURNING id
+    )
+    SELECT COUNT(*) INTO deleted_count FROM deleted;
+    
+    RETURN deleted_count;
+END;
+$$;
+
+-- 카테고리 계층 구조 조회 함수
+CREATE OR REPLACE FUNCTION public.get_category_hierarchy()
+RETURNS TABLE (
+    category_id TEXT,
+    display_name TEXT,
+    parent_category_id TEXT,
+    hierarchy_level INTEGER,
+    sort_order INTEGER
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        c.id as category_id,
+        c.display_name,
+        h.parent_category_id,
+        h.hierarchy_level,
+        c.sort_order
+    FROM public.shop_categories c
+    LEFT JOIN public.category_hierarchy h ON c.id = h.child_category_id
+    WHERE c.is_active = TRUE
+    ORDER BY c.sort_order;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- 카테고리 통계 조회 함수
+CREATE OR REPLACE FUNCTION public.get_category_statistics()
+RETURNS TABLE (
+    total_categories BIGINT,
+    active_categories BIGINT,
+    total_services BIGINT,
+    popular_services BIGINT,
+    average_price_per_category JSONB
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        (SELECT COUNT(*) FROM public.shop_categories) as total_categories,
+        (SELECT COUNT(*) FROM public.shop_categories WHERE is_active = TRUE) as active_categories,
+        (SELECT COUNT(*) FROM public.service_types) as total_services,
+        (SELECT COUNT(*) FROM public.service_types WHERE is_popular = TRUE) as popular_services,
+        (
+            SELECT jsonb_agg(
+                jsonb_build_object(
+                    'category_id', c.id,
+                    'category_name', c.display_name,
+                    'average_price', (
+                        SELECT AVG((st.price_range->>'min')::numeric + (st.price_range->>'max')::numeric) / 2
+                        FROM public.service_types st
+                        WHERE st.category_id = c.id AND st.is_active = TRUE
+                    )
+                )
+            )
+            FROM public.shop_categories c
+            WHERE c.is_active = TRUE
+        ) as average_price_per_category;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
 -- 포인트 사용 처리 함수 (FIFO 방식)
 CREATE OR REPLACE FUNCTION use_points(user_uuid UUID, amount_to_use INTEGER, reservation_uuid UUID, description_text TEXT)
 RETURNS JSONB AS $$
@@ -1776,6 +3186,239 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- =============================================
+-- 예약 시스템 고급 함수들 (v3.3 - Phase 4)
+-- =============================================
+
+-- 향상된 예약 생성 함수 (데이터베이스 레벨 잠금 포함)
+-- Phase 4 Reservation System에서 동시 예약 충돌 방지를 위한 고급 잠금 메커니즘
+CREATE OR REPLACE FUNCTION create_reservation_with_lock(
+    p_shop_id UUID,
+    p_user_id UUID,
+    p_reservation_date DATE,
+    p_reservation_time TIME,
+    p_special_requests TEXT DEFAULT NULL,
+    p_points_used INTEGER DEFAULT 0,
+    p_services JSONB,
+    p_lock_timeout INTEGER DEFAULT 10000
+)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+    v_reservation_id UUID;
+    v_total_amount DECIMAL(10,2) := 0;
+    v_service_record RECORD;
+    v_service_data JSONB;
+    v_service_id UUID;
+    v_quantity INTEGER;
+    v_price DECIMAL(10,2);
+    v_duration_minutes INTEGER;
+    v_conflicting_reservations INTEGER;
+    v_lock_acquired BOOLEAN := FALSE;
+    v_advisory_lock_acquired BOOLEAN := FALSE;
+    v_start_time TIMESTAMP;
+    v_end_time TIMESTAMP;
+    v_result JSONB;
+    v_advisory_lock_key BIGINT;
+    v_deadlock_retry_count INTEGER := 0;
+    v_max_deadlock_retries INTEGER := 3;
+BEGIN
+    -- Set lock timeout
+    SET lock_timeout = p_lock_timeout;
+    
+    -- Generate advisory lock key based on shop_id, date, and time
+    -- This ensures only one reservation can be created for the same slot at a time
+    v_advisory_lock_key := ('x' || substr(md5(p_shop_id::text || p_reservation_date::text || p_reservation_time::text), 1, 8))::bit(32)::bigint;
+    
+    -- Start transaction with retry logic for deadlocks
+    LOOP
+        BEGIN
+            -- Acquire advisory lock for this specific time slot
+            IF NOT pg_try_advisory_xact_lock(v_advisory_lock_key) THEN
+                RAISE EXCEPTION 'ADVISORY_LOCK_TIMEOUT: Unable to acquire advisory lock for time slot % at %', p_reservation_time, p_reservation_date;
+            END IF;
+            v_advisory_lock_acquired := TRUE;
+            
+            -- Check for conflicting reservations with FOR UPDATE lock
+            -- Now includes both 'requested' and 'confirmed' status as per v3.1 flow
+            SELECT COUNT(*) INTO v_conflicting_reservations
+            FROM reservations r
+            JOIN reservation_services rs ON r.id = rs.reservation_id
+            JOIN shop_services s ON rs.service_id = s.id
+            WHERE r.shop_id = p_shop_id
+                AND r.reservation_date = p_reservation_date
+                AND r.status IN ('requested', 'confirmed', 'in_progress')
+                AND (
+                    -- Check for time overlap with 15-minute buffer
+                    (r.reservation_time <= p_reservation_time AND 
+                     r.reservation_time + INTERVAL '1 minute' * (s.duration_minutes + 15) > p_reservation_time)
+                    OR
+                    (p_reservation_time <= r.reservation_time AND 
+                     p_reservation_time + INTERVAL '1 minute' * (s.duration_minutes + 15) > r.reservation_time)
+                )
+            FOR UPDATE;
+            
+            -- If conflicts found, raise error
+            IF v_conflicting_reservations > 0 THEN
+                RAISE EXCEPTION 'SLOT_CONFLICT: Time slot is not available due to existing reservations';
+            END IF;
+            
+            -- Calculate total amount and validate services
+            FOR v_service_data IN SELECT * FROM jsonb_array_elements(p_services)
+            LOOP
+                v_service_id := (v_service_data->>'serviceId')::UUID;
+                v_quantity := (v_service_data->>'quantity')::INTEGER;
+                
+                -- Get service details with FOR UPDATE to prevent concurrent modifications
+                SELECT price_min, duration_minutes INTO v_price, v_duration_minutes
+                FROM shop_services
+                WHERE id = v_service_id
+                FOR UPDATE;
+                
+                IF NOT FOUND THEN
+                    RAISE EXCEPTION 'SERVICE_NOT_FOUND: Service with ID % does not exist', v_service_id;
+                END IF;
+                
+                -- Validate quantity
+                IF v_quantity <= 0 THEN
+                    RAISE EXCEPTION 'INVALID_QUANTITY: Quantity must be greater than 0';
+                END IF;
+                
+                -- Add to total amount
+                v_total_amount := v_total_amount + (v_price * v_quantity);
+            END LOOP;
+            
+            -- Validate points usage
+            IF p_points_used < 0 THEN
+                RAISE EXCEPTION 'INVALID_POINTS: Points used cannot be negative';
+            END IF;
+            
+            IF p_points_used > v_total_amount THEN
+                RAISE EXCEPTION 'INSUFFICIENT_AMOUNT: Points used cannot exceed total amount';
+            END IF;
+            
+            -- Create reservation
+            INSERT INTO reservations (
+                shop_id,
+                user_id,
+                reservation_date,
+                reservation_time,
+                status,
+                total_amount,
+                points_used,
+                special_requests,
+                created_at,
+                updated_at
+            ) VALUES (
+                p_shop_id,
+                p_user_id,
+                p_reservation_date,
+                p_reservation_time,
+                'requested',
+                v_total_amount,
+                p_points_used,
+                p_special_requests,
+                NOW(),
+                NOW()
+            ) RETURNING id INTO v_reservation_id;
+            
+            -- Create reservation services
+            FOR v_service_data IN SELECT * FROM jsonb_array_elements(p_services)
+            LOOP
+                v_service_id := (v_service_data->>'serviceId')::UUID;
+                v_quantity := (v_service_data->>'quantity')::INTEGER;
+                
+                -- Get service price
+                SELECT price_min INTO v_price
+                FROM shop_services
+                WHERE id = v_service_id;
+                
+                -- Insert reservation service
+                INSERT INTO reservation_services (
+                    reservation_id,
+                    service_id,
+                    quantity,
+                    unit_price,
+                    total_price
+                ) VALUES (
+                    v_reservation_id,
+                    v_service_id,
+                    v_quantity,
+                    v_price,
+                    v_price * v_quantity
+                );
+            END LOOP;
+            
+            -- Mark lock as acquired
+            v_lock_acquired := TRUE;
+            
+            -- Return reservation data
+            SELECT jsonb_build_object(
+                'id', r.id,
+                'shopId', r.shop_id,
+                'userId', r.user_id,
+                'reservationDate', r.reservation_date,
+                'reservationTime', r.reservation_time,
+                'status', r.status,
+                'totalAmount', r.total_amount,
+                'pointsUsed', r.points_used,
+                'specialRequests', r.special_requests,
+                'createdAt', r.created_at,
+                'updatedAt', r.updated_at
+            ) INTO v_result
+            FROM reservations r
+            WHERE r.id = v_reservation_id;
+            
+            -- Exit the retry loop on success
+            EXIT;
+            
+        EXCEPTION
+            WHEN deadlock_detected THEN
+                -- Handle deadlock with exponential backoff retry
+                v_deadlock_retry_count := v_deadlock_retry_count + 1;
+                
+                IF v_deadlock_retry_count > v_max_deadlock_retries THEN
+                    RAISE EXCEPTION 'DEADLOCK_RETRY_EXCEEDED: Maximum deadlock retry attempts exceeded';
+                END IF;
+                
+                -- Rollback current transaction and wait before retry
+                ROLLBACK;
+                v_advisory_lock_acquired := FALSE;
+                v_lock_acquired := FALSE;
+                
+                -- Exponential backoff: wait 100ms * 2^retry_count
+                PERFORM pg_sleep(0.1 * power(2, v_deadlock_retry_count - 1));
+                
+                -- Continue to retry
+                CONTINUE;
+                
+            WHEN lock_timeout THEN
+                -- Handle lock timeout
+                RAISE EXCEPTION 'LOCK_TIMEOUT: Unable to acquire required locks within timeout period';
+                
+            WHEN OTHERS THEN
+                -- If lock was acquired but error occurred, we need to clean up
+                IF v_lock_acquired AND v_reservation_id IS NOT NULL THEN
+                    -- Delete any created reservation services
+                    DELETE FROM reservation_services WHERE reservation_id = v_reservation_id;
+                    -- Delete the reservation
+                    DELETE FROM reservations WHERE id = v_reservation_id;
+                END IF;
+                
+                -- Re-raise the exception
+                RAISE;
+        END;
+    END LOOP;
+    
+    RETURN v_result;
+END;
+$$;
+
+-- Grant execute permission to authenticated users
+GRANT EXECUTE ON FUNCTION create_reservation_with_lock TO authenticated;
+
+-- =============================================
 -- 초기 데이터 (INITIAL DATA)
 -- =============================================
 
@@ -1810,6 +3453,122 @@ INSERT INTO public.faqs (category, question, answer, display_order) VALUES
 -- 앱 공지사항 초기 데이터
 INSERT INTO public.announcements (title, content, is_important, target_user_type) VALUES
 ('에뷰리띵 앱 출시!', '에뷰리띵 앱이 정식 출시되었습니다. 다양한 혜택을 확인해보세요!', true, ARRAY['user'::user_role]);
+
+-- =============================================
+-- 새로운 초기 데이터 (v3.3)
+-- =============================================
+
+-- 기본 샵 카테고리 데이터
+INSERT INTO public.shop_categories (id, display_name, description, icon, color, subcategories, is_active, sort_order) VALUES
+('nail', '네일아트', '매니큐어, 페디큐어, 네일아트 등 네일 관련 서비스', '💅', '#FF6B9D', ARRAY['manicure', 'pedicure', 'nail_art', 'gel_nails'], TRUE, 1),
+('eyelash', '속눈썹', '속눈썹 연장, 리프팅, 펌 등 속눈썹 관련 서비스', '👁️', '#8B5CF6', ARRAY['lash_extension', 'lash_lifting', 'lash_perm'], TRUE, 2),
+('waxing', '왁싱', '털 제거를 위한 왁싱 서비스', '🪶', '#F59E0B', ARRAY['face_waxing', 'body_waxing', 'bikini_waxing'], TRUE, 3),
+('eyebrow_tattoo', '눈썹 문신', '반영구 눈썹 문신 및 보정 서비스', '✏️', '#10B981', ARRAY['eyebrow_tattoo', 'eyebrow_correction', 'eyebrow_design'], TRUE, 4),
+('hair', '헤어', '헤어컷, 펌, 염색 등 헤어 관련 서비스', '💇‍♀️', '#3B82F6', ARRAY['haircut', 'perm', 'dye', 'styling'], TRUE, 5)
+ON CONFLICT (id) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    description = EXCLUDED.description,
+    icon = EXCLUDED.icon,
+    color = EXCLUDED.color,
+    subcategories = EXCLUDED.subcategories,
+    is_active = EXCLUDED.is_active,
+    sort_order = EXCLUDED.sort_order,
+    updated_at = NOW();
+
+-- 기본 서비스 타입 데이터
+INSERT INTO public.service_types (id, category_id, name, description, price_range, duration_minutes, is_popular, requirements, benefits, is_active, sort_order) VALUES
+-- Nail services
+('basic_manicure', 'nail', '베이직 매니큐어', '기본적인 손톱 관리 및 매니큐어', '{"min": 15000, "max": 25000}', 60, TRUE, ARRAY['깨끗한 손'], ARRAY['손톱 건강', '깔끔한 외관'], TRUE, 1),
+('gel_manicure', 'nail', '젤 매니큐어', '오래 지속되는 젤 매니큐어', '{"min": 25000, "max": 40000}', 90, TRUE, ARRAY['기존 젤 제거', '깨끗한 손'], ARRAY['2-3주 지속', '반짝이는 외관'], TRUE, 2),
+('nail_art', 'nail', '네일아트', '다양한 디자인의 네일아트', '{"min": 30000, "max": 60000}', 120, FALSE, ARRAY['젤 매니큐어', '디자인 선택'], ARRAY['개성 표현', '특별한 외관'], TRUE, 3),
+('pedicure', 'nail', '페디큐어', '발톱 관리 및 발 케어 서비스', '{"min": 25000, "max": 60000}', 90, FALSE, ARRAY['발 상태 확인'], ARRAY['발 건강 관리', '깔끔한 발톱'], TRUE, 4),
+
+-- Eyelash services
+('classic_extension', 'eyelash', '클래식 속눈썹 연장', '자연스러운 속눈썹 연장', '{"min": 40000, "max": 60000}', 120, TRUE, ARRAY['속눈썹 정리', '알레르기 테스트'], ARRAY['자연스러운 연장', '2-3주 지속'], TRUE, 1),
+('volume_extension', 'eyelash', '볼륨 속눈썹 연장', '풍성한 볼륨의 속눈썹 연장', '{"min": 50000, "max": 80000}', 150, TRUE, ARRAY['속눈썹 정리', '알레르기 테스트'], ARRAY['풍성한 볼륨', '드라마틱한 효과'], TRUE, 2),
+('lash_lifting', 'eyelash', '속눈썹 리프팅', '자연 속눈썹을 위로 올리는 리프팅', '{"min": 30000, "max": 50000}', 90, FALSE, ARRAY['깨끗한 속눈썹'], ARRAY['자연스러운 곡선', '6-8주 지속'], TRUE, 3),
+
+-- Waxing services
+('face_waxing', 'waxing', '페이스 왁싱', '얼굴 털 제거 왁싱', '{"min": 10000, "max": 20000}', 30, TRUE, ARRAY['깨끗한 피부', '자극 없는 상태'], ARRAY['부드러운 피부', '2-3주 지속'], TRUE, 1),
+('body_waxing', 'waxing', '바디 왁싱', '몸 전체 털 제거 왁싱', '{"min": 30000, "max": 80000}', 120, FALSE, ARRAY['깨끗한 피부', '충분한 털 길이'], ARRAY['부드러운 피부', '3-4주 지속'], TRUE, 2),
+('bikini_waxing', 'waxing', '비키니 왁싱', '비키니 라인 털 제거 왁싱', '{"min": 25000, "max": 50000}', 45, TRUE, ARRAY['털 길이 확인', '피부 상태 체크'], ARRAY['깔끔한 라인', '자신감 향상'], TRUE, 3),
+
+-- Eyebrow tattoo services
+('eyebrow_tattoo', 'eyebrow_tattoo', '눈썹 문신', '반영구 눈썹 문신', '{"min": 100000, "max": 200000}', 180, TRUE, ARRAY['피부 상태 확인', '알레르기 테스트'], ARRAY['자연스러운 눈썹', '1-2년 지속'], TRUE, 1),
+('eyebrow_correction', 'eyebrow_tattoo', '눈썹 보정', '기존 눈썹 문신 보정', '{"min": 150000, "max": 300000}', 240, FALSE, ARRAY['기존 문신 확인', '보정 가능성 검토'], ARRAY['개선된 모양', '자연스러운 결과'], TRUE, 2),
+('eyebrow_design', 'eyebrow_tattoo', '눈썹 디자인', '맞춤형 눈썹 디자인 문신', '{"min": 120000, "max": 250000}', 200, FALSE, ARRAY['상담', '디자인 선택'], ARRAY['개성 있는 눈썹', '자연스러운 모양'], TRUE, 3),
+
+-- Hair services
+('haircut', 'hair', '헤어컷', '기본 헤어컷 서비스', '{"min": 20000, "max": 50000}', 60, TRUE, ARRAY['깨끗한 머리'], ARRAY['깔끔한 스타일', '상담 포함'], TRUE, 1),
+('perm', 'hair', '펌', '머리카락 곱슬펌', '{"min": 50000, "max": 120000}', 180, FALSE, ARRAY['머리카락 상태 확인', '상담'], ARRAY['곱슬 스타일', '3-6개월 지속'], TRUE, 2),
+('hair_dye', 'hair', '헤어 염색', '머리카락 염색 서비스', '{"min": 40000, "max": 150000}', 120, TRUE, ARRAY['알레르기 테스트', '상담'], ARRAY['새로운 색상', '개성 표현'], TRUE, 3),
+('hair_treatment', 'hair', '헤어 트리트먼트', '헤어 케어 및 치료 서비스', '{"min": 30000, "max": 120000}', 90, FALSE, ARRAY['헤어 상태 진단'], ARRAY['건강한 헤어', '손상 복구'], TRUE, 4)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    price_range = EXCLUDED.price_range,
+    duration_minutes = EXCLUDED.duration_minutes,
+    is_popular = EXCLUDED.is_popular,
+    requirements = EXCLUDED.requirements,
+    benefits = EXCLUDED.benefits,
+    is_active = EXCLUDED.is_active,
+    sort_order = EXCLUDED.sort_order,
+    updated_at = NOW();
+
+-- 카테고리 메타데이터 초기 데이터
+INSERT INTO public.category_metadata (category_id, metadata_key, metadata_value) VALUES
+('nail', 'popularity_score', '{"score": 85, "trend": "increasing"}'),
+('eyelash', 'popularity_score', '{"score": 92, "trend": "stable"}'),
+('waxing', 'popularity_score', '{"score": 78, "trend": "increasing"}'),
+('eyebrow_tattoo', 'popularity_score', '{"score": 88, "trend": "stable"}'),
+('hair', 'popularity_score', '{"score": 95, "trend": "increasing"}'),
+('nail', 'seasonal_trends', '{"spring": 90, "summer": 95, "autumn": 85, "winter": 80}'),
+('eyelash', 'seasonal_trends', '{"spring": 85, "summer": 90, "autumn": 88, "winter": 92}'),
+('waxing', 'seasonal_trends', '{"spring": 95, "summer": 98, "autumn": 85, "winter": 70}'),
+('eyebrow_tattoo', 'seasonal_trends', '{"spring": 88, "summer": 85, "autumn": 90, "winter": 92}'),
+('hair', 'seasonal_trends', '{"spring": 90, "summer": 85, "autumn": 95, "winter": 88}')
+ON CONFLICT (category_id, metadata_key) DO UPDATE SET
+    metadata_value = EXCLUDED.metadata_value,
+    updated_at = NOW();
+
+-- 기본 모더레이션 룰 데이터
+INSERT INTO public.moderation_rules (name, description, rule_type, rule_action, rule_config, priority, created_by) VALUES
+(
+    'Spam Keyword Detection',
+    'Detects common spam keywords in shop descriptions and names',
+    'keyword_filter',
+    'flag_for_review',
+    '{"keywords": ["spam", "scam", "fake", "click here", "free money", "get rich quick"], "case_sensitive": false, "match_type": "contains"}',
+    2,
+    (SELECT id FROM public.users WHERE user_role = 'admin' LIMIT 1)
+),
+(
+    'Inappropriate Language Filter',
+    'Detects inappropriate language in shop content',
+    'inappropriate_language',
+    'flag_for_review',
+    '{"severity_threshold": 0.7, "categories": ["profanity", "hate_speech", "harassment"]}',
+    3,
+    (SELECT id FROM public.users WHERE user_role = 'admin' LIMIT 1)
+),
+(
+    'Duplicate Content Detection',
+    'Detects duplicate shop descriptions or suspiciously similar content',
+    'duplicate_content',
+    'flag_for_review',
+    '{"similarity_threshold": 0.85, "check_fields": ["description", "name"]}',
+    2,
+    (SELECT id FROM public.users WHERE user_role = 'admin' LIMIT 1)
+),
+(
+    'Suspicious Contact Information',
+    'Detects suspicious or fake contact information patterns',
+    'custom_regex',
+    'flag_for_review',
+    '{"patterns": ["^(\\+?1?[-.\\(\\)\\s]?)?(\\d{3}[-.\\(\\)\\s]?)?\\d{3}[-.\\(\\)\\s]?\\d{4}$", "test@.*\\.com", "fake@.*\\.com"], "description": "Phone numbers and suspicious email patterns"}',
+    2,
+    (SELECT id FROM public.users WHERE user_role = 'admin' LIMIT 1)
+);
 
 -- =============================================
 -- 주요 조회용 뷰들 (VIEWS FOR COMMON QUERIES)
@@ -1930,6 +3689,113 @@ FROM public.reservations r
 JOIN public.users u ON r.user_id = u.id
 JOIN public.shops s ON r.shop_id = s.id
 ORDER BY r.reservation_date DESC, r.reservation_time DESC;
+
+-- =============================================
+-- 새로운 뷰들 (v3.3) - 카테고리 및 연락처 관리
+-- =============================================
+
+-- 활성 카테고리와 서비스 뷰
+CREATE VIEW public.active_categories_with_services AS
+SELECT 
+    c.id,
+    c.display_name,
+    c.description,
+    c.icon,
+    c.color,
+    c.subcategories,
+    c.sort_order,
+    COUNT(st.id) as service_count,
+    COUNT(CASE WHEN st.is_popular THEN 1 END) as popular_service_count
+FROM public.shop_categories c
+LEFT JOIN public.service_types st ON c.id = st.category_id AND st.is_active = TRUE
+WHERE c.is_active = TRUE
+GROUP BY c.id, c.display_name, c.description, c.icon, c.color, c.subcategories, c.sort_order
+ORDER BY c.sort_order;
+
+-- 인기 서비스 카테고리별 뷰
+CREATE VIEW public.popular_services_by_category AS
+SELECT 
+    c.id as category_id,
+    c.display_name as category_name,
+    st.id as service_id,
+    st.name as service_name,
+    st.description,
+    st.price_range,
+    st.duration_minutes,
+    st.sort_order
+FROM public.shop_categories c
+JOIN public.service_types st ON c.id = st.category_id
+WHERE c.is_active = TRUE 
+    AND st.is_active = TRUE 
+    AND st.is_popular = TRUE
+ORDER BY c.sort_order, st.sort_order;
+
+-- 활성 공개 연락처 방법 뷰
+CREATE VIEW public.shop_public_contact_methods AS
+SELECT 
+    scm.id,
+    scm.shop_id,
+    s.name as shop_name,
+    scm.contact_type,
+    scm.contact_value,
+    scm.display_name,
+    scm.is_primary,
+    scm.metadata,
+    scm.display_order,
+    scm.click_count,
+    scm.last_accessed_at
+FROM public.shop_contact_methods scm
+JOIN public.shops s ON scm.shop_id = s.id
+WHERE scm.is_public = TRUE 
+    AND scm.verification_status = 'verified'
+    AND s.shop_status = 'active'
+ORDER BY scm.shop_id, scm.display_order;
+
+-- 연락처 방법 분석 뷰
+CREATE VIEW public.contact_method_analytics AS
+SELECT 
+    scm.id as contact_method_id,
+    scm.shop_id,
+    s.name as shop_name,
+    scm.contact_type,
+    scm.contact_value,
+    scm.click_count,
+    COUNT(cmal.id) as total_accesses,
+    COUNT(DISTINCT cmal.user_id) as unique_users,
+    COUNT(DISTINCT DATE(cmal.created_at)) as active_days,
+    MAX(cmal.created_at) as last_access,
+    MIN(cmal.created_at) as first_access
+FROM public.shop_contact_methods scm
+JOIN public.shops s ON scm.shop_id = s.id
+LEFT JOIN public.contact_method_access_logs cmal ON scm.id = cmal.contact_method_id
+GROUP BY scm.id, scm.shop_id, s.name, scm.contact_type, scm.contact_value, scm.click_count;
+
+-- CDN 캐시 통계 뷰
+CREATE VIEW public.cdn_cache_stats AS
+SELECT 
+    bucket_id,
+    COUNT(*) as total_files,
+    COUNT(*) FILTER (WHERE cdn_processed = TRUE) as processed_files,
+    COUNT(*) FILTER (WHERE cache_expires_at < NOW()) as expired_files,
+    SUM(metadata->>'size')::BIGINT as total_size_bytes,
+    AVG(EXTRACT(EPOCH FROM (NOW() - created_at))/3600) as avg_age_hours
+FROM storage.objects
+WHERE bucket_id LIKE '%-cdn' OR bucket_id = 'image-cache'
+GROUP BY bucket_id;
+
+-- 보안 대시보드 뷰
+CREATE VIEW public.security_dashboard AS
+SELECT 
+    DATE_TRUNC('hour', timestamp) as hour,
+    type,
+    severity,
+    COUNT(*) as event_count,
+    COUNT(DISTINCT ip) as unique_ips,
+    COUNT(*) FILTER (WHERE blocked = TRUE) as blocked_count
+FROM public.security_events
+WHERE timestamp >= NOW() - INTERVAL '24 hours'
+GROUP BY DATE_TRUNC('hour', timestamp), type, severity
+ORDER BY hour DESC, event_count DESC;
 
 -- =============================================
 -- 간소화된 데이터베이스 구조 완료

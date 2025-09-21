@@ -94,62 +94,128 @@ export class ReservationService {
   }
 
   /**
-   * Create reservation with database lock
+   * Create reservation with enhanced database locking
    */
   private async createReservationWithLock(request: CreateReservationRequest): Promise<Reservation> {
     const { shopId, userId, services, reservationDate, reservationTime, specialRequests, pointsToUse = 0 } = request;
 
-    // Start transaction with enhanced timeout handling
-    const { data: reservation, error } = await this.supabase.rpc('create_reservation_with_lock', {
-      p_shop_id: shopId,
-      p_user_id: userId,
-      p_reservation_date: reservationDate,
-      p_reservation_time: reservationTime,
-      p_special_requests: specialRequests,
-      p_points_used: pointsToUse || 0,
-      p_services: JSON.stringify(services),
-      p_lock_timeout: this.LOCK_TIMEOUT
-    });
+    // Enhanced timeout handling with retry logic
+    const maxRetries = 3;
+    let lastError: any = null;
 
-    if (error) {
-      // Enhanced error handling for different lock scenarios
-      if (error.message?.includes('SLOT_CONFLICT')) {
-        throw new Error('Time slot is no longer available due to concurrent booking');
-      } else if (error.message?.includes('lock_timeout')) {
-        throw new Error('Lock acquisition timeout - please try again');
-      } else if (error.message?.includes('deadlock')) {
-        throw new Error('Deadlock detected - please try again');
-      } else if (error.message?.includes('SERVICE_NOT_FOUND')) {
-        throw new Error('One or more services are not available');
-      } else if (error.message?.includes('INVALID_QUANTITY')) {
-        throw new Error('Invalid service quantity');
-      } else if (error.message?.includes('INSUFFICIENT_AMOUNT')) {
-        throw new Error('Points used cannot exceed total amount');
-      } else {
-        logger.error('Reservation creation failed', {
-          error: error.message,
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        logger.info('Attempting reservation creation with lock', {
+          shopId,
+          userId,
+          reservationDate,
+          reservationTime,
+          attempt,
+          maxRetries
+        });
+
+        const { data: reservation, error } = await this.supabase.rpc('create_reservation_with_lock', {
+          p_shop_id: shopId,
+          p_user_id: userId,
+          p_reservation_date: reservationDate,
+          p_reservation_time: reservationTime,
+          p_special_requests: specialRequests,
+          p_points_used: pointsToUse || 0,
+          p_services: JSON.stringify(services),
+          p_lock_timeout: this.LOCK_TIMEOUT
+        });
+
+        if (error) {
+          lastError = error;
+          
+          // Enhanced error handling for different lock scenarios
+          if (error.message?.includes('SLOT_CONFLICT')) {
+            throw new Error('Time slot is no longer available due to concurrent booking');
+          } else if (error.message?.includes('ADVISORY_LOCK_TIMEOUT')) {
+            if (attempt < maxRetries) {
+              logger.warn('Advisory lock timeout, retrying', { attempt, maxRetries });
+              await this.delay(100 * attempt); // Exponential backoff
+              continue;
+            }
+            throw new Error('Unable to acquire time slot lock - please try again');
+          } else if (error.message?.includes('LOCK_TIMEOUT')) {
+            if (attempt < maxRetries) {
+              logger.warn('Lock timeout, retrying', { attempt, maxRetries });
+              await this.delay(200 * attempt); // Exponential backoff
+              continue;
+            }
+            throw new Error('Lock acquisition timeout - please try again');
+          } else if (error.message?.includes('DEADLOCK_RETRY_EXCEEDED')) {
+            throw new Error('System is busy - please try again in a moment');
+          } else if (error.message?.includes('deadlock')) {
+            if (attempt < maxRetries) {
+              logger.warn('Deadlock detected, retrying', { attempt, maxRetries });
+              await this.delay(300 * attempt); // Exponential backoff
+              continue;
+            }
+            throw new Error('Deadlock detected - please try again');
+          } else if (error.message?.includes('SERVICE_NOT_FOUND')) {
+            throw new Error('One or more services are not available');
+          } else if (error.message?.includes('INVALID_QUANTITY')) {
+            throw new Error('Invalid service quantity');
+          } else if (error.message?.includes('INVALID_POINTS')) {
+            throw new Error('Invalid points usage');
+          } else if (error.message?.includes('INSUFFICIENT_AMOUNT')) {
+            throw new Error('Points used cannot exceed total amount');
+          } else {
+            logger.error('Reservation creation failed', {
+              error: error.message,
+              shopId,
+              userId,
+              reservationDate,
+              reservationTime,
+              attempt
+            });
+            throw new Error('Reservation creation failed - please try again');
+          }
+        }
+
+        if (!reservation) {
+          throw new Error('Failed to create reservation');
+        }
+
+        logger.info('Reservation created successfully', {
+          reservationId: reservation.id,
           shopId,
           userId,
           reservationDate,
           reservationTime
         });
-        throw new Error('Reservation creation failed - please try again');
+
+        return reservation as Reservation;
+
+      } catch (error) {
+        lastError = error;
+        
+        if (attempt < maxRetries) {
+          logger.warn('Reservation creation attempt failed, retrying', {
+            attempt,
+            maxRetries,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          await this.delay(100 * attempt); // Exponential backoff
+          continue;
+        }
+        
+        // If all retries failed, throw the last error
+        throw error;
       }
     }
 
-    if (!reservation) {
-      throw new Error('Failed to create reservation');
-    }
+    // This should never be reached, but just in case
+    throw lastError || new Error('Reservation creation failed after all retries');
+  }
 
-    logger.info('Reservation created successfully', {
-      reservationId: reservation.id,
-      shopId,
-      userId,
-      reservationDate,
-      reservationTime
-    });
-
-    return reservation as Reservation;
+  /**
+   * Helper method for delays with exponential backoff
+   */
+  private async delay(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
   }
 
   /**
