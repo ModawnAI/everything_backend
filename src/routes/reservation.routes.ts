@@ -28,7 +28,7 @@ import Joi from 'joi';
 const router = Router();
 const reservationController = new ReservationController();
 
-// Validation schemas
+// Validation schemas with v3.1 flow support
 const createReservationSchema = Joi.object({
   shopId: Joi.string().uuid().required().messages({
     'string.guid': '유효하지 않은 샵 ID입니다.',
@@ -67,7 +67,51 @@ const createReservationSchema = Joi.object({
     'number.base': '사용할 포인트는 숫자여야 합니다.',
     'number.integer': '사용할 포인트는 정수여야 합니다.',
     'number.min': '사용할 포인트는 0 이상이어야 합니다.'
-  })
+  }),
+  // v3.1 Flow - Payment information
+  paymentInfo: Joi.object({
+    depositAmount: Joi.number().min(0).optional().messages({
+      'number.base': '보증금은 숫자여야 합니다.',
+      'number.min': '보증금은 0 이상이어야 합니다.'
+    }),
+    remainingAmount: Joi.number().min(0).optional().messages({
+      'number.base': '잔여 금액은 숫자여야 합니다.',
+      'number.min': '잔여 금액은 0 이상이어야 합니다.'
+    }),
+    paymentMethod: Joi.string().valid('card', 'cash', 'points', 'mixed').optional().messages({
+      'any.only': '결제 방법은 card, cash, points, mixed 중 하나여야 합니다.'
+    }),
+    depositRequired: Joi.boolean().optional().messages({
+      'boolean.base': '보증금 필요 여부는 true/false여야 합니다.'
+    })
+  }).optional(),
+  // v3.1 Flow - Request metadata
+  requestMetadata: Joi.object({
+    source: Joi.string().valid('mobile_app', 'web_app', 'admin_panel').optional().messages({
+      'any.only': '요청 소스는 mobile_app, web_app, admin_panel 중 하나여야 합니다.'
+    }),
+    userAgent: Joi.string().max(500).optional().messages({
+      'string.max': '사용자 에이전트는 최대 500자까지 가능합니다.'
+    }),
+    ipAddress: Joi.string().ip().optional().messages({
+      'string.ip': '유효하지 않은 IP 주소 형식입니다.'
+    }),
+    referrer: Joi.string().uri().optional().messages({
+      'string.uri': '유효하지 않은 리퍼러 URL입니다.'
+    })
+  }).optional(),
+  // v3.1 Flow - Notification preferences
+  notificationPreferences: Joi.object({
+    emailNotifications: Joi.boolean().optional().messages({
+      'boolean.base': '이메일 알림 설정은 true/false여야 합니다.'
+    }),
+    smsNotifications: Joi.boolean().optional().messages({
+      'boolean.base': 'SMS 알림 설정은 true/false여야 합니다.'
+    }),
+    pushNotifications: Joi.boolean().optional().messages({
+      'boolean.base': '푸시 알림 설정은 true/false여야 합니다.'
+    })
+  }).optional()
 });
 
 const reservationIdSchema = Joi.object({

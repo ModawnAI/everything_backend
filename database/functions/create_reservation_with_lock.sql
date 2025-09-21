@@ -8,7 +8,9 @@ CREATE OR REPLACE FUNCTION create_reservation_with_lock(
   p_special_requests TEXT DEFAULT NULL,
   p_points_used INTEGER DEFAULT 0,
   p_services JSONB DEFAULT '[]'::JSONB,
-  p_lock_timeout INTEGER DEFAULT 10000
+  p_lock_timeout INTEGER DEFAULT 10000,
+  p_deposit_amount INTEGER DEFAULT NULL,
+  p_remaining_amount INTEGER DEFAULT NULL
 )
 RETURNS JSONB
 LANGUAGE plpgsql
@@ -32,6 +34,8 @@ DECLARE
   v_advisory_lock_key BIGINT;
   v_deadlock_retry_count INTEGER := 0;
   v_max_deadlock_retries INTEGER := 3;
+  v_deposit_amount INTEGER;
+  v_remaining_amount INTEGER;
 BEGIN
   -- Set lock timeout
   SET lock_timeout = p_lock_timeout;
@@ -107,6 +111,18 @@ BEGIN
         RAISE EXCEPTION 'INSUFFICIENT_AMOUNT: Points used cannot exceed total amount';
       END IF;
       
+      -- Calculate deposit and remaining amounts if not provided
+      -- Default to full payment if deposit amounts are not specified
+      IF p_deposit_amount IS NOT NULL AND p_remaining_amount IS NOT NULL THEN
+        -- Use provided amounts
+        v_deposit_amount := p_deposit_amount;
+        v_remaining_amount := p_remaining_amount;
+      ELSE
+        -- Default behavior: full payment upfront (backward compatibility)
+        v_deposit_amount := v_total_amount;
+        v_remaining_amount := 0;
+      END IF;
+
       -- Create reservation
       INSERT INTO reservations (
         shop_id,
@@ -115,6 +131,8 @@ BEGIN
         reservation_time,
         status,
         total_amount,
+        deposit_amount,
+        remaining_amount,
         points_used,
         special_requests,
         created_at,
@@ -126,6 +144,8 @@ BEGIN
         p_reservation_time,
         'requested',
         v_total_amount,
+        v_deposit_amount,
+        v_remaining_amount,
         p_points_used,
         p_special_requests,
         NOW(),
@@ -171,6 +191,8 @@ BEGIN
         'reservationTime', r.reservation_time,
         'status', r.status,
         'totalAmount', r.total_amount,
+        'depositAmount', r.deposit_amount,
+        'remainingAmount', r.remaining_amount,
         'pointsUsed', r.points_used,
         'specialRequests', r.special_requests,
         'createdAt', r.created_at,

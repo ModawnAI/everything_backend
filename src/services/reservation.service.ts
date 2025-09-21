@@ -8,6 +8,7 @@
 import { getSupabaseClient } from '../config/database';
 import { timeSlotService } from './time-slot.service';
 import { logger } from '../utils/logger';
+import { shopOwnerNotificationService, ShopOwnerNotificationPayload } from './shop-owner-notification.service';
 
 export interface CreateReservationRequest {
   shopId: string;
@@ -20,6 +21,26 @@ export interface CreateReservationRequest {
   reservationTime: string;
   specialRequests?: string;
   pointsToUse?: number;
+  // v3.1 Flow - Payment and Deposit Management
+  paymentInfo?: {
+    depositAmount?: number;
+    remainingAmount?: number;
+    paymentMethod?: 'card' | 'cash' | 'points' | 'mixed';
+    depositRequired?: boolean;
+  };
+  // v3.1 Flow - Request-specific metadata
+  requestMetadata?: {
+    source?: 'mobile_app' | 'web_app' | 'admin_panel';
+    userAgent?: string;
+    ipAddress?: string;
+    referrer?: string;
+  };
+  // v3.1 Flow - Notification preferences
+  notificationPreferences?: {
+    emailNotifications?: boolean;
+    smsNotifications?: boolean;
+    pushNotifications?: boolean;
+  };
 }
 
 export interface Reservation {
@@ -30,6 +51,8 @@ export interface Reservation {
   reservationTime: string;
   status: ReservationStatus;
   totalAmount: number;
+  depositAmount: number;
+  remainingAmount?: number;
   pointsUsed: number;
   specialRequests?: string;
   createdAt: string;
@@ -67,36 +90,277 @@ export class ReservationService {
   private readonly DEADLOCK_RETRY_DELAY = 2000; // 2 seconds
 
   /**
-   * Create a new reservation with concurrent booking prevention
+   * Create a new reservation with concurrent booking prevention and v3.1 flow support
    */
   async createReservation(request: CreateReservationRequest): Promise<Reservation> {
-    const { shopId, userId, services, reservationDate, reservationTime, specialRequests, pointsToUse = 0 } = request;
+    const { 
+      shopId, 
+      userId, 
+      services, 
+      reservationDate, 
+      reservationTime, 
+      specialRequests, 
+      pointsToUse = 0,
+      paymentInfo,
+      requestMetadata,
+      notificationPreferences
+    } = request;
 
-    // Validate inputs
+    // Validate inputs with v3.1 flow support
     this.validateCreateReservationRequest(request);
 
-    // Check if slot is still available
-    const isAvailable = await timeSlotService.isSlotAvailable(
+    // Check if slot is still available using enhanced validation
+    const slotValidation = await timeSlotService.validateSlotAvailability(
       shopId,
       reservationDate,
       reservationTime,
       services.map(s => s.serviceId)
     );
 
-    if (!isAvailable) {
-      throw new Error('Selected time slot is no longer available');
+    if (!slotValidation.available) {
+      logger.warn('Slot validation failed:', {
+        shopId,
+        reservationDate,
+        reservationTime,
+        conflictReason: slotValidation.conflictReason,
+        conflictingReservations: slotValidation.conflictingReservations
+      });
+      throw new Error(`Selected time slot is no longer available: ${slotValidation.conflictReason}`);
     }
 
+    // Log v3.1 flow metadata for tracking
+    if (requestMetadata) {
+      logger.info('Reservation request with v3.1 metadata:', {
+        shopId,
+        userId,
+        source: requestMetadata.source,
+        userAgent: requestMetadata.userAgent,
+        ipAddress: requestMetadata.ipAddress
+      });
+    }
+
+    // Calculate pricing with v3.1 flow support
+    const pricingInfo = await this.calculatePricingWithDeposit(request);
+
     // Acquire lock and create reservation with enhanced retry logic
-    return await this.withEnhancedRetry(async () => {
-      return await this.createReservationWithLock(request);
+    const reservation = await this.withEnhancedRetry(async () => {
+      return await this.createReservationWithLock(request, pricingInfo);
     });
+
+    // Log successful v3.1 flow reservation creation
+    logger.info('v3.1 flow reservation created successfully:', {
+      reservationId: reservation.id,
+      shopId,
+      userId,
+      status: reservation.status,
+      totalAmount: reservation.totalAmount,
+      depositAmount: paymentInfo?.depositAmount,
+      remainingAmount: paymentInfo?.remainingAmount
+    });
+
+    // Send notification to shop owner for new reservation request (v3.1 flow)
+    try {
+      await this.notifyShopOwnerOfNewRequest(reservation, request, pricingInfo);
+    } catch (notificationError) {
+      // Log notification error but don't fail the reservation creation
+      logger.error('Failed to send shop owner notification', {
+        error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+        reservationId: reservation.id,
+        shopId
+      });
+    }
+
+    return reservation;
   }
 
   /**
-   * Create reservation with enhanced database locking
+   * Calculate pricing with deposit/remaining balance support for v3.1 flow
+   * Enhanced with service-specific deposit policies and business rules
    */
-  private async createReservationWithLock(request: CreateReservationRequest): Promise<Reservation> {
+  public async calculatePricingWithDeposit(request: CreateReservationRequest): Promise<{
+    totalAmount: number;
+    depositAmount: number;
+    remainingAmount: number;
+    depositRequired: boolean;
+    depositCalculationDetails: {
+      serviceDeposits: Array<{
+        serviceId: string;
+        serviceName: string;
+        quantity: number;
+        unitPrice: number;
+        totalPrice: number;
+        depositAmount: number;
+        depositPercentage?: number;
+        depositType: 'fixed' | 'percentage' | 'default';
+      }>;
+      totalServiceDeposit: number;
+      appliedDiscounts: Array<{
+        type: 'points' | 'promotion';
+        amount: number;
+      }>;
+      finalCalculation: {
+        subtotal: number;
+        totalDiscounts: number;
+        amountAfterDiscounts: number;
+        totalDeposit: number;
+        remainingAmount: number;
+      };
+    };
+  }> {
+    const { services, pointsToUse = 0, paymentInfo } = request;
+
+    // Business rules for deposit calculation
+    const DEPOSIT_BUSINESS_RULES = {
+      DEFAULT_DEPOSIT_PERCENTAGE: 25, // 25% default deposit (PRD: 20-30% range)
+      MIN_DEPOSIT_PERCENTAGE: 20,     // Minimum 20% deposit
+      MAX_DEPOSIT_PERCENTAGE: 30,     // Maximum 30% deposit
+      MIN_DEPOSIT_AMOUNT: 10000,      // Minimum 10,000 won deposit
+      MAX_DEPOSIT_AMOUNT: 100000,     // Maximum 100,000 won deposit
+    };
+
+    // Calculate total amount and service-specific deposits
+    let totalAmount = 0;
+    let totalServiceDeposit = 0;
+    const serviceDeposits: Array<{
+      serviceId: string;
+      serviceName: string;
+      quantity: number;
+      unitPrice: number;
+      totalPrice: number;
+      depositAmount: number;
+      depositPercentage?: number;
+      depositType: 'fixed' | 'percentage' | 'default';
+    }> = [];
+
+    // Get service details with deposit policies
+    for (const service of services) {
+      const { data: serviceData, error } = await this.supabase
+        .from('shop_services')
+        .select('price_min, name, deposit_amount, deposit_percentage')
+        .eq('id', service.serviceId)
+        .single();
+
+      if (error || !serviceData) {
+        throw new Error(`Service with ID ${service.serviceId} not found`);
+      }
+
+      const unitPrice = serviceData.price_min;
+      const totalPrice = unitPrice * service.quantity;
+      totalAmount += totalPrice;
+
+      // Calculate service-specific deposit
+      let serviceDepositAmount = 0;
+      let depositType: 'fixed' | 'percentage' | 'default' = 'default';
+      let depositPercentage: number | undefined;
+
+      if (serviceData.deposit_amount !== null && serviceData.deposit_amount > 0) {
+        // Fixed deposit amount per service
+        serviceDepositAmount = serviceData.deposit_amount * service.quantity;
+        depositType = 'fixed';
+      } else if (serviceData.deposit_percentage !== null && serviceData.deposit_percentage > 0) {
+        // Percentage-based deposit
+        depositPercentage = Number(serviceData.deposit_percentage);
+        serviceDepositAmount = Math.round((totalPrice * depositPercentage) / 100);
+        depositType = 'percentage';
+      } else {
+        // Default deposit calculation (25% of service price)
+        depositPercentage = DEPOSIT_BUSINESS_RULES.DEFAULT_DEPOSIT_PERCENTAGE;
+        serviceDepositAmount = Math.round((totalPrice * depositPercentage) / 100);
+        depositType = 'default';
+      }
+
+      // Apply business rules constraints
+      serviceDepositAmount = Math.max(
+        DEPOSIT_BUSINESS_RULES.MIN_DEPOSIT_AMOUNT,
+        Math.min(serviceDepositAmount, DEPOSIT_BUSINESS_RULES.MAX_DEPOSIT_AMOUNT)
+      );
+
+      // Ensure deposit doesn't exceed service total
+      serviceDepositAmount = Math.min(serviceDepositAmount, totalPrice);
+
+      totalServiceDeposit += serviceDepositAmount;
+
+      serviceDeposits.push({
+        serviceId: service.serviceId,
+        serviceName: serviceData.name,
+        quantity: service.quantity,
+        unitPrice,
+        totalPrice,
+        depositAmount: serviceDepositAmount,
+        depositPercentage,
+        depositType
+      });
+    }
+
+    // Apply points discount
+    const pointsDiscount = Math.min(pointsToUse || 0, totalAmount);
+    const amountAfterPoints = Math.max(0, totalAmount - pointsDiscount);
+
+    // Apply deposit calculation based on payment info and business rules
+    let depositAmount = 0;
+    let remainingAmount = amountAfterPoints;
+    let depositRequired = false;
+
+    if (paymentInfo) {
+      if (paymentInfo.depositAmount !== undefined) {
+        // User explicitly provided deposit amount
+        depositAmount = Math.max(0, Math.min(paymentInfo.depositAmount, amountAfterPoints));
+        remainingAmount = amountAfterPoints - depositAmount;
+        depositRequired = depositAmount < amountAfterPoints;
+      } else if (paymentInfo.depositRequired) {
+        // User requested deposit but didn't specify amount - use calculated service deposits
+        depositAmount = Math.min(totalServiceDeposit, amountAfterPoints);
+        remainingAmount = amountAfterPoints - depositAmount;
+        depositRequired = true;
+      } else {
+        // No deposit required, full payment upfront
+        depositAmount = amountAfterPoints;
+        remainingAmount = 0;
+      }
+    } else {
+      // Default behavior - use calculated service deposits
+      depositAmount = Math.min(totalServiceDeposit, amountAfterPoints);
+      remainingAmount = amountAfterPoints - depositAmount;
+      depositRequired = depositAmount < amountAfterPoints;
+    }
+
+    // Prepare applied discounts
+    const appliedDiscounts: Array<{
+      type: 'points' | 'promotion';
+      amount: number;
+    }> = [];
+
+    if (pointsDiscount > 0) {
+      appliedDiscounts.push({
+        type: 'points',
+        amount: pointsDiscount
+      });
+    }
+
+    return {
+      totalAmount: amountAfterPoints,
+      depositAmount,
+      remainingAmount,
+      depositRequired,
+      depositCalculationDetails: {
+        serviceDeposits,
+        totalServiceDeposit,
+        appliedDiscounts,
+        finalCalculation: {
+          subtotal: totalAmount,
+          totalDiscounts: pointsDiscount,
+          amountAfterDiscounts: amountAfterPoints,
+          totalDeposit: depositAmount,
+          remainingAmount
+        }
+      }
+    };
+  }
+
+  /**
+   * Create reservation with enhanced database locking and v3.1 flow support
+   */
+  private async createReservationWithLock(request: CreateReservationRequest, pricingInfo?: any): Promise<Reservation> {
     const { shopId, userId, services, reservationDate, reservationTime, specialRequests, pointsToUse = 0 } = request;
 
     // Enhanced timeout handling with retry logic
@@ -122,7 +386,9 @@ export class ReservationService {
           p_special_requests: specialRequests,
           p_points_used: pointsToUse || 0,
           p_services: JSON.stringify(services),
-          p_lock_timeout: this.LOCK_TIMEOUT
+          p_lock_timeout: this.LOCK_TIMEOUT,
+          p_deposit_amount: pricingInfo?.depositAmount || null,
+          p_remaining_amount: pricingInfo?.remainingAmount || null
         });
 
         if (error) {
@@ -299,11 +565,12 @@ export class ReservationService {
   }
 
   /**
-   * Validate reservation creation request
+   * Validate reservation creation request with v3.1 flow support
    */
   private validateCreateReservationRequest(request: CreateReservationRequest): void {
-    const { shopId, userId, services, reservationDate, reservationTime } = request;
+    const { shopId, userId, services, reservationDate, reservationTime, paymentInfo, requestMetadata, notificationPreferences } = request;
 
+    // Basic validation
     if (!shopId || !userId) {
       throw new Error('Shop ID and User ID are required');
     }
@@ -342,6 +609,136 @@ export class ReservationService {
     if (request.pointsToUse && request.pointsToUse < 0) {
       throw new Error('Points used cannot be negative');
     }
+
+    // v3.1 Flow - Validate payment information
+    if (paymentInfo) {
+      // Validate deposit amount
+      if (paymentInfo.depositAmount !== undefined && paymentInfo.depositAmount < 0) {
+        throw new Error('Deposit amount cannot be negative');
+      }
+
+      // Validate remaining amount
+      if (paymentInfo.remainingAmount !== undefined && paymentInfo.remainingAmount < 0) {
+        throw new Error('Remaining amount cannot be negative');
+      }
+
+      // Validate payment method
+      if (paymentInfo.paymentMethod && !['card', 'cash', 'points', 'mixed'].includes(paymentInfo.paymentMethod)) {
+        throw new Error('Invalid payment method. Must be one of: card, cash, points, mixed');
+      }
+
+      // Validate deposit logic
+      if (paymentInfo.depositRequired && paymentInfo.depositAmount !== undefined && paymentInfo.depositAmount <= 0) {
+        throw new Error('Deposit amount must be greater than 0 when deposit is required');
+      }
+    }
+
+    // v3.1 Flow - Validate request metadata
+    if (requestMetadata) {
+      // Validate source
+      if (requestMetadata.source && !['mobile_app', 'web_app', 'admin_panel'].includes(requestMetadata.source)) {
+        throw new Error('Invalid request source. Must be one of: mobile_app, web_app, admin_panel');
+      }
+
+      // Validate IP address format (basic validation)
+      if (requestMetadata.ipAddress && !this.isValidIpAddress(requestMetadata.ipAddress)) {
+        throw new Error('Invalid IP address format');
+      }
+    }
+
+    // v3.1 Flow - Validate notification preferences
+    if (notificationPreferences) {
+      // All notification preferences are boolean and optional, no additional validation needed
+      // The validation is handled by TypeScript types
+    }
+  }
+
+  /**
+   * Basic IP address validation
+   */
+  private isValidIpAddress(ip: string): boolean {
+    const ipv4Regex = /^(?:(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)\.){3}(?:25[0-5]|2[0-4][0-9]|[01]?[0-9][0-9]?)$/;
+    const ipv6Regex = /^(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}$/;
+    return ipv4Regex.test(ip) || ipv6Regex.test(ip);
+  }
+
+  /**
+   * Send notification to shop owner about new reservation request (v3.1 flow)
+   */
+  private async notifyShopOwnerOfNewRequest(
+    reservation: Reservation,
+    request: CreateReservationRequest,
+    pricingInfo: any
+  ): Promise<void> {
+    try {
+      // Get service details for notification
+      const serviceDetails = await this.getServiceDetailsForNotification(request.services);
+
+      // Prepare notification payload
+      const notificationPayload: ShopOwnerNotificationPayload = {
+        shopId: reservation.shopId,
+        reservationId: reservation.id,
+        reservationDate: reservation.reservationDate,
+        reservationTime: reservation.reservationTime,
+        services: serviceDetails,
+        totalAmount: reservation.totalAmount,
+        depositAmount: pricingInfo?.depositAmount,
+        remainingAmount: pricingInfo?.remainingAmount,
+        specialRequests: reservation.specialRequests,
+        paymentMethod: request.paymentInfo?.paymentMethod,
+        notificationPreferences: request.notificationPreferences
+      };
+
+      // Send notification to shop owner
+      await shopOwnerNotificationService.notifyShopOwnerOfNewRequest(notificationPayload);
+
+      logger.info('Shop owner notification sent successfully', {
+        reservationId: reservation.id,
+        shopId: reservation.shopId
+      });
+
+    } catch (error) {
+      logger.error('Failed to send shop owner notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: reservation.id,
+        shopId: reservation.shopId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get service details for notification
+   */
+  private async getServiceDetailsForNotification(services: Array<{serviceId: string; quantity: number}>): Promise<Array<{serviceId: string; serviceName: string; quantity: number}>> {
+    try {
+      const serviceIds = services.map(s => s.serviceId);
+      
+      const { data: serviceData, error } = await this.supabase
+        .from('shop_services')
+        .select('id, name')
+        .in('id', serviceIds);
+
+      if (error) {
+        logger.error('Failed to fetch service details for notification', { error: error.message });
+        return services.map(s => ({ serviceId: s.serviceId, serviceName: 'Unknown Service', quantity: s.quantity }));
+      }
+
+      return services.map(service => {
+        const serviceInfo = serviceData?.find(s => s.id === service.serviceId);
+        return {
+          serviceId: service.serviceId,
+          serviceName: serviceInfo?.name || 'Unknown Service',
+          quantity: service.quantity
+        };
+      });
+
+    } catch (error) {
+      logger.error('Error fetching service details for notification', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return services.map(s => ({ serviceId: s.serviceId, serviceName: 'Unknown Service', quantity: s.quantity }));
+    }
   }
 
   /**
@@ -359,6 +756,8 @@ export class ReservationService {
           reservation_time,
           status,
           total_amount,
+          deposit_amount,
+          remaining_amount,
           points_used,
           special_requests,
           created_at,
@@ -384,6 +783,8 @@ export class ReservationService {
         reservationTime: reservation.reservation_time,
         status: reservation.status,
         totalAmount: reservation.total_amount,
+        depositAmount: reservation.deposit_amount,
+        remainingAmount: reservation.remaining_amount,
         pointsUsed: reservation.points_used,
         specialRequests: reservation.special_requests,
         createdAt: reservation.created_at,
@@ -425,6 +826,8 @@ export class ReservationService {
           reservation_time,
           status,
           total_amount,
+          deposit_amount,
+          remaining_amount,
           points_used,
           special_requests,
           created_at,
@@ -471,6 +874,8 @@ export class ReservationService {
         reservationTime: reservation.reservation_time,
         status: reservation.status,
         totalAmount: reservation.total_amount,
+        depositAmount: reservation.deposit_amount,
+        remainingAmount: reservation.remaining_amount,
         pointsUsed: reservation.points_used,
         specialRequests: reservation.special_requests,
         createdAt: reservation.created_at,
@@ -534,6 +939,8 @@ export class ReservationService {
         reservationTime: reservation.reservation_time,
         status: reservation.status,
         totalAmount: reservation.total_amount,
+        depositAmount: reservation.deposit_amount,
+        remainingAmount: reservation.remaining_amount,
         pointsUsed: reservation.points_used,
         specialRequests: reservation.special_requests,
         createdAt: reservation.created_at,

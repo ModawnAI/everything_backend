@@ -19,6 +19,14 @@ import { logger } from '../utils/logger';
  */
 export function responseStandardizationMiddleware() {
   return (req: Request, res: Response, next: NextFunction) => {
+    // Skip response standardization for Swagger UI and documentation routes
+    if (req.path.startsWith('/api-docs') || 
+        req.path === '/swagger.json' || 
+        req.path === '/api/openapi.json' ||
+        req.path.includes('swagger-ui')) {
+      return next();
+    }
+
     // Generate request ID if not present
     if (!req.headers['x-request-id']) {
       req.headers['x-request-id'] = `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
@@ -43,6 +51,14 @@ export function responseStandardizationMiddleware() {
  */
 export function responseValidationMiddleware() {
   return (req: Request, res: Response, next: NextFunction) => {
+    // Skip response standardization for Swagger UI and documentation routes
+    if (req.path.startsWith('/api-docs') || 
+        req.path === '/swagger.json' || 
+        req.path === '/api/openapi.json' ||
+        req.path.includes('swagger-ui')) {
+      return next();
+    }
+
     const originalJson = res.json;
     const originalSend = res.send;
 
@@ -154,6 +170,14 @@ export function apiVersioningMiddleware(version: string = '1.0.0') {
  */
 export function contentTypeMiddleware() {
   return (req: Request, res: Response, next: NextFunction) => {
+    // Skip content type enforcement for Swagger UI and documentation routes
+    if (req.path.startsWith('/api-docs') || 
+        req.path === '/swagger.json' || 
+        req.path === '/api/openapi.json' ||
+        req.path.includes('swagger-ui')) {
+      return next();
+    }
+
     // Set default content type for API responses
     if (req.path.startsWith('/api/')) {
       res.setHeader('Content-Type', 'application/json; charset=utf-8');

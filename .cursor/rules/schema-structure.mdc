@@ -1,0 +1,43 @@
+---
+description: Database schema structure and migration guidelines for the project
+globs: schema-chunks/*.sql, src/migrations/*.sql, supabase/migrations/*.sql
+alwaysApply: true
+---
+
+# Database Schema Structure
+
+## **Schema Organization**
+- **Primary Schema Source**: `/schema-chunks/` directory contains 62 chunked SQL files
+- **Combined Schema**: `combined_schema_all_62.sql` contains the complete schema
+- **Initial Data**: `7_7_initial_data.sql` contains seed data and initial setup
+- **Migration Files**: Use `/src/migrations/` for new database changes
+
+## **Schema Chunks Structure**
+- **chunk_001.sql** through **chunk_062.sql**: Core schema definitions
+- **Upload Order**: Must be executed in sequential order (001 → 062)
+- **Combined File**: Use `combined_schema_all_62.sql` for complete schema reference
+
+## **Migration Guidelines**
+- **New Migrations**: Create in `/src/migrations/` with format `XXX_description.sql`
+- **Schema Updates**: Always reference existing schema chunks before making changes
+- **Enum Updates**: Use `ALTER TYPE enum_name ADD VALUE` for new enum values
+- **Table Updates**: Use `ALTER TABLE` for existing table modifications
+
+## **Key Schema Components**
+- **Tables**: users, shops, services, reservations, notifications, etc.
+- **Enums**: reservation_status, notification_type, service_category, etc.
+- **Functions**: create_reservation_with_lock, reschedule_reservation, etc.
+- **Views**: v_available_slots, v_conflicting_reservations, etc.
+- **Indexes**: Performance-optimized indexes for queries
+
+## **Schema References**
+- **Main Schema**: [combined_schema_all_62.sql](mdc:schema-chunks/combined_schema_all_62.sql)
+- **Initial Data**: [7_7_initial_data.sql](mdc:schema-chunks/7_7_initial_data.sql)
+- **Upload Instructions**: [README.md](mdc:schema-chunks/README.md)
+
+## **Best Practices**
+- **Always check existing schema** before creating new migrations
+- **Use sequential numbering** for migration files (040, 041, 042, etc.)
+- **Test migrations** on development environment first
+- **Document schema changes** in migration file headers
+- **Consider backward compatibility** when modifying existing structures

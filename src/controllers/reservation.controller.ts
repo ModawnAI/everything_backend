@@ -347,7 +347,10 @@ export class ReservationController {
         reservationDate,
         reservationTime,
         specialRequests,
-        pointsToUse = 0
+        pointsToUse = 0,
+        paymentInfo,
+        requestMetadata,
+        notificationPreferences
       } = req.body;
 
       // Get user ID from JWT token
@@ -369,7 +372,15 @@ export class ReservationController {
         return;
       }
 
-      // Create reservation request
+      // Extract request metadata from headers if not provided
+      const enhancedRequestMetadata = {
+        ...requestMetadata,
+        userAgent: requestMetadata?.userAgent || req.get('User-Agent'),
+        ipAddress: requestMetadata?.ipAddress || req.ip || req.connection.remoteAddress,
+        source: requestMetadata?.source || 'web_app' // Default to web_app if not specified
+      };
+
+      // Create reservation request with v3.1 flow support
       const reservationRequest: CreateReservationRequest = {
         shopId,
         userId,
@@ -377,19 +388,32 @@ export class ReservationController {
         reservationDate,
         reservationTime,
         specialRequests,
-        pointsToUse
+        pointsToUse,
+        paymentInfo,
+        requestMetadata: enhancedRequestMetadata,
+        notificationPreferences
       };
 
-      // Create reservation with concurrent booking prevention
+      // Create reservation with concurrent booking prevention and v3.1 flow
       const reservation = await reservationService.createReservation(reservationRequest);
 
-      logger.info('Reservation created successfully', {
+      logger.info('v3.1 flow reservation created successfully', {
         reservationId: reservation.id,
         shopId,
         userId,
         reservationDate,
-        reservationTime
+        reservationTime,
+        status: reservation.status,
+        paymentInfo: paymentInfo ? {
+          depositAmount: paymentInfo.depositAmount,
+          remainingAmount: paymentInfo.remainingAmount,
+          paymentMethod: paymentInfo.paymentMethod,
+          depositRequired: paymentInfo.depositRequired
+        } : undefined
       });
+
+      // Get detailed pricing information for response
+      const pricingDetails = await reservationService.calculatePricingWithDeposit(reservationRequest);
 
       res.status(201).json({
         success: true,
@@ -402,10 +426,40 @@ export class ReservationController {
             reservationTime: reservation.reservationTime,
             status: reservation.status,
             totalAmount: reservation.totalAmount,
+            depositAmount: reservation.depositAmount,
+            remainingAmount: reservation.remainingAmount,
             pointsUsed: reservation.pointsUsed,
             specialRequests: reservation.specialRequests,
             createdAt: reservation.createdAt,
             updatedAt: reservation.updatedAt
+          },
+          // v3.1 Flow - Enhanced pricing and payment information
+          pricingDetails: {
+            totalAmount: pricingDetails.totalAmount,
+            depositAmount: pricingDetails.depositAmount,
+            remainingAmount: pricingDetails.remainingAmount,
+            depositRequired: pricingDetails.depositRequired,
+            serviceBreakdown: pricingDetails.depositCalculationDetails.serviceDeposits,
+            appliedDiscounts: pricingDetails.depositCalculationDetails.appliedDiscounts,
+            calculationSummary: pricingDetails.depositCalculationDetails.finalCalculation
+          },
+          // v3.1 Flow - Additional response data
+          flowInfo: {
+            version: '3.1',
+            status: reservation.status,
+            requiresShopConfirmation: true,
+            paymentInfo: paymentInfo ? {
+              depositAmount: paymentInfo.depositAmount,
+              remainingAmount: paymentInfo.remainingAmount,
+              paymentMethod: paymentInfo.paymentMethod,
+              depositRequired: paymentInfo.depositRequired
+            } : undefined,
+            nextSteps: [
+              'Payment processing (if applicable)',
+              'Shop owner notification sent',
+              'Awaiting shop confirmation',
+              'Confirmation notification will be sent'
+            ]
           }
         }
       });

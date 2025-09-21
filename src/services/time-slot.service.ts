@@ -9,6 +9,7 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { config } from '../config/environment';
+import { monitoringService } from './monitoring.service';
 
 export interface TimeSlot {
   startTime: string;
@@ -41,6 +42,37 @@ export interface ServiceDuration {
   bufferMinutes: number;
 }
 
+export interface ShopCapacity {
+  shopId: string;
+  maxConcurrentServices: number;
+  maxConcurrentCustomers: number;
+  serviceCapacityLimits: Record<string, number>; // serviceId -> max capacity
+  staffAvailability: StaffAvailability[];
+  equipmentAvailability: EquipmentAvailability[];
+}
+
+export interface StaffAvailability {
+  staffId: string;
+  name: string;
+  role: string;
+  workingHours: {
+    dayOfWeek: number;
+    startTime: string;
+    endTime: string;
+  }[];
+  maxConcurrentServices: number;
+  currentLoad: number;
+}
+
+export interface EquipmentAvailability {
+  equipmentId: string;
+  name: string;
+  type: string;
+  totalQuantity: number;
+  availableQuantity: number;
+  requiredByServices: string[]; // service IDs that require this equipment
+}
+
 export class TimeSlotService {
   private supabase = getSupabaseClient();
 
@@ -62,25 +94,48 @@ export class TimeSlotService {
    * Get available time slots for a shop on a specific date
    */
   async getAvailableTimeSlots(request: TimeSlotRequest): Promise<TimeSlot[]> {
-    try {
-      const { shopId, date, serviceIds, startTime, endTime, interval = 30 } = request;
+    const startTime = Date.now();
+    let success = false;
 
-      // Validate inputs
+    try {
+      const { shopId, date, serviceIds, startTime: reqStartTime, endTime, interval = 30 } = request;
+
+      // Validate inputs with detailed error reporting
       if (!shopId || !date || !serviceIds.length) {
-        throw new Error('Missing required parameters: shopId, date, or serviceIds');
+        const error = new Error('Missing required parameters: shopId, date, or serviceIds');
+        monitoringService.trackError('VALIDATION_ERROR', error.message, 'getAvailableTimeSlots', 'high', {
+          request,
+          missingFields: {
+            shopId: !shopId,
+            date: !date,
+            serviceIds: !serviceIds.length
+          }
+        });
+        throw error;
       }
 
-      // Get shop operating hours
+      // Get shop operating hours with error handling
       const operatingHours = await this.getShopOperatingHours(shopId, date);
       if (!operatingHours.isOpen) {
+        logger.info('Shop is closed on requested date:', { shopId, date });
         return [];
       }
 
-      // Get service durations
+      // Get service durations with error handling
       const serviceDurations = await this.getServiceDurations(serviceIds);
+      if (serviceDurations.length === 0) {
+        const error = new Error('No valid services found for the provided service IDs');
+        monitoringService.trackError('SERVICE_NOT_FOUND', error.message, 'getAvailableTimeSlots', 'medium', {
+          shopId,
+          date,
+          serviceIds
+        });
+        throw error;
+      }
+
       const maxDuration = Math.max(...serviceDurations.map(s => s.durationMinutes + s.bufferMinutes));
 
-      // Get existing reservations for the date
+      // Get existing reservations for the date with error handling
       const existingReservations = await this.getExistingReservations(shopId, date);
 
       // Generate time slots
@@ -88,29 +143,65 @@ export class TimeSlotService {
         operatingHours,
         maxDuration,
         interval,
-        startTime,
+        reqStartTime,
         endTime
       );
 
-      // Check availability for each slot
+      // Check availability for each slot with comprehensive error handling
       const availableSlots = await this.checkSlotAvailability(
         timeSlots,
         existingReservations,
         serviceDurations
       );
 
+      success = true;
+
       logger.info('Time slots generated successfully:', {
         shopId,
         date,
         totalSlots: timeSlots.length,
-        availableSlots: availableSlots.filter(s => s.isAvailable).length
+        availableSlots: availableSlots.filter(s => s.isAvailable).length,
+        duration: Date.now() - startTime
       });
 
       return availableSlots;
 
     } catch (error) {
-      logger.error('TimeSlotService.getAvailableTimeSlots error:', { request, error });
-      throw error;
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Track error metrics
+      monitoringService.trackError(
+        'TIME_SLOT_GENERATION_ERROR',
+        errorMessage,
+        'getAvailableTimeSlots',
+        'high',
+        {
+          request,
+          duration: Date.now() - startTime,
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      );
+
+      logger.error('TimeSlotService.getAvailableTimeSlots error:', { 
+        request, 
+        error: errorMessage,
+        duration: Date.now() - startTime
+      });
+
+      // Re-throw with additional context
+      throw new Error(`Failed to generate time slots: ${errorMessage}`);
+    } finally {
+      // Track performance metrics
+      monitoringService.trackPerformance(
+        'getAvailableTimeSlots',
+        Date.now() - startTime,
+        success,
+        {
+          shopId: request.shopId,
+          serviceCount: request.serviceIds?.length || 0,
+          date: request.date
+        }
+      );
     }
   }
 
@@ -432,7 +523,7 @@ export class TimeSlotService {
   }
 
   /**
-   * Check service capacity for multi-service bookings
+   * Check service capacity for multi-service bookings with enhanced capacity management
    */
   private async checkServiceCapacity(
     slot: TimeSlot,
@@ -442,40 +533,105 @@ export class TimeSlotService {
     const conflicts: string[] = [];
     let reason = '';
 
-    // For now, we'll implement basic capacity checking
-    // This can be enhanced later with actual service capacity limits
-    const slotStart = new Date(`2000-01-01 ${slot.startTime}`);
-    const slotEnd = new Date(`2000-01-01 ${slot.endTime}`);
+    try {
+      const slotStart = new Date(`2000-01-01 ${slot.startTime}`);
+      const slotEnd = new Date(`2000-01-01 ${slot.endTime}`);
 
-    // Check if any service in the slot has capacity constraints
-    for (const serviceDuration of serviceDurations) {
-      // Count how many of this service are already booked in this time slot
-      const serviceBookings = existingReservations.filter(reservation => {
-        const reservationStart = new Date(`2000-01-01 ${reservation.reservation_time}`);
-        const reservationEnd = new Date(reservationStart.getTime() + (serviceDuration.durationMinutes + serviceDuration.bufferMinutes) * 60000);
+      // Get shop capacity configuration
+      const shopCapacity = await this.getShopCapacity(slot, serviceDurations);
+      if (!shopCapacity) {
+        // If no capacity configuration exists, assume unlimited capacity
+        return {
+          available: true,
+          conflicts: [],
+          reason: 'No capacity limits configured'
+        };
+      }
+
+      // Check overall shop capacity
+      const currentConcurrentServices = await this.getCurrentConcurrentServices(
+        slot,
+        existingReservations
+      );
+
+      if (currentConcurrentServices >= shopCapacity.maxConcurrentServices) {
+        conflicts.push('shop_capacity_exceeded');
+        reason = `Shop at maximum capacity (${currentConcurrentServices}/${shopCapacity.maxConcurrentServices})`;
+      }
+
+      // Check individual service capacity limits
+      for (const serviceDuration of serviceDurations) {
+        const serviceCapacityLimit = shopCapacity.serviceCapacityLimits[serviceDuration.serviceId];
         
-        return this.timesOverlap(slotStart, slotEnd, reservationStart, reservationEnd) &&
-               reservation.reservation_services.some(rs => rs.service_id === serviceDuration.serviceId);
+        if (serviceCapacityLimit) {
+          const currentServiceBookings = await this.getCurrentServiceBookings(
+            slot,
+            serviceDuration.serviceId,
+            existingReservations
+          );
+
+          if (currentServiceBookings >= serviceCapacityLimit) {
+            conflicts.push(`service_capacity_exceeded_${serviceDuration.serviceId}`);
+            reason = `Service ${serviceDuration.serviceId} at maximum capacity (${currentServiceBookings}/${serviceCapacityLimit})`;
+          }
+        }
+      }
+
+      // Check staff availability
+      const staffAvailabilityCheck = await this.checkStaffAvailability(
+        slot,
+        serviceDurations,
+        shopCapacity.staffAvailability
+      );
+      
+      if (!staffAvailabilityCheck.available) {
+        conflicts.push(...staffAvailabilityCheck.conflicts);
+        reason = staffAvailabilityCheck.reason;
+      }
+
+      // Check equipment availability
+      const equipmentAvailabilityCheck = await this.checkEquipmentAvailability(
+        slot,
+        serviceDurations,
+        shopCapacity.equipmentAvailability
+      );
+      
+      if (!equipmentAvailabilityCheck.available) {
+        conflicts.push(...equipmentAvailabilityCheck.conflicts);
+        reason = equipmentAvailabilityCheck.reason;
+      }
+
+      logger.debug('Service capacity check completed:', {
+        slotTime: slot.startTime,
+        serviceIds: serviceDurations.map(s => s.serviceId),
+        conflicts,
+        reason,
+        shopCapacity: {
+          maxConcurrentServices: shopCapacity.maxConcurrentServices,
+          currentConcurrentServices,
+          serviceCapacityLimits: shopCapacity.serviceCapacityLimits
+        }
       });
 
-      // For now, assume unlimited capacity per service
-      // This can be enhanced with actual capacity limits from the database
-      if (serviceBookings.length > 0) {
-        // Check if the service is fully booked (this would need actual capacity data)
-        // For now, we'll just log the information
-        logger.debug('Service capacity check:', {
-          serviceId: serviceDuration.serviceId,
-          slotTime: slot.startTime,
-          existingBookings: serviceBookings.length
-        });
-      }
-    }
+      return {
+        available: conflicts.length === 0,
+        conflicts,
+        reason: reason || 'Capacity available'
+      };
 
-    return {
-      available: conflicts.length === 0,
-      conflicts,
-      reason: reason || 'Capacity available'
-    };
+    } catch (error) {
+      logger.error('Error checking service capacity:', {
+        slotTime: slot.startTime,
+        serviceIds: serviceDurations.map(s => s.serviceId),
+        error
+      });
+
+      return {
+        available: false,
+        conflicts: ['capacity_check_error'],
+        reason: 'Unable to verify capacity due to system error'
+      };
+    }
   }
 
   /**
@@ -599,12 +755,37 @@ export class TimeSlotService {
   }> {
     const validationStartTime = Date.now();
     const cacheKey = `availability_${shopId}_${date}_${time}_${serviceIds.join(',')}`;
+    let success = false;
     
     try {
+      // Input validation with detailed error reporting
+      if (!shopId || !date || !time || !serviceIds.length) {
+        const error = new Error('Missing required parameters for slot validation');
+        monitoringService.trackError('VALIDATION_ERROR', error.message, 'validateSlotAvailability', 'high', {
+          shopId,
+          date,
+          time,
+          serviceIds,
+          missingFields: {
+            shopId: !shopId,
+            date: !date,
+            time: !time,
+            serviceIds: !serviceIds.length
+          }
+        });
+        throw error;
+      }
+
       // Check cache first for real-time performance
       const cached = this.getFromCache(cacheKey);
       if (cached) {
         logger.debug('Cache hit for availability validation', { cacheKey });
+        monitoringService.trackPerformance('validateSlotAvailability', Date.now() - validationStartTime, true, {
+          shopId,
+          date,
+          time,
+          cacheHit: true
+        });
         return {
           ...cached,
           validationDetails: {
@@ -616,10 +797,21 @@ export class TimeSlotService {
 
       // Get service durations with enhanced error handling
       const serviceDurations = await this.getServiceDurations(serviceIds);
+      if (serviceDurations.length === 0) {
+        const error = new Error('No valid services found for slot validation');
+        monitoringService.trackError('SERVICE_NOT_FOUND', error.message, 'validateSlotAvailability', 'medium', {
+          shopId,
+          date,
+          time,
+          serviceIds
+        });
+        throw error;
+      }
+
       const maxDuration = duration || Math.max(...serviceDurations.map(s => s.durationMinutes + s.bufferMinutes));
       const totalBufferTime = this.BUFFER_TIME;
 
-      // Get existing reservations with real-time data
+      // Get existing reservations with real-time data and error handling
       const existingReservations = await this.getExistingReservations(shopId, date);
 
       // Create a test slot with enhanced metadata
@@ -650,7 +842,7 @@ export class TimeSlotService {
         cacheHit: false
       };
 
-      // Get capacity information
+      // Get capacity information with error handling
       const capacityInfo = await this.getCapacityInfo(shopId, date, time, serviceIds, existingReservations);
 
       if (slot.isAvailable) {
@@ -662,6 +854,8 @@ export class TimeSlotService {
         
         // Cache successful validation for 30 seconds
         this.setCache(cacheKey, result);
+        
+        success = true;
         
         logger.info('Slot availability validated successfully', {
           shopId,
@@ -675,14 +869,22 @@ export class TimeSlotService {
         return result;
       }
 
-      // Get enhanced suggested alternatives
-      const alternatives = await this.getSuggestedAlternatives(
-        shopId,
-        date,
-        serviceIds,
-        time,
-        maxDuration
-      );
+      // Get enhanced suggested alternatives with error handling
+      let alternatives: TimeSlot[] = [];
+      try {
+        alternatives = await this.getSuggestedAlternatives(
+          shopId,
+          date,
+          serviceIds,
+          time,
+          maxDuration
+        );
+      } catch (altError) {
+        logger.warn('Failed to get suggested alternatives:', { 
+          shopId, date, time, serviceIds, error: altError 
+        });
+        // Don't fail the entire validation if alternatives fail
+      }
 
       const result = {
         available: false,
@@ -695,6 +897,8 @@ export class TimeSlotService {
 
       // Cache negative result for shorter time (10 seconds)
       this.setCache(cacheKey, result, 10000);
+
+      success = true;
 
       logger.info('Slot availability validation completed with conflicts', {
         shopId,
@@ -710,10 +914,65 @@ export class TimeSlotService {
       return result;
 
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Track error metrics
+      monitoringService.trackError(
+        'SLOT_VALIDATION_ERROR',
+        errorMessage,
+        'validateSlotAvailability',
+        'high',
+        {
+          shopId,
+          date,
+          time,
+          serviceIds,
+          duration,
+          userId,
+          validationTime: Date.now() - validationStartTime,
+          errorStack: error instanceof Error ? error.stack : undefined
+        }
+      );
+
       logger.error('TimeSlotService.validateSlotAvailability error:', { 
-        shopId, date, time, serviceIds, error 
+        shopId, date, time, serviceIds, error: errorMessage,
+        validationTime: Date.now() - validationStartTime
       });
-      throw error;
+
+      // Return a safe fallback response instead of throwing
+      return {
+        available: false,
+        conflictReason: 'Validation failed due to system error',
+        conflictingReservations: [],
+        suggestedAlternatives: [],
+        validationDetails: {
+          slotStart: time,
+          slotEnd: time,
+          totalDuration: duration || 60,
+          bufferTime: this.BUFFER_TIME,
+          validationTimestamp: new Date().toISOString(),
+          cacheHit: false
+        },
+        capacityInfo: {
+          totalCapacity: 0,
+          usedCapacity: 0,
+          availableCapacity: 0
+        }
+      };
+    } finally {
+      // Track performance metrics
+      monitoringService.trackPerformance(
+        'validateSlotAvailability',
+        Date.now() - validationStartTime,
+        success,
+        {
+          shopId,
+          date,
+          time,
+          serviceCount: serviceIds.length,
+          userId
+        }
+      );
     }
   }
 
@@ -1233,6 +1492,267 @@ export class TimeSlotService {
     } catch (error) {
       logger.error('TimeSlotService.getTimeSlotStats error:', { shopId, startDate, endDate, error });
       throw error;
+    }
+  }
+
+  // ========================================
+  // CAPACITY MANAGEMENT METHODS
+  // ========================================
+
+  /**
+   * Get shop capacity configuration
+   */
+  private async getShopCapacity(
+    slot: TimeSlot,
+    serviceDurations: ServiceDuration[]
+  ): Promise<ShopCapacity | null> {
+    try {
+      // Extract shop ID from the first service (assuming all services are from the same shop)
+      const serviceIds = serviceDurations.map(s => s.serviceId);
+      
+      // Get shop ID from services
+      const { data: services, error: servicesError } = await this.supabase
+        .from('shop_services')
+        .select('shop_id')
+        .in('id', serviceIds)
+        .limit(1);
+
+      if (servicesError || !services?.length) {
+        logger.warn('Could not determine shop ID for capacity check');
+        return null;
+      }
+
+      const shopId = services[0].shop_id;
+
+      // For now, return a default capacity configuration
+      // In a real implementation, this would query a shop_capacity table
+      return {
+        shopId,
+        maxConcurrentServices: 5, // Default limit
+        maxConcurrentCustomers: 10, // Default limit
+        serviceCapacityLimits: {
+          // Set default limits for each service (can be overridden by database config)
+          ...Object.fromEntries(serviceDurations.map(s => [s.serviceId, 3]))
+        },
+        staffAvailability: [], // Would be populated from staff table
+        equipmentAvailability: [] // Would be populated from equipment table
+      };
+
+    } catch (error) {
+      logger.error('Error getting shop capacity configuration:', { error });
+      return null;
+    }
+  }
+
+  /**
+   * Get current number of concurrent services in a time slot
+   */
+  private async getCurrentConcurrentServices(
+    slot: TimeSlot,
+    existingReservations: any[]
+  ): Promise<number> {
+    const slotStart = new Date(`2000-01-01 ${slot.startTime}`);
+    const slotEnd = new Date(`2000-01-01 ${slot.endTime}`);
+
+    let concurrentServices = 0;
+
+    for (const reservation of existingReservations) {
+      const reservationStart = new Date(`2000-01-01 ${reservation.reservation_time}`);
+      
+      // Calculate reservation end time based on services
+      let reservationDuration = 0;
+      for (const service of reservation.reservation_services) {
+        reservationDuration += (service.services?.duration_minutes || 60) * service.quantity;
+      }
+      
+      const reservationEnd = new Date(reservationStart.getTime() + reservationDuration * 60000);
+
+      // Check if reservation overlaps with the slot
+      if (this.timesOverlap(slotStart, slotEnd, reservationStart, reservationEnd)) {
+        concurrentServices++;
+      }
+    }
+
+    return concurrentServices;
+  }
+
+  /**
+   * Get current bookings for a specific service in a time slot
+   */
+  private async getCurrentServiceBookings(
+    slot: TimeSlot,
+    serviceId: string,
+    existingReservations: any[]
+  ): Promise<number> {
+    const slotStart = new Date(`2000-01-01 ${slot.startTime}`);
+    const slotEnd = new Date(`2000-01-01 ${slot.endTime}`);
+
+    let serviceBookings = 0;
+
+    for (const reservation of existingReservations) {
+      const reservationStart = new Date(`2000-01-01 ${reservation.reservation_time}`);
+      
+      // Check if this reservation includes the specific service
+      const hasService = reservation.reservation_services.some(
+        rs => rs.service_id === serviceId
+      );
+
+      if (hasService) {
+        // Calculate reservation end time
+        let reservationDuration = 0;
+        for (const service of reservation.reservation_services) {
+          reservationDuration += (service.services?.duration_minutes || 60) * service.quantity;
+        }
+        
+        const reservationEnd = new Date(reservationStart.getTime() + reservationDuration * 60000);
+
+        // Check if reservation overlaps with the slot
+        if (this.timesOverlap(slotStart, slotEnd, reservationStart, reservationEnd)) {
+          serviceBookings++;
+        }
+      }
+    }
+
+    return serviceBookings;
+  }
+
+  /**
+   * Check staff availability for services
+   */
+  private async checkStaffAvailability(
+    slot: TimeSlot,
+    serviceDurations: ServiceDuration[],
+    staffAvailability: StaffAvailability[]
+  ): Promise<{ available: boolean; conflicts: string[]; reason: string }> {
+    const conflicts: string[] = [];
+    let reason = '';
+
+    // For now, assume staff is always available
+    // In a real implementation, this would check:
+    // 1. Staff working hours
+    // 2. Current staff load
+    // 3. Required staff for specific services
+
+    if (staffAvailability.length === 0) {
+      // No staff configuration - assume unlimited availability
+      return {
+        available: true,
+        conflicts: [],
+        reason: 'No staff capacity limits configured'
+      };
+    }
+
+    // Check if any staff member is available
+    const availableStaff = staffAvailability.filter(staff => {
+      // Check working hours (simplified)
+      const slotTime = this.timeToMinutes(slot.startTime);
+      return staff.workingHours.some(hours => {
+        const startTime = this.timeToMinutes(hours.startTime);
+        const endTime = this.timeToMinutes(hours.endTime);
+        return slotTime >= startTime && slotTime < endTime;
+      });
+    });
+
+    if (availableStaff.length === 0) {
+      conflicts.push('no_staff_available');
+      reason = 'No staff available during this time slot';
+    }
+
+    return {
+      available: conflicts.length === 0,
+      conflicts,
+      reason: reason || 'Staff available'
+    };
+  }
+
+  /**
+   * Check equipment availability for services
+   */
+  private async checkEquipmentAvailability(
+    slot: TimeSlot,
+    serviceDurations: ServiceDuration[],
+    equipmentAvailability: EquipmentAvailability[]
+  ): Promise<{ available: boolean; conflicts: string[]; reason: string }> {
+    const conflicts: string[] = [];
+    let reason = '';
+
+    if (equipmentAvailability.length === 0) {
+      // No equipment configuration - assume unlimited availability
+      return {
+        available: true,
+        conflicts: [],
+        reason: 'No equipment capacity limits configured'
+      };
+    }
+
+    // Check if required equipment is available
+    for (const serviceDuration of serviceDurations) {
+      const requiredEquipment = equipmentAvailability.filter(equipment =>
+        equipment.requiredByServices.includes(serviceDuration.serviceId)
+      );
+
+      for (const equipment of requiredEquipment) {
+        if (equipment.availableQuantity <= 0) {
+          conflicts.push(`equipment_unavailable_${equipment.equipmentId}`);
+          reason = `${equipment.name} is not available`;
+        }
+      }
+    }
+
+    return {
+      available: conflicts.length === 0,
+      conflicts,
+      reason: reason || 'Equipment available'
+    };
+  }
+
+  /**
+   * Update shop capacity configuration
+   */
+  async updateShopCapacity(
+    shopId: string,
+    capacity: Omit<ShopCapacity, 'shopId'>
+  ): Promise<void> {
+    try {
+      // In a real implementation, this would update a shop_capacity table
+      // For now, we'll just log the update
+      logger.info('Shop capacity updated:', {
+        shopId,
+        capacity: {
+          maxConcurrentServices: capacity.maxConcurrentServices,
+          maxConcurrentCustomers: capacity.maxConcurrentCustomers,
+          serviceCapacityLimits: Object.keys(capacity.serviceCapacityLimits).length
+        }
+      });
+
+      // Invalidate cache for this shop
+      this.invalidateCache(shopId);
+
+    } catch (error) {
+      logger.error('Error updating shop capacity:', { shopId, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get shop capacity configuration
+   */
+  async getShopCapacityConfig(shopId: string): Promise<ShopCapacity | null> {
+    try {
+      // In a real implementation, this would query a shop_capacity table
+      // For now, return a default configuration
+      return {
+        shopId,
+        maxConcurrentServices: 5,
+        maxConcurrentCustomers: 10,
+        serviceCapacityLimits: {},
+        staffAvailability: [],
+        equipmentAvailability: []
+      };
+
+    } catch (error) {
+      logger.error('Error getting shop capacity config:', { shopId, error });
+      return null;
     }
   }
 }

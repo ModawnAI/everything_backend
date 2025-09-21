@@ -1,647 +1,560 @@
+/**
+ * Monitoring Service
+ * 
+ * Comprehensive monitoring and alerting for the time slot system,
+ * including performance metrics, error tracking, and conflict monitoring
+ */
+
+import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
-import { config } from '../config/environment';
-import os from 'os';
 
-// =============================================
-// MONITORING TYPES
-// =============================================
-
-export interface MetricValue {
-  value: number;
-  timestamp: number;
-  labels?: Record<string, string>;
+export interface PerformanceMetrics {
+  operation: string;
+  duration: number;
+  success: boolean;
+  timestamp: string;
+  metadata: Record<string, any>;
 }
 
-export interface Metric {
-  name: string;
-  type: 'counter' | 'gauge' | 'histogram' | 'summary';
-  description: string;
-  values: MetricValue[];
-  labels?: Record<string, string>;
-}
-
-export interface AlertRule {
-  id: string;
-  name: string;
-  description: string;
-  condition: string;
-  threshold: number;
+export interface ErrorMetrics {
+  errorType: string;
+  errorMessage: string;
+  operation: string;
+  frequency: number;
+  lastOccurred: string;
   severity: 'low' | 'medium' | 'high' | 'critical';
-  enabled: boolean;
-  cooldown: number; // seconds
-  lastTriggered?: number;
+  metadata: Record<string, any>;
+}
+
+export interface ConflictMetrics {
+  conflictType: string;
+  count: number;
+  resolutionRate: number;
+  averageResolutionTime: number;
+  shopId?: string;
+  timeRange: {
+    start: string;
+    end: string;
+  };
+}
+
+export interface SystemHealthMetrics {
+  totalRequests: number;
+  successRate: number;
+  averageResponseTime: number;
+  errorRate: number;
+  conflictRate: number;
+  timeSlot: {
+    total: number;
+    available: number;
+    utilizationRate: number;
+  };
+  capacity: {
+    totalCapacity: number;
+    usedCapacity: number;
+    utilizationRate: number;
+  };
 }
 
 export interface Alert {
   id: string;
-  ruleId: string;
+  type: 'performance' | 'error' | 'conflict' | 'capacity' | 'system';
   severity: 'low' | 'medium' | 'high' | 'critical';
-  message: string;
-  timestamp: number;
-  resolved: boolean;
-  resolvedAt?: number;
-  metadata?: Record<string, any>;
+  title: string;
+  description: string;
+  shopId?: string;
+  triggeredAt: string;
+  resolvedAt?: string;
+  metadata: Record<string, any>;
 }
 
-export interface SystemMetrics {
-  cpu: {
-    usage: number;
-    loadAverage: number[];
-    cores: number;
+export interface MonitoringConfig {
+  performanceThresholds: {
+    maxResponseTime: number; // milliseconds
+    minSuccessRate: number; // percentage
+    maxErrorRate: number; // percentage
   };
-  memory: {
-    total: number;
-    used: number;
-    free: number;
-    usagePercent: number;
+  conflictThresholds: {
+    maxConflictRate: number; // percentage
+    maxUnresolvedConflicts: number;
   };
-  disk: {
-    total: number;
-    used: number;
-    free: number;
-    usagePercent: number;
+  capacityThresholds: {
+    maxUtilizationRate: number; // percentage
+    minAvailableSlots: number;
   };
-  network: {
-    bytesIn: number;
-    bytesOut: number;
-    connections: number;
+  alerting: {
+    enabled: boolean;
+    emailRecipients: string[];
+    webhookUrls: string[];
   };
 }
-
-export interface ApplicationMetrics {
-  requests: {
-    total: number;
-    success: number;
-    error: number;
-    rate: number; // requests per second
-  };
-  responseTime: {
-    average: number;
-    p95: number;
-    p99: number;
-    max: number;
-  };
-  errors: {
-    total: number;
-    byType: Record<string, number>;
-    rate: number; // errors per second
-  };
-  business: {
-    reservations: {
-      total: number;
-      pending: number;
-      completed: number;
-      cancelled: number;
-    };
-    payments: {
-      total: number;
-      success: number;
-      failed: number;
-      successRate: number;
-    };
-    users: {
-      total: number;
-      active: number;
-      new: number;
-    };
-  };
-}
-
-// =============================================
-// MONITORING SERVICE
-// =============================================
 
 export class MonitoringService {
-  private metrics: Map<string, Metric> = new Map();
-  private alertRules: Map<string, AlertRule> = new Map();
-  private alerts: Alert[] = [];
-  private startTime: number = Date.now();
+  private supabase = getSupabaseClient();
+  private metrics: Map<string, PerformanceMetrics[]> = new Map();
+  private errors: Map<string, ErrorMetrics> = new Map();
+  private alerts: Map<string, Alert> = new Map();
+  private config: MonitoringConfig;
 
   constructor() {
-    this.initializeDefaultMetrics();
-    this.initializeDefaultAlertRules();
-    this.startMetricsCollection();
+    this.config = this.getDefaultConfig();
   }
 
   /**
-   * Initialize default application metrics
+   * Track performance metrics for operations
    */
-  private initializeDefaultMetrics(): void {
-    // System metrics
-    this.createMetric('system_cpu_usage', 'gauge', 'CPU usage percentage');
-    this.createMetric('system_memory_usage', 'gauge', 'Memory usage percentage');
-    this.createMetric('system_disk_usage', 'gauge', 'Disk usage percentage');
-    this.createMetric('system_load_average', 'gauge', 'System load average');
+  trackPerformance(
+    operation: string,
+    duration: number,
+    success: boolean,
+    metadata: Record<string, any> = {}
+  ): void {
+    try {
+      const metric: PerformanceMetrics = {
+        operation,
+        duration,
+        success,
+        timestamp: new Date().toISOString(),
+        metadata
+      };
 
-    // Application metrics
-    this.createMetric('app_requests_total', 'counter', 'Total number of requests');
-    this.createMetric('app_requests_success', 'counter', 'Total number of successful requests');
-    this.createMetric('app_requests_error', 'counter', 'Total number of error requests');
-    this.createMetric('app_response_time', 'histogram', 'Response time in milliseconds');
-    this.createMetric('app_errors_total', 'counter', 'Total number of errors');
-    this.createMetric('app_errors_by_type', 'counter', 'Errors by type');
+      // Store in memory
+      if (!this.metrics.has(operation)) {
+        this.metrics.set(operation, []);
+      }
+      this.metrics.get(operation)!.push(metric);
 
-    // Business metrics
-    this.createMetric('business_reservations_total', 'counter', 'Total number of reservations');
-    this.createMetric('business_payments_total', 'counter', 'Total number of payments');
-    this.createMetric('business_payments_success', 'counter', 'Total number of successful payments');
-    this.createMetric('business_users_total', 'counter', 'Total number of users');
-    this.createMetric('business_users_active', 'counter', 'Number of active users');
+      // Keep only last 1000 metrics per operation
+      const operationMetrics = this.metrics.get(operation)!;
+      if (operationMetrics.length > 1000) {
+        operationMetrics.splice(0, operationMetrics.length - 1000);
+      }
+
+      // Check performance thresholds
+      this.checkPerformanceThresholds(operation, metric);
+
+      logger.debug('Performance metric tracked:', metric);
+
+    } catch (error) {
+      logger.error('Error tracking performance metric:', { operation, duration, success, error });
+    }
   }
 
   /**
-   * Initialize default alert rules
+   * Track error metrics
    */
-  private initializeDefaultAlertRules(): void {
-    this.addAlertRule({
-      id: 'high_cpu_usage',
-      name: 'High CPU Usage',
-      description: 'CPU usage is above 80%',
-      condition: 'system_cpu_usage > 80',
-      threshold: 80,
-      severity: 'high',
-      enabled: true,
-      cooldown: 300, // 5 minutes
-    });
+  trackError(
+    errorType: string,
+    errorMessage: string,
+    operation: string,
+    severity: 'low' | 'medium' | 'high' | 'critical' = 'medium',
+    metadata: Record<string, any> = {}
+  ): void {
+    try {
+      const errorKey = `${errorType}_${operation}`;
+      const existingError = this.errors.get(errorKey);
 
-    this.addAlertRule({
-      id: 'high_memory_usage',
-      name: 'High Memory Usage',
-      description: 'Memory usage is above 99%',
-      condition: 'system_memory_usage > 99',
-      threshold: 99,
-      severity: 'high',
-      enabled: false, // Disabled for development due to system-wide memory usage
-      cooldown: 300,
-    });
+      const errorMetric: ErrorMetrics = {
+        errorType,
+        errorMessage,
+        operation,
+        frequency: existingError ? existingError.frequency + 1 : 1,
+        lastOccurred: new Date().toISOString(),
+        severity,
+        metadata
+      };
 
-    this.addAlertRule({
-      id: 'high_error_rate',
-      name: 'High Error Rate',
-      description: 'Error rate is above 5%',
-      condition: 'app_errors_total / app_requests_total > 0.05',
-      threshold: 0.05,
-      severity: 'critical',
-      enabled: true,
-      cooldown: 60,
-    });
+      this.errors.set(errorKey, errorMetric);
 
-    this.addAlertRule({
-      id: 'slow_response_time',
-      name: 'Slow Response Time',
-      description: 'Average response time is above 2 seconds',
-      condition: 'app_response_time_average > 2000',
-      threshold: 2000,
-      severity: 'medium',
-      enabled: true,
-      cooldown: 120,
-    });
+      // Create alert for high severity errors
+      if (severity === 'high' || severity === 'critical') {
+        this.createAlert({
+          type: 'error',
+          severity,
+          title: `${errorType} Error in ${operation}`,
+          description: errorMessage,
+          metadata: { ...metadata, frequency: errorMetric.frequency }
+        });
+      }
 
-    this.addAlertRule({
-      id: 'low_payment_success_rate',
-      name: 'Low Payment Success Rate',
-      description: 'Payment success rate is below 90%',
-      condition: 'business_payments_success / business_payments_total < 0.9',
-      threshold: 0.9,
-      severity: 'critical',
-      enabled: true,
-      cooldown: 300,
-    });
+      logger.error('Error metric tracked:', errorMetric);
+
+    } catch (error) {
+      logger.error('Error tracking error metric:', { errorType, errorMessage, operation, error });
+    }
   }
 
   /**
-   * Start metrics collection
+   * Track conflict metrics
    */
-  private startMetricsCollection(): void {
-    // Collect system metrics every 60 seconds
-    setInterval(() => {
-      this.collectSystemMetrics();
-    }, 60000);
+  async trackConflict(
+    conflictType: string,
+    shopId: string,
+    resolved: boolean,
+    resolutionTime?: number,
+    metadata: Record<string, any> = {}
+  ): Promise<void> {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      
+      // Store conflict metrics in database
+      const { error } = await this.supabase
+        .from('conflict_metrics')
+        .insert({
+          conflict_type: conflictType,
+          shop_id: shopId,
+          resolved,
+          resolution_time: resolutionTime,
+          metadata,
+          created_at: new Date().toISOString()
+        });
 
-    // Collect application metrics every 30 seconds
-    setInterval(() => {
-      this.collectApplicationMetrics();
-    }, 30000);
-
-    // Check alert rules every 60 seconds
-    setInterval(() => {
-      this.checkAlertRules();
-    }, 60000);
-
-    logger.info('Monitoring service started');
-  }
-
-  /**
-   * Create a new metric
-   */
-  createMetric(name: string, type: Metric['type'], description: string): void {
-    this.metrics.set(name, {
-      name,
-      type,
-      description,
-      values: [],
-      labels: {},
-    });
-  }
-
-  /**
-   * Record a metric value
-   */
-  recordMetric(name: string, value: number, labels?: Record<string, string>): void {
-    const metric = this.metrics.get(name);
-    if (!metric) {
-      logger.warn(`Metric ${name} not found`);
+      if (error) {
+        logger.error('Error storing conflict metrics:', error);
       return;
     }
 
-    const metricValue: MetricValue = {
-      value,
-      timestamp: Date.now(),
-      labels,
-    };
+      // Check conflict thresholds
+      await this.checkConflictThresholds(shopId, conflictType);
 
-    metric.values.push(metricValue);
+      logger.debug('Conflict metric tracked:', {
+        conflictType,
+        shopId,
+        resolved,
+        resolutionTime
+      });
 
-    // Keep only last 1000 values to prevent memory issues
-    if (metric.values.length > 1000) {
-      metric.values = metric.values.slice(-1000);
+    } catch (error) {
+      logger.error('Error tracking conflict metric:', { conflictType, shopId, resolved, error });
     }
-
-    logger.debug('Metric recorded', { name, value, labels });
   }
 
   /**
-   * Get metric values
+   * Get system health metrics
    */
-  getMetric(name: string, duration?: number): MetricValue[] {
-    const metric = this.metrics.get(name);
-    if (!metric) return [];
+  async getSystemHealthMetrics(
+    shopId?: string,
+    timeRange?: { start: string; end: string }
+  ): Promise<SystemHealthMetrics> {
+    try {
+      const endTime = timeRange?.end || new Date().toISOString();
+      const startTime = timeRange?.start || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    let values = metric.values;
+      // Calculate performance metrics
+      const performanceMetrics = this.calculatePerformanceMetrics(startTime, endTime);
+      
+      // Get time slot metrics
+      const timeSlotMetrics = await this.getTimeSlotMetrics(shopId, startTime, endTime);
+      
+      // Get capacity metrics
+      const capacityMetrics = await this.getCapacityMetrics(shopId, startTime, endTime);
+      
+      // Get conflict metrics
+      const conflictMetrics = await this.getConflictMetrics(shopId, startTime, endTime);
 
-    if (duration) {
-      const cutoff = Date.now() - duration;
-      values = values.filter(v => v.timestamp >= cutoff);
+      const healthMetrics: SystemHealthMetrics = {
+        totalRequests: performanceMetrics.totalRequests,
+        successRate: performanceMetrics.successRate,
+        averageResponseTime: performanceMetrics.averageResponseTime,
+        errorRate: performanceMetrics.errorRate,
+        conflictRate: conflictMetrics.conflictRate,
+        timeSlot: timeSlotMetrics,
+        capacity: capacityMetrics
+      };
+
+      return healthMetrics;
+
+    } catch (error) {
+      logger.error('Error getting system health metrics:', { shopId, timeRange, error });
+      throw error;
     }
-
-    return values;
   }
 
   /**
-   * Get current metric value
+   * Create an alert
    */
-  getCurrentMetric(name: string): number | null {
-    const values = this.getMetric(name);
-    return values.length > 0 ? values[values.length - 1].value : null;
-  }
+  createAlert(alertData: Omit<Alert, 'id' | 'triggeredAt'>): void {
+    try {
+      const alert: Alert = {
+        id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+        triggeredAt: new Date().toISOString(),
+        ...alertData
+      };
 
-  /**
-   * Add alert rule
-   */
-  addAlertRule(rule: AlertRule): void {
-    this.alertRules.set(rule.id, rule);
-    logger.info('Alert rule added', { ruleId: rule.id, name: rule.name });
-  }
+      this.alerts.set(alert.id, alert);
 
-  /**
-   * Update alert rule
-   */
-  updateAlertRule(ruleId: string, updates: Partial<AlertRule>): boolean {
-    const rule = this.alertRules.get(ruleId);
-    if (!rule) return false;
+      // Log alert
+      logger.warn('Alert created:', alert);
 
-    Object.assign(rule, updates);
-    this.alertRules.set(ruleId, rule);
-    logger.info('Alert rule updated', { ruleId, updates });
-    return true;
-  }
+      // Send notifications if configured
+      if (this.config.alerting.enabled) {
+        this.sendAlertNotification(alert);
+      }
 
-  /**
-   * Delete alert rule
-   */
-  deleteAlertRule(ruleId: string): boolean {
-    const deleted = this.alertRules.delete(ruleId);
-    if (deleted) {
-      logger.info('Alert rule deleted', { ruleId });
+    } catch (error) {
+      logger.error('Error creating alert:', { alertData, error });
     }
-    return deleted;
-  }
-
-  /**
-   * Get all alert rules
-   */
-  getAlertRules(): AlertRule[] {
-    return Array.from(this.alertRules.values());
   }
 
   /**
    * Get active alerts
    */
-  getActiveAlerts(): Alert[] {
-    return this.alerts.filter(alert => !alert.resolved);
+  getActiveAlerts(shopId?: string): Alert[] {
+    const activeAlerts = Array.from(this.alerts.values())
+      .filter(alert => !alert.resolvedAt)
+      .filter(alert => !shopId || alert.shopId === shopId)
+      .sort((a, b) => new Date(b.triggeredAt).getTime() - new Date(a.triggeredAt).getTime());
+
+    return activeAlerts;
   }
 
   /**
-   * Resolve alert
+   * Resolve an alert
    */
-  resolveAlert(alertId: string): boolean {
-    const alert = this.alerts.find(a => a.id === alertId);
-    if (!alert) return false;
-
-    alert.resolved = true;
-    alert.resolvedAt = Date.now();
-    logger.info('Alert resolved', { alertId });
-    return true;
-  }
-
-  /**
-   * Collect system metrics
-   */
-  private collectSystemMetrics(): void {
+  resolveAlert(alertId: string, resolvedBy: string): void {
     try {
-      // CPU metrics
-      const cpus = os.cpus();
-      const loadAverage = os.loadavg();
-      const cpuUsage = this.calculateCPUUsage();
-
-      this.recordMetric('system_cpu_usage', cpuUsage);
-      this.recordMetric('system_load_average', loadAverage[0] || 0);
-
-      // Memory metrics
-      const totalMem = os.totalmem();
-      const freeMem = os.freemem();
-      const usedMem = totalMem - freeMem;
-      const memoryUsagePercent = (usedMem / totalMem) * 100;
-
-      this.recordMetric('system_memory_usage', memoryUsagePercent);
-
-      // Simplified disk metrics (in production, use a library like 'diskusage')
-      this.recordMetric('system_disk_usage', 45.2); // Mock value
-
-      logger.debug('System metrics collected');
+      const alert = this.alerts.get(alertId);
+      if (alert) {
+        alert.resolvedAt = new Date().toISOString();
+        this.alerts.set(alertId, alert);
+        
+        logger.info('Alert resolved:', { alertId, resolvedBy });
+      }
     } catch (error) {
-      logger.error('Failed to collect system metrics', { error: (error as Error).message });
+      logger.error('Error resolving alert:', { alertId, resolvedBy, error });
     }
   }
 
   /**
-   * Collect application metrics
+   * Update monitoring configuration
    */
-  private collectApplicationMetrics(): void {
-    try {
-      // Mock application metrics (in production, these would be real)
-      const requestsTotal = this.getCurrentMetric('app_requests_total') || 0;
-      const requestsSuccess = this.getCurrentMetric('app_requests_success') || 0;
-      const requestsError = this.getCurrentMetric('app_requests_error') || 0;
-
-      // Calculate rates
-      const now = Date.now();
-      const uptime = (now - this.startTime) / 1000;
-      const requestRate = uptime > 0 ? requestsTotal / uptime : 0;
-      const errorRate = uptime > 0 ? requestsError / uptime : 0;
-
-      this.recordMetric('app_requests_total', requestsTotal + Math.floor(Math.random() * 10));
-      this.recordMetric('app_requests_success', requestsSuccess + Math.floor(Math.random() * 8));
-      this.recordMetric('app_requests_error', requestsError + Math.floor(Math.random() * 2));
-
-      // Mock response time
-      const responseTime = 150 + Math.random() * 200;
-      this.recordMetric('app_response_time', responseTime);
-
-      logger.debug('Application metrics collected');
-    } catch (error) {
-      logger.error('Failed to collect application metrics', { error: (error as Error).message });
-    }
+  updateConfig(newConfig: Partial<MonitoringConfig>): void {
+    this.config = { ...this.config, ...newConfig };
+    logger.info('Monitoring configuration updated:', newConfig);
   }
 
   /**
-   * Check alert rules
+   * Get monitoring configuration
    */
-  private checkAlertRules(): void {
-    for (const rule of this.alertRules.values()) {
-      if (!rule.enabled) continue;
-
-      // Check cooldown
-      if (rule.lastTriggered && Date.now() - rule.lastTriggered < rule.cooldown * 1000) {
-        continue;
-      }
-
-      const triggered = this.evaluateAlertCondition(rule);
-      if (triggered) {
-        this.triggerAlert(rule);
-        rule.lastTriggered = Date.now();
-      }
-    }
+  getConfig(): MonitoringConfig {
+    return { ...this.config };
   }
 
-  /**
-   * Evaluate alert condition
-   */
-  private evaluateAlertCondition(rule: AlertRule): boolean {
-    try {
-      const condition = rule.condition;
-      
-      // Simple condition evaluation (in production, use a proper expression parser)
-      if (condition.includes('system_cpu_usage')) {
-        const cpuUsage = this.getCurrentMetric('system_cpu_usage') || 0;
-        return cpuUsage > rule.threshold;
-      }
-      
-      if (condition.includes('system_memory_usage')) {
-        const memoryUsage = this.getCurrentMetric('system_memory_usage') || 0;
-        return memoryUsage > rule.threshold;
-      }
-      
-      if (condition.includes('app_response_time')) {
-        const responseTime = this.getCurrentMetric('app_response_time') || 0;
-        return responseTime > rule.threshold;
-      }
+  // Private helper methods
 
-      // Mock conditions for demonstration
-      if (condition.includes('high_error_rate')) {
-        return Math.random() > 0.8; // 20% chance of triggering
-      }
-
-      return false;
-    } catch (error) {
-      logger.error('Failed to evaluate alert condition', { ruleId: rule.id, error: (error as Error).message });
-      return false;
-    }
-  }
-
-  /**
-   * Trigger alert
-   */
-  private triggerAlert(rule: AlertRule): void {
-    const alert: Alert = {
-      id: `alert_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-      ruleId: rule.id,
-      severity: rule.severity,
-      message: rule.description,
-      timestamp: Date.now(),
-      resolved: false,
-      metadata: {
-        condition: rule.condition,
-        threshold: rule.threshold,
+  private getDefaultConfig(): MonitoringConfig {
+    return {
+      performanceThresholds: {
+        maxResponseTime: 5000, // 5 seconds
+        minSuccessRate: 95, // 95%
+        maxErrorRate: 5 // 5%
       },
+      conflictThresholds: {
+        maxConflictRate: 10, // 10%
+        maxUnresolvedConflicts: 5
+      },
+      capacityThresholds: {
+        maxUtilizationRate: 90, // 90%
+        minAvailableSlots: 3
+      },
+      alerting: {
+        enabled: true,
+        emailRecipients: [],
+        webhookUrls: []
+      }
     };
-
-    this.alerts.push(alert);
-
-    // Keep only last 1000 alerts
-    if (this.alerts.length > 1000) {
-      this.alerts = this.alerts.slice(-1000);
-    }
-
-    logger.warn('Alert triggered', { alertId: alert.id, ruleId: rule.id, severity: rule.severity });
-
-    // Send notification (in production, integrate with notification service)
-    this.sendAlertNotification(alert);
   }
 
-  /**
-   * Send alert notification
-   */
+  private checkPerformanceThresholds(operation: string, metric: PerformanceMetrics): void {
+    const { maxResponseTime, minSuccessRate } = this.config.performanceThresholds;
+
+    // Check response time threshold
+    if (metric.duration > maxResponseTime) {
+      this.createAlert({
+        type: 'performance',
+        severity: metric.duration > maxResponseTime * 2 ? 'high' : 'medium',
+        title: `Slow Response Time: ${operation}`,
+        description: `Operation ${operation} took ${metric.duration}ms (threshold: ${maxResponseTime}ms)`,
+        metadata: { operation, duration: metric.duration, threshold: maxResponseTime }
+      });
+    }
+
+    // Check success rate threshold
+    const operationMetrics = this.metrics.get(operation) || [];
+    const recentMetrics = operationMetrics.slice(-100); // Last 100 requests
+    if (recentMetrics.length >= 10) {
+      const successRate = (recentMetrics.filter(m => m.success).length / recentMetrics.length) * 100;
+      
+      if (successRate < minSuccessRate) {
+        this.createAlert({
+          type: 'performance',
+          severity: successRate < minSuccessRate / 2 ? 'critical' : 'high',
+          title: `Low Success Rate: ${operation}`,
+          description: `Operation ${operation} success rate is ${successRate.toFixed(1)}% (threshold: ${minSuccessRate}%)`,
+          metadata: { operation, successRate, threshold: minSuccessRate }
+        });
+      }
+    }
+  }
+
+  private async checkConflictThresholds(shopId: string, conflictType: string): Promise<void> {
+    try {
+      const { maxConflictRate, maxUnresolvedConflicts } = this.config.conflictThresholds;
+      
+      // Get recent conflicts
+      const { data: recentConflicts, error } = await this.supabase
+        .from('conflicts')
+        .select('*')
+        .eq('shop_id', shopId)
+        .gte('detected_at', new Date(Date.now() - 60 * 60 * 1000).toISOString()) // Last hour
+        .order('detected_at', { ascending: false });
+
+      if (error) {
+        logger.error('Error checking conflict thresholds:', error);
+        return;
+      }
+
+      const conflicts = recentConflicts || [];
+      const unresolvedConflicts = conflicts.filter(c => !c.resolved_at);
+      const conflictRate = conflicts.length > 0 ? (unresolvedConflicts.length / conflicts.length) * 100 : 0;
+
+      // Check unresolved conflicts threshold
+      if (unresolvedConflicts.length > maxUnresolvedConflicts) {
+        this.createAlert({
+          type: 'conflict',
+          severity: 'high',
+          title: `High Unresolved Conflicts: ${shopId}`,
+          description: `Shop has ${unresolvedConflicts.length} unresolved conflicts (threshold: ${maxUnresolvedConflicts})`,
+          shopId,
+          metadata: { 
+            unresolvedCount: unresolvedConflicts.length, 
+            threshold: maxUnresolvedConflicts,
+            conflictType 
+          }
+        });
+      }
+
+      // Check conflict rate threshold
+      if (conflictRate > maxConflictRate) {
+        this.createAlert({
+          type: 'conflict',
+          severity: conflictRate > maxConflictRate * 2 ? 'critical' : 'high',
+          title: `High Conflict Rate: ${shopId}`,
+          description: `Shop has ${conflictRate.toFixed(1)}% conflict rate (threshold: ${maxConflictRate}%)`,
+          shopId,
+          metadata: { 
+            conflictRate, 
+            threshold: maxConflictRate,
+            totalConflicts: conflicts.length,
+            conflictType 
+          }
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error checking conflict thresholds:', { shopId, conflictType, error });
+    }
+  }
+
+  private calculatePerformanceMetrics(startTime: string, endTime: string) {
+    let totalRequests = 0;
+    let successfulRequests = 0;
+    let totalResponseTime = 0;
+
+    for (const [operation, metrics] of this.metrics.entries()) {
+      const recentMetrics = metrics.filter(m => 
+        m.timestamp >= startTime && m.timestamp <= endTime
+      );
+
+      totalRequests += recentMetrics.length;
+      successfulRequests += recentMetrics.filter(m => m.success).length;
+      totalResponseTime += recentMetrics.reduce((sum, m) => sum + m.duration, 0);
+    }
+
+    const successRate = totalRequests > 0 ? (successfulRequests / totalRequests) * 100 : 100;
+    const averageResponseTime = totalRequests > 0 ? totalResponseTime / totalRequests : 0;
+    const errorRate = 100 - successRate;
+
+    return {
+      totalRequests,
+      successRate,
+      averageResponseTime,
+      errorRate
+    };
+  }
+
+  private async getTimeSlotMetrics(
+    shopId?: string,
+    startTime?: string,
+    endTime?: string
+  ): Promise<{ total: number; available: number; utilizationRate: number }> {
+    // This would query the time slot data from the database
+    // For now, return mock data
+    return {
+      total: 100,
+      available: 75,
+      utilizationRate: 25
+    };
+  }
+
+  private async getCapacityMetrics(
+    shopId?: string,
+    startTime?: string,
+    endTime?: string
+  ): Promise<{ totalCapacity: number; usedCapacity: number; utilizationRate: number }> {
+    // This would query the capacity data from the database
+    // For now, return mock data
+    return {
+      totalCapacity: 10,
+      usedCapacity: 6,
+      utilizationRate: 60
+    };
+  }
+
+  private async getConflictMetrics(
+    shopId?: string,
+    startTime?: string,
+    endTime?: string
+  ): Promise<{ conflictRate: number }> {
+    try {
+      let query = this.supabase
+        .from('conflicts')
+        .select('*')
+        .gte('detected_at', startTime || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+        .lte('detected_at', endTime || new Date().toISOString());
+
+      if (shopId) {
+        query = query.eq('shop_id', shopId);
+      }
+
+      const { data: conflicts, error } = await query;
+
+      if (error) {
+        logger.error('Error getting conflict metrics:', error);
+        return { conflictRate: 0 };
+      }
+
+      const totalConflicts = conflicts?.length || 0;
+      const resolvedConflicts = conflicts?.filter(c => c.resolved_at).length || 0;
+      const conflictRate = totalConflicts > 0 ? ((totalConflicts - resolvedConflicts) / totalConflicts) * 100 : 0;
+
+      return { conflictRate };
+
+    } catch (error) {
+      logger.error('Error calculating conflict metrics:', { shopId, startTime, endTime, error });
+      return { conflictRate: 0 };
+    }
+  }
+
   private sendAlertNotification(alert: Alert): void {
-    // In production, integrate with notification service
-    logger.info('Alert notification sent', {
+    // This would integrate with notification services (email, Slack, etc.)
+    logger.warn('Alert notification sent:', {
       alertId: alert.id,
+      type: alert.type,
       severity: alert.severity,
-      message: alert.message,
+      title: alert.title
     });
-  }
-
-  /**
-   * Calculate CPU usage
-   */
-  private calculateCPUUsage(): number {
-    // Simplified CPU calculation (in production, use proper CPU monitoring)
-    return 25 + Math.random() * 30; // Mock value between 25-55%
-  }
-
-  /**
-   * Get system metrics
-   */
-  getSystemMetrics(): SystemMetrics {
-    const cpuUsage = this.getCurrentMetric('system_cpu_usage') || 0;
-    const memoryUsage = this.getCurrentMetric('system_memory_usage') || 0;
-    const loadAverage = os.loadavg();
-
-    return {
-      cpu: {
-        usage: cpuUsage,
-        loadAverage,
-        cores: os.cpus().length,
-      },
-      memory: {
-        total: os.totalmem(),
-        used: os.totalmem() - os.freemem(),
-        free: os.freemem(),
-        usagePercent: memoryUsage,
-      },
-      disk: {
-        total: 1000000000000, // Mock values
-        used: 450000000000,
-        free: 550000000000,
-        usagePercent: 45,
-      },
-      network: {
-        bytesIn: 1000000,
-        bytesOut: 500000,
-        connections: 150,
-      },
-    };
-  }
-
-  /**
-   * Get application metrics
-   */
-  getApplicationMetrics(): ApplicationMetrics {
-    const requestsTotal = this.getCurrentMetric('app_requests_total') || 0;
-    const requestsSuccess = this.getCurrentMetric('app_requests_success') || 0;
-    const requestsError = this.getCurrentMetric('app_requests_error') || 0;
-    const responseTime = this.getCurrentMetric('app_response_time') || 0;
-
-    return {
-      requests: {
-        total: requestsTotal,
-        success: requestsSuccess,
-        error: requestsError,
-        rate: 15.5, // Mock rate
-      },
-      responseTime: {
-        average: responseTime,
-        p95: responseTime * 1.5,
-        p99: responseTime * 2,
-        max: responseTime * 3,
-      },
-      errors: {
-        total: requestsError,
-        byType: {
-          'validation_error': 5,
-          'database_error': 2,
-          'external_api_error': 3,
-        },
-        rate: 0.5, // Mock rate
-      },
-      business: {
-        reservations: {
-          total: 1250,
-          pending: 45,
-          completed: 1150,
-          cancelled: 55,
-        },
-        payments: {
-          total: 1200,
-          success: 1140,
-          failed: 60,
-          successRate: 95,
-        },
-        users: {
-          total: 5000,
-          active: 3200,
-          new: 150,
-        },
-      },
-    };
-  }
-
-  /**
-   * Get all metrics
-   */
-  getAllMetrics(): Metric[] {
-    return Array.from(this.metrics.values());
-  }
-
-  /**
-   * Get metrics summary
-   */
-  getMetricsSummary(): {
-    system: SystemMetrics;
-    application: ApplicationMetrics;
-    alerts: {
-      total: number;
-      active: number;
-      bySeverity: Record<string, number>;
-    };
-  } {
-    const activeAlerts = this.getActiveAlerts();
-    const alertsBySeverity = activeAlerts.reduce((acc, alert) => {
-      acc[alert.severity] = (acc[alert.severity] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    return {
-      system: this.getSystemMetrics(),
-      application: this.getApplicationMetrics(),
-      alerts: {
-        total: this.alerts.length,
-        active: activeAlerts.length,
-        bySeverity: alertsBySeverity,
-      },
-    };
   }
 }
 
-// Global monitoring service instance
 export const monitoringService = new MonitoringService(); 
