@@ -401,3 +401,4 @@ export class ReferralEarningsController {
 }
 
 export const referralEarningsController = new ReferralEarningsController();
+

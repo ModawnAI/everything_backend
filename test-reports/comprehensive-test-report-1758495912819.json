@@ -1,0 +1,66 @@
+{
+  "timestamp": "2025-09-21T23:05:12.819Z",
+  "duration": 3,
+  "summary": {
+    "totalTests": 0,
+    "totalPassed": 0,
+    "totalFailed": 0,
+    "totalSkipped": 0
+  },
+  "details": {
+    "unit": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0
+    },
+    "integration": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0
+    },
+    "performance": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0
+    },
+    "e2e": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0
+    },
+    "security": {
+      "passed": 0,
+      "failed": 0,
+      "skipped": 0,
+      "duration": 0
+    },
+    "coverage": {
+      "percentage": 0,
+      "threshold": 0
+    },
+    "totalDuration": 3
+  },
+  "coverage": {
+    "percentage": 0,
+    "threshold": 0
+  },
+  "performance": {
+    "thresholds": {
+      "maxExecutionTime": 300000,
+      "maxMemoryUsage": 524288000,
+      "minSuccessRate": 0.8
+    },
+    "results": {
+      "unit": 0,
+      "integration": 0,
+      "performance": 0,
+      "e2e": 0,
+      "security": 0
+    }
+  },
+  "recommendations": []
+}

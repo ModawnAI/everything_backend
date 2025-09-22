@@ -318,3 +318,4 @@ module.exports = {
   testAddressValidation,
   runTests
 };
+

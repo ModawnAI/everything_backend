@@ -13,10 +13,37 @@ import { TossPaymentsService, PaymentInitiationRequest, PaymentConfirmationReque
 import { getSupabaseClient } from '../../src/config/database';
 import { config } from '../../src/config/environment';
 
+// Mock config first, before any imports
+jest.mock('../../src/config/environment', () => ({
+  config: {
+    payments: {
+      tossPayments: {
+        secretKey: 'test-secret-key',
+        clientKey: 'test-client-key',
+        baseUrl: 'https://api.tosspayments.com'
+      }
+    },
+    server: {
+      port: 3000
+    },
+    logging: {
+      level: 'info'
+    }
+  }
+}));
+
+// Mock logger before any imports
+jest.mock('../../src/utils/logger', () => ({
+  logger: {
+    info: jest.fn(),
+    error: jest.fn(),
+    warn: jest.fn(),
+    debug: jest.fn()
+  }
+}));
+
 // Mock dependencies
 jest.mock('../../src/config/database');
-jest.mock('../../src/config/environment');
-jest.mock('../../src/utils/logger');
 
 const mockSupabase = {
   from: jest.fn().mockReturnThis(),
@@ -30,20 +57,6 @@ const mockSupabase = {
 };
 
 (getSupabaseClient as jest.Mock).mockReturnValue(mockSupabase);
-
-// Mock config
-(config as any) = {
-  payments: {
-    tossPayments: {
-      secretKey: 'test-secret-key',
-      clientKey: 'test-client-key',
-      baseUrl: 'https://api.tosspayments.com'
-    }
-  },
-  server: {
-    port: 3000
-  }
-};
 
 // Mock fetch
 global.fetch = jest.fn();

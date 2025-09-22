@@ -585,6 +585,100 @@ export class AdminReservationController {
   }
 
   /**
+   * POST /api/admin/reservations/:id/force-complete
+   * Force complete a reservation for dispute resolution
+   */
+  async forceCompleteReservation(req: Request, res: Response): Promise<void> {
+    try {
+      const { id: reservationId } = req.params;
+      const { reason, notes, refundAmount, compensationPoints, notifyCustomer, notifyShop } = req.body;
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+
+      if (!token) {
+        res.status(401).json({
+          success: false,
+          error: 'Authorization token is required'
+        });
+        return;
+      }
+
+      // Validate admin session
+      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
+      if (!validation.isValid || !validation.admin) {
+        res.status(401).json({
+          success: false,
+          error: validation.error || 'Invalid admin session'
+        });
+        return;
+      }
+
+      if (!reservationId) {
+        res.status(400).json({
+          success: false,
+          error: 'Reservation ID is required'
+        });
+        return;
+      }
+
+      if (!reason || reason.trim().length === 0) {
+        res.status(400).json({
+          success: false,
+          error: 'Force completion reason is required'
+        });
+        return;
+      }
+
+      // Validate refund amount if provided
+      if (refundAmount !== undefined && (isNaN(Number(refundAmount)) || Number(refundAmount) < 0)) {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid refund amount'
+        });
+        return;
+      }
+
+      // Validate compensation points if provided
+      if (compensationPoints !== undefined && (isNaN(Number(compensationPoints)) || Number(compensationPoints) < 0)) {
+        res.status(400).json({
+          success: false,
+          error: 'Invalid compensation points'
+        });
+        return;
+      }
+
+      const request = {
+        reason: reason.trim(),
+        notes: notes?.trim() || '',
+        refundAmount: refundAmount ? Number(refundAmount) : undefined,
+        compensationPoints: compensationPoints ? Number(compensationPoints) : undefined,
+        notifyCustomer: notifyCustomer === true,
+        notifyShop: notifyShop === true
+      };
+
+      const result = await adminReservationService.forceCompleteReservation(reservationId, request, validation.admin.id);
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Admin force complete reservation failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.id,
+        ipAddress: req.ip
+      });
+
+      const errorMessage = error instanceof Error ? error.message : 'Failed to force complete reservation';
+      
+      res.status(500).json({
+        success: false,
+        error: errorMessage.includes('Reservation not found') ? 'Reservation not found' : 'Failed to force complete reservation'
+      });
+    }
+  }
+
+  /**
    * POST /api/admin/reservations/bulk-status-update
    * Perform bulk status updates on multiple reservations
    */

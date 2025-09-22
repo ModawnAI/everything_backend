@@ -155,3 +155,4 @@ export class SearchCacheInvalidationService {
 
 // Export singleton instance
 export const searchCacheInvalidationService = new SearchCacheInvalidationService();
+

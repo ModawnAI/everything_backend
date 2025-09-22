@@ -428,3 +428,4 @@ export class SessionTrackingMiddleware {
 // Export singleton instance
 export const sessionTrackingMiddleware = new SessionTrackingMiddleware();
 export default sessionTrackingMiddleware;
+

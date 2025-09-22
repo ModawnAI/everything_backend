@@ -53,6 +53,18 @@ const rejectionRequestSchema = Joi.object({
   })
 });
 
+const serviceCompletionRequestSchema = Joi.object({
+  finalAmount: Joi.number().min(0).optional().messages({
+    'number.min': '최종 금액은 0 이상이어야 합니다.'
+  }),
+  completionNotes: Joi.string().max(1000).optional().messages({
+    'string.max': '완료 메모는 최대 1000자까지 가능합니다.'
+  }),
+  serviceDetails: Joi.object().optional().messages({
+    'object.base': '서비스 상세 정보는 객체 형태여야 합니다.'
+  })
+});
+
 const analyticsQuerySchema = Joi.object({
   period: Joi.string().valid('day', 'week', 'month', 'year').optional().messages({
     'any.only': '유효하지 않은 기간입니다.'
@@ -364,6 +376,59 @@ router.put('/reservations/:reservationId/reject',
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '예약 거절 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/shop-owner/reservations/:reservationId/complete
+ * Mark service as completed and trigger point calculation
+ * 
+ * Path Parameters:
+ * - reservationId: Reservation UUID (required)
+ * 
+ * Body Parameters:
+ * - finalAmount: Final service amount (optional, defaults to original amount)
+ * - completionNotes: Optional completion notes (optional)
+ * - serviceDetails: Additional service details (optional)
+ * 
+ * Returns:
+ * - Completed reservation information
+ * - Point calculation results
+ * - Success message
+ * 
+ * Business Rules:
+ * - Only reservations with 'confirmed' status can be completed
+ * - Shop owner must own the reservation
+ * - Automatically calculates and awards points (2.5% rate, 300,000 KRW max)
+ * - Updates payment status to 'completed'
+ * - Triggers referral point awards if applicable
+ * 
+ * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/complete
+ * Body: { "finalAmount": 50000, "completionNotes": "서비스 완료되었습니다" }
+ */
+router.put('/reservations/:reservationId/complete',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  validateRequestBody(reservationIdSchema),
+  validateRequestBody(serviceCompletionRequestSchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.completeService(req as any, res);
+    } catch (error) {
+      logger.error('Error in complete service route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.reservationId,
+        body: req.body
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서비스 완료 처리 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });

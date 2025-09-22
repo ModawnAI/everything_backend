@@ -242,3 +242,4 @@ runTests().catch(error => {
   console.error('❌ Test suite failed:', error.message);
   process.exit(1);
 });
+

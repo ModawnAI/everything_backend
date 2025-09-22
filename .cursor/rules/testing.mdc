@@ -1,0 +1,82 @@
+---
+description: Testing guidelines for real database connections and comprehensive test coverage
+globs: tests/**/*.ts, tests/**/*.js, jest.config.js
+alwaysApply: true
+---
+
+# Testing Rules
+
+## **Database Connection Strategy**
+- **Use Real Supabase**: Connect to actual Supabase instance via `.env` configuration
+- **No Supabase Mocking**: Avoid complex Supabase mocking that breaks query chains
+- **Test Database**: Use dedicated test database or test schema for isolation
+- **Environment Variables**: Load real database credentials from `.env` file
+
+## **Test Environment Setup**
+- **Real Dependencies**: Use actual database, Redis, and external services
+- **Test Data Management**: Create and clean up test data for each test suite
+- **Transaction Isolation**: Use database transactions to isolate test data
+- **Cleanup Strategy**: Implement proper cleanup after each test
+
+## **Test Structure**
+```typescript
+// ✅ DO: Use real database connections
+beforeAll(async () => {
+  await setupTestDatabase();
+  await seedTestData();
+});
+
+afterAll(async () => {
+  await cleanupTestData();
+  await closeConnections();
+});
+
+// ✅ DO: Test against real services
+const reservationService = new ReservationService();
+const result = await reservationService.createReservation(testData);
+```
+
+## **Mock Strategy**
+- **Mock External APIs**: Only mock third-party services (payment providers, SMS, email)
+- **Mock Slow Operations**: Mock time-consuming operations that don't affect business logic
+- **Keep Database Real**: Always use real database for data operations
+- **Mock Notifications**: Mock push notifications, emails, SMS to avoid spam
+
+## **Test Data Management**
+```typescript
+// ✅ DO: Create isolated test data
+const testUser = await createTestUser({
+  email: `test-${Date.now()}@example.com`,
+  // ... other fields
+});
+
+// ✅ DO: Clean up after tests
+afterEach(async () => {
+  await cleanupTestUser(testUser.id);
+});
+```
+
+## **Environment Configuration**
+- **Test Environment Variables**: Use `.env.test` for test-specific configuration
+- **Database Isolation**: Use separate test database or schema prefixes
+- **Connection Pooling**: Configure appropriate connection limits for tests
+- **Timeout Settings**: Set realistic timeouts for database operations
+
+## **Coverage Requirements**
+- **Unit Tests**: >95% coverage for core business logic services
+- **Integration Tests**: >90% coverage for API endpoints
+- **E2E Tests**: Cover critical user journeys
+- **Performance Tests**: Test under realistic load conditions
+
+## **Test Categories**
+1. **Unit Tests**: Test individual service methods with real database
+2. **Integration Tests**: Test complete workflows with real dependencies
+3. **Performance Tests**: Test scalability with real database load
+4. **E2E Tests**: Test user scenarios through real API calls
+
+## **Best Practices**
+- **Deterministic Tests**: Use fixed test data, avoid random values in assertions
+- **Parallel Execution**: Design tests to run safely in parallel
+- **Error Scenarios**: Test failure cases with real error conditions
+- **Data Validation**: Verify database state after operations
+- **Transaction Testing**: Test rollback scenarios with real transactions

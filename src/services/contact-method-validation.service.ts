@@ -487,3 +487,4 @@ export class ContactMethodValidationService {
 
 // Export singleton instance
 export const contactMethodValidationService = new ContactMethodValidationService();
+

@@ -307,6 +307,165 @@ export class MonitoringController {
       });
     }
   }
+
+  /**
+   * Get reservation metrics for monitoring
+   */
+  async getReservationMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.query;
+      const { startDate, endDate } = req.query;
+
+      const timeRange = startDate && endDate ? {
+        start: startDate as string,
+        end: endDate as string
+      } : undefined;
+
+      const metrics = await monitoringService.getReservationMetrics(
+        shopId as string,
+        timeRange
+      );
+
+      res.status(200).json({
+        success: true,
+        data: metrics,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting reservation metrics:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get reservation metrics',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get business metrics for analytics dashboard
+   */
+  async getBusinessMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const timeRange = startDate && endDate ? {
+        start: startDate as string,
+        end: endDate as string
+      } : undefined;
+
+      const metrics = await monitoringService.getBusinessMetrics(timeRange);
+
+      res.status(200).json({
+        success: true,
+        data: metrics,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting business metrics:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get business metrics',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get notification delivery metrics
+   */
+  async getNotificationMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const timeRange = startDate && endDate ? {
+        start: startDate as string,
+        end: endDate as string
+      } : undefined;
+
+      const metrics = await monitoringService.getNotificationMetrics(timeRange);
+
+      res.status(200).json({
+        success: true,
+        data: metrics,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting notification metrics:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get notification metrics',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get comprehensive monitoring dashboard data
+   */
+  async getMonitoringDashboard(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate, shopId } = req.query;
+
+      const timeRange = startDate && endDate ? {
+        start: startDate as string,
+        end: endDate as string
+      } : undefined;
+
+      // Get all metrics in parallel
+      const [
+        systemHealth,
+        reservationMetrics,
+        businessMetrics,
+        notificationMetrics,
+        activeAlerts
+      ] = await Promise.all([
+        monitoringService.getSystemHealthMetrics(shopId as string, timeRange),
+        monitoringService.getReservationMetrics(shopId as string, timeRange),
+        monitoringService.getBusinessMetrics(timeRange),
+        monitoringService.getNotificationMetrics(timeRange),
+        Promise.resolve(monitoringService.getActiveAlerts(shopId as string))
+      ]);
+
+      const dashboard = {
+        systemHealth,
+        reservationMetrics,
+        businessMetrics,
+        notificationMetrics,
+        activeAlerts: {
+          alerts: activeAlerts,
+          count: activeAlerts.length,
+          criticalCount: activeAlerts.filter(a => a.severity === 'critical').length,
+          highCount: activeAlerts.filter(a => a.severity === 'high').length
+        },
+        summary: {
+          overallHealth: systemHealth.successRate > 90 && activeAlerts.filter(a => a.severity === 'critical').length === 0 ? 'healthy' : 'warning',
+          keyMetrics: {
+            reservationSuccessRate: reservationMetrics.completionRate,
+            businessConversionRate: businessMetrics.conversionRate,
+            notificationDeliveryRate: notificationMetrics.deliveryRate,
+            systemUptime: systemHealth.successRate
+          }
+        }
+      };
+
+      res.status(200).json({
+        success: true,
+        data: dashboard,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting monitoring dashboard:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get monitoring dashboard',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
 }
 
 export const monitoringController = new MonitoringController();

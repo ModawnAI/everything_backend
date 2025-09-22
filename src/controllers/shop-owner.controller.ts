@@ -1573,6 +1573,397 @@ export class ShopOwnerController {
       });
     }
   }
+
+  /**
+   * PUT /api/shop-owner/reservations/:reservationId/complete
+   * Mark service as completed and trigger point calculation
+   */
+  async completeService(req: any, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { reservationId } = req.params;
+      const { finalAmount, completionNotes, serviceDetails } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (!reservationId) {
+        res.status(400).json({
+          error: {
+            code: 'MISSING_RESERVATION_ID',
+            message: '예약 ID가 필요합니다.',
+            details: '예약 ID를 제공해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Get reservation with payment and shop information
+      const { data: reservation, error: reservationFetchError } = await this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          shops!inner(
+            id,
+            owner_id,
+            name
+          ),
+          payments(
+            id,
+            amount,
+            payment_status,
+            is_deposit
+          ),
+          reservation_services(
+            id,
+            service_id,
+            quantity,
+            unit_price,
+            total_price,
+            shop_services(
+              id,
+              name,
+              duration_minutes
+            )
+          )
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (reservationFetchError || !reservation) {
+        res.status(404).json({
+          error: {
+            code: 'RESERVATION_NOT_FOUND',
+            message: '예약을 찾을 수 없습니다.',
+            details: '예약이 존재하지 않거나 삭제되었습니다.'
+          }
+        });
+        return;
+      }
+
+      // Verify shop ownership
+      if (reservation.shops?.owner_id !== userId) {
+        res.status(403).json({
+          error: {
+            code: 'FORBIDDEN',
+            message: '이 예약을 관리할 권한이 없습니다.',
+            details: '자신의 샵 예약만 관리할 수 있습니다.'
+          }
+        });
+        return;
+      }
+
+      // Check if reservation is in a completable state
+      if (reservation.status !== 'confirmed') {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_RESERVATION_STATUS',
+            message: '완료할 수 없는 예약 상태입니다.',
+            details: `현재 상태: ${reservation.status}. 확정된 예약만 완료할 수 있습니다.`
+          }
+        });
+        return;
+      }
+
+      // Calculate final amount (use provided amount or existing total)
+      const calculatedFinalAmount = finalAmount || reservation.total_amount;
+      
+      // Validate final amount
+      if (calculatedFinalAmount <= 0) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_FINAL_AMOUNT',
+            message: '유효하지 않은 최종 금액입니다.',
+            details: '최종 금액은 0보다 커야 합니다.'
+          }
+        });
+        return;
+      }
+
+      // Update reservation status to completed
+      const { reservationStateMachine } = await import('../services/reservation-state-machine.service');
+      
+      const transitionResult = await reservationStateMachine.executeTransition(
+        reservationId,
+        'completed',
+        'shop',
+        userId,
+        completionNotes || '서비스 완료 처리',
+        {
+          completed_at: new Date().toISOString(),
+          final_amount: calculatedFinalAmount,
+          completion_notes: completionNotes,
+          service_details: serviceDetails,
+          updated_at: new Date().toISOString()
+        }
+      );
+
+      if (!transitionResult.success) {
+        logger.error('Failed to complete reservation via state machine', {
+          errors: transitionResult.errors,
+          warnings: transitionResult.warnings,
+          reservationId,
+          userId
+        });
+
+        res.status(400).json({
+          error: {
+            code: 'STATE_TRANSITION_FAILED',
+            message: '서비스 완료 처리에 실패했습니다.',
+            details: transitionResult.errors.join(', ')
+          }
+        });
+        return;
+      }
+
+      // Update payment status to fully_paid and handle remaining balance
+      await this.updatePaymentStatusOnCompletion(reservation, calculatedFinalAmount);
+
+      // Calculate and award points
+      try {
+        const { pointProcessingService } = await import('../services/point-processing.service');
+        await pointProcessingService.awardPointsForCompletion({
+          reservationId,
+          userId: reservation.user_id,
+          finalAmount: calculatedFinalAmount,
+          shopId: reservation.shop_id,
+          shopName: reservation.shops.name,
+          services: reservation.reservation_services || [],
+          completionNotes
+        });
+      } catch (pointError) {
+        logger.error('Failed to award points for completion', {
+          error: pointError instanceof Error ? pointError.message : 'Unknown error',
+          reservationId,
+          userId: reservation.user_id,
+          finalAmount: calculatedFinalAmount
+        });
+        // Don't fail the completion if points fail - just log the error
+      }
+
+      // Get updated reservation for response
+      const { data: updatedReservation, error: updatedReservationFetchError } = await this.supabase
+        .from('reservations')
+        .select('*')
+        .eq('id', reservationId)
+        .single();
+
+      if (updatedReservationFetchError) {
+        logger.error('Failed to fetch updated reservation after completion', {
+          error: updatedReservationFetchError.message,
+          reservationId
+        });
+      }
+
+      logger.info('Service completed successfully', {
+        reservationId,
+        userId: reservation.user_id,
+        shopId: reservation.shop_id,
+        finalAmount: calculatedFinalAmount,
+        completedBy: userId
+      });
+
+      res.status(200).json({
+        success: true,
+        message: '서비스가 성공적으로 완료 처리되었습니다.',
+        data: {
+          reservation: updatedReservation || reservation,
+          finalAmount: calculatedFinalAmount,
+          pointsAwarded: true, // Will be calculated by point service
+          completionTime: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in complete service', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params?.reservationId,
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서비스 완료 처리 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Update payment status to fully_paid on service completion
+   */
+  private async updatePaymentStatusOnCompletion(reservation: any, finalAmount: number): Promise<void> {
+    try {
+      const payments = reservation.payments || [];
+      
+      // Calculate total paid amount
+      const totalPaidAmount = payments
+        .filter((p: any) => p.payment_status === 'completed')
+        .reduce((sum: number, p: any) => sum + (p.amount || 0), 0);
+
+      // Calculate remaining amount
+      const remainingAmount = finalAmount - totalPaidAmount;
+
+      logger.info('Processing payment status updates on completion', {
+        reservationId: reservation.id,
+        finalAmount,
+        totalPaidAmount,
+        remainingAmount,
+        paymentsCount: payments.length
+      });
+
+      // Update all existing payments to completed status
+      for (const payment of payments) {
+        if (payment.payment_status !== 'completed') {
+          const { error: paymentUpdateError } = await this.supabase
+            .from('payments')
+            .update({
+              payment_status: 'completed',
+              paid_at: new Date().toISOString(),
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', payment.id);
+
+          if (paymentUpdateError) {
+            logger.error('Failed to update payment status', {
+              error: paymentUpdateError.message,
+              paymentId: payment.id,
+              reservationId: reservation.id
+            });
+          } else {
+            logger.info('Payment status updated to completed', {
+              paymentId: payment.id,
+              amount: payment.amount,
+              isDeposit: payment.is_deposit
+            });
+          }
+        }
+      }
+
+      // If there's a remaining amount, create a new payment record for the remaining balance
+      if (remainingAmount > 0) {
+        const { error: remainingPaymentError } = await this.supabase
+          .from('payments')
+          .insert({
+            reservation_id: reservation.id,
+            amount: remainingAmount,
+            payment_status: 'completed',
+            is_deposit: false,
+            payment_method: 'cash', // Assume remaining amount is paid in cash
+            paid_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            metadata: {
+              type: 'remaining_balance',
+              final_amount: finalAmount,
+              total_paid_before: totalPaidAmount,
+              completion_notes: 'Remaining balance collected on service completion'
+            }
+          });
+
+        if (remainingPaymentError) {
+          logger.error('Failed to create remaining balance payment record', {
+            error: remainingPaymentError.message,
+            reservationId: reservation.id,
+            remainingAmount
+          });
+        } else {
+          logger.info('Remaining balance payment record created', {
+            reservationId: reservation.id,
+            remainingAmount,
+            finalAmount
+          });
+        }
+      } else if (remainingAmount < 0) {
+        // Handle overpayment case (refund needed)
+        const overpaymentAmount = Math.abs(remainingAmount);
+        logger.warn('Overpayment detected on service completion', {
+          reservationId: reservation.id,
+          overpaymentAmount,
+          finalAmount,
+          totalPaidAmount
+        });
+
+        // Create a refund record (negative payment)
+        const { error: refundError } = await this.supabase
+          .from('payments')
+          .insert({
+            reservation_id: reservation.id,
+            amount: -overpaymentAmount, // Negative amount for refund
+            payment_status: 'completed',
+            is_deposit: false,
+            payment_method: 'refund',
+            paid_at: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+            metadata: {
+              type: 'refund',
+              original_amount: finalAmount,
+              total_paid: totalPaidAmount,
+              overpayment_amount: overpaymentAmount,
+              completion_notes: 'Refund for overpayment on service completion'
+            }
+          });
+
+        if (refundError) {
+          logger.error('Failed to create refund payment record', {
+            error: refundError.message,
+            reservationId: reservation.id,
+            overpaymentAmount
+          });
+        } else {
+          logger.info('Refund payment record created', {
+            reservationId: reservation.id,
+            overpaymentAmount,
+            finalAmount
+          });
+        }
+      }
+
+      // Update reservation with final amount and payment status
+      const { error: reservationUpdateError } = await this.supabase
+        .from('reservations')
+        .update({
+          total_amount: finalAmount,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reservation.id);
+
+      if (reservationUpdateError) {
+        logger.error('Failed to update reservation with final amount', {
+          error: reservationUpdateError.message,
+          reservationId: reservation.id,
+          finalAmount
+        });
+      }
+
+      logger.info('Payment status updates completed successfully', {
+        reservationId: reservation.id,
+        finalAmount,
+        totalPaidAmount,
+        remainingAmount,
+        paymentsProcessed: payments.length
+      });
+
+    } catch (error) {
+      logger.error('Error updating payment status on completion', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: reservation.id,
+        finalAmount
+      });
+      throw error;
+    }
+  }
 }
 
 export const shopOwnerController = new ShopOwnerController(); 

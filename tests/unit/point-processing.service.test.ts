@@ -10,10 +10,7 @@
 
 import { PointProcessingService } from '../../src/services/point-processing.service';
 
-// Mock database module
-jest.mock('../../src/config/database', () => ({
-  getSupabaseClient: jest.fn()
-}));
+// Use real database - no mocking
 
 // Mock logger
 jest.mock('../../src/utils/logger', () => ({

@@ -54,3 +54,4 @@ ON public.shops (owner_id, shop_status);
 
 -- Update table statistics
 ANALYZE public.shops;
+

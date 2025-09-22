@@ -651,3 +651,4 @@ module.exports = {
   PERFORMANCE_SCENARIOS,
   runTests
 };
+

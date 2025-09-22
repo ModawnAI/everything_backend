@@ -33,4 +33,16 @@ router.get('/metrics/conflicts/:shopId', authenticateToken, monitoringController
 // Manual conflict detection trigger
 router.post('/conflicts/:shopId/detect', authenticateToken, monitoringController.triggerConflictDetection.bind(monitoringController));
 
+// Reservation metrics
+router.get('/metrics/reservations', authenticateToken, monitoringController.getReservationMetrics.bind(monitoringController));
+
+// Business metrics
+router.get('/metrics/business', authenticateToken, monitoringController.getBusinessMetrics.bind(monitoringController));
+
+// Notification metrics
+router.get('/metrics/notifications', authenticateToken, monitoringController.getNotificationMetrics.bind(monitoringController));
+
+// Comprehensive monitoring dashboard
+router.get('/dashboard', authenticateToken, monitoringController.getMonitoringDashboard.bind(monitoringController));
+
 export default router;

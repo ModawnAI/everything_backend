@@ -32,8 +32,12 @@ export interface NoShowConfig {
   penaltyPoints: number;
   maxPenaltyPoints: number;
   notificationDelay: number; // minutes before sending notification
+  warningNotificationDelay: number; // minutes after reservation time to send warning
   autoDetectionEnabled: boolean;
   manualOverrideEnabled: boolean;
+  refundPolicyEnforcement: boolean; // enforce no refunds for no-shows
+  pointAwardPrevention: boolean; // prevent point awarding for no-shows
+  timezoneAware: boolean; // use Korean timezone for calculations
 }
 
 // No-show detection result
@@ -76,6 +80,55 @@ export class NoShowDetectionService {
   private supabase = getSupabaseClient();
   private stateMachine = new ReservationStateMachine();
 
+  constructor() {
+    // Initialize monitoring and metrics
+    this.initializeMonitoring();
+  }
+
+  /**
+   * Initialize monitoring and metrics for no-show detection operations
+   */
+  private initializeMonitoring(): void {
+    logger.info('Initializing No-Show Detection Service monitoring', {
+      service: 'NoShowDetectionService',
+      config: {
+        defaultGracePeriod: this.defaultConfig.defaultGracePeriod,
+        autoDetectionEnabled: this.defaultConfig.autoDetectionEnabled,
+        refundPolicyEnforcement: this.defaultConfig.refundPolicyEnforcement,
+        pointAwardPrevention: this.defaultConfig.pointAwardPrevention,
+        timezoneAware: this.defaultConfig.timezoneAware
+      }
+    });
+  }
+
+  /**
+   * Log no-show detection operation metrics
+   */
+  private logNoShowMetrics(
+    operation: string,
+    details: any,
+    success: boolean,
+    duration?: number
+  ): void {
+    const metrics = {
+      service: 'NoShowDetectionService',
+      operation,
+      success,
+      timestamp: new Date().toISOString(),
+      duration: duration ? `${duration}ms` : undefined,
+      ...details
+    };
+
+    if (success) {
+      logger.info('No-show detection operation completed', metrics);
+    } else {
+      logger.error('No-show detection operation failed', metrics);
+    }
+
+    // Additional monitoring integration could be added here
+    // e.g., sending to external monitoring services
+  }
+
   // Default configuration
   private readonly defaultConfig: NoShowConfig = {
     defaultGracePeriod: 30, // 30 minutes default
@@ -88,9 +141,13 @@ export class NoShowDetectionService {
     },
     penaltyPoints: 50, // 50 points penalty for no-show
     maxPenaltyPoints: 200, // Maximum penalty points per user
-    notificationDelay: 15, // Send notification 15 minutes after reservation time
+    notificationDelay: 30, // Send final notification 30 minutes after reservation time
+    warningNotificationDelay: 15, // Send warning notification 15 minutes after reservation time
     autoDetectionEnabled: true,
     manualOverrideEnabled: true,
+    refundPolicyEnforcement: true, // enforce no refunds for no-shows
+    pointAwardPrevention: true, // prevent point awarding for no-shows
+    timezoneAware: true, // use Korean timezone for calculations
   };
 
   /**
@@ -102,6 +159,23 @@ export class NoShowDetectionService {
   }
 
   /**
+   * Get current time with timezone awareness
+   */
+  private getCurrentTime(): Date {
+    if (this.defaultConfig.timezoneAware) {
+      try {
+        // Import Korean timezone utilities
+        const { getCurrentKoreanTime } = require('../utils/korean-timezone');
+        return getCurrentKoreanTime();
+      } catch (error) {
+        logger.warn('Korean timezone utilities not available, using local time:', error);
+        return new Date();
+      }
+    }
+    return new Date();
+  }
+
+  /**
    * Check if a reservation should be marked as no-show
    */
   private async shouldMarkAsNoShow(
@@ -109,7 +183,7 @@ export class NoShowDetectionService {
     gracePeriod: number
   ): Promise<boolean> {
     const reservationTime = new Date(reservation.reservation_datetime);
-    const currentTime = new Date();
+    const currentTime = this.getCurrentTime();
     const timeDifference = currentTime.getTime() - reservationTime.getTime();
     const gracePeriodMs = gracePeriod * 60 * 1000; // Convert to milliseconds
 
@@ -234,6 +308,41 @@ export class NoShowDetectionService {
   }
 
   /**
+   * Send warning notification to user before marking as no-show
+   */
+  private async sendNoShowWarningNotification(
+    reservation: Reservation,
+    gracePeriodRemaining: number
+  ): Promise<boolean> {
+    try {
+      const { error } = await this.supabase
+        .from('notifications')
+        .insert({
+          user_id: reservation.user_id,
+          notification_type: 'system',
+          title: '예약 시간 확인 요청',
+          message: `예약 시간이 지났습니다. ${gracePeriodRemaining}분 내에 도착하지 않으면 노쇼로 처리됩니다.`,
+          status: 'unread',
+          related_id: reservation.id,
+          metadata: {
+            type: 'no_show_warning',
+            grace_period_remaining: gracePeriodRemaining
+          }
+        });
+
+      if (error) {
+        logger.error('Error sending no-show warning notification:', error);
+        return false;
+      }
+
+      return true;
+    } catch (error) {
+      logger.error('Error sending no-show warning notification:', error);
+      return false;
+    }
+  }
+
+  /**
    * Send no-show notification to user
    */
   private async sendNoShowNotification(
@@ -246,13 +355,14 @@ export class NoShowDetectionService {
         .insert({
           user_id: reservation.user_id,
           notification_type: 'system',
-          title: 'No-Show Reservation',
-          message: `Your reservation on ${new Date(reservation.reservation_datetime).toLocaleDateString()} at ${new Date(reservation.reservation_datetime).toLocaleTimeString()} has been marked as no-show. ${penaltyApplied > 0 ? `${penaltyApplied} points have been deducted as penalty.` : ''}`,
+          title: '노쇼 처리 완료',
+          message: `예약이 노쇼로 처리되었습니다. ${penaltyApplied > 0 ? `${penaltyApplied}포인트가 차감되었습니다.` : ''} 노쇼 시 환불이 불가능합니다.`,
           status: 'unread',
           related_id: reservation.id,
           metadata: {
             type: 'no_show_notification',
-            penalty_applied: penaltyApplied
+            penalty_applied: penaltyApplied,
+            refund_eligible: false
           }
         });
 
@@ -265,6 +375,84 @@ export class NoShowDetectionService {
     } catch (error) {
       logger.error('Error sending no-show notification:', error);
       return false;
+    }
+  }
+
+  /**
+   * Enforce refund policy for no-show reservations
+   */
+  private async enforceRefundPolicyForNoShow(
+    reservation: Reservation
+  ): Promise<{
+    success: boolean;
+    refundEligible: boolean;
+    errors: string[];
+  }> {
+    if (!this.defaultConfig.refundPolicyEnforcement) {
+      return {
+        success: true,
+        refundEligible: true,
+        errors: []
+      };
+    }
+
+    try {
+      // Mark the reservation as non-refundable due to no-show
+      const { error: updateError } = await this.supabase
+        .from('reservations')
+        .update({
+          refund_eligible: false,
+          refund_policy_reason: 'no_show',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reservation.id);
+
+      if (updateError) {
+        logger.error('Error updating refund policy for no-show:', updateError);
+        return {
+          success: false,
+          refundEligible: false,
+          errors: ['Failed to update refund policy']
+        };
+      }
+
+      // Log the refund policy enforcement
+      const { error: logError } = await this.supabase
+        .from('reservation_refund_logs')
+        .insert({
+          reservation_id: reservation.id,
+          action: 'refund_policy_enforcement',
+          reason: 'no_show',
+          refund_eligible: false,
+          policy_applied: 'no_show_no_refund',
+          applied_by: 'system',
+          applied_at: new Date().toISOString(),
+          metadata: {
+            original_status: reservation.status,
+            no_show_detection_time: new Date().toISOString()
+          }
+        });
+
+      if (logError) {
+        logger.error('Error logging refund policy enforcement:', logError);
+        // Don't fail the whole operation for logging error
+      }
+
+      logger.info(`Refund policy enforced for no-show reservation ${reservation.id}: no refunds allowed`);
+      
+      return {
+        success: true,
+        refundEligible: false,
+        errors: []
+      };
+
+    } catch (error) {
+      logger.error('Error enforcing refund policy for no-show:', error);
+      return {
+        success: false,
+        refundEligible: false,
+        errors: ['Unexpected error enforcing refund policy']
+      };
     }
   }
 
@@ -291,6 +479,8 @@ export class NoShowDetectionService {
             grace_period: details.gracePeriod,
             penalty_applied: details.penaltyApplied,
             notification_sent: details.notificationSent,
+            refund_policy_enforced: details.refundPolicyEnforced,
+            point_award_prevented: details.pointAwardPrevented,
             ...details
           }
         });
@@ -304,6 +494,171 @@ export class NoShowDetectionService {
   }
 
   /**
+   * Prevent point awarding for no-show reservations
+   */
+  private async preventPointAwardingForNoShow(
+    reservation: Reservation
+  ): Promise<{
+    success: boolean;
+    pointAwardPrevented: boolean;
+    errors: string[];
+  }> {
+    if (!this.defaultConfig.pointAwardPrevention) {
+      return {
+        success: true,
+        pointAwardPrevented: false,
+        errors: []
+      };
+    }
+
+    try {
+      // Mark the reservation to prevent point awarding
+      const { error: updateError } = await this.supabase
+        .from('reservations')
+        .update({
+          points_awarded: false,
+          points_award_prevention_reason: 'no_show',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reservation.id);
+
+      if (updateError) {
+        logger.error('Error preventing point awarding for no-show:', updateError);
+        return {
+          success: false,
+          pointAwardPrevented: false,
+          errors: ['Failed to prevent point awarding']
+        };
+      }
+
+      // Log the point award prevention
+      const { error: logError } = await this.supabase
+        .from('reservation_point_logs')
+        .insert({
+          reservation_id: reservation.id,
+          user_id: reservation.user_id,
+          action: 'point_award_prevention',
+          reason: 'no_show',
+          points_affected: 0,
+          points_awarded: false,
+          applied_by: 'system',
+          applied_at: new Date().toISOString(),
+          metadata: {
+            original_status: reservation.status,
+            no_show_detection_time: new Date().toISOString(),
+            prevention_reason: 'no_show_reservation'
+          }
+        });
+
+      if (logError) {
+        logger.error('Error logging point award prevention:', logError);
+        // Don't fail the whole operation for logging error
+      }
+
+      logger.info(`Point awarding prevented for no-show reservation ${reservation.id}`);
+      
+      return {
+        success: true,
+        pointAwardPrevented: true,
+        errors: []
+      };
+
+    } catch (error) {
+      logger.error('Error preventing point awarding for no-show:', error);
+      return {
+        success: false,
+        pointAwardPrevented: false,
+        errors: ['Unexpected error preventing point awarding']
+      };
+    }
+  }
+
+  /**
+   * Process warning notifications for reservations approaching no-show status
+   */
+  async processWarningNotifications(): Promise<{
+    processed: number;
+    warningsSent: number;
+    errors: string[];
+  }> {
+    logger.info('Starting warning notification processing...');
+
+    const reservations = await this.getReservationsForWarningNotifications();
+    const errors: string[] = [];
+    let warningsSent = 0;
+
+    for (const reservation of reservations) {
+      try {
+        // Get service category for grace period calculation
+        const serviceCategory = reservation.reservation_services?.[0]?.shop_services?.category || 'nail';
+        const gracePeriod = this.getGracePeriodForService(serviceCategory);
+
+        // Calculate time difference
+        const reservationTime = new Date(reservation.reservation_datetime);
+        const currentTime = this.getCurrentTime();
+        const timeDifference = currentTime.getTime() - reservationTime.getTime();
+        const timeDifferenceMinutes = Math.floor(timeDifference / (1000 * 60));
+
+        // Send warning if we're past the warning delay but before grace period
+        if (timeDifferenceMinutes >= this.defaultConfig.warningNotificationDelay && 
+            timeDifferenceMinutes < gracePeriod) {
+          const gracePeriodRemaining = gracePeriod - timeDifferenceMinutes;
+          const warningSent = await this.sendNoShowWarningNotification(reservation, gracePeriodRemaining);
+          
+          if (warningSent) {
+            warningsSent++;
+            logger.info(`Warning notification sent for reservation ${reservation.id}, grace period remaining: ${gracePeriodRemaining} minutes`);
+          }
+        }
+      } catch (error) {
+        const errorMsg = `Error processing warning for reservation ${reservation.id}: ${error}`;
+        logger.error(errorMsg);
+        errors.push(errorMsg);
+      }
+    }
+
+    logger.info(`Warning notification processing completed: ${reservations.length} processed, ${warningsSent} warnings sent`);
+
+    return {
+      processed: reservations.length,
+      warningsSent,
+      errors
+    };
+  }
+
+  /**
+   * Get reservations that need warning notifications
+   */
+  private async getReservationsForWarningNotifications(): Promise<ReservationWithServices[]> {
+    const now = this.getCurrentTime();
+    const fifteenMinutesAgo = new Date(now.getTime() - 15 * 60 * 1000);
+    const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+
+    const { data: reservations, error } = await this.supabase
+      .from('reservations')
+      .select(`
+        *,
+        reservation_services!inner(
+          service_id,
+          shop_services!inner(
+            category
+          )
+        )
+      `)
+      .eq('status', 'confirmed')
+      .gte('reservation_datetime', thirtyMinutesAgo.toISOString())
+      .lte('reservation_datetime', fifteenMinutesAgo.toISOString())
+      .order('reservation_datetime', { ascending: true });
+
+    if (error) {
+      logger.error('Error fetching reservations for warning notifications:', error);
+      return [];
+    }
+
+    return reservations || [];
+  }
+
+  /**
    * Process automatic no-show detection
    */
   async processAutomaticNoShowDetection(): Promise<{
@@ -312,7 +667,15 @@ export class NoShowDetectionService {
     errors: string[];
     results: NoShowDetectionResult[];
   }> {
+    const startTime = Date.now();
+
     if (!this.defaultConfig.autoDetectionEnabled) {
+      this.logNoShowMetrics('processAutomaticNoShowDetection', {
+        reason: 'disabled',
+        processed: 0,
+        noShowsDetected: 0
+      }, true, Date.now() - startTime);
+
       logger.info('Automatic no-show detection is disabled');
       return {
         processed: 0,
@@ -345,7 +708,13 @@ export class NoShowDetectionService {
             this.defaultConfig.penaltyPoints
           );
 
-          // Send notification
+          // Enforce refund policy (no refunds for no-shows)
+          const refundPolicyResult = await this.enforceRefundPolicyForNoShow(reservation);
+
+          // Prevent point awarding for no-shows
+          const pointAwardResult = await this.preventPointAwardingForNoShow(reservation);
+
+          // Send final no-show notification
           const notificationSent = await this.sendNoShowNotification(
             reservation,
             penaltyResult.penaltyApplied
@@ -361,12 +730,14 @@ export class NoShowDetectionService {
           );
 
           if (transitionResult.success) {
-            // Log the action
+            // Log the action with all enforcement details
             await this.logNoShowAction(reservation.id, 'automatic_detection', {
               gracePeriod,
               penaltyApplied: penaltyResult.penaltyApplied,
               notificationSent,
-              serviceCategory
+              serviceCategory,
+              refundPolicyEnforced: refundPolicyResult.success,
+              pointAwardPrevented: pointAwardResult.success
             });
 
             noShowsDetected++;
@@ -382,11 +753,23 @@ export class NoShowDetectionService {
               notificationSent
             });
 
-            logger.info(`No-show detected for reservation ${reservation.id}, penalty: ${penaltyResult.penaltyApplied} points`);
+            logger.info(`No-show detected for reservation ${reservation.id}, penalty: ${penaltyResult.penaltyApplied} points, refund policy enforced: ${refundPolicyResult.success}, point award prevented: ${pointAwardResult.success}`);
           } else {
             errors.push(`Failed to update reservation ${reservation.id}: ${transitionResult.errors.join(', ')}`);
           }
         } else {
+          // Check if we should send a warning notification
+          const reservationTime = new Date(reservation.reservation_datetime);
+          const currentTime = this.getCurrentTime();
+          const timeDifference = currentTime.getTime() - reservationTime.getTime();
+          const timeDifferenceMinutes = Math.floor(timeDifference / (1000 * 60));
+
+          // Send warning if we're past the warning delay but before grace period
+          if (timeDifferenceMinutes >= this.defaultConfig.warningNotificationDelay && 
+              timeDifferenceMinutes < gracePeriod) {
+            const gracePeriodRemaining = gracePeriod - timeDifferenceMinutes;
+            await this.sendNoShowWarningNotification(reservation, gracePeriodRemaining);
+          }
           results.push({
             reservationId: reservation.id,
             userId: reservation.user_id,
@@ -405,7 +788,19 @@ export class NoShowDetectionService {
       }
     }
 
+    const duration = Date.now() - startTime;
     logger.info(`No-show detection completed: ${reservations.length} processed, ${noShowsDetected} no-shows detected`);
+
+    // Log comprehensive metrics
+    this.logNoShowMetrics('processAutomaticNoShowDetection', {
+      processed: reservations.length,
+      noShowsDetected,
+      errorsCount: errors.length,
+      warningsSent: results.filter(r => !r.isNoShow).length,
+      penaltyPointsApplied: results.filter(r => r.isNoShow).reduce((sum, r) => sum + r.penaltyApplied, 0),
+      refundPoliciesEnforced: results.filter(r => r.isNoShow).length,
+      pointAwardsPrevented: results.filter(r => r.isNoShow).length
+    }, errors.length === 0, duration);
 
     return {
       processed: reservations.length,

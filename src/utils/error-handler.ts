@@ -65,3 +65,4 @@ export const handleError = (error: Error, req: any, res: any, next: any) => {
     statusCode: 500
   });
 };
+

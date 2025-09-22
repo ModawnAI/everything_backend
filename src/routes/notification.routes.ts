@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import NotificationController from '../controllers/notification.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
+import { requireShopOwnerWithShop } from '../middleware/shop-owner-auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 
 const router = Router();
@@ -641,6 +642,528 @@ router.get('/tokens',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
   notificationController.getUserDeviceTokens.bind(notificationController)
+);
+
+// ===== SHOP OWNER NOTIFICATION ROUTES =====
+
+/**
+ * @swagger
+ * /api/notifications/shop/reservations:
+ *   get:
+ *     summary: Get shop reservation notifications
+ *     description: Retrieve reservation notifications for the authenticated shop owner
+ *     tags: [Shop Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           default: unread
+ *           enum: [unread, read, all]
+ *         description: Filter by notification status
+ *       - in: query
+ *         name: templateType
+ *         schema:
+ *           type: string
+ *         description: Filter by template type
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *         description: Number of notifications to retrieve
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Number of notifications to skip
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for filtering
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for filtering
+ *     responses:
+ *       200:
+ *         description: Shop reservation notifications retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shopId:
+ *                       type: string
+ *                     notifications:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                           templateType:
+ *                             type: string
+ *                           title:
+ *                             type: string
+ *                           body:
+ *                             type: string
+ *                           status:
+ *                             type: string
+ *                           deliveryAttempts:
+ *                             type: number
+ *                           successfulDeliveries:
+ *                             type: number
+ *                           failedDeliveries:
+ *                             type: number
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                     total:
+ *                       type: number
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Unauthorized - Shop owner authentication required
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/shop/reservations',
+  authenticateJWT,
+  ...requireShopOwnerWithShop(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  notificationController.getShopReservationNotifications.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/shop/send:
+ *   post:
+ *     summary: Send reservation notification to customer
+ *     description: Send a reservation notification to a customer from the shop owner
+ *     tags: [Shop Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reservationId
+ *               - notificationType
+ *             properties:
+ *               reservationId:
+ *                 type: string
+ *                 description: ID of the reservation
+ *               notificationType:
+ *                 type: string
+ *                 enum: [reservation_requested, reservation_confirmed, reservation_rejected, reservation_completed, reservation_cancelled, reservation_no_show, reservation_reminder]
+ *                 description: Type of notification to send
+ *               customMessage:
+ *                 type: string
+ *                 description: Custom message to include with the notification
+ *               priority:
+ *                 type: string
+ *                 enum: [low, medium, high, critical]
+ *                 default: medium
+ *                 description: Notification priority level
+ *               useFallback:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Whether to use fallback delivery system
+ *     responses:
+ *       200:
+ *         description: Notification sent successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reservationId:
+ *                       type: string
+ *                     customerId:
+ *                       type: string
+ *                     notificationType:
+ *                       type: string
+ *                     priority:
+ *                       type: string
+ *                     deliveryMethod:
+ *                       type: string
+ *                     result:
+ *                       type: object
+ *                       properties:
+ *                         success:
+ *                           type: boolean
+ *                         deliveryResults:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               channel:
+ *                                 type: string
+ *                               success:
+ *                                 type: boolean
+ *                               messageId:
+ *                                 type: string
+ *                               deliveredAt:
+ *                                 type: string
+ *                                 format: date-time
+ *                         finalStatus:
+ *                           type: string
+ *                           enum: [delivered, partially_delivered, failed]
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized - Shop owner authentication required
+ *       404:
+ *         description: Reservation not found or not owned by shop
+ *       500:
+ *         description: Internal server error
+ */
+router.post('/shop/send',
+  authenticateJWT,
+  ...requireShopOwnerWithShop(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
+  notificationController.sendReservationNotificationToCustomer.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/shop/preferences:
+ *   get:
+ *     summary: Get shop owner notification preferences
+ *     description: Retrieve notification preferences for the authenticated shop owner
+ *     tags: [Shop Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Shop owner notification preferences retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shopId:
+ *                       type: string
+ *                     preferences:
+ *                       type: object
+ *                       properties:
+ *                         reservationNotifications:
+ *                           type: object
+ *                           properties:
+ *                             newRequest:
+ *                               type: boolean
+ *                             confirmed:
+ *                               type: boolean
+ *                             cancelled:
+ *                               type: boolean
+ *                             completed:
+ *                               type: boolean
+ *                             noShow:
+ *                               type: boolean
+ *                             reminder:
+ *                               type: boolean
+ *                         deliveryPreferences:
+ *                           type: object
+ *                           properties:
+ *                             websocket:
+ *                               type: boolean
+ *                             push:
+ *                               type: boolean
+ *                             email:
+ *                               type: boolean
+ *                             sms:
+ *                               type: boolean
+ *                         timingPreferences:
+ *                           type: object
+ *                           properties:
+ *                             reminderHoursBefore:
+ *                               type: number
+ *                             quietHoursStart:
+ *                               type: string
+ *                             quietHoursEnd:
+ *                               type: string
+ *                         prioritySettings:
+ *                           type: object
+ *                           properties:
+ *                             newRequest:
+ *                               type: string
+ *                               enum: [low, medium, high, critical]
+ *                             confirmed:
+ *                               type: string
+ *                               enum: [low, medium, high, critical]
+ *                             cancelled:
+ *                               type: string
+ *                               enum: [low, medium, high, critical]
+ *                             completed:
+ *                               type: string
+ *                               enum: [low, medium, high, critical]
+ *                             noShow:
+ *                               type: string
+ *                               enum: [low, medium, high, critical]
+ *                             reminder:
+ *                               type: string
+ *                               enum: [low, medium, high, critical]
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Unauthorized - Shop owner authentication required
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/shop/preferences',
+  authenticateJWT,
+  ...requireShopOwnerWithShop(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  notificationController.getShopOwnerNotificationPreferences.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/shop/preferences:
+ *   put:
+ *     summary: Update shop owner notification preferences
+ *     description: Update notification preferences for the authenticated shop owner
+ *     tags: [Shop Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               preferences:
+ *                 type: object
+ *                 properties:
+ *                   reservationNotifications:
+ *                     type: object
+ *                     properties:
+ *                       newRequest:
+ *                         type: boolean
+ *                       confirmed:
+ *                         type: boolean
+ *                       cancelled:
+ *                         type: boolean
+ *                       completed:
+ *                         type: boolean
+ *                       noShow:
+ *                         type: boolean
+ *                       reminder:
+ *                         type: boolean
+ *                   deliveryPreferences:
+ *                     type: object
+ *                     properties:
+ *                       websocket:
+ *                         type: boolean
+ *                       push:
+ *                         type: boolean
+ *                       email:
+ *                         type: boolean
+ *                       sms:
+ *                         type: boolean
+ *                   timingPreferences:
+ *                     type: object
+ *                     properties:
+ *                       reminderHoursBefore:
+ *                         type: number
+ *                       quietHoursStart:
+ *                         type: string
+ *                       quietHoursEnd:
+ *                         type: string
+ *                   prioritySettings:
+ *                     type: object
+ *                     properties:
+ *                       newRequest:
+ *                         type: string
+ *                         enum: [low, medium, high, critical]
+ *                       confirmed:
+ *                         type: string
+ *                         enum: [low, medium, high, critical]
+ *                       cancelled:
+ *                         type: string
+ *                         enum: [low, medium, high, critical]
+ *                       completed:
+ *                         type: string
+ *                         enum: [low, medium, high, critical]
+ *                       noShow:
+ *                         type: string
+ *                         enum: [low, medium, high, critical]
+ *                       reminder:
+ *                         type: string
+ *                         enum: [low, medium, high, critical]
+ *     responses:
+ *       200:
+ *         description: Shop owner notification preferences updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shopId:
+ *                       type: string
+ *                     preferences:
+ *                       type: object
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized - Shop owner authentication required
+ *       500:
+ *         description: Internal server error
+ */
+router.put('/shop/preferences',
+  authenticateJWT,
+  ...requireShopOwnerWithShop(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
+  notificationController.updateShopOwnerNotificationPreferences.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/shop/analytics:
+ *   get:
+ *     summary: Get shop notification delivery analytics
+ *     description: Retrieve notification delivery analytics for the authenticated shop
+ *     tags: [Shop Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Start date for analytics
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: End date for analytics
+ *       - in: query
+ *         name: templateType
+ *         schema:
+ *           type: string
+ *         description: Filter by template type
+ *     responses:
+ *       200:
+ *         description: Shop notification analytics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     shopId:
+ *                       type: string
+ *                     analytics:
+ *                       type: object
+ *                       properties:
+ *                         totalNotifications:
+ *                           type: number
+ *                         deliveryStats:
+ *                           type: object
+ *                           properties:
+ *                             delivered:
+ *                               type: number
+ *                             partiallyDelivered:
+ *                               type: number
+ *                             failed:
+ *                               type: number
+ *                             pending:
+ *                               type: number
+ *                         templateStats:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               templateType:
+ *                                 type: string
+ *                               totalSent:
+ *                                 type: number
+ *                               successRate:
+ *                                 type: number
+ *                               averageDeliveryTime:
+ *                                 type: number
+ *                         timeSeriesData:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                             properties:
+ *                               date:
+ *                                 type: string
+ *                               sent:
+ *                                 type: number
+ *                               delivered:
+ *                                 type: number
+ *                               failed:
+ *                                 type: number
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Unauthorized - Shop owner authentication required
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/shop/analytics',
+  authenticateJWT,
+  ...requireShopOwnerWithShop(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
+  notificationController.getShopNotificationAnalytics.bind(notificationController)
 );
 
 export default router; 

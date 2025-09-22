@@ -46,3 +46,4 @@ export interface ModerationQueue {
   created_at: string;
   updated_at: string;
 }
+

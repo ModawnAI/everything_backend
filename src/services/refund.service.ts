@@ -96,6 +96,48 @@ export interface RefundPolicyResponse {
   calculatedAmount: number;
 }
 
+export interface DynamicRefundCalculationRequest {
+  reservationId: string;
+  userId: string;
+  cancellationType: 'user_request' | 'shop_request' | 'no_show' | 'admin_force';
+  cancellationReason?: string;
+  refundPreference?: 'full_refund' | 'partial_refund' | 'no_refund';
+  policyOverride?: {
+    enabled: boolean;
+    refundPercentage?: number;
+    reason?: string;
+    adminId?: string;
+  };
+}
+
+export interface DynamicRefundCalculationResult {
+  isEligible: boolean;
+  refundAmount: number;
+  refundPercentage: number;
+  basePercentage: number;
+  adjustmentPercentage: number;
+  cancellationWindow: string;
+  reason: string;
+  policyApplied: string;
+  koreanTimeInfo: {
+    currentTime: string;
+    reservationTime: string;
+    timeZone: string;
+  };
+  businessRules: {
+    appliedPolicies: string[];
+    exceptions: string[];
+    notes: string[];
+  };
+  auditTrail: {
+    calculatedAt: string;
+    calculatedBy: string;
+    reservationId: string;
+    cancellationType: string;
+    policyOverride?: any;
+  };
+}
+
 export class RefundService {
   private supabase = getSupabaseClient();
 
@@ -664,6 +706,466 @@ export class RefundService {
         .eq('id', refundId);
 
       throw new Error(`TossPayments refund failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Calculate dynamic refund amount with Korean timezone awareness and business rules
+   */
+  async calculateDynamicRefundAmount(request: DynamicRefundCalculationRequest): Promise<DynamicRefundCalculationResult> {
+    try {
+      logger.info('Calculating dynamic refund amount', {
+        reservationId: request.reservationId,
+        userId: request.userId,
+        cancellationType: request.cancellationType,
+        hasPolicyOverride: !!request.policyOverride?.enabled
+      });
+
+      // Get reservation details
+      const reservation = await this.getReservationDetails(request.reservationId);
+      if (!reservation) {
+        throw new Error('Reservation not found');
+      }
+
+      // Verify user ownership
+      if (reservation.user_id !== request.userId) {
+        throw new Error('User does not own this reservation');
+      }
+
+      // Import Korean timezone utilities
+      const { 
+        calculateRefundEligibility, 
+        getCurrentKoreanTime, 
+        formatKoreanDateTime 
+      } = await import('../utils/korean-timezone');
+
+      // Calculate base refund eligibility using Korean timezone
+      const eligibilityResult = calculateRefundEligibility(
+        new Date(reservation.reservation_date),
+        reservation.reservation_time,
+        getCurrentKoreanTime()
+      );
+
+      // Apply business rules based on cancellation type
+      const businessRules = this.applyDynamicBusinessRules(
+        eligibilityResult,
+        request.cancellationType,
+        request.refundPreference,
+        request.cancellationReason
+      );
+
+      // Handle policy override if enabled
+      let finalRefundPercentage = this.calculateFinalRefundPercentage(
+        eligibilityResult.refundPercentage,
+        businessRules
+      );
+
+      let policyApplied = 'Standard Dynamic Policy';
+      let adjustmentPercentage = businessRules.adjustmentPercentage;
+
+      if (request.policyOverride?.enabled && request.policyOverride.refundPercentage !== undefined) {
+        finalRefundPercentage = request.policyOverride.refundPercentage;
+        policyApplied = 'Admin Override Policy';
+        adjustmentPercentage = request.policyOverride.refundPercentage - eligibilityResult.refundPercentage;
+        
+        businessRules.appliedPolicies.push('Admin policy override applied');
+        businessRules.notes.push(`Override reason: ${request.policyOverride.reason || 'Administrative override'}`);
+        businessRules.notes.push(`Override by admin: ${request.policyOverride.adminId || 'Unknown'}`);
+      }
+
+      // Calculate final refund amount
+      const baseRefundAmount = reservation.total_amount || 0;
+      const refundAmount = Math.round((baseRefundAmount * finalRefundPercentage) / 100);
+
+      const result: DynamicRefundCalculationResult = {
+        isEligible: eligibilityResult.isEligible && finalRefundPercentage > 0,
+        refundAmount,
+        refundPercentage: finalRefundPercentage,
+        basePercentage: eligibilityResult.refundPercentage,
+        adjustmentPercentage,
+        cancellationWindow: eligibilityResult.cancellationWindow,
+        reason: this.generateDynamicRefundReason(eligibilityResult, businessRules, request.policyOverride),
+        policyApplied,
+        koreanTimeInfo: eligibilityResult.koreanTimeInfo,
+        businessRules: {
+          appliedPolicies: businessRules.appliedPolicies,
+          exceptions: businessRules.exceptions,
+          notes: businessRules.notes
+        },
+        auditTrail: {
+          calculatedAt: formatKoreanDateTime(getCurrentKoreanTime()),
+          calculatedBy: request.userId,
+          reservationId: request.reservationId,
+          cancellationType: request.cancellationType,
+          policyOverride: request.policyOverride
+        }
+      };
+
+      logger.info('Dynamic refund calculation completed', {
+        reservationId: request.reservationId,
+        refundAmount: result.refundAmount,
+        refundPercentage: result.refundPercentage,
+        isEligible: result.isEligible,
+        policyApplied: result.policyApplied
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error('Error calculating dynamic refund amount', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: request.reservationId,
+        userId: request.userId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Process dynamic refund with enhanced business rules and Korean timezone awareness
+   */
+  async processDynamicRefund(request: DynamicRefundCalculationRequest): Promise<RefundResponse> {
+    try {
+      logger.info('Processing dynamic refund', {
+        reservationId: request.reservationId,
+        userId: request.userId,
+        cancellationType: request.cancellationType
+      });
+
+      // Calculate dynamic refund amount
+      const refundCalculation = await this.calculateDynamicRefundAmount(request);
+
+      if (!refundCalculation.isEligible || refundCalculation.refundAmount <= 0) {
+        throw new Error(`Refund not eligible: ${refundCalculation.reason}`);
+      }
+
+      // Get payments for the reservation
+      const { data: payments } = await this.supabase
+        .from('payments')
+        .select('*')
+        .eq('reservation_id', request.reservationId)
+        .in('payment_status', ['deposit_paid', 'final_payment_paid', 'fully_paid']);
+
+      if (!payments || payments.length === 0) {
+        throw new Error('No paid payments found for this reservation');
+      }
+
+      // Process refunds for each payment
+      const refundResults = [];
+      for (const payment of payments) {
+        try {
+          // Create refund request for this payment
+          const refundRequest: CreateRefundRequest = {
+            paymentId: payment.id,
+            userId: request.userId,
+            refundType: this.mapCancellationTypeToRefundType(request.cancellationType),
+            refundReason: this.mapCancellationReasonToRefundReason(request.cancellationReason),
+            refundReasonDetails: request.cancellationReason || `Dynamic refund: ${request.cancellationType}`,
+            customerNotes: `Dynamic refund calculation: ${refundCalculation.reason}`
+          };
+
+          // Create refund request
+          const refundResponse = await this.createRefundRequest(refundRequest);
+          refundResults.push(refundResponse);
+
+          // If refund amount is calculated, update it with dynamic calculation
+          if (refundCalculation.refundAmount > 0) {
+            await this.supabase
+              .from('refunds')
+              .update({
+                requested_amount: Math.round((payment.amount * refundCalculation.refundPercentage) / 100),
+                refund_percentage: refundCalculation.refundPercentage,
+                updated_at: new Date().toISOString()
+              })
+              .eq('id', refundResponse.refundId);
+          }
+
+        } catch (paymentRefundError) {
+          logger.error('Failed to process refund for individual payment', {
+            error: paymentRefundError instanceof Error ? paymentRefundError.message : 'Unknown error',
+            paymentId: payment.id,
+            reservationId: request.reservationId
+          });
+          // Continue with other payments
+        }
+      }
+
+      // Create dynamic refund audit record
+      await this.createDynamicRefundAuditRecord({
+        reservationId: request.reservationId,
+        userId: request.userId,
+        refundCalculation,
+        refundResults,
+        cancellationType: request.cancellationType,
+        cancellationReason: request.cancellationReason,
+        policyOverride: request.policyOverride
+      });
+
+      logger.info('Dynamic refund processing completed', {
+        reservationId: request.reservationId,
+        refundAmount: refundCalculation.refundAmount,
+        refundPercentage: refundCalculation.refundPercentage,
+        refundsCreated: refundResults.length
+      });
+
+      return {
+        refundId: refundResults[0]?.refundId || 'multiple',
+        status: refundResults.length > 0 ? 'completed' : 'failed',
+        requestedAmount: refundCalculation.refundAmount || 0,
+        refundedAmount: refundResults.reduce((sum, r) => sum + (r.refundedAmount || 0), 0),
+        message: refundResults.length > 0 ? 'Refund processed successfully' : 'Refund processing failed'
+      };
+
+    } catch (error) {
+      logger.error('Error processing dynamic refund', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: request.reservationId,
+        userId: request.userId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get reservation details for refund calculation
+   */
+  private async getReservationDetails(reservationId: string): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('reservations')
+      .select('*')
+      .eq('id', reservationId)
+      .single();
+
+    if (error) {
+      throw new Error(`Failed to fetch reservation: ${error.message}`);
+    }
+
+    return data;
+  }
+
+  /**
+   * Apply dynamic business rules based on cancellation type and preferences
+   */
+  private applyDynamicBusinessRules(
+    eligibilityResult: any,
+    cancellationType: string,
+    refundPreference?: string,
+    cancellationReason?: string
+  ): {
+    appliedPolicies: string[];
+    exceptions: string[];
+    notes: string[];
+    adjustmentPercentage: number;
+  } {
+    const appliedPolicies: string[] = [];
+    const exceptions: string[] = [];
+    const notes: string[] = [];
+    let adjustmentPercentage = 0;
+
+    // Apply cancellation type specific rules
+    switch (cancellationType) {
+      case 'user_request':
+        appliedPolicies.push('Standard user cancellation policy');
+        
+        // Apply reason-based adjustments
+        if (cancellationReason?.toLowerCase().includes('emergency')) {
+          adjustmentPercentage = 10; // 10% bonus for emergency cancellations
+          notes.push('Emergency cancellation - enhanced refund rate applied');
+        } else if (cancellationReason?.toLowerCase().includes('medical')) {
+          adjustmentPercentage = 15; // 15% bonus for medical reasons
+          notes.push('Medical cancellation - enhanced refund rate applied');
+        }
+        break;
+        
+      case 'shop_request':
+        appliedPolicies.push('Shop-initiated cancellation - full refund policy');
+        adjustmentPercentage = 20; // 20% bonus for shop cancellations
+        notes.push('Shop-initiated cancellations receive enhanced refund rates');
+        break;
+        
+      case 'no_show':
+        appliedPolicies.push('No-show policy - reduced refund');
+        adjustmentPercentage = -50; // 50% penalty for no-show
+        exceptions.push('No-show penalty applied');
+        break;
+        
+      case 'admin_force':
+        appliedPolicies.push('Admin override - configurable refund policy');
+        adjustmentPercentage = 0; // No automatic adjustment for admin overrides
+        notes.push('Admin override allows flexible refund policy');
+        break;
+    }
+
+    // Apply refund preference rules
+    if (refundPreference) {
+      switch (refundPreference) {
+        case 'full_refund':
+          if (eligibilityResult.refundPercentage < 100) {
+            appliedPolicies.push('Customer requested full refund');
+            notes.push('Customer preference noted - may require manual review');
+          }
+          break;
+        case 'partial_refund':
+          appliedPolicies.push('Customer accepts partial refund');
+          break;
+        case 'no_refund':
+          appliedPolicies.push('Customer waives refund');
+          adjustmentPercentage = -100; // No refund
+          break;
+      }
+    }
+
+    // Apply timing-based rules
+    if (eligibilityResult.hoursUntilReservation >= 48) {
+      notes.push('Early cancellation - maximum refund eligibility');
+    } else if (eligibilityResult.hoursUntilReservation < 2) {
+      exceptions.push('Last-minute cancellation - reduced refund eligibility');
+    }
+
+    return {
+      appliedPolicies,
+      exceptions,
+      notes,
+      adjustmentPercentage
+    };
+  }
+
+  /**
+   * Calculate final refund percentage after applying business rules
+   */
+  private calculateFinalRefundPercentage(
+    basePercentage: number,
+    businessRules: {
+      adjustmentPercentage: number;
+    }
+  ): number {
+    let finalPercentage = basePercentage + businessRules.adjustmentPercentage;
+    
+    // Ensure percentage is within valid range
+    finalPercentage = Math.max(0, Math.min(100, finalPercentage));
+    
+    return finalPercentage;
+  }
+
+  /**
+   * Generate comprehensive refund reason
+   */
+  private generateDynamicRefundReason(
+    eligibilityResult: any,
+    businessRules: {
+      appliedPolicies: string[];
+      exceptions: string[];
+      notes: string[];
+    },
+    policyOverride?: any
+  ): string {
+    let reason = eligibilityResult.reason;
+    
+    if (policyOverride?.enabled) {
+      reason += ` Admin override applied: ${policyOverride.reason || 'Administrative decision'}.`;
+    }
+    
+    if (businessRules.exceptions.length > 0) {
+      reason += ` Exceptions: ${businessRules.exceptions.join(', ')}.`;
+    }
+    
+    if (businessRules.notes.length > 0) {
+      reason += ` Notes: ${businessRules.notes.join(', ')}.`;
+    }
+    
+    return reason;
+  }
+
+  /**
+   * Map cancellation type to refund type
+   */
+  private mapCancellationTypeToRefundType(cancellationType: string): RefundType {
+    switch (cancellationType) {
+      case 'user_request':
+        return 'full';
+      case 'shop_request':
+        return 'full';
+      case 'no_show':
+        return 'partial';
+      case 'admin_force':
+        return 'full';
+      default:
+        return 'partial';
+    }
+  }
+
+  /**
+   * Map cancellation reason to refund reason
+   */
+  private mapCancellationReasonToRefundReason(cancellationReason?: string): RefundReason {
+    if (!cancellationReason) {
+      return 'customer_request';
+    }
+
+    const reason = cancellationReason.toLowerCase();
+    
+    if (reason.includes('emergency') || reason.includes('medical')) {
+      return 'customer_request';
+    } else if (reason.includes('schedule') || reason.includes('time')) {
+      return 'customer_request';
+    } else if (reason.includes('personal')) {
+      return 'customer_request';
+    } else if (reason.includes('shop') || reason.includes('business')) {
+      return 'service_issue';
+    } else {
+      return 'customer_request';
+    }
+  }
+
+  /**
+   * Create dynamic refund audit record
+   */
+  private async createDynamicRefundAuditRecord(params: {
+    reservationId: string;
+    userId: string;
+    refundCalculation: DynamicRefundCalculationResult;
+    refundResults: RefundResponse[];
+    cancellationType: string;
+    cancellationReason?: string;
+    policyOverride?: any;
+  }): Promise<void> {
+    try {
+      const { formatKoreanDateTime, getCurrentKoreanTime } = await import('../utils/korean-timezone');
+      
+      await this.supabase
+        .from('dynamic_refund_audit_log')
+        .insert({
+          reservation_id: params.reservationId,
+          user_id: params.userId,
+          refund_amount: params.refundCalculation.refundAmount,
+          refund_percentage: params.refundCalculation.refundPercentage,
+          base_percentage: params.refundCalculation.basePercentage,
+          adjustment_percentage: params.refundCalculation.adjustmentPercentage,
+          cancellation_type: params.cancellationType,
+          cancellation_reason: params.cancellationReason,
+          policy_applied: params.refundCalculation.policyApplied,
+          policy_override: params.policyOverride,
+          refund_window: params.refundCalculation.cancellationWindow,
+          korean_current_time: params.refundCalculation.koreanTimeInfo.currentTime,
+          korean_reservation_time: params.refundCalculation.koreanTimeInfo.reservationTime,
+          timezone: params.refundCalculation.koreanTimeInfo.timeZone,
+          business_rules: params.refundCalculation.businessRules,
+          refund_ids: params.refundResults.map(r => r.refundId),
+          created_at: formatKoreanDateTime(getCurrentKoreanTime())
+        });
+
+      logger.info('Dynamic refund audit record created', {
+        reservationId: params.reservationId,
+        refundAmount: params.refundCalculation.refundAmount,
+        policyApplied: params.refundCalculation.policyApplied
+      });
+
+    } catch (error) {
+      logger.error('Failed to create dynamic refund audit record', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: params.reservationId
+      });
+      // Don't throw - audit failure shouldn't break refund processing
     }
   }
 }

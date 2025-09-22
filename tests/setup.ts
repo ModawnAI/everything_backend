@@ -77,10 +77,24 @@ beforeAll(async () => {
     // Ignore database initialization errors in tests
     console.log('Database initialization skipped in test environment');
   }
+
+  // Setup reservation test database
+  try {
+    const { GlobalTestSetup } = require('./setup/reservation-database-setup');
+    await GlobalTestSetup.setup();
+  } catch (error) {
+    console.log('Reservation database setup skipped:', error.message);
+  }
 });
 
 afterAll(async () => {
   // Global cleanup after all tests
+  try {
+    const { GlobalTestSetup } = require('./setup/reservation-database-setup');
+    await GlobalTestSetup.teardown();
+  } catch (error) {
+    console.log('Reservation database teardown skipped:', error.message);
+  }
 });
 
 beforeEach(() => {

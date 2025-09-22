@@ -93,6 +93,7 @@ export interface ReservationStatusUpdateRequest {
   notifyCustomer?: boolean;
   notifyShop?: boolean;
   autoProcessPayment?: boolean;
+  adminId?: string;
 }
 
 export interface ReservationStatusUpdateResult {
@@ -438,32 +439,33 @@ export class AdminReservationService {
         throw new Error(`Invalid status transition: ${previousStatus} → ${request.status}`);
       }
 
-      // Prepare update data
-      const updateData: any = {
-        status: request.status,
-        updated_at: new Date().toISOString()
-      };
+      // Use state machine to execute status transition
+      const { reservationStateMachine } = await import('./reservation-state-machine.service');
+      
+      const transitionResult = await reservationStateMachine.executeTransition(
+        reservationId,
+        request.status,
+        'admin',
+        adminId,
+        request.notes || request.reason || `Status updated to ${request.status} by admin`,
+        {
+          admin_update: true,
+          reason: request.reason,
+          notes: request.notes,
+          autoProcessPayment: request.autoProcessPayment,
+          updated_at: new Date().toISOString()
+        }
+      );
 
-      // Set status-specific timestamps
-      if (request.status === 'confirmed' && !reservation.confirmed_at) {
-        updateData.confirmed_at = new Date().toISOString();
-      } else if (request.status === 'completed' && !reservation.completed_at) {
-        updateData.completed_at = new Date().toISOString();
-      } else if (request.status === 'cancelled_by_shop' || request.status === 'cancelled_by_user') {
-        updateData.cancelled_at = new Date().toISOString();
-        updateData.cancellation_reason = request.reason;
-      } else if (request.status === 'no_show') {
-        updateData.no_show_reason = request.reason;
-      }
-
-      // Update reservation
-      const { error: updateError } = await this.supabase
-        .from('reservations')
-        .update(updateData)
-        .eq('id', reservationId);
-
-      if (updateError) {
-        throw new Error(`Failed to update reservation: ${updateError.message}`);
+      if (!transitionResult.success) {
+        logger.error('Failed to update reservation status via state machine', {
+          errors: transitionResult.errors,
+          warnings: transitionResult.warnings,
+          reservationId,
+          status: request.status,
+          adminId
+        });
+        throw new Error(`State transition failed: ${transitionResult.errors.join(', ')}`);
       }
 
       // Process status-specific actions
@@ -842,11 +844,111 @@ export class AdminReservationService {
   }
 
   /**
-   * Process cancellation actions
+   * Process cancellation actions with enhanced dynamic refund handling
    */
   private async processCancellationActions(reservationId: string, request: ReservationStatusUpdateRequest): Promise<void> {
-    // This would integrate with the refund system
-    logger.info('Processing cancellation actions for reservation', { reservationId });
+    try {
+      logger.info('Processing enhanced cancellation actions for reservation', { 
+        reservationId,
+        notes: request.notes,
+        reason: request.notes || 'Reservation cancelled by admin'
+      });
+
+      // Get reservation details to determine user ID
+      const { data: reservation } = await this.supabase
+        .from('reservations')
+        .select('user_id')
+        .eq('id', reservationId)
+        .single();
+
+      if (!reservation) {
+        logger.error('Reservation not found for admin cancellation', { reservationId });
+        return;
+      }
+
+      // Process dynamic refunds with admin override capabilities
+      let refundResult = null;
+      let refundCalculation = null;
+      try {
+        // Import services for dynamic refund processing
+        const { refundService } = await import('./refund.service');
+        const { timezoneRefundService } = await import('./timezone-refund.service');
+
+        // Calculate dynamic refund amount with admin override
+        const dynamicRefundRequest = {
+          reservationId,
+          userId: reservation.user_id,
+          cancellationType: 'admin_force' as const,
+          cancellationReason: request.notes || 'Reservation cancelled by admin',
+          refundPreference: 'full_refund' as const,
+          policyOverride: {
+            enabled: true,
+            refundPercentage: 100, // Admin can override to full refund
+            reason: 'Administrative cancellation - full refund policy',
+            adminId: request.adminId || 'system'
+          }
+        };
+
+        refundCalculation = await timezoneRefundService.calculateRefundAmount(dynamicRefundRequest);
+        
+        logger.info('Admin dynamic refund calculation completed', {
+          reservationId,
+          refundAmount: refundCalculation.refundAmount,
+          refundPercentage: refundCalculation.refundPercentage,
+          isEligible: refundCalculation.isEligible,
+          adminOverride: true
+        });
+
+        // Process refunds if eligible
+        if (refundCalculation.isEligible && refundCalculation.refundAmount > 0) {
+          refundResult = await refundService.processDynamicRefund(dynamicRefundRequest);
+          
+          logger.info('Admin automatic refund processing completed', {
+            reservationId,
+            refundAmount: refundCalculation.refundAmount,
+            refundPercentage: refundCalculation.refundPercentage,
+            refundId: refundResult.refundId,
+            refundStatus: refundResult.status,
+            adminOverride: true
+          });
+        } else {
+          logger.info('Admin refund not eligible or amount is zero', {
+            reservationId,
+            reason: refundCalculation.reason,
+            isEligible: refundCalculation.isEligible,
+            refundAmount: refundCalculation.refundAmount
+          });
+        }
+
+      } catch (refundError) {
+        logger.error('Failed to process admin dynamic refunds during cancellation', {
+          reservationId,
+          error: refundError instanceof Error ? refundError.message : 'Unknown error',
+          adminId: request.adminId
+        });
+        // Continue with cancellation even if refund fails - can be handled separately
+      }
+
+      // Create admin cancellation audit trail
+      await this.createAdminCancellationAuditTrail({
+        reservationId,
+        adminId: request.adminId || 'system',
+        reason: request.notes || 'Reservation cancelled by admin',
+        refundCalculation,
+        refundResult,
+        reservationUserId: reservation.user_id
+      });
+
+      // Additional cancellation actions can be added here
+      // For example: updating shop statistics, sending notifications, etc.
+
+    } catch (error) {
+      logger.error('Error processing enhanced cancellation actions', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId
+      });
+      // Don't throw - cancellation should still succeed even if actions fail
+    }
   }
 
   /**
@@ -855,6 +957,65 @@ export class AdminReservationService {
   private async processNoShowActions(reservationId: string): Promise<void> {
     // This would integrate with the no-show detection system
     logger.info('Processing no-show actions for reservation', { reservationId });
+  }
+
+  /**
+   * Create admin cancellation audit trail with enhanced refund processing details
+   */
+  private async createAdminCancellationAuditTrail(params: {
+    reservationId: string;
+    adminId: string;
+    reason: string;
+    refundCalculation?: any;
+    refundResult?: any;
+    reservationUserId: string;
+  }): Promise<void> {
+    try {
+      const { formatKoreanDateTime, getCurrentKoreanTime } = await import('../utils/korean-timezone');
+      
+      await this.supabase
+        .from('admin_cancellation_audit_log')
+        .insert({
+          reservation_id: params.reservationId,
+          user_id: params.reservationUserId,
+          admin_id: params.adminId,
+          cancellation_type: 'admin_force',
+          cancellation_reason: params.reason,
+          refund_preference: 'full_refund',
+          refund_amount: params.refundCalculation?.refundAmount || 0,
+          refund_percentage: params.refundCalculation?.refundPercentage || 100,
+          refund_eligible: params.refundCalculation?.isEligible || true,
+          refund_window: params.refundCalculation?.cancellationWindow || 'admin_override',
+          refund_processed: !!params.refundResult,
+          refund_id: params.refundResult?.refundId || null,
+          refund_status: params.refundResult?.status || 'processed',
+          admin_override: true,
+          policy_override: params.refundCalculation?.policyOverride || null,
+          korean_current_time: params.refundCalculation?.koreanTimeInfo?.currentTime || formatKoreanDateTime(getCurrentKoreanTime()),
+          korean_reservation_time: params.refundCalculation?.koreanTimeInfo?.reservationTime || 'unknown',
+          timezone: params.refundCalculation?.koreanTimeInfo?.timeZone || 'Asia/Seoul (KST)',
+          business_rules: params.refundCalculation?.businessRules || null,
+          refund_calculation_details: params.refundCalculation || null,
+          refund_processing_details: params.refundResult || null,
+          created_at: formatKoreanDateTime(getCurrentKoreanTime())
+        });
+
+      logger.info('Admin cancellation audit trail created', {
+        reservationId: params.reservationId,
+        adminId: params.adminId,
+        refundAmount: params.refundCalculation?.refundAmount || 0,
+        refundProcessed: !!params.refundResult,
+        adminOverride: true
+      });
+
+    } catch (error) {
+      logger.error('Failed to create admin cancellation audit trail', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: params.reservationId,
+        adminId: params.adminId
+      });
+      // Don't throw - audit trail failure shouldn't break cancellation
+    }
   }
 
   /**
@@ -892,6 +1053,324 @@ export class AdminReservationService {
       count: (stats as any).count,
       revenue: (stats as any).revenue
     })).sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Force complete a reservation for dispute resolution
+   */
+  async forceCompleteReservation(
+    reservationId: string,
+    request: {
+      reason: string;
+      notes?: string;
+      refundAmount?: number;
+      compensationPoints?: number;
+      notifyCustomer?: boolean;
+      notifyShop?: boolean;
+    },
+    adminId: string
+  ): Promise<{
+    success: boolean;
+    reservation: any;
+    refundProcessed?: boolean;
+    compensationProcessed?: boolean;
+    notificationsSent: {
+      customer: boolean;
+      shop: boolean;
+    };
+  }> {
+    try {
+      logger.info('Admin force completing reservation', { adminId, reservationId, request });
+
+      // Get current reservation
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select('*')
+        .eq('id', reservationId)
+        .single();
+
+      if (reservationError || !reservation) {
+        throw new Error('Reservation not found');
+      }
+
+      // Validate that reservation can be force completed
+      if (reservation.status === 'completed') {
+        throw new Error('Reservation is already completed');
+      }
+
+      // Use state machine to execute completion transition
+      const { reservationStateMachine } = await import('./reservation-state-machine.service');
+      
+      const transitionResult = await reservationStateMachine.executeTransition(
+        reservationId,
+        'completed',
+        'admin',
+        adminId,
+        `Force completed by admin: ${request.reason}`,
+        {
+          admin_force_complete: true,
+          reason: request.reason,
+          notes: request.notes,
+          force_completion: true,
+          updated_at: new Date().toISOString()
+        }
+      );
+
+      if (!transitionResult.success) {
+        logger.error('Failed to force complete reservation via state machine', {
+          errors: transitionResult.errors,
+          warnings: transitionResult.warnings,
+          reservationId,
+          adminId
+        });
+        throw new Error(`State transition failed: ${transitionResult.errors.join(', ')}`);
+      }
+
+      let refundProcessed = false;
+      let compensationProcessed = false;
+
+      // Process refund if requested
+      if (request.refundAmount && request.refundAmount > 0) {
+        try {
+          const refundResult = await this.processRefund(reservationId, request.refundAmount, adminId);
+          refundProcessed = refundResult.success;
+          
+          if (refundProcessed) {
+            logger.info(`Refund processed for force completed reservation ${reservationId}: ${request.refundAmount} KRW`);
+          }
+        } catch (error) {
+          logger.error('Failed to process refund for force completed reservation', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            reservationId,
+            refundAmount: request.refundAmount
+          });
+        }
+      }
+
+      // Process compensation points if requested
+      if (request.compensationPoints && request.compensationPoints > 0) {
+        try {
+          const compensationResult = await this.processCompensationPoints(reservationId, request.compensationPoints, adminId);
+          compensationProcessed = compensationResult.success;
+          
+          if (compensationProcessed) {
+            logger.info(`Compensation points processed for force completed reservation ${reservationId}: ${request.compensationPoints} points`);
+          }
+        } catch (error) {
+          logger.error('Failed to process compensation points for force completed reservation', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            reservationId,
+            compensationPoints: request.compensationPoints
+          });
+        }
+      }
+
+      // Send notifications
+      const notificationsSent = {
+        customer: false,
+        shop: false
+      };
+
+      if (request.notifyCustomer) {
+        try {
+          await this.sendCustomerNotification(reservationId, 'completed', 
+            `Reservation force completed by admin. ${request.notes || ''}${refundProcessed ? ` Refund of ${request.refundAmount} KRW processed.` : ''}${compensationProcessed ? ` ${request.compensationPoints} compensation points added.` : ''}`);
+          notificationsSent.customer = true;
+        } catch (error) {
+          logger.error('Failed to send customer notification for force completion', { error, reservationId });
+        }
+      }
+
+      if (request.notifyShop) {
+        try {
+          await this.sendShopNotification(reservationId, 'completed', 
+            `Reservation force completed by admin. ${request.notes || ''}`);
+          notificationsSent.shop = true;
+        } catch (error) {
+          logger.error('Failed to send shop notification for force completion', { error, reservationId });
+        }
+      }
+
+      // Log admin action
+      await this.logAdminAction(adminId, 'force_complete_reservation', {
+        reservationId,
+        reason: request.reason,
+        notes: request.notes,
+        refundAmount: request.refundAmount,
+        compensationPoints: request.compensationPoints,
+        refundProcessed,
+        compensationProcessed,
+        notificationsSent
+      });
+
+      // Get updated reservation
+      const { data: updatedReservation } = await this.supabase
+        .from('reservations')
+        .select('*')
+        .eq('id', reservationId)
+        .single();
+
+      logger.info(`Reservation ${reservationId} force completed successfully by admin ${adminId}`, {
+        refundProcessed,
+        compensationProcessed,
+        notificationsSent
+      });
+
+      return {
+        success: true,
+        reservation: updatedReservation,
+        refundProcessed,
+        compensationProcessed,
+        notificationsSent
+      };
+
+    } catch (error) {
+      logger.error('Failed to force complete reservation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId,
+        adminId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Process refund for force completed reservation
+   */
+  private async processRefund(reservationId: string, refundAmount: number, adminId: string): Promise<{ success: boolean; refundId?: string }> {
+    try {
+      // Create refund record
+      const { data: refund, error: refundError } = await this.supabase
+        .from('refunds')
+        .insert({
+          reservation_id: reservationId,
+          amount: refundAmount,
+          refund_type: 'admin_force_complete',
+          reason: 'Force completion by admin',
+          status: 'processed',
+          processed_by: adminId,
+          processed_at: new Date().toISOString(),
+          metadata: {
+            admin_processed: true,
+            force_completion: true
+          }
+        })
+        .select('id')
+        .single();
+
+      if (refundError || !refund) {
+        throw new Error('Failed to create refund record');
+      }
+
+      // Update reservation with refund information
+      const { error: updateError } = await this.supabase
+        .from('reservations')
+        .update({
+          refund_amount: refundAmount,
+          refund_processed: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reservationId);
+
+      if (updateError) {
+        logger.error('Failed to update reservation with refund information', { error: updateError, reservationId });
+      }
+
+      return {
+        success: true,
+        refundId: refund.id
+      };
+
+    } catch (error) {
+      logger.error('Failed to process refund for force completed reservation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId,
+        refundAmount
+      });
+      return { success: false };
+    }
+  }
+
+  /**
+   * Process compensation points for force completed reservation
+   */
+  private async processCompensationPoints(reservationId: string, compensationPoints: number, adminId: string): Promise<{ success: boolean; transactionId?: string }> {
+    try {
+      // Get reservation to get user ID
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select('user_id')
+        .eq('id', reservationId)
+        .single();
+
+      if (reservationError || !reservation) {
+        throw new Error('Reservation not found');
+      }
+
+      // Add compensation points to user
+      const { data: user, error: userError } = await this.supabase
+        .from('users')
+        .select('available_points, total_points')
+        .eq('id', reservation.user_id)
+        .single();
+
+      if (userError || !user) {
+        throw new Error('User not found');
+      }
+
+      const newAvailablePoints = (user.available_points || 0) + compensationPoints;
+      const newTotalPoints = (user.total_points || 0) + compensationPoints;
+
+      // Update user points
+      const { error: updateUserError } = await this.supabase
+        .from('users')
+        .update({
+          available_points: newAvailablePoints,
+          total_points: newTotalPoints,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reservation.user_id);
+
+      if (updateUserError) {
+        throw new Error('Failed to update user points');
+      }
+
+      // Create point transaction record
+      const { data: transaction, error: transactionError } = await this.supabase
+        .from('point_transactions')
+        .insert({
+          user_id: reservation.user_id,
+          transaction_type: 'compensation',
+          amount: compensationPoints,
+          description: `Compensation points for force completed reservation`,
+          status: 'available',
+          metadata: {
+            reservation_id: reservationId,
+            admin_processed: true,
+            force_completion: true,
+            processed_by: adminId
+          }
+        })
+        .select('id')
+        .single();
+
+      if (transactionError || !transaction) {
+        logger.error('Failed to create compensation point transaction', { error: transactionError, reservationId });
+      }
+
+      return {
+        success: true,
+        transactionId: transaction?.id
+      };
+
+    } catch (error) {
+      logger.error('Failed to process compensation points for force completed reservation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId,
+        compensationPoints
+      });
+      return { success: false };
+    }
   }
 
   /**

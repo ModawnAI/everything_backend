@@ -23,10 +23,12 @@ const mockRedisStore = {
   getStats: jest.fn()
 };
 
-jest.mock('../../src/utils/redis-rate-limit-store', () => ({
-  RedisRateLimitStore: jest.fn(() => mockRedisStore),
-  getRedisRateLimitStore: jest.fn(() => mockRedisStore)
-}));
+jest.mock('../../src/utils/redis-rate-limit-store', () => {
+  return {
+    RedisRateLimitStore: jest.fn(() => mockRedisStore),
+    getRedisRateLimitStore: jest.fn(() => mockRedisStore)
+  };
+});
 
 jest.mock('../../src/utils/logger', () => ({
   logger: {

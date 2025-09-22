@@ -269,12 +269,28 @@ export class PaymentController {
         return;
       }
 
-      // Check if payment already exists
+      // Determine payment stage based on isDeposit flag and reservation status
+      const paymentStage = isDeposit ? 'deposit' : 'final';
+      
+      // For final payments, validate that service is completed
+      if (!isDeposit && reservation.status !== 'completed') {
+        res.status(409).json({
+          success: false,
+          error: {
+            code: 'SERVICE_NOT_COMPLETED',
+            message: '서비스가 아직 완료되지 않았습니다.',
+            details: `현재 상태: ${reservation.status}. 서비스 완료 후 최종 결제가 가능합니다.`
+          }
+        });
+        return;
+      }
+
+      // Check if payment already exists for the same stage
       const { data: existingPayment } = await this.supabase
         .from('payments')
         .select('*')
         .eq('reservation_id', reservationId)
-        .eq('is_deposit', isDeposit)
+        .eq('payment_stage', paymentStage)
         .eq('payment_status', 'pending')
         .single();
 
@@ -290,7 +306,7 @@ export class PaymentController {
         return;
       }
 
-      // Prepare payment initiation request
+      // Prepare payment initiation request with enhanced stage information
       const paymentRequest: PaymentInitiationRequest = {
         reservationId,
         userId,
@@ -300,7 +316,8 @@ export class PaymentController {
         customerEmail: reservation.users.email,
         customerPhone: reservation.users.phone_number,
         successUrl,
-        failUrl
+        failUrl,
+        paymentStage: paymentStage
       };
 
       // Initialize payment with TossPayments
@@ -324,7 +341,9 @@ export class PaymentController {
           paymentId: paymentResponse.paymentId,
           amount,
           isDeposit,
-          reservationId
+          paymentStage,
+          reservationId,
+          reservationStatus: reservation.status
         }
       });
 
@@ -396,7 +415,10 @@ export class PaymentController {
       // Get payment record to verify ownership
       const { data: payment, error: paymentError } = await this.supabase
         .from('payments')
-        .select('*')
+        .select(`
+          *,
+          reservations!inner(*)
+        `)
         .eq('provider_order_id', orderId)
         .eq('user_id', userId)
         .single();
@@ -424,6 +446,42 @@ export class PaymentController {
           }
         });
         return;
+      }
+
+      // Validate payment stage and reservation status
+      if (payment.payment_stage === 'final' && payment.reservations.status !== 'completed') {
+        res.status(409).json({
+          success: false,
+          error: {
+            code: 'SERVICE_NOT_COMPLETED',
+            message: '서비스가 아직 완료되지 않았습니다.',
+            details: `최종 결제는 서비스 완료 후에만 가능합니다. 현재 상태: ${payment.reservations.status}`
+          }
+        });
+        return;
+      }
+
+      // For final payments, ensure deposit was paid
+      if (payment.payment_stage === 'final') {
+        const { data: depositPayment } = await this.supabase
+          .from('payments')
+          .select('*')
+          .eq('reservation_id', payment.reservation_id)
+          .eq('payment_stage', 'deposit')
+          .eq('payment_status', 'deposit_paid')
+          .single();
+
+        if (!depositPayment) {
+          res.status(409).json({
+            success: false,
+            error: {
+              code: 'DEPOSIT_NOT_PAID',
+              message: '예약금이 결제되지 않았습니다.',
+              details: '예약금 결제 후 최종 결제가 가능합니다.'
+            }
+          });
+          return;
+        }
       }
 
       // Enhanced payment confirmation with verification and processing
@@ -459,7 +517,9 @@ export class PaymentController {
           reservationStatus: confirmResponse.reservationStatus,
           notificationSent: confirmResponse.notificationSent,
           receiptGenerated: confirmResponse.receiptGenerated,
-          auditLogId: confirmResponse.auditLogId
+          auditLogId: confirmResponse.auditLogId,
+          paymentStage: payment.payment_stage,
+          isDeposit: payment.is_deposit
         }
       });
 
@@ -960,6 +1020,482 @@ export class PaymentController {
       // Redirect to error page
       const errorUrl = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment/error?message=redirect_failed`;
       res.redirect(errorUrl);
+    }
+  }
+
+  /**
+   * @swagger
+   * /api/payments/final/prepare:
+   *   post:
+   *     summary: Prepare final payment for completed service
+   *     description: Initialize final payment processing after service completion for two-stage payment system
+   *     tags: [Payments]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - reservationId
+   *             properties:
+   *               reservationId:
+   *                 type: string
+   *                 format: uuid
+   *                 description: ID of the completed reservation
+   *                 example: "123e4567-e89b-12d3-a456-426614174000"
+   *               finalAmount:
+   *                 type: number
+   *                 minimum: 0
+   *                 description: Final payment amount (optional, defaults to remaining amount)
+   *                 example: 30000
+   *               successUrl:
+   *                 type: string
+   *                 format: uri
+   *                 description: URL to redirect to after successful payment
+   *                 example: "https://app.reviewthing.com/payment/final/success"
+   *               failUrl:
+   *                 type: string
+   *                 format: uri
+   *                 description: URL to redirect to after failed payment
+   *                 example: "https://app.reviewthing.com/payment/final/fail"
+   *     responses:
+   *       200:
+   *         description: Final payment preparation successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     paymentId:
+   *                       type: string
+   *                       format: uuid
+   *                       description: Internal payment ID
+   *                     orderId:
+   *                       type: string
+   *                       description: TossPayments order ID
+   *                     amount:
+   *                       type: number
+   *                       description: Final payment amount
+   *                     checkoutUrl:
+   *                       type: string
+   *                       description: TossPayments checkout URL
+   *       400:
+   *         description: Bad request - Invalid reservation or amount
+   *       404:
+   *         description: Reservation not found or not completed
+   *       409:
+   *         description: Final payment already exists or service not completed
+   *       500:
+   *         description: Internal server error
+   */
+  async prepareFinalPayment(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const {
+        reservationId,
+        finalAmount,
+        successUrl,
+        failUrl
+      } = req.body;
+
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      // Validate required fields
+      if (!reservationId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REQUIRED_FIELDS',
+            message: '예약 ID가 필요합니다.',
+            details: 'reservationId는 필수입니다.'
+          }
+        });
+        return;
+      }
+
+      // Get reservation with payment details
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          users!inner(name, email, phone_number),
+          shops!inner(name),
+          payments!inner(*)
+        `)
+        .eq('id', reservationId)
+        .eq('user_id', userId)
+        .single();
+
+      if (reservationError || !reservation) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'RESERVATION_NOT_FOUND',
+            message: '예약을 찾을 수 없습니다.',
+            details: '해당 예약이 존재하지 않거나 접근 권한이 없습니다.'
+          }
+        });
+        return;
+      }
+
+      // Validate reservation status - must be completed
+      if (reservation.status !== 'completed') {
+        res.status(409).json({
+          success: false,
+          error: {
+            code: 'SERVICE_NOT_COMPLETED',
+            message: '서비스가 아직 완료되지 않았습니다.',
+            details: `현재 상태: ${reservation.status}. 서비스 완료 후 최종 결제가 가능합니다.`
+          }
+        });
+        return;
+      }
+
+      // Check if deposit was paid
+      const depositPayment = reservation.payments?.find((p: any) => p.payment_stage === 'deposit' && p.payment_status === 'deposit_paid');
+      if (!depositPayment) {
+        res.status(409).json({
+          success: false,
+          error: {
+            code: 'DEPOSIT_NOT_PAID',
+            message: '예약금이 결제되지 않았습니다.',
+            details: '예약금 결제 후 최종 결제가 가능합니다.'
+          }
+        });
+        return;
+      }
+
+      // Check if final payment already exists
+      const existingFinalPayment = reservation.payments?.find((p: any) => p.payment_stage === 'final' && p.payment_status === 'pending');
+      if (existingFinalPayment) {
+        res.status(409).json({
+          success: false,
+          error: {
+            code: 'FINAL_PAYMENT_ALREADY_EXISTS',
+            message: '이미 진행 중인 최종 결제가 있습니다.',
+            details: '최종 결제가 이미 초기화되었습니다.'
+          }
+        });
+        return;
+      }
+
+      // Calculate final payment amount
+      const calculatedFinalAmount = finalAmount || reservation.remaining_amount || (reservation.total_amount - reservation.deposit_amount);
+      
+      if (calculatedFinalAmount <= 0) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_FINAL_AMOUNT',
+            message: '유효하지 않은 최종 결제 금액입니다.',
+            details: '최종 결제 금액은 0보다 커야 합니다.'
+          }
+        });
+        return;
+      }
+
+      // Prepare final payment initiation request
+      const paymentRequest: PaymentInitiationRequest = {
+        reservationId,
+        userId,
+        amount: calculatedFinalAmount,
+        isDeposit: false,
+        customerName: reservation.users.name,
+        customerEmail: reservation.users.email,
+        customerPhone: reservation.users.phone_number,
+        successUrl: successUrl || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment/final/success`,
+        failUrl: failUrl || `${process.env.FRONTEND_URL || 'http://localhost:3000'}/payment/final/fail`
+      };
+
+      // Initialize final payment with TossPayments
+      const paymentResponse = await tossPaymentsService.initializePayment(paymentRequest);
+
+      logger.info('Final payment preparation successful', {
+        paymentId: paymentResponse.paymentId,
+        orderId: paymentResponse.orderId,
+        userId,
+        reservationId,
+        finalAmount: calculatedFinalAmount,
+        depositPaid: depositPayment.amount
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          paymentKey: paymentResponse.paymentKey,
+          orderId: paymentResponse.orderId,
+          checkoutUrl: paymentResponse.checkoutUrl,
+          paymentId: paymentResponse.paymentId,
+          amount: calculatedFinalAmount,
+          isDeposit: false,
+          reservationId,
+          depositPaid: depositPayment.amount,
+          totalAmount: reservation.total_amount
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in prepareFinalPayment:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        body: req.body,
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'FINAL_PAYMENT_INITIALIZATION_FAILED',
+          message: '최종 결제 초기화에 실패했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * @swagger
+   * /api/payments/final/confirm:
+   *   post:
+   *     summary: Confirm final payment after service completion
+   *     description: Confirm final payment processing for two-stage payment system
+   *     tags: [Payments]
+   *     security:
+   *       - bearerAuth: []
+   *     requestBody:
+   *       required: true
+   *       content:
+   *         application/json:
+   *           schema:
+   *             type: object
+   *             required:
+   *               - paymentKey
+   *               - orderId
+   *               - amount
+   *             properties:
+   *               paymentKey:
+   *                 type: string
+   *                 description: TossPayments payment key
+   *               orderId:
+   *                 type: string
+   *                 description: TossPayments order ID
+   *               amount:
+   *                 type: number
+   *                 description: Final payment amount
+   *     responses:
+   *       200:
+   *         description: Final payment confirmation successful
+   *         content:
+   *           application/json:
+   *             schema:
+   *               type: object
+   *               properties:
+   *                 success:
+   *                   type: boolean
+   *                   example: true
+   *                 data:
+   *                   type: object
+   *                   properties:
+   *                     paymentId:
+   *                       type: string
+   *                       description: Internal payment ID
+   *                     status:
+   *                       type: string
+   *                       description: Payment status
+   *                     transactionId:
+   *                       type: string
+   *                       description: TossPayments transaction ID
+   *                     approvedAt:
+   *                       type: string
+   *                       format: date-time
+   *                       description: Payment approval timestamp
+   *       400:
+   *         description: Bad request - Invalid payment data
+   *       404:
+   *         description: Payment not found
+   *       500:
+   *         description: Internal server error
+   */
+  async confirmFinalPayment(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { paymentKey, orderId, amount } = req.body;
+
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      // Validate required fields
+      if (!paymentKey || !orderId || !amount) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REQUIRED_FIELDS',
+            message: '필수 필드가 누락되었습니다.',
+            details: 'paymentKey, orderId, amount는 필수입니다.'
+          }
+        });
+        return;
+      }
+
+      // Validate amount
+      if (amount <= 0) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_AMOUNT',
+            message: '유효하지 않은 금액입니다.',
+            details: '금액은 0보다 커야 합니다.'
+          }
+        });
+        return;
+      }
+
+      // Get final payment record to verify ownership and stage
+      const { data: payment, error: paymentError } = await this.supabase
+        .from('payments')
+        .select(`
+          *,
+          reservations!inner(*)
+        `)
+        .eq('provider_order_id', orderId)
+        .eq('user_id', userId)
+        .eq('payment_stage', 'final')
+        .single();
+
+      if (paymentError || !payment) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'FINAL_PAYMENT_NOT_FOUND',
+            message: '최종 결제 정보를 찾을 수 없습니다.',
+            details: '해당 최종 결제가 존재하지 않거나 접근 권한이 없습니다.'
+          }
+        });
+        return;
+      }
+
+      // Verify amount matches
+      if (payment.amount !== amount) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'AMOUNT_MISMATCH',
+            message: '금액이 일치하지 않습니다.',
+            details: `예상 금액: ${payment.amount}원, 실제 금액: ${amount}원`
+          }
+        });
+        return;
+      }
+
+      // Enhanced final payment confirmation with verification
+      const enhancedConfirmRequest: EnhancedPaymentConfirmationRequest = {
+        paymentKey,
+        orderId,
+        amount,
+        userId,
+        sendNotification: true,
+        generateReceipt: true
+      };
+
+      const confirmResponse = await paymentConfirmationService.confirmPaymentWithVerification(enhancedConfirmRequest);
+
+      logger.info('Final payment confirmation successful', {
+        paymentId: confirmResponse.paymentId,
+        transactionId: confirmResponse.transactionId,
+        status: confirmResponse.status,
+        userId,
+        orderId,
+        reservationId: payment.reservations.id
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          paymentId: confirmResponse.paymentId,
+          status: confirmResponse.status,
+          transactionId: confirmResponse.transactionId,
+          approvedAt: confirmResponse.approvedAt,
+          receiptUrl: confirmResponse.receiptUrl,
+          amount,
+          orderId,
+          reservationStatus: confirmResponse.reservationStatus,
+          notificationSent: confirmResponse.notificationSent,
+          receiptGenerated: confirmResponse.receiptGenerated,
+          auditLogId: confirmResponse.auditLogId,
+          isFinalPayment: true,
+          paymentStage: 'final'
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in confirmFinalPayment:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        body: req.body,
+        userId: req.user?.id
+      });
+
+      // Handle specific TossPayments errors
+      if (error instanceof Error) {
+        if (error.message.includes('Amount mismatch')) {
+          res.status(400).json({
+            success: false,
+            error: {
+              code: 'AMOUNT_MISMATCH',
+              message: '결제 금액이 일치하지 않습니다.',
+              details: '결제 금액을 다시 확인해주세요.'
+            }
+          });
+          return;
+        }
+
+        if (error.message.includes('Payment record not found')) {
+          res.status(404).json({
+            success: false,
+            error: {
+              code: 'FINAL_PAYMENT_NOT_FOUND',
+              message: '최종 결제 정보를 찾을 수 없습니다.',
+              details: '최종 결제 정보가 존재하지 않습니다.'
+            }
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'FINAL_PAYMENT_CONFIRMATION_FAILED',
+          message: '최종 결제 확인에 실패했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
     }
   }
 } 

@@ -384,3 +384,4 @@ export const isValidDayOperatingHours = (dayHours: any): { valid: boolean; error
 
   return { valid: errors.length === 0, errors };
 };
+

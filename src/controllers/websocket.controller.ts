@@ -5,6 +5,81 @@ import { logger } from '../utils/logger';
 
 export default class WebSocketController {
   /**
+   * Validate reservation notification authorization
+   */
+  private async validateReservationNotificationAuth(
+    userId: string,
+    reservationId: string,
+    shopId?: string
+  ): Promise<{ authorized: boolean; reason?: string }> {
+    try {
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      // Get user role and reservation details
+      const { data: user } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', userId)
+        .single();
+
+      if (!user) {
+        return { authorized: false, reason: 'User not found' };
+      }
+
+      // Admins can send notifications for any reservation
+      if (user.role === 'admin') {
+        return { authorized: true };
+      }
+
+      // Get reservation details for authorization check
+      const { data: reservation } = await supabase
+        .from('reservations')
+        .select(`
+          user_id,
+          shop_id,
+          shops!inner(owner_id)
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (!reservation) {
+        return { authorized: false, reason: 'Reservation not found' };
+      }
+
+      // Check authorization based on user role
+      if (user.role === 'shop_owner') {
+        // Shop owners can only send notifications for their own shop's reservations
+        if (reservation.shop_id !== shopId) {
+          return { authorized: false, reason: 'Shop owner can only manage their own shop reservations' };
+        }
+        if ((reservation.shops as any)?.owner_id !== userId) {
+          return { authorized: false, reason: 'Not authorized to manage this shop' };
+        }
+        return { authorized: true };
+      }
+
+      if (user.role === 'user') {
+        // Users can only send notifications for their own reservations
+        if (reservation.user_id !== userId) {
+          return { authorized: false, reason: 'Users can only manage their own reservations' };
+        }
+        return { authorized: true };
+      }
+
+      return { authorized: false, reason: 'Invalid user role' };
+
+    } catch (error) {
+      logger.error('Failed to validate reservation notification authorization', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        reservationId
+      });
+      return { authorized: false, reason: 'Authorization check failed' };
+    }
+  }
+
+  /**
    * Get WebSocket connection statistics
    */
   async getConnectionStats(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -249,6 +324,222 @@ export default class WebSocketController {
   }
 
   /**
+   * Send reservation status notification with push and WebSocket integration
+   */
+  async sendReservationStatusNotification(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { 
+        reservationId, 
+        status, 
+        shopId, 
+        customerId,
+        updateType, 
+        notificationType,
+        recipient = 'both', // 'user', 'shop', 'both'
+        pushNotification = true,
+        websocketNotification = true,
+        data 
+      } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      if (!reservationId || !status || !updateType) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: '예약 ID, 상태, 업데이트 유형이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      // Validate notification type
+      const validNotificationTypes = [
+        'reservation_requested',
+        'reservation_confirmed', 
+        'reservation_rejected',
+        'reservation_completed',
+        'reservation_cancelled',
+        'reservation_no_show',
+        'reservation_reminder'
+      ];
+
+      if (notificationType && !validNotificationTypes.includes(notificationType)) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_NOTIFICATION_TYPE',
+            message: `유효하지 않은 알림 유형입니다. 허용된 유형: ${validNotificationTypes.join(', ')}`
+          }
+        });
+        return;
+      }
+
+      // Validate authorization for reservation notification
+      const authCheck = await this.validateReservationNotificationAuth(userId, reservationId, shopId);
+      if (!authCheck.authorized) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'FORBIDDEN',
+            message: '예약 알림을 전송할 권한이 없습니다.',
+            details: authCheck.reason
+          }
+        });
+        return;
+      }
+
+      const results = {
+        websocket: { success: false, error: null },
+        push: { success: false, error: null }
+      };
+
+      // Send WebSocket notification
+      if (websocketNotification) {
+        try {
+          const wsUpdate: ReservationUpdate = {
+            reservationId,
+            status,
+            shopId: shopId || '',
+            userId: customerId || userId,
+            updateType: updateType as any,
+            timestamp: new Date().toISOString(),
+            data: {
+              ...data,
+              notificationType,
+              sentBy: userId
+            }
+          };
+
+          // Send to appropriate recipients
+          if (recipient === 'user' || recipient === 'both') {
+            if (customerId) {
+              websocketService.sendToUser(customerId, 'reservation_status_update', wsUpdate);
+            }
+          }
+
+          if (recipient === 'shop' || recipient === 'both') {
+            if (shopId) {
+              websocketService.sendToRoom(`shop-${shopId}`, 'reservation_status_update', wsUpdate);
+            }
+          }
+
+          // Always send to admin room for monitoring
+          websocketService.sendToRoom('admin-reservations', 'reservation_status_update', wsUpdate);
+
+          results.websocket.success = true;
+
+        } catch (wsError) {
+          results.websocket.error = wsError instanceof Error ? wsError.message : 'Unknown WebSocket error';
+          logger.error('WebSocket notification failed', { 
+            error: wsError, 
+            reservationId, 
+            userId 
+          });
+        }
+      }
+
+      // Send push notification
+      if (pushNotification) {
+        try {
+          const { notificationService } = await import('../services/notification.service');
+          
+          // Determine notification recipients
+          const recipients = [];
+          if (recipient === 'user' || recipient === 'both') {
+            if (customerId) {
+              recipients.push({ userId: customerId, role: 'user' });
+            }
+          }
+          if (recipient === 'shop' || recipient === 'both') {
+            if (shopId) {
+              // Get shop owner ID
+              const { getSupabaseClient } = await import('../config/database');
+              const supabase = getSupabaseClient();
+              const { data: shop } = await supabase
+                .from('shops')
+                .select('owner_id')
+                .eq('id', shopId)
+                .single();
+              
+              if (shop?.owner_id) {
+                recipients.push({ userId: shop.owner_id, role: 'shop' });
+              }
+            }
+          }
+
+          // Send push notifications
+          for (const recipientInfo of recipients) {
+            if (notificationType) {
+              await notificationService.sendReservationNotification(
+                recipientInfo.userId,
+                notificationType,
+                recipientInfo.role as 'user' | 'shop',
+                {
+                  reservationId,
+                  shopId,
+                  ...data
+                }
+              );
+            }
+          }
+
+          results.push.success = true;
+
+        } catch (pushError) {
+          results.push.error = pushError instanceof Error ? pushError.message : 'Unknown push notification error';
+          logger.error('Push notification failed', { 
+            error: pushError, 
+            reservationId, 
+            userId 
+          });
+        }
+      }
+
+      // Determine overall success
+      const overallSuccess = results.websocket.success || results.push.success;
+
+      res.status(overallSuccess ? 200 : 500).json({
+        success: overallSuccess,
+        message: overallSuccess ? '예약 상태 알림이 전송되었습니다.' : '알림 전송 중 일부 오류가 발생했습니다.',
+        data: {
+          reservationId,
+          status,
+          updateType,
+          notificationType,
+          recipient,
+          results,
+          timestamp: new Date().toISOString()
+        }
+      });
+
+    } catch (error) {
+      logger.error('Failed to send reservation status notification', { 
+        error, 
+        userId: req.user?.id 
+      });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '예약 상태 알림 전송 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
    * Send reservation update
    */
   async sendReservationUpdate(req: AuthenticatedRequest, res: Response): Promise<void> {
@@ -290,6 +581,50 @@ export default class WebSocketController {
 
       // Send reservation update via WebSocket
       websocketService.sendToRoom('admin-reservations', 'reservation_update', update);
+
+      // Also send enhanced reservation status notification
+      try {
+        // Determine notification type based on update type
+        let notificationType = null;
+        switch (updateType) {
+          case 'confirmed':
+            notificationType = 'reservation_confirmed';
+            break;
+          case 'cancelled':
+            notificationType = 'reservation_cancelled';
+            break;
+          case 'created':
+            notificationType = 'reservation_requested';
+            break;
+          default:
+            notificationType = null;
+        }
+
+        if (notificationType) {
+          // Send to customer if we have user ID
+          if (update.userId) {
+            websocketService.sendToUser(update.userId, 'reservation_status_update', {
+              ...update,
+              notificationType
+            });
+          }
+
+          // Send to shop if we have shop ID
+          if (update.shopId) {
+            websocketService.sendToRoom(`shop-${update.shopId}`, 'reservation_status_update', {
+              ...update,
+              notificationType
+            });
+          }
+        }
+
+      } catch (notificationError) {
+        logger.warn('Failed to send enhanced reservation notification', {
+          error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+          reservationId: update.reservationId
+        });
+        // Don't fail the main request if notification enhancement fails
+      }
 
       res.status(200).json({
         success: true,

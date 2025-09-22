@@ -895,14 +895,77 @@ export class ReservationService {
   }
 
   /**
-   * Cancel reservation
+   * Cancel reservation with enhanced automatic refund processing
    */
-  async cancelReservation(reservationId: string, userId: string, reason?: string): Promise<Reservation> {
+  async cancelReservation(
+    reservationId: string, 
+    userId: string, 
+    reason?: string,
+    cancellationType: 'user_request' | 'shop_request' | 'no_show' | 'admin_force' = 'user_request',
+    refundPreference?: 'full_refund' | 'partial_refund' | 'no_refund'
+  ): Promise<Reservation> {
     try {
       // Check if user can cancel the reservation
       const canCancel = await this.canCancelReservation(reservationId, userId);
       if (!canCancel.canCancel) {
         throw new Error(canCancel.reason || 'Cannot cancel this reservation');
+      }
+
+      // Process automatic refunds with dynamic calculation before cancelling reservation
+      let refundResult = null;
+      let refundCalculation = null;
+      try {
+        // Import services for dynamic refund processing
+        const { refundService } = await import('./refund.service');
+        const { timezoneRefundService } = await import('./timezone-refund.service');
+
+        // Calculate dynamic refund amount
+        const dynamicRefundRequest = {
+          reservationId,
+          userId,
+          cancellationType,
+          cancellationReason: reason,
+          refundPreference
+        };
+
+        refundCalculation = await timezoneRefundService.calculateRefundAmount(dynamicRefundRequest);
+        
+        logger.info('Dynamic refund calculation completed', {
+          reservationId,
+          refundAmount: refundCalculation.refundAmount,
+          refundPercentage: refundCalculation.refundPercentage,
+          isEligible: refundCalculation.isEligible,
+          cancellationWindow: refundCalculation.cancellationWindow
+        });
+
+        // Process refunds if eligible
+        if (refundCalculation.isEligible && refundCalculation.refundAmount > 0) {
+          refundResult = await refundService.processDynamicRefund(dynamicRefundRequest);
+          
+          logger.info('Automatic refund processing completed', {
+            reservationId,
+            refundAmount: refundCalculation.refundAmount,
+            refundPercentage: refundCalculation.refundPercentage,
+            refundId: refundResult.refundId,
+            refundStatus: refundResult.status
+          });
+        } else {
+          logger.info('Refund not eligible or amount is zero', {
+            reservationId,
+            reason: refundCalculation.reason,
+            isEligible: refundCalculation.isEligible,
+            refundAmount: refundCalculation.refundAmount
+          });
+        }
+
+      } catch (refundError) {
+        logger.error('Failed to process automatic refunds during cancellation', {
+          reservationId,
+          error: refundError instanceof Error ? refundError.message : 'Unknown error',
+          cancellationType,
+          refundPreference
+        });
+        // Continue with cancellation even if refund fails - can be handled separately
       }
 
       const { data: reservation, error } = await this.supabase
@@ -925,10 +988,27 @@ export class ReservationService {
         throw new Error('Reservation not found');
       }
 
-      logger.info('Reservation cancelled successfully', {
+      // Create comprehensive cancellation audit trail
+      await this.createCancellationAuditTrail({
         reservationId,
         userId,
-        reason
+        reason,
+        cancellationType,
+        refundPreference,
+        refundCalculation,
+        refundResult,
+        canCancelResult: canCancel
+      });
+
+      logger.info('Reservation cancelled successfully with enhanced refund processing', {
+        reservationId,
+        userId,
+        reason,
+        cancellationType,
+        refundProcessed: !!refundResult,
+        refundAmount: refundCalculation?.refundAmount || 0,
+        refundPercentage: refundCalculation?.refundPercentage || 0,
+        refundEligibility: refundCalculation?.isEligible || false
       });
 
       return {
@@ -953,11 +1033,81 @@ export class ReservationService {
   }
 
   /**
-   * Check if user can cancel a reservation
+   * Create comprehensive cancellation audit trail with refund processing details
+   */
+  private async createCancellationAuditTrail(params: {
+    reservationId: string;
+    userId: string;
+    reason?: string;
+    cancellationType: string;
+    refundPreference?: string;
+    refundCalculation?: any;
+    refundResult?: any;
+    canCancelResult?: any;
+  }): Promise<void> {
+    try {
+      const { formatKoreanDateTime, getCurrentKoreanTime } = await import('../utils/korean-timezone');
+      
+      await this.supabase
+        .from('enhanced_cancellation_audit_log')
+        .insert({
+          reservation_id: params.reservationId,
+          user_id: params.userId,
+          cancellation_type: params.cancellationType,
+          cancellation_reason: params.reason,
+          refund_preference: params.refundPreference,
+          refund_amount: params.refundCalculation?.refundAmount || 0,
+          refund_percentage: params.refundCalculation?.refundPercentage || 0,
+          refund_eligible: params.refundCalculation?.isEligible || false,
+          refund_window: params.refundCalculation?.cancellationWindow || 'unknown',
+          refund_processed: !!params.refundResult,
+          refund_id: params.refundResult?.refundId || null,
+          refund_status: params.refundResult?.status || 'not_processed',
+          cancellation_eligible: params.canCancelResult?.canCancel || false,
+          cancellation_reason_detail: params.canCancelResult?.reason || null,
+          korean_current_time: params.refundCalculation?.koreanTimeInfo?.currentTime || formatKoreanDateTime(getCurrentKoreanTime()),
+          korean_reservation_time: params.refundCalculation?.koreanTimeInfo?.reservationTime || 'unknown',
+          timezone: params.refundCalculation?.koreanTimeInfo?.timeZone || 'Asia/Seoul (KST)',
+          business_rules: params.refundCalculation?.businessRules || null,
+          refund_calculation_details: params.refundCalculation || null,
+          refund_processing_details: params.refundResult || null,
+          created_at: formatKoreanDateTime(getCurrentKoreanTime())
+        });
+
+      logger.info('Enhanced cancellation audit trail created', {
+        reservationId: params.reservationId,
+        cancellationType: params.cancellationType,
+        refundAmount: params.refundCalculation?.refundAmount || 0,
+        refundProcessed: !!params.refundResult
+      });
+
+    } catch (error) {
+      logger.error('Failed to create enhanced cancellation audit trail', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: params.reservationId
+      });
+      // Don't throw - audit trail failure shouldn't break cancellation
+    }
+  }
+
+  /**
+   * Check if user can cancel a reservation with Korean timezone-aware calculations
    */
   async canCancelReservation(reservationId: string, userId: string): Promise<{
     canCancel: boolean;
     reason?: string;
+    refundEligibility?: {
+      isEligible: boolean;
+      refundPercentage: number;
+      hoursUntilReservation: number;
+      cancellationWindow: string;
+      reason: string;
+      koreanTimeInfo: {
+        currentTime: string;
+        reservationTime: string;
+        timeZone: string;
+      };
+    };
   }> {
     try {
       const reservation = await this.getReservationById(reservationId);
@@ -976,16 +1126,32 @@ export class ReservationService {
         return { canCancel: false, reason: 'Reservation cannot be cancelled in its current state' };
       }
 
-      // Check if reservation is within cancellation window (e.g., 24 hours before)
-      const reservationDateTime = new Date(`${reservation.reservationDate}T${reservation.reservationTime}`);
-      const now = new Date();
-      const hoursUntilReservation = (reservationDateTime.getTime() - now.getTime()) / (1000 * 60 * 60);
+      // Import Korean timezone utilities
+      const { calculateRefundEligibility, getCurrentKoreanTime } = await import('../utils/korean-timezone');
+      
+      // Calculate refund eligibility using Korean timezone
+      const refundEligibility = calculateRefundEligibility(
+        new Date(reservation.reservationDate),
+        reservation.reservationTime,
+        getCurrentKoreanTime()
+      );
 
-      if (hoursUntilReservation < 24) {
-        return { canCancel: false, reason: 'Reservation cannot be cancelled within 24 hours of appointment' };
+      // Determine if cancellation is allowed based on refund eligibility
+      // Allow cancellation if at least 2 hours before reservation (even with reduced refund)
+      const canCancel = refundEligibility.hoursUntilReservation >= 2;
+      
+      if (!canCancel) {
+        return { 
+          canCancel: false, 
+          reason: refundEligibility.reason,
+          refundEligibility 
+        };
       }
 
-      return { canCancel: true };
+      return { 
+        canCancel: true,
+        refundEligibility 
+      };
     } catch (error) {
       logger.error('Error in canCancelReservation', { reservationId, userId, error: (error as Error).message });
       return { canCancel: false, reason: 'Error checking cancellation eligibility' };

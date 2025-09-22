@@ -313,3 +313,4 @@ checkServerHealth().then(serverRunning => {
     console.log('   Start the server with: npm run dev');
   }
 });
+

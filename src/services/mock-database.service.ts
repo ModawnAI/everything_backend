@@ -553,3 +553,4 @@ class MockQueryBuilder {
 
 // Export singleton instance
 export const mockDatabaseService = MockDatabaseService.getInstance();
+

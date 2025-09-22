@@ -362,6 +362,7 @@ export interface PaymentInitiationRequest {
   customerPhone?: string;
   successUrl?: string;
   failUrl?: string;
+  paymentStage?: 'deposit' | 'final' | 'single';
 }
 
 export interface PaymentInitiationResponse {
@@ -414,8 +415,8 @@ export class TossPaymentsService {
         isDeposit: request.isDeposit
       });
 
-      // Generate unique order ID
-      const orderId = this.generateOrderId(request.reservationId, request.isDeposit);
+      // Generate unique order ID with payment stage distinction
+      const orderId = this.generateOrderId(request.reservationId, request.isDeposit, request.paymentStage);
       
       // Create payment record in database
       const paymentId = await this.createPaymentRecord({
@@ -423,14 +424,17 @@ export class TossPaymentsService {
         userId: request.userId,
         amount: request.amount,
         isDeposit: request.isDeposit,
-        orderId
+        orderId,
+        paymentStage: request.paymentStage || (request.isDeposit ? 'deposit' : 'single')
       });
 
-      // Prepare TossPayments request
+      // Prepare TossPayments request with stage-specific order name
+      const orderName = this.generateOrderName(request.paymentStage || (request.isDeposit ? 'deposit' : 'single'));
+      
       const tossRequest: TossPaymentRequest = {
         amount: request.amount,
         orderId,
-        orderName: request.isDeposit ? '에뷰리띵 예약금 결제' : '에뷰리띵 잔금 결제',
+        orderName,
         customerName: request.customerName,
         customerEmail: request.customerEmail,
         ...(request.customerPhone && { customerMobilePhone: request.customerPhone }),
@@ -502,6 +506,11 @@ export class TossPaymentsService {
       // Verify amount matches
       if (paymentRecord.amount !== request.amount) {
         throw new Error(`Amount mismatch. Expected: ${paymentRecord.amount}, Received: ${request.amount}`);
+      }
+
+      // Validate payment stage for final payments
+      if (paymentRecord.payment_stage === 'final') {
+        await this.validateFinalPaymentConditions(paymentRecord);
       }
 
       // Call TossPayments confirmation API
@@ -601,11 +610,20 @@ export class TossPaymentsService {
         return;
       }
 
-      // Get payment record
-      const paymentRecord = await this.getPaymentByOrderId(payload.orderId);
+      // Get payment record with reservation details
+      const paymentRecord = await this.getPaymentByOrderIdWithDetails(payload.orderId);
       if (!paymentRecord) {
         throw new Error(`Payment record not found for order ID: ${payload.orderId}`);
       }
+
+      // Log payment stage information
+      logger.info('Processing webhook for payment stage', {
+        webhookId,
+        paymentStage: paymentRecord.payment_stage,
+        isDeposit: paymentRecord.is_deposit,
+        reservationId: paymentRecord.reservation_id,
+        reservationStatus: paymentRecord.reservations?.status
+      });
 
       // Process webhook with retry mechanism
       await this.processWebhookWithRetry(payload, paymentRecord, webhookId, maxRetries, retryDelay);
@@ -659,14 +677,30 @@ export class TossPaymentsService {
           }
         });
 
+        // Process payment stage-specific webhook logic
+        await this.processPaymentStageWebhook(paymentRecord, payload, webhookId, attempt);
+
         // v3.1 Flow: Do not automatically update reservation status after webhook payment confirmation
         // Reservations remain in 'requested' status until shop owner confirms
         logger.info('Webhook payment processed - reservation remains in requested status (v3.1 flow)', {
           reservationId: paymentRecord.reservation_id,
           isDeposit: paymentRecord.is_deposit,
+          paymentStage: paymentRecord.payment_stage,
           paymentStatus: newStatus,
           note: 'Reservation status unchanged - will be confirmed by shop owner action'
         });
+
+        // Note: If future changes require automatic status updates after webhook processing,
+        // they should use the state machine validation to ensure proper business rules:
+        // const { reservationStateMachine } = await import('./reservation-state-machine.service');
+        // const result = await reservationStateMachine.executeTransition(
+        //   paymentRecord.reservation_id,
+        //   newStatus,
+        //   'system',
+        //   'webhook-system',
+        //   'Automatic status update after webhook payment processing',
+        //   { paymentStatus: newStatus, webhookId, attempt }
+        // );
 
         // Send notification for successful payment
         if (newStatus === 'deposit_paid' || newStatus === 'fully_paid') {
@@ -800,7 +834,7 @@ export class TossPaymentsService {
   }
 
   /**
-   * Cancel payment
+   * Cancel payment with enhanced two-stage payment support
    */
   async cancelPayment(paymentId: string, reason: string, amount?: number): Promise<void> {
     try {
@@ -819,6 +853,9 @@ export class TossPaymentsService {
         throw new Error('Payment has not been confirmed yet');
       }
 
+      // Handle two-stage payment cancellation scenarios
+      await this.processTwoStagePaymentCancellation(paymentRecord, reason, amount);
+
       const cancelRequest: TossPaymentCancelRequest = {
         cancelReason: reason,
         cancelAmount: amount || paymentRecord.amount
@@ -830,21 +867,28 @@ export class TossPaymentsService {
         cancelRequest
       );
 
-      // Update payment record
+      // Update payment record with enhanced status tracking
+      const refundAmount = amount || paymentRecord.amount;
+      const newStatus = this.determineRefundStatus(paymentRecord, refundAmount);
+
       await this.updatePaymentRecord(paymentId, {
-        payment_status: amount && amount < paymentRecord.amount ? 'partially_refunded' : 'refunded',
+        payment_status: newStatus,
         refunded_at: new Date().toISOString(),
-        refund_amount: amount || paymentRecord.amount,
+        refund_amount: refundAmount,
         metadata: {
           ...paymentRecord.metadata,
           cancelReason: reason,
-          canceledAt: new Date().toISOString()
+          canceledAt: new Date().toISOString(),
+          paymentStage: paymentRecord.payment_stage,
+          twoStageCancellation: true
         }
       });
 
       logger.info('TossPayments payment canceled successfully', {
         paymentId,
-        status: amount && amount < paymentRecord.amount ? 'partially_refunded' : 'refunded'
+        paymentStage: paymentRecord.payment_stage,
+        refundAmount,
+        newStatus
       });
 
     } catch (error) {
@@ -894,6 +938,27 @@ export class TossPaymentsService {
   }
 
   /**
+   * Get payment by order ID with reservation details
+   */
+  async getPaymentByOrderIdWithDetails(orderId: string): Promise<any> {
+    const { data, error } = await this.supabase
+      .from('payments')
+      .select(`
+        *,
+        reservations!inner(*)
+      `)
+      .eq('provider_order_id', orderId)
+      .single();
+
+    if (error) {
+      logger.error('Error fetching payment with details by order ID:', { error: error.message, orderId });
+      return null;
+    }
+
+    return data;
+  }
+
+  /**
    * Create payment record in database
    */
   private async createPaymentRecord(paymentData: {
@@ -902,6 +967,7 @@ export class TossPaymentsService {
     amount: number;
     isDeposit: boolean;
     orderId: string;
+    paymentStage?: 'deposit' | 'final' | 'single';
   }): Promise<string> {
     const { data, error } = await this.supabase
       .from('payments')
@@ -915,9 +981,11 @@ export class TossPaymentsService {
         payment_provider: 'toss_payments',
         provider_order_id: paymentData.orderId,
         is_deposit: paymentData.isDeposit,
+        payment_stage: paymentData.paymentStage || (paymentData.isDeposit ? 'deposit' : 'single'),
         metadata: {
           createdAt: new Date().toISOString(),
-          isDeposit: paymentData.isDeposit
+          isDeposit: paymentData.isDeposit,
+          paymentStage: paymentData.paymentStage || (paymentData.isDeposit ? 'deposit' : 'single')
         }
       })
       .select('id')
@@ -1011,12 +1079,609 @@ export class TossPaymentsService {
   }
 
   /**
-   * Generate unique order ID
+   * Generate unique order ID with payment stage distinction
    */
-  private generateOrderId(reservationId: string, isDeposit: boolean): string {
+  private generateOrderId(reservationId: string, isDeposit: boolean, paymentStage?: 'deposit' | 'final' | 'single'): string {
     const timestamp = Date.now();
-    const type = isDeposit ? 'deposit' : 'full';
-    return `order_${reservationId}_${type}_${timestamp}`;
+    const randomSuffix = Math.random().toString(36).substr(2, 4);
+    
+    // Determine stage type based on paymentStage parameter or isDeposit flag
+    let stageType: string;
+    if (paymentStage) {
+      stageType = paymentStage;
+    } else {
+      stageType = isDeposit ? 'deposit' : 'single';
+    }
+    
+    return `order_${reservationId}_${stageType}_${timestamp}_${randomSuffix}`;
+  }
+
+  /**
+   * Generate descriptive order name based on payment stage
+   */
+  private generateOrderName(paymentStage: 'deposit' | 'final' | 'single'): string {
+    switch (paymentStage) {
+      case 'deposit':
+        return '에뷰리띵 예약금 결제';
+      case 'final':
+        return '에뷰리띵 최종 결제';
+      case 'single':
+        return '에뷰리띵 전체 결제';
+      default:
+        return '에뷰리띵 결제';
+    }
+  }
+
+  /**
+   * Validate conditions for final payment processing
+   */
+  private async validateFinalPaymentConditions(paymentRecord: any): Promise<void> {
+    try {
+      // Get reservation details
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select('status, total_price, deposit_amount')
+        .eq('id', paymentRecord.reservation_id)
+        .single();
+
+      if (reservationError || !reservation) {
+        throw new Error(`Reservation not found for payment: ${paymentRecord.id}`);
+      }
+
+      // Check if service is completed
+      if (reservation.status !== 'completed') {
+        throw new Error(`Final payment can only be processed after service completion. Current status: ${reservation.status}`);
+      }
+
+      // Check if deposit was paid
+      const { data: depositPayment } = await this.supabase
+        .from('payments')
+        .select('*')
+        .eq('reservation_id', paymentRecord.reservation_id)
+        .eq('payment_stage', 'deposit')
+        .eq('payment_status', 'deposit_paid')
+        .single();
+
+      if (!depositPayment) {
+        throw new Error('Final payment requires successful deposit payment');
+      }
+
+      // Validate final payment amount (should be total_price - deposit_amount)
+      const expectedFinalAmount = reservation.total_price - reservation.deposit_amount;
+      if (paymentRecord.amount !== expectedFinalAmount) {
+        throw new Error(`Final payment amount mismatch. Expected: ${expectedFinalAmount}, Received: ${paymentRecord.amount}`);
+      }
+
+      logger.info('Final payment conditions validated successfully', {
+        paymentId: paymentRecord.id,
+        reservationId: paymentRecord.reservation_id,
+        finalAmount: paymentRecord.amount,
+        expectedAmount: expectedFinalAmount
+      });
+
+    } catch (error) {
+      logger.error('Final payment validation failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        paymentId: paymentRecord.id,
+        reservationId: paymentRecord.reservation_id
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Process payment stage-specific webhook logic
+   */
+  private async processPaymentStageWebhook(
+    paymentRecord: any,
+    payload: TossWebhookPayload,
+    webhookId: string,
+    attempt: number
+  ): Promise<void> {
+    try {
+      const paymentStage = paymentRecord.payment_stage || (paymentRecord.is_deposit ? 'deposit' : 'single');
+      
+      logger.info('Processing payment stage webhook', {
+        paymentStage,
+        paymentId: paymentRecord.id,
+        reservationId: paymentRecord.reservation_id,
+        webhookId,
+        attempt,
+        status: payload.status
+      });
+
+      switch (paymentStage) {
+        case 'deposit':
+          await this.processDepositPaymentWebhook(paymentRecord, payload, webhookId);
+          break;
+        case 'final':
+          await this.processFinalPaymentWebhook(paymentRecord, payload, webhookId);
+          break;
+        case 'single':
+          await this.processSinglePaymentWebhook(paymentRecord, payload, webhookId);
+          break;
+        default:
+          logger.warn('Unknown payment stage in webhook processing', {
+            paymentStage,
+            paymentId: paymentRecord.id,
+            webhookId
+          });
+      }
+    } catch (error) {
+      logger.error('Error processing payment stage webhook', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        paymentId: paymentRecord.id,
+        paymentStage: paymentRecord.payment_stage,
+        webhookId,
+        attempt
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Process deposit payment webhook
+   */
+  private async processDepositPaymentWebhook(
+    paymentRecord: any,
+    payload: TossWebhookPayload,
+    webhookId: string
+  ): Promise<void> {
+    logger.info('Processing deposit payment webhook', {
+      paymentId: paymentRecord.id,
+      reservationId: paymentRecord.reservation_id,
+      webhookId,
+      amount: payload.totalAmount
+    });
+
+    // Additional deposit-specific logic can be added here
+    // For example, triggering deposit confirmation notifications
+  }
+
+  /**
+   * Process final payment webhook
+   */
+  private async processFinalPaymentWebhook(
+    paymentRecord: any,
+    payload: TossWebhookPayload,
+    webhookId: string
+  ): Promise<void> {
+    logger.info('Processing final payment webhook', {
+      paymentId: paymentRecord.id,
+      reservationId: paymentRecord.reservation_id,
+      webhookId,
+      amount: payload.totalAmount
+    });
+
+    // Additional final payment-specific logic can be added here
+    // For example, triggering final payment completion notifications
+  }
+
+  /**
+   * Process single payment webhook
+   */
+  private async processSinglePaymentWebhook(
+    paymentRecord: any,
+    payload: TossWebhookPayload,
+    webhookId: string
+  ): Promise<void> {
+    logger.info('Processing single payment webhook', {
+      paymentId: paymentRecord.id,
+      reservationId: paymentRecord.reservation_id,
+      webhookId,
+      amount: payload.totalAmount
+    });
+
+    // Additional single payment-specific logic can be added here
+  }
+
+  /**
+   * Process two-stage payment cancellation scenarios
+   */
+  private async processTwoStagePaymentCancellation(
+    paymentRecord: any,
+    reason: string,
+    amount?: number
+  ): Promise<void> {
+    try {
+      const paymentStage = paymentRecord.payment_stage || (paymentRecord.is_deposit ? 'deposit' : 'single');
+      
+      logger.info('Processing two-stage payment cancellation', {
+        paymentId: paymentRecord.id,
+        paymentStage,
+        reservationId: paymentRecord.reservation_id,
+        reason,
+        amount
+      });
+
+      // Get reservation details for context
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select('status, total_price, deposit_amount')
+        .eq('id', paymentRecord.reservation_id)
+        .single();
+
+      if (reservationError || !reservation) {
+        logger.warn('Reservation not found for payment cancellation', {
+          paymentId: paymentRecord.id,
+          reservationId: paymentRecord.reservation_id
+        });
+        return;
+      }
+
+      // Handle different cancellation scenarios based on payment stage
+      switch (paymentStage) {
+        case 'deposit':
+          await this.handleDepositPaymentCancellation(paymentRecord, reservation, reason, amount);
+          break;
+        case 'final':
+          await this.handleFinalPaymentCancellation(paymentRecord, reservation, reason, amount);
+          break;
+        case 'single':
+          await this.handleSinglePaymentCancellation(paymentRecord, reservation, reason, amount);
+          break;
+        default:
+          logger.warn('Unknown payment stage in cancellation', {
+            paymentId: paymentRecord.id,
+            paymentStage
+          });
+      }
+
+    } catch (error) {
+      logger.error('Error processing two-stage payment cancellation', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        paymentId: paymentRecord.id,
+        reservationId: paymentRecord.reservation_id
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Handle deposit payment cancellation
+   */
+  private async handleDepositPaymentCancellation(
+    paymentRecord: any,
+    reservation: any,
+    reason: string,
+    amount?: number
+  ): Promise<void> {
+    logger.info('Handling deposit payment cancellation', {
+      paymentId: paymentRecord.id,
+      reservationId: paymentRecord.reservation_id,
+      depositAmount: paymentRecord.amount,
+      reason
+    });
+
+    // Check if final payment exists and needs to be cancelled too
+    const { data: finalPayment } = await this.supabase
+      .from('payments')
+      .select('*')
+      .eq('reservation_id', paymentRecord.reservation_id)
+      .eq('payment_stage', 'final')
+      .eq('payment_status', 'final_payment_paid')
+      .single();
+
+    if (finalPayment) {
+      logger.info('Final payment exists - processing full cancellation', {
+        depositPaymentId: paymentRecord.id,
+        finalPaymentId: finalPayment.id,
+        totalRefund: paymentRecord.amount + finalPayment.amount
+      });
+
+      // Cancel final payment as well for full refund
+      await this.cancelPayment(finalPayment.id, `Full cancellation due to deposit refund: ${reason}`);
+    }
+
+    // Apply cancellation policy based on timing
+    const refundAmount = await this.calculateCancellationRefund(
+      paymentRecord,
+      reservation,
+      'deposit_cancellation'
+    );
+
+    logger.info('Deposit cancellation processed', {
+      paymentId: paymentRecord.id,
+      originalAmount: paymentRecord.amount,
+      refundAmount,
+      reason
+    });
+  }
+
+  /**
+   * Handle final payment cancellation
+   */
+  private async handleFinalPaymentCancellation(
+    paymentRecord: any,
+    reservation: any,
+    reason: string,
+    amount?: number
+  ): Promise<void> {
+    logger.info('Handling final payment cancellation', {
+      paymentId: paymentRecord.id,
+      reservationId: paymentRecord.reservation_id,
+      finalAmount: paymentRecord.amount,
+      reason
+    });
+
+    // Check if deposit was already paid
+    const { data: depositPayment } = await this.supabase
+      .from('payments')
+      .select('*')
+      .eq('reservation_id', paymentRecord.reservation_id)
+      .eq('payment_stage', 'deposit')
+      .eq('payment_status', 'deposit_paid')
+      .single();
+
+    if (depositPayment) {
+      logger.info('Deposit payment exists - processing partial refund', {
+        depositPaymentId: depositPayment.id,
+        finalPaymentId: paymentRecord.id,
+        totalRefund: amount || paymentRecord.amount
+      });
+    }
+
+    // Apply cancellation policy based on timing and service completion
+    const refundAmount = await this.calculateCancellationRefund(
+      paymentRecord,
+      reservation,
+      'final_payment_cancellation'
+    );
+
+    logger.info('Final payment cancellation processed', {
+      paymentId: paymentRecord.id,
+      originalAmount: paymentRecord.amount,
+      refundAmount,
+      reason
+    });
+  }
+
+  /**
+   * Handle single payment cancellation
+   */
+  private async handleSinglePaymentCancellation(
+    paymentRecord: any,
+    reservation: any,
+    reason: string,
+    amount?: number
+  ): Promise<void> {
+    logger.info('Handling single payment cancellation', {
+      paymentId: paymentRecord.id,
+      reservationId: paymentRecord.reservation_id,
+      totalAmount: paymentRecord.amount,
+      reason
+    });
+
+    // Apply cancellation policy based on timing
+    const refundAmount = await this.calculateCancellationRefund(
+      paymentRecord,
+      reservation,
+      'single_payment_cancellation'
+    );
+
+    logger.info('Single payment cancellation processed', {
+      paymentId: paymentRecord.id,
+      originalAmount: paymentRecord.amount,
+      refundAmount,
+      reason
+    });
+  }
+
+  /**
+   * Calculate refund amount based on cancellation policy and timing
+   */
+  private async calculateCancellationRefund(
+    paymentRecord: any,
+    reservation: any,
+    cancellationType: 'deposit_cancellation' | 'final_payment_cancellation' | 'single_payment_cancellation'
+  ): Promise<number> {
+    try {
+      const paymentDate = new Date(paymentRecord.paid_at || paymentRecord.created_at);
+      const now = new Date();
+      const hoursSincePayment = Math.floor((now.getTime() - paymentDate.getTime()) / (1000 * 60 * 60));
+
+      // Get reservation date for timing calculations
+      const reservationDate = new Date(reservation.reservation_date);
+      const hoursUntilReservation = Math.floor((reservationDate.getTime() - now.getTime()) / (1000 * 60 * 60));
+
+      let refundPercentage = 100; // Default full refund
+
+      // Apply 24-hour rule for cancellations
+      if (hoursUntilReservation < 24) {
+        refundPercentage = 50; // 50% refund if cancelled within 24 hours
+        logger.info('Applying 24-hour cancellation policy', {
+          hoursUntilReservation,
+          refundPercentage,
+          cancellationType
+        });
+      }
+
+      // Apply cancellation type-specific rules
+      switch (cancellationType) {
+        case 'deposit_cancellation':
+          // Deposits generally have more lenient refund policies
+          if (hoursUntilReservation >= 48) {
+            refundPercentage = 100;
+          } else if (hoursUntilReservation >= 24) {
+            refundPercentage = 80;
+          }
+          break;
+        case 'final_payment_cancellation':
+          // Final payments may have stricter policies if service was completed
+          if (reservation.status === 'completed') {
+            refundPercentage = 0; // No refund after service completion
+          }
+          break;
+        case 'single_payment_cancellation':
+          // Standard cancellation policy
+          break;
+      }
+
+      const refundAmount = Math.round((paymentRecord.amount * refundPercentage) / 100);
+
+      logger.info('Cancellation refund calculated', {
+        paymentId: paymentRecord.id,
+        originalAmount: paymentRecord.amount,
+        refundPercentage,
+        refundAmount,
+        hoursSincePayment,
+        hoursUntilReservation,
+        cancellationType
+      });
+
+      return refundAmount;
+
+    } catch (error) {
+      logger.error('Error calculating cancellation refund', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        paymentId: paymentRecord.id
+      });
+      return paymentRecord.amount; // Default to full refund on error
+    }
+  }
+
+  /**
+   * Determine refund status based on payment stage and amount
+   */
+  private determineRefundStatus(paymentRecord: any, refundAmount: number): PaymentStatus {
+    const paymentStage = paymentRecord.payment_stage || (paymentRecord.is_deposit ? 'deposit' : 'single');
+    const originalAmount = paymentRecord.amount;
+
+    if (refundAmount >= originalAmount) {
+      // Full refund
+      switch (paymentStage) {
+        case 'deposit':
+          return 'deposit_refunded';
+        case 'final':
+          return 'final_payment_refunded';
+        case 'single':
+          return 'refunded';
+        default:
+          return 'refunded';
+      }
+    } else if (refundAmount > 0) {
+      // Partial refund
+      switch (paymentStage) {
+        case 'deposit':
+          return 'partially_refunded';
+        case 'final':
+          return 'partially_refunded';
+        case 'single':
+          return 'partially_refunded';
+        default:
+          return 'partially_refunded';
+      }
+    } else {
+      // No refund
+      return paymentRecord.payment_status; // Keep original status
+    }
+  }
+
+  /**
+   * Cancel all payments for a reservation with refund processing
+   */
+  async cancelReservationPayments(reservationId: string, reason: string): Promise<{
+    totalRefundAmount: number;
+    refundedPayments: Array<{
+      paymentId: string;
+      paymentStage: string;
+      refundAmount: number;
+      refundStatus: PaymentStatus;
+    }>;
+  }> {
+    try {
+      logger.info('Canceling all payments for reservation', {
+        reservationId,
+        reason
+      });
+
+      // Get all paid payments for the reservation
+      const { data: payments, error: paymentsError } = await this.supabase
+        .from('payments')
+        .select('*')
+        .eq('reservation_id', reservationId)
+        .in('payment_status', ['deposit_paid', 'final_payment_paid', 'fully_paid'])
+        .order('created_at', { ascending: true });
+
+      if (paymentsError) {
+        throw new Error(`Failed to fetch payments: ${paymentsError.message}`);
+      }
+
+      if (!payments || payments.length === 0) {
+        logger.info('No paid payments found for reservation', { reservationId });
+        return {
+          totalRefundAmount: 0,
+          refundedPayments: []
+        };
+      }
+
+      const refundedPayments = [];
+      let totalRefundAmount = 0;
+
+      // Process each payment for cancellation
+      for (const payment of payments) {
+        try {
+          // Calculate refund amount based on cancellation policy
+          const refundAmount = await this.calculateCancellationRefund(
+            payment,
+            { status: 'cancelled' }, // Simplified reservation object
+            payment.payment_stage === 'deposit' ? 'deposit_cancellation' : 
+            payment.payment_stage === 'final' ? 'final_payment_cancellation' : 'single_payment_cancellation'
+          );
+
+          if (refundAmount > 0) {
+            // Cancel the payment
+            await this.cancelPayment(payment.id, reason, refundAmount);
+            
+            const refundStatus = this.determineRefundStatus(payment, refundAmount);
+            
+            refundedPayments.push({
+              paymentId: payment.id,
+              paymentStage: payment.payment_stage || 'single',
+              refundAmount,
+              refundStatus
+            });
+
+            totalRefundAmount += refundAmount;
+
+            logger.info('Payment cancelled successfully', {
+              paymentId: payment.id,
+              paymentStage: payment.payment_stage,
+              originalAmount: payment.amount,
+              refundAmount,
+              refundStatus
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to cancel individual payment', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            paymentId: payment.id,
+            reservationId
+          });
+          // Continue with other payments even if one fails
+        }
+      }
+
+      logger.info('Reservation payment cancellation completed', {
+        reservationId,
+        totalPayments: payments.length,
+        refundedPayments: refundedPayments.length,
+        totalRefundAmount
+      });
+
+      return {
+        totalRefundAmount,
+        refundedPayments
+      };
+
+    } catch (error) {
+      logger.error('Failed to cancel reservation payments', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId,
+        reason
+      });
+      throw error;
+    }
   }
 
   /**

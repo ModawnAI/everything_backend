@@ -320,26 +320,72 @@ router.get('/:id',
   }
 );
 
+// Validation schema for cancellation request
+const cancelReservationSchema = Joi.object({
+  reason: Joi.string().max(500).optional().messages({
+    'string.max': '취소 사유는 최대 500자까지 가능합니다.'
+  }),
+  cancellationType: Joi.string().valid('user_request', 'shop_request', 'no_show', 'admin_force').optional().messages({
+    'any.only': '유효하지 않은 취소 유형입니다.'
+  }),
+  refundPreference: Joi.string().valid('full_refund', 'partial_refund', 'no_refund').optional().messages({
+    'any.only': '유효하지 않은 환불 선호도입니다.'
+  }),
+  notifyShop: Joi.boolean().optional().messages({
+    'boolean.base': '샵 알림 여부는 true/false 값이어야 합니다.'
+  }),
+  notifyCustomer: Joi.boolean().optional().messages({
+    'boolean.base': '고객 알림 여부는 true/false 값이어야 합니다.'
+  })
+});
+
 /**
  * PUT /api/reservations/:id/cancel
- * Cancel a reservation
+ * Cancel a reservation with comprehensive v3.2 cancellation system
  * 
  * Path Parameters:
  * - id: Reservation UUID
  * 
  * Request Body:
- * - reason: Optional cancellation reason
+ * - reason: Optional cancellation reason (max 500 characters)
+ * - cancellationType: Optional cancellation type (user_request, shop_request, no_show, admin_force)
+ * - refundPreference: Optional refund preference (full_refund, partial_refund, no_refund)
+ * - notifyShop: Optional flag to notify shop owner (default: true)
+ * - notifyCustomer: Optional flag to notify customer (default: true)
+ * 
+ * Returns:
+ * - Cancelled reservation information
+ * - Refund processing details
+ * - Cancellation audit trail
+ * 
+ * Business Rules:
+ * - User can only cancel their own reservations
+ * - 24-hour refund policy applies based on cancellation timing
+ * - Automatic refund processing based on payment status
+ * - Comprehensive audit trail for all cancellations
+ * 
+ * Example:
+ * PUT /api/reservations/123e4567-e89b-12d3-a456-426614174000/cancel
+ * Body: {
+ *   "reason": "개인 사정으로 인한 취소",
+ *   "cancellationType": "user_request",
+ *   "refundPreference": "full_refund",
+ *   "notifyShop": true,
+ *   "notifyCustomer": false
+ * }
  */
 router.put('/:id/cancel',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // 10 requests per 15 minutes
+  validateRequestBody(cancelReservationSchema),
   async (req, res) => {
     try {
       await reservationController.cancelReservation(req, res);
     } catch (error) {
       logger.error('Error in cancel reservation route', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        reservationId: req.params.id
+        reservationId: req.params.id,
+        body: req.body
       });
 
       res.status(500).json({

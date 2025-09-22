@@ -1102,3 +1102,4 @@ export class ShopServiceController {
 }
 
 export const shopServiceController = new ShopServiceController();
+

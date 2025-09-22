@@ -23,7 +23,21 @@ import {
 
 // Mock Supabase client
 jest.mock('../../src/config/database');
-const mockSupabase = getSupabaseClient() as jest.Mocked<any>;
+
+const mockSupabase = {
+  from: jest.fn().mockReturnThis(),
+  select: jest.fn().mockReturnThis(),
+  insert: jest.fn().mockReturnThis(),
+  update: jest.fn().mockReturnThis(),
+  eq: jest.fn().mockReturnThis(),
+  gte: jest.fn().mockReturnThis(),
+  lte: jest.fn().mockReturnThis(),
+  single: jest.fn(),
+  order: jest.fn().mockReturnThis(),
+  range: jest.fn().mockReturnThis()
+};
+
+(getSupabaseClient as jest.Mock).mockReturnValue(mockSupabase);
 
 describe('FraudDetectionService', () => {
   let fraudDetectionService: FraudDetectionService;
@@ -71,22 +85,73 @@ describe('FraudDetectionService', () => {
     };
 
     it('should detect fraud with high risk score for suspicious amount', async () => {
-      // Mock velocity check to return exceeded
-      mockSupabase.from.mockReturnValue({
-        select: jest.fn().mockReturnValue({
-          gte: jest.fn().mockReturnValue({
-            lte: jest.fn().mockReturnValue({
-              eq: jest.fn().mockResolvedValue({
-                data: [
-                  { amount: 1000000 },
-                  { amount: 2000000 },
-                  { amount: 1500000 }
-                ],
-                error: null
-              })
+      // Mock all database calls that the fraud detection service makes
+      mockSupabase.from.mockImplementation((table: string) => {
+        if (table === 'payments') {
+          const mockQuery = {
+            select: jest.fn().mockImplementation((columns, options) => {
+              if (options && options.count === 'exact') {
+                // For count queries
+                return {
+                  eq: jest.fn().mockReturnThis(),
+                  gte: jest.fn().mockResolvedValue({
+                    count: 10, // High frequency
+                    error: null
+                  })
+                };
+              } else {
+                // For regular select queries
+                return {
+                  eq: jest.fn().mockReturnThis(),
+                  gte: jest.fn().mockResolvedValue({
+                    data: [
+                      { amount: 1000000 },
+                      { amount: 2000000 },
+                      { amount: 1500000 }
+                    ],
+                    error: null
+                  })
+                };
+              }
             })
-          })
-        })
+          };
+          return mockQuery;
+        } else if (table === 'fraud_detection_rules') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockReturnThis(),
+            order: jest.fn().mockResolvedValue({
+              data: [
+                {
+                  id: 'rule-1',
+                  name: 'High Amount Velocity',
+                  rule_type: 'amount_velocity',
+                  threshold: 1000000,
+                  time_window: 24,
+                  risk_weight: 0.8,
+                  is_active: true
+                }
+              ],
+              error: null
+            })
+          };
+        } else if (table === 'device_fingerprints') {
+          return {
+            select: jest.fn().mockReturnThis(),
+            eq: jest.fn().mockResolvedValue({
+              data: [{ risk_score: 85 }],
+              error: null
+            })
+          };
+        } else if (table === 'payment_security_events') {
+          return {
+            insert: jest.fn().mockResolvedValue({
+              data: { id: 'event-1' },
+              error: null
+            })
+          };
+        }
+        return mockSupabase;
       });
 
       const result = await fraudDetectionService.detectFraud(mockRequest);

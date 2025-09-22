@@ -430,3 +430,4 @@ For issues related to CDN integration:
 4. Test with different image types and sizes
 
 For additional support, refer to the main project documentation or contact the development team.
+

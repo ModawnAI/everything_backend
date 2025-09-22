@@ -29,7 +29,8 @@ jest.mock('../../src/services/reservation.service', () => ({
     getReservationById: jest.fn(),
     getUserReservations: jest.fn(),
     cancelReservation: jest.fn(),
-    canCancelReservation: jest.fn()
+    canCancelReservation: jest.fn(),
+    calculatePricingWithDeposit: jest.fn()
   }
 }));
 
@@ -277,6 +278,32 @@ describe('Reservation Controller Tests', () => {
         updatedAt: '2024-03-15T10:00:00Z'
       };
 
+      // Mock calculatePricingWithDeposit with proper structure
+      mockReservationService.calculatePricingWithDeposit.mockImplementation(async (request) => {
+        console.log('calculatePricingWithDeposit called with:', request);
+        return {
+          totalAmount: 50000,
+          depositAmount: 10000,
+          remainingAmount: 40000,
+          depositRequired: true,
+          depositCalculationDetails: {
+            serviceDeposits: [
+              {
+                serviceId: 'service-1',
+                serviceName: 'Test Service',
+                quantity: 1,
+                unitPrice: 50000,
+                depositAmount: 10000,
+                depositPercentage: 20
+              }
+            ],
+            totalDepositAmount: 10000,
+            totalRemainingAmount: 40000,
+            depositPolicy: 'percentage_based'
+          },
+          pointsEarned: 500
+        };
+      });
       mockReservationService.createReservation.mockResolvedValue(mockReservation);
 
       // Mock request
@@ -288,7 +315,14 @@ describe('Reservation Controller Tests', () => {
           reservationTime: '14:00',
           specialRequests: 'Test request'
         },
-        user: { id: 'user-1' }
+        user: { id: 'user-1' },
+        connection: {
+          remoteAddress: '127.0.0.1'
+        },
+        get: jest.fn((header: string) => {
+          if (header === 'authorization') return 'Bearer test-token';
+          return undefined;
+        })
       } as any;
 
       // Call the method
@@ -302,7 +336,32 @@ describe('Reservation Controller Tests', () => {
       expect(mockJson).toHaveBeenCalledWith({
         success: true,
         data: {
-          reservation: mockReservation
+          reservation: expect.objectContaining({
+            id: 'reservation-1',
+            shopId: '123e4567-e89b-12d3-a456-426614174000',
+            userId: 'user-1',
+            reservationDate: '2024-03-15',
+            reservationTime: '14:00',
+            status: 'requested',
+            totalAmount: 50000,
+            pointsUsed: 0,
+            specialRequests: 'Test request',
+            createdAt: '2024-03-15T10:00:00Z',
+            updatedAt: '2024-03-15T10:00:00Z'
+          }),
+          flowInfo: expect.objectContaining({
+            version: '3.1',
+            status: 'requested',
+            requiresShopConfirmation: true,
+            nextSteps: expect.any(Array)
+          }),
+          pricingDetails: expect.objectContaining({
+            totalAmount: 50000,
+            depositAmount: 10000,
+            remainingAmount: 40000,
+            depositRequired: true,
+            serviceBreakdown: expect.any(Array)
+          })
         }
       });
     });
@@ -417,13 +476,24 @@ describe('Reservation Controller Tests', () => {
   });
 
   describe('getReservationById', () => {
-    it('should return not implemented for now', async () => {
+    it('should return 404 when reservation not found', async () => {
       // Mock request
       mockRequest = {
         params: {
           id: '123e4567-e89b-12d3-a456-426614174000'
-        }
+        },
+        user: { id: 'user-1' },
+        connection: {
+          remoteAddress: '127.0.0.1'
+        },
+        get: jest.fn((header: string) => {
+          if (header === 'authorization') return 'Bearer test-token';
+          return undefined;
+        })
       };
+
+      // Mock the getReservationById to return null to trigger 404
+      mockReservationService.getReservationById.mockResolvedValue(null);
 
       // Call the method
       await reservationController.getReservationById(
@@ -431,26 +501,43 @@ describe('Reservation Controller Tests', () => {
         mockResponse as Response
       );
 
-      // Verify not implemented response
-      expect(mockStatus).toHaveBeenCalledWith(501);
+      // Verify reservation not found response
+      expect(mockStatus).toHaveBeenCalledWith(404);
       expect(mockJson).toHaveBeenCalledWith({
         error: {
-          code: 'NOT_IMPLEMENTED',
-          message: '예약 상세 조회 기능은 아직 구현되지 않았습니다.',
-          details: '다음 단계에서 구현 예정입니다.'
+          code: 'RESERVATION_NOT_FOUND',
+          message: '예약을 찾을 수 없습니다.',
+          details: '존재하지 않는 예약입니다.'
         }
       });
     });
   });
 
   describe('cancelReservation', () => {
-    it('should return not implemented for now', async () => {
+    it('should return 400 when cancellation not allowed', async () => {
       // Mock request
       mockRequest = {
         params: {
           id: '123e4567-e89b-12d3-a456-426614174000'
-        }
+        },
+        body: {
+          reason: 'Customer request'
+        },
+        user: { id: 'user-1' },
+        connection: {
+          remoteAddress: '127.0.0.1'
+        },
+        get: jest.fn((header: string) => {
+          if (header === 'authorization') return 'Bearer test-token';
+          return undefined;
+        })
       };
+
+      // Mock the canCancelReservation to return canCancel: false with reason
+      mockReservationService.canCancelReservation.mockResolvedValue({
+        canCancel: false,
+        reason: 'Reservation not found'
+      });
 
       // Call the method
       await reservationController.cancelReservation(
@@ -458,13 +545,13 @@ describe('Reservation Controller Tests', () => {
         mockResponse as Response
       );
 
-      // Verify not implemented response
-      expect(mockStatus).toHaveBeenCalledWith(501);
+      // Verify cancellation not allowed response
+      expect(mockStatus).toHaveBeenCalledWith(400);
       expect(mockJson).toHaveBeenCalledWith({
         error: {
-          code: 'NOT_IMPLEMENTED',
-          message: '예약 취소 기능은 아직 구현되지 않았습니다.',
-          details: '다음 단계에서 구현 예정입니다.'
+          code: 'CANCELLATION_NOT_ALLOWED',
+          message: '예약을 취소할 수 없습니다.',
+          details: 'Reservation not found'
         }
       });
     });

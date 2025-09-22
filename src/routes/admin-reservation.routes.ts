@@ -414,6 +414,55 @@ router.get('/:id/details', adminReservationController.getReservationDetails);
 router.post('/:id/dispute', adminReservationController.createReservationDispute);
 
 /**
+ * POST /api/admin/reservations/:id/force-complete
+ * Force complete a reservation for dispute resolution
+ * 
+ * Parameters:
+ * - id: Reservation UUID
+ * 
+ * Request Body:
+ * {
+ *   "reason": "Customer service quality issue resolved",
+ *   "notes": "Service was completed but customer had initial concerns. Compensation provided.",
+ *   "refundAmount": 10000,
+ *   "compensationPoints": 500,
+ *   "notifyCustomer": true,
+ *   "notifyShop": true
+ * }
+ * 
+ * Headers:
+ * Authorization: Bearer <admin-jwt-token>
+ * 
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "reservation": {
+ *       "id": "uuid",
+ *       "status": "completed",
+ *       "updatedAt": "2024-03-15T14:30:00Z"
+ *     },
+ *     "refundProcessed": true,
+ *     "compensationProcessed": true,
+ *     "notificationsSent": {
+ *       "customer": true,
+ *       "shop": true
+ *     }
+ *   }
+ * }
+ * 
+ * Security Features:
+ * - Requires valid admin session
+ * - Force completion validation
+ * - Optional refund processing
+ * - Optional compensation points
+ * - Customer and shop notifications
+ * - Comprehensive audit logging
+ * - Dispute resolution tracking
+ */
+router.post('/:id/force-complete', adminReservationController.forceCompleteReservation);
+
+/**
  * POST /api/admin/reservations/bulk-status-update
  * Perform bulk status updates on multiple reservations
  * 

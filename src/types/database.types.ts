@@ -26,10 +26,14 @@ export type ReservationStatus =
 export type PaymentStatus = 
   | 'pending' 
   | 'deposit_paid' 
+  | 'final_payment_pending' 
   | 'fully_paid' 
   | 'refunded' 
   | 'partially_refunded' 
-  | 'failed';
+  | 'failed' 
+  | 'deposit_refunded' 
+  | 'final_payment_refunded' 
+  | 'overdue';
 
 export type PaymentMethod = 
   | 'toss_payments' 
@@ -223,6 +227,7 @@ export interface Reservation {
   confirmed_at?: string; // Timestamp
   completed_at?: string; // Timestamp
   cancelled_at?: string; // Timestamp
+  version: number; // Optimistic locking version field
   created_at: string; // Timestamp
   updated_at: string; // Timestamp
 }
@@ -234,7 +239,9 @@ export interface ReservationService {
   quantity: number;
   unit_price: number;
   total_price: number;
+  version: number; // Optimistic locking version field
   created_at: string; // Timestamp
+  updated_at: string; // Timestamp
 }
 
 export interface Payment {
@@ -254,6 +261,13 @@ export interface Payment {
   refund_amount: number;
   failure_reason?: string;
   metadata?: Record<string, any>; // JSONB
+  version: number; // Optimistic locking version field
+  // Enhanced two-stage payment tracking fields
+  payment_stage: 'deposit' | 'final' | 'single'; // Payment stage type
+  due_date?: string; // Timestamp for final payment due date
+  reminder_sent_at?: string; // Timestamp when payment reminder was sent
+  reminder_count: number; // Number of reminders sent
+  final_payment_grace_period_hours: number; // Grace period after service completion
   created_at: string; // Timestamp
   updated_at: string; // Timestamp
 }

@@ -713,3 +713,4 @@ export class ShopOperatingHoursController {
 }
 
 export const shopOperatingHoursController = new ShopOperatingHoursController();
+

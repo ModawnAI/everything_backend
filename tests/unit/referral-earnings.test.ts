@@ -31,7 +31,7 @@ const mockSupabase = {
         error: null
       }))
     }))
-  })
+  }
 };
 
 (getSupabaseClient as jest.Mock).mockReturnValue(mockSupabase);

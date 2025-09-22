@@ -294,3 +294,4 @@ export const validateShopProfileUpdate = (req: any, res: any, next: any) => {
   req.body = value;
   next();
 };
+

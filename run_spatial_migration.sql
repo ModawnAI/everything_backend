@@ -20,3 +20,4 @@ ORDER BY indexname;
 -- Show spatial index usage statistics
 \echo 'Spatial index usage statistics:'
 SELECT * FROM public.get_spatial_index_usage();
+

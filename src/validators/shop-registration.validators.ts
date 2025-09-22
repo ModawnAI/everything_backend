@@ -400,3 +400,4 @@ export const validateCompleteRegistration = (data: any) => {
 export const validateShopImage = (data: any) => {
   return shopImageSchema.validate(data);
 };
+

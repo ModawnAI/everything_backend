@@ -556,3 +556,4 @@ module.exports = {
   testCacheBehaviorWithFavorites,
   testPerformanceWithLargeResultSet
 };
+

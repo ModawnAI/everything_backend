@@ -109,6 +109,206 @@ export class NotificationService {
   private supabase = getSupabaseClient();
   private firebaseApp: admin.app.App;
 
+  // Korean Reservation Notification Templates
+  private readonly RESERVATION_NOTIFICATION_TEMPLATES: Record<string, NotificationTemplate> = {
+    reservation_requested: {
+      id: 'reservation_requested',
+      type: 'reservation_requested',
+      title: '새로운 예약 요청이 접수되었습니다 📝',
+      body: '새로운 예약 요청이 들어왔습니다. 확인 후 승인해주세요.',
+      priority: 'high',
+      category: 'general',
+      clickAction: '/shop/reservations',
+      data: {
+        type: 'reservation_requested',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_requested_user: {
+      id: 'reservation_requested_user',
+      type: 'reservation_requested',
+      title: '예약 요청이 접수되었습니다 ✅',
+      body: '예약 요청이 성공적으로 접수되었습니다. 승인 대기 중입니다.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/reservations',
+      data: {
+        type: 'reservation_requested',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_confirmed: {
+      id: 'reservation_confirmed',
+      type: 'reservation_confirmed',
+      title: '예약이 확정되었습니다 🎉',
+      body: '예약이 성공적으로 확정되었습니다. 예약 시간을 확인해주세요.',
+      priority: 'high',
+      category: 'general',
+      clickAction: '/reservations',
+      data: {
+        type: 'reservation_confirmed',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_confirmed_shop: {
+      id: 'reservation_confirmed_shop',
+      type: 'reservation_confirmed',
+      title: '예약을 확정했습니다 ✅',
+      body: '예약이 성공적으로 확정되었습니다.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/shop/reservations',
+      data: {
+        type: 'reservation_confirmed',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_rejected: {
+      id: 'reservation_rejected',
+      type: 'reservation_rejected',
+      title: '예약이 거절되었습니다 ❌',
+      body: '죄송합니다. 예약이 거절되었습니다. 다른 시간을 선택해주세요.',
+      priority: 'high',
+      category: 'general',
+      clickAction: '/reservations',
+      data: {
+        type: 'reservation_rejected',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_rejected_shop: {
+      id: 'reservation_rejected_shop',
+      type: 'reservation_rejected',
+      title: '예약을 거절했습니다 ❌',
+      body: '예약이 거절되었습니다.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/shop/reservations',
+      data: {
+        type: 'reservation_rejected',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_completed: {
+      id: 'reservation_completed',
+      type: 'reservation_completed',
+      title: '서비스가 완료되었습니다 ✨',
+      body: '서비스가 성공적으로 완료되었습니다. 만족도 평가를 남겨주세요.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/reservations',
+      data: {
+        type: 'reservation_completed',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_completed_shop: {
+      id: 'reservation_completed_shop',
+      type: 'reservation_completed',
+      title: '서비스를 완료했습니다 ✨',
+      body: '서비스가 완료되었습니다.',
+      priority: 'low',
+      category: 'general',
+      clickAction: '/shop/reservations',
+      data: {
+        type: 'reservation_completed',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_cancelled_user: {
+      id: 'reservation_cancelled_user',
+      type: 'reservation_cancelled',
+      title: '예약이 취소되었습니다 🚫',
+      body: '예약이 취소되었습니다. 환불 정보를 확인해주세요.',
+      priority: 'high',
+      category: 'general',
+      clickAction: '/reservations',
+      data: {
+        type: 'reservation_cancelled',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_cancelled_shop: {
+      id: 'reservation_cancelled_shop',
+      type: 'reservation_cancelled',
+      title: '예약이 취소되었습니다 🚫',
+      body: '예약이 취소되었습니다. 자세한 내용을 확인해주세요.',
+      priority: 'high',
+      category: 'general',
+      clickAction: '/shop/reservations',
+      data: {
+        type: 'reservation_cancelled',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_no_show: {
+      id: 'reservation_no_show',
+      type: 'reservation_no_show',
+      title: '예약 시간에 방문하지 않으셨습니다 ⏰',
+      body: '예약 시간에 방문하지 않으셨습니다. 예약 정책을 확인해주세요.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/reservations',
+      data: {
+        type: 'reservation_no_show',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_no_show_shop: {
+      id: 'reservation_no_show_shop',
+      type: 'reservation_no_show',
+      title: '고객이 방문하지 않았습니다 ⏰',
+      body: '예약 시간에 고객이 방문하지 않았습니다.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/shop/reservations',
+      data: {
+        type: 'reservation_no_show',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_reminder: {
+      id: 'reservation_reminder',
+      type: 'reservation_reminder',
+      title: '예약 시간이 다가옵니다 ⏰',
+      body: '예약 시간이 1시간 남았습니다. 시간을 확인해주세요.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/reservations',
+      data: {
+        type: 'reservation_reminder',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    },
+    reservation_reminder_shop: {
+      id: 'reservation_reminder_shop',
+      type: 'reservation_reminder',
+      title: '예약 시간이 다가옵니다 ⏰',
+      body: '예약 시간이 1시간 남았습니다.',
+      priority: 'medium',
+      category: 'general',
+      clickAction: '/shop/reservations',
+      data: {
+        type: 'reservation_reminder',
+        action: 'view_reservation',
+        notification_type: 'reservation'
+      }
+    }
+  };
+
   // User Management Notification Templates
   private readonly USER_MANAGEMENT_TEMPLATES: Record<string, NotificationTemplate> = {
     welcome: {
@@ -1370,9 +1570,14 @@ export class NotificationService {
    */
   private async sendToDevice(
     token: string,
-    payload: NotificationPayload
+    payload: NotificationPayload & {
+      fcmPriority?: 'normal' | 'high';
+      androidConfig?: any;
+      apnsConfig?: any;
+    }
   ): Promise<{ success: boolean; messageId?: string; error?: string }> {
     try {
+      // Base message configuration
       const message: admin.messaging.Message = {
         token,
         notification: {
@@ -1380,26 +1585,62 @@ export class NotificationService {
           body: payload.body,
           ...(payload.imageUrl && { imageUrl: payload.imageUrl })
         },
-        ...(payload.data && { data: payload.data }),
-        android: {
-          notification: {
-            ...(payload.clickAction && { clickAction: payload.clickAction }),
-            icon: 'ic_notification',
-            color: '#FF5C00'
-          }
-        },
-        apns: {
-          payload: {
-            aps: {
-              alert: {
-                title: payload.title,
-                body: payload.body
-              },
-              badge: 1,
-              sound: 'default'
-            }
+        ...(payload.data && { data: payload.data })
+      };
+
+      // Android configuration with priority support
+      const androidConfig = payload.androidConfig || {};
+      message.android = {
+        priority: payload.fcmPriority || 'normal',
+        notification: {
+          ...(payload.clickAction && { clickAction: payload.clickAction }),
+          icon: androidConfig.icon || 'ic_notification',
+          color: androidConfig.color || '#FF5C00',
+          ...(androidConfig.sound && { sound: androidConfig.sound }),
+          ...(androidConfig.channel_id && { channelId: androidConfig.channel_id }),
+          ...(androidConfig.priority && { priority: androidConfig.priority }),
+          ...(androidConfig.visibility && { visibility: androidConfig.visibility })
+        }
+      };
+
+      // iOS configuration with priority support
+      const apnsConfig = payload.apnsConfig || {};
+      message.apns = {
+        payload: {
+          aps: {
+            alert: {
+              title: payload.title,
+              body: payload.body
+            },
+            badge: apnsConfig.badge || 1,
+            sound: apnsConfig.sound || 'default',
+            ...(apnsConfig.contentAvailable && { 'content-available': apnsConfig.contentAvailable }),
+            ...(apnsConfig.mutableContent && { 'mutable-content': apnsConfig.mutableContent })
           }
         }
+      };
+
+      // Add webpush configuration for web clients
+      message.webpush = {
+        notification: {
+          title: payload.title,
+          body: payload.body,
+          icon: '/icon-192x192.png',
+          badge: '/badge-72x72.png',
+          ...(payload.clickAction && {
+            actions: [
+              {
+                action: 'open',
+                title: '열기'
+              }
+            ]
+          })
+        },
+        ...(payload.clickAction && {
+          fcmOptions: {
+            link: payload.clickAction
+          }
+        })
       };
 
       const response = await this.firebaseApp.messaging().send(message);
@@ -1730,9 +1971,1380 @@ export class NotificationService {
   }
 
   /**
+   * Get reservation notification template by type and recipient
+   */
+  getReservationNotificationTemplate(
+    type: string, 
+    recipient: 'user' | 'shop' = 'user'
+  ): NotificationTemplate | null {
+    const templateKey = recipient === 'shop' ? `${type}_shop` : type;
+    return this.RESERVATION_NOTIFICATION_TEMPLATES[templateKey] || 
+           this.RESERVATION_NOTIFICATION_TEMPLATES[type] || null;
+  }
+
+  /**
+   * Get all reservation notification templates
+   */
+  getAllReservationNotificationTemplates(): NotificationTemplate[] {
+    return Object.values(this.RESERVATION_NOTIFICATION_TEMPLATES);
+  }
+
+  /**
+   * Send reservation notification with enhanced FCM integration
+   */
+  async sendReservationNotification(
+    userId: string,
+    templateType: string,
+    recipient: 'user' | 'shop' = 'user',
+    reservationData?: Record<string, any>
+  ): Promise<NotificationHistory> {
+    try {
+      const template = this.getReservationNotificationTemplate(templateType, recipient);
+      if (!template) {
+        throw new Error(`Reservation notification template not found: ${templateType}`);
+      }
+
+      // Customize template with reservation data if provided
+      const customizedTemplate = this.customizeReservationTemplate(template, reservationData);
+
+      // Enhance payload with reservation-specific metadata for FCM
+      const enhancedPayload: NotificationPayload = {
+        title: customizedTemplate.title,
+        body: customizedTemplate.body,
+        data: {
+          ...customizedTemplate.data,
+          notificationType: templateType,
+          recipient: recipient,
+          reservationId: reservationData?.reservationId || '',
+          shopId: reservationData?.shopId || '',
+          priority: customizedTemplate.priority,
+          category: customizedTemplate.category,
+          clickAction: customizedTemplate.clickAction || '',
+          timestamp: new Date().toISOString()
+        },
+        clickAction: customizedTemplate.clickAction
+      };
+
+      // Send notification with enhanced FCM payload
+      return await this.sendNotificationToUser(userId, enhancedPayload);
+
+    } catch (error) {
+      logger.error('Failed to send reservation notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        templateType,
+        recipient
+      });
+
+      return {
+        id: `error_${Date.now()}`,
+        userId,
+        title: 'Notification Error',
+        body: 'Failed to send notification',
+        status: 'failed' as const,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        createdAt: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Send reservation notification with priority-based FCM configuration
+   */
+  async sendReservationNotificationWithPriority(
+    userId: string,
+    templateType: string,
+    recipient: 'user' | 'shop' = 'user',
+    reservationData?: Record<string, any>,
+    priority: 'low' | 'medium' | 'high' | 'critical' = 'medium'
+  ): Promise<NotificationHistory> {
+    try {
+      const template = this.getReservationNotificationTemplate(templateType, recipient);
+      if (!template) {
+        throw new Error(`Reservation notification template not found: ${templateType}`);
+      }
+
+      // Customize template with reservation data if provided
+      const customizedTemplate = this.customizeReservationTemplate(template, reservationData);
+
+      // Determine FCM priority based on notification priority
+      const fcmPriority = this.mapPriorityToFCM(priority);
+
+      // Create enhanced payload with priority configuration
+      const enhancedPayload: NotificationPayload & { 
+        fcmPriority?: 'normal' | 'high';
+        androidConfig?: any;
+        apnsConfig?: any;
+      } = {
+        title: customizedTemplate.title,
+        body: customizedTemplate.body,
+        data: {
+          ...customizedTemplate.data,
+          notificationType: templateType,
+          recipient: recipient,
+          reservationId: reservationData?.reservationId || '',
+          shopId: reservationData?.shopId || '',
+          priority: priority,
+          category: customizedTemplate.category,
+          clickAction: customizedTemplate.clickAction || '',
+          timestamp: new Date().toISOString()
+        },
+        clickAction: customizedTemplate.clickAction,
+        fcmPriority: fcmPriority
+      };
+
+      // Add platform-specific configurations for high priority notifications
+      if (priority === 'high' || priority === 'critical') {
+        enhancedPayload.androidConfig = {
+          priority: 'high',
+          notification: {
+            sound: 'default',
+            channel_id: 'reservation_notifications',
+            priority: 'high',
+            visibility: 'public'
+          }
+        };
+
+        enhancedPayload.apnsConfig = {
+          payload: {
+            aps: {
+              'content-available': 1,
+              'mutable-content': 1,
+              sound: 'default',
+              badge: 1
+            }
+          }
+        };
+      }
+
+      // Send notification with priority configuration
+      return await this.sendNotificationToUser(userId, enhancedPayload);
+
+    } catch (error) {
+      logger.error('Failed to send priority reservation notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        templateType,
+        recipient,
+        priority
+      });
+
+      return {
+        id: `error_${Date.now()}`,
+        userId,
+        title: 'Notification Error',
+        body: 'Failed to send notification',
+        status: 'failed' as const,
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        createdAt: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Map notification priority to FCM priority
+   */
+  private mapPriorityToFCM(priority: 'low' | 'medium' | 'high' | 'critical'): 'normal' | 'high' {
+    switch (priority) {
+      case 'high':
+      case 'critical':
+        return 'high';
+      case 'low':
+      case 'medium':
+      default:
+        return 'normal';
+    }
+  }
+
+  /**
+   * Enhanced device token management for reservation notifications
+   */
+  async registerDeviceTokenForReservations(
+    userId: string,
+    token: string,
+    deviceInfo: {
+      platform: 'ios' | 'android' | 'web';
+      deviceModel?: string;
+      appVersion?: string;
+      osVersion?: string;
+    }
+  ): Promise<boolean> {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_device_tokens')
+        .upsert({
+          user_id: userId,
+          token: token,
+          platform: deviceInfo.platform,
+          device_model: deviceInfo.deviceModel,
+          app_version: deviceInfo.appVersion,
+          os_version: deviceInfo.osVersion,
+          is_active: true,
+          last_used_at: new Date().toISOString(),
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'user_id,token'
+        })
+        .select()
+        .single();
+
+      if (error) {
+        logger.error('Failed to register device token for reservations', { error, userId, token });
+        return false;
+      }
+
+      logger.info('Device token registered for reservation notifications', {
+        userId,
+        token: token.substring(0, 10) + '...',
+        platform: deviceInfo.platform
+      });
+
+      return true;
+    } catch (error) {
+      logger.error('Failed to register device token for reservations', { error, userId });
+      return false;
+    }
+  }
+
+  /**
+   * Get active device tokens for reservation notifications with filtering
+   */
+  async getActiveDeviceTokensForReservations(userId: string): Promise<Array<{
+    token: string;
+    platform: string;
+    lastUsedAt: string;
+    deviceModel?: string;
+  }>> {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_device_tokens')
+        .select('token, platform, last_used_at, device_model')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('last_used_at', { ascending: false });
+
+      if (error) {
+        logger.error('Failed to get active device tokens for reservations', { error, userId });
+        return [];
+      }
+
+      return data.map(token => ({
+        token: token.token,
+        platform: token.platform,
+        lastUsedAt: token.last_used_at,
+        deviceModel: token.device_model
+      }));
+    } catch (error) {
+      logger.error('Failed to get active device tokens for reservations', { error, userId });
+      return [];
+    }
+  }
+
+  /**
+   * Fallback notification delivery system with multiple channels
+   */
+  async sendReservationNotificationWithFallback(
+    userId: string,
+    templateType: string,
+    recipient: 'user' | 'shop' = 'user',
+    reservationData?: Record<string, any>,
+    options: {
+      priority?: 'low' | 'medium' | 'high' | 'critical';
+      fallbackChannels?: ('websocket' | 'push' | 'email' | 'sms')[];
+      maxRetries?: number;
+      retryDelayMs?: number;
+      requireConfirmation?: boolean;
+    } = {}
+  ): Promise<{
+    success: boolean;
+    deliveryResults: Array<{
+      channel: string;
+      success: boolean;
+      messageId?: string;
+      error?: string;
+      attemptNumber: number;
+      deliveredAt?: string;
+    }>;
+    finalStatus: 'delivered' | 'partially_delivered' | 'failed';
+  }> {
+    const {
+      priority = 'medium',
+      fallbackChannels = ['websocket', 'push', 'email'],
+      maxRetries = 3,
+      retryDelayMs = 1000,
+      requireConfirmation = false
+    } = options;
+
+    const deliveryResults: Array<{
+      channel: string;
+      success: boolean;
+      messageId?: string;
+      error?: string;
+      attemptNumber: number;
+      deliveredAt?: string;
+    }> = [];
+
+    let finalStatus: 'delivered' | 'partially_delivered' | 'failed' = 'failed';
+
+    try {
+      // Create initial delivery status
+      const template = this.getReservationNotificationTemplate(templateType, recipient);
+      if (!template) {
+        throw new Error(`Reservation notification template not found: ${templateType}`);
+      }
+
+      const customizedTemplate = this.customizeReservationTemplate(template, reservationData);
+      const deliveryStatus = await this.createDeliveryStatus(userId, customizedTemplate);
+
+      // Try each fallback channel in order
+      for (const channel of fallbackChannels) {
+        let channelSuccess = false;
+        let lastError: string | undefined;
+
+        // Retry mechanism for each channel
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+          try {
+            const result = await this.deliverViaChannel(
+              channel,
+              userId,
+              customizedTemplate,
+              reservationData,
+              priority
+            );
+
+            if (result.success) {
+              deliveryResults.push({
+                channel,
+                success: true,
+                messageId: result.messageId,
+                attemptNumber: attempt,
+                deliveredAt: new Date().toISOString()
+              });
+
+              channelSuccess = true;
+              break; // Success, no need to retry this channel
+            } else {
+              lastError = result.error;
+            }
+          } catch (error) {
+            lastError = error instanceof Error ? error.message : 'Unknown error';
+          }
+
+          // Wait before retry (exponential backoff)
+          if (attempt < maxRetries) {
+            const delay = retryDelayMs * Math.pow(2, attempt - 1);
+            await this.sleep(delay);
+          }
+        }
+
+        // If channel failed after all retries
+        if (!channelSuccess) {
+          deliveryResults.push({
+            channel,
+            success: false,
+            error: lastError,
+            attemptNumber: maxRetries
+          });
+        }
+
+        // If we have successful delivery and don't require confirmation, we can stop
+        if (channelSuccess && !requireConfirmation) {
+          finalStatus = 'delivered';
+          break;
+        }
+      }
+
+      // Determine final status
+      const successfulDeliveries = deliveryResults.filter(r => r.success).length;
+      if (successfulDeliveries === fallbackChannels.length) {
+        finalStatus = 'delivered';
+      } else if (successfulDeliveries > 0) {
+        finalStatus = 'partially_delivered';
+      }
+
+      // Update delivery status
+      await this.updateDeliveryStatusWithFallback(
+        deliveryStatus.notificationId,
+        deliveryResults,
+        finalStatus
+      );
+
+      // Track delivery for analytics
+      await this.trackReservationNotificationDelivery(
+        deliveryStatus.notificationId,
+        userId,
+        templateType,
+        deliveryResults.map(r => ({
+          success: r.success,
+          messageId: r.messageId,
+          error: r.error
+        }))
+      );
+
+      logger.info('Fallback notification delivery completed', {
+        userId,
+        templateType,
+        recipient,
+        finalStatus,
+        successfulChannels: deliveryResults.filter(r => r.success).length,
+        totalChannels: fallbackChannels.length
+      });
+
+      return {
+        success: finalStatus !== 'failed',
+        deliveryResults,
+        finalStatus
+      };
+
+    } catch (error) {
+      logger.error('Fallback notification delivery failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        templateType,
+        recipient
+      });
+
+      return {
+        success: false,
+        deliveryResults,
+        finalStatus: 'failed'
+      };
+    }
+  }
+
+  /**
+   * Deliver notification via specific channel
+   */
+  private async deliverViaChannel(
+    channel: 'websocket' | 'push' | 'email' | 'sms',
+    userId: string,
+    template: NotificationTemplate,
+    reservationData?: Record<string, any>,
+    priority: 'low' | 'medium' | 'high' | 'critical' = 'medium'
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      switch (channel) {
+        case 'websocket':
+          return await this.deliverViaWebSocket(userId, template, reservationData);
+        
+        case 'push':
+          return await this.deliverViaPushNotification(userId, template, reservationData, priority);
+        
+        case 'email':
+          return await this.deliverViaEmail(userId, template, reservationData);
+        
+        case 'sms':
+          return await this.deliverViaSMS(userId, template, reservationData);
+        
+        default:
+          throw new Error(`Unsupported delivery channel: ${channel}`);
+      }
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Deliver via WebSocket
+   */
+  private async deliverViaWebSocket(
+    userId: string,
+    template: NotificationTemplate,
+    reservationData?: Record<string, any>
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const { websocketService } = await import('./websocket.service');
+      
+      const wsMessage = {
+        type: 'reservation_notification',
+        title: template.title,
+        body: template.body,
+        data: {
+          ...template.data,
+          ...reservationData,
+          timestamp: new Date().toISOString()
+        }
+      };
+
+      await websocketService.sendToUser(userId, 'reservation_notification', wsMessage);
+
+      return {
+        success: true,
+        messageId: `ws_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'WebSocket delivery failed'
+      };
+    }
+  }
+
+  /**
+   * Deliver via Push Notification (FCM)
+   */
+  private async deliverViaPushNotification(
+    userId: string,
+    template: NotificationTemplate,
+    reservationData?: Record<string, any>,
+    priority: 'low' | 'medium' | 'high' | 'critical' = 'medium'
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      const result = await this.sendNotificationToUser(userId, template);
+      
+      return {
+        success: result.status !== 'failed',
+        messageId: result.id,
+        error: result.errorMessage
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Push notification delivery failed'
+      };
+    }
+  }
+
+  /**
+   * Deliver via Email (placeholder implementation)
+   */
+  private async deliverViaEmail(
+    userId: string,
+    template: NotificationTemplate,
+    reservationData?: Record<string, any>
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      // TODO: Implement email delivery service
+      // For now, return success as placeholder
+      logger.info('Email delivery placeholder', { userId, templateId: template.id });
+      
+      return {
+        success: true,
+        messageId: `email_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Email delivery failed'
+      };
+    }
+  }
+
+  /**
+   * Deliver via SMS (placeholder implementation)
+   */
+  private async deliverViaSMS(
+    userId: string,
+    template: NotificationTemplate,
+    reservationData?: Record<string, any>
+  ): Promise<{ success: boolean; messageId?: string; error?: string }> {
+    try {
+      // TODO: Implement SMS delivery service
+      // For now, return success as placeholder
+      logger.info('SMS delivery placeholder', { userId, templateId: template.id });
+      
+      return {
+        success: true,
+        messageId: `sms_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'SMS delivery failed'
+      };
+    }
+  }
+
+  /**
+   * Sleep utility for retry delays
+   */
+  private sleep(ms: number): Promise<void> {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  /**
+   * Update delivery status with fallback results
+   */
+  private async updateDeliveryStatusWithFallback(
+    notificationId: string,
+    deliveryResults: Array<{
+      channel: string;
+      success: boolean;
+      messageId?: string;
+      error?: string;
+      attemptNumber: number;
+      deliveredAt?: string;
+    }>,
+    finalStatus: 'delivered' | 'partially_delivered' | 'failed'
+  ): Promise<void> {
+    try {
+      const successfulChannels = deliveryResults.filter(r => r.success);
+      const failedChannels = deliveryResults.filter(r => !r.success);
+
+      // Update delivery status in database
+      await this.supabase
+        .from('notification_delivery_status')
+        .update({
+          status: finalStatus === 'delivered' ? 'delivered' : 
+                  finalStatus === 'partially_delivered' ? 'sent' : 'failed',
+          delivery_attempts: deliveryResults.length,
+          successful_deliveries: successfulChannels.length,
+          failed_deliveries: failedChannels.length,
+          delivery_details: JSON.stringify(deliveryResults),
+          last_attempt_at: new Date().toISOString(),
+          delivered_at: successfulChannels.length > 0 ? new Date().toISOString() : null,
+          error_message: failedChannels.length > 0 ? 
+            `Failed channels: ${failedChannels.map(c => c.channel).join(', ')}` : null
+        })
+        .eq('notification_id', notificationId);
+
+      logger.info('Delivery status updated with fallback results', {
+        notificationId,
+        finalStatus,
+        successfulChannels: successfulChannels.length,
+        failedChannels: failedChannels.length
+      });
+
+    } catch (error) {
+      logger.error('Failed to update delivery status with fallback results', {
+        error,
+        notificationId
+      });
+    }
+  }
+
+  /**
+   * Monitoring system for delivery success rates and analytics
+   */
+  async getNotificationDeliveryAnalytics(
+    options: {
+      startDate?: string;
+      endDate?: string;
+      templateType?: string;
+      userId?: string;
+      channel?: 'websocket' | 'push' | 'email' | 'sms';
+    } = {}
+  ): Promise<{
+    totalNotifications: number;
+    deliveryStats: {
+      delivered: number;
+      partiallyDelivered: number;
+      failed: number;
+      pending: number;
+    };
+    channelStats: Array<{
+      channel: string;
+      totalAttempts: number;
+      successRate: number;
+      averageRetries: number;
+      commonErrors: Array<{ error: string; count: number }>;
+    }>;
+    templateStats: Array<{
+      templateType: string;
+      totalSent: number;
+      successRate: number;
+      averageDeliveryTime: number;
+    }>;
+    timeSeriesData: Array<{
+      date: string;
+      sent: number;
+      delivered: number;
+      failed: number;
+    }>;
+  }> {
+    try {
+      const { startDate, endDate, templateType, userId, channel } = options;
+
+      // Build query filters
+      let query = this.supabase
+        .from('reservation_notification_delivery_log')
+        .select('*');
+
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate);
+      }
+      if (templateType) {
+        query = query.eq('template_type', templateType);
+      }
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      const { data: deliveryLogs, error } = await query;
+      if (error) {
+        throw new Error(`Failed to fetch delivery analytics: ${error.message}`);
+      }
+
+      // Calculate overall stats
+      const totalNotifications = deliveryLogs?.length || 0;
+      const deliveryStats = {
+        delivered: deliveryLogs?.filter(log => log.successful_deliveries > 0 && log.failed_deliveries === 0).length || 0,
+        partiallyDelivered: deliveryLogs?.filter(log => log.successful_deliveries > 0 && log.failed_deliveries > 0).length || 0,
+        failed: deliveryLogs?.filter(log => log.successful_deliveries === 0).length || 0,
+        pending: 0 // TODO: Implement pending status tracking
+      };
+
+      // Calculate channel stats
+      const channelStats = await this.calculateChannelStats(deliveryLogs);
+
+      // Calculate template stats
+      const templateStats = await this.calculateTemplateStats(deliveryLogs);
+
+      // Calculate time series data
+      const timeSeriesData = await this.calculateTimeSeriesData(deliveryLogs);
+
+      logger.info('Notification delivery analytics calculated', {
+        totalNotifications,
+        deliveryStats,
+        channelCount: channelStats.length,
+        templateCount: templateStats.length
+      });
+
+      return {
+        totalNotifications,
+        deliveryStats,
+        channelStats,
+        templateStats,
+        timeSeriesData
+      };
+
+    } catch (error) {
+      logger.error('Failed to get notification delivery analytics', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        options
+      });
+
+      return {
+        totalNotifications: 0,
+        deliveryStats: { delivered: 0, partiallyDelivered: 0, failed: 0, pending: 0 },
+        channelStats: [],
+        templateStats: [],
+        timeSeriesData: []
+      };
+    }
+  }
+
+  /**
+   * Calculate channel-specific statistics
+   */
+  private async calculateChannelStats(deliveryLogs: any[]): Promise<Array<{
+    channel: string;
+    totalAttempts: number;
+    successRate: number;
+    averageRetries: number;
+    commonErrors: Array<{ error: string; count: number }>;
+  }>> {
+    const channelMap = new Map<string, {
+      totalAttempts: number;
+      successfulAttempts: number;
+      totalRetries: number;
+      errorCounts: Map<string, number>;
+    }>();
+
+    // Process delivery logs
+    for (const log of deliveryLogs || []) {
+      if (log.delivery_results) {
+        try {
+          const results = JSON.parse(log.delivery_results);
+          for (const result of results) {
+            const channel = result.channel || 'unknown';
+            if (!channelMap.has(channel)) {
+              channelMap.set(channel, {
+                totalAttempts: 0,
+                successfulAttempts: 0,
+                totalRetries: 0,
+                errorCounts: new Map()
+              });
+            }
+
+            const channelData = channelMap.get(channel)!;
+            channelData.totalAttempts++;
+            channelData.totalRetries += result.attemptNumber || 1;
+
+            if (result.success) {
+              channelData.successfulAttempts++;
+            } else if (result.error) {
+              const errorCount = channelData.errorCounts.get(result.error) || 0;
+              channelData.errorCounts.set(result.error, errorCount + 1);
+            }
+          }
+        } catch (error) {
+          logger.warn('Failed to parse delivery results', { logId: log.id, error });
+        }
+      }
+    }
+
+    // Convert to response format
+    return Array.from(channelMap.entries()).map(([channel, data]) => ({
+      channel,
+      totalAttempts: data.totalAttempts,
+      successRate: data.totalAttempts > 0 ? (data.successfulAttempts / data.totalAttempts) * 100 : 0,
+      averageRetries: data.totalAttempts > 0 ? data.totalRetries / data.totalAttempts : 0,
+      commonErrors: Array.from(data.errorCounts.entries())
+        .map(([error, count]) => ({ error, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5) // Top 5 errors
+    }));
+  }
+
+  /**
+   * Calculate template-specific statistics
+   */
+  private async calculateTemplateStats(deliveryLogs: any[]): Promise<Array<{
+    templateType: string;
+    totalSent: number;
+    successRate: number;
+    averageDeliveryTime: number;
+  }>> {
+    const templateMap = new Map<string, {
+      totalSent: number;
+      successfulSent: number;
+      totalDeliveryTime: number;
+    }>();
+
+    // Process delivery logs
+    for (const log of deliveryLogs || []) {
+      const templateType = log.template_type || 'unknown';
+      if (!templateMap.has(templateType)) {
+        templateMap.set(templateType, {
+          totalSent: 0,
+          successfulSent: 0,
+          totalDeliveryTime: 0
+        });
+      }
+
+      const templateData = templateMap.get(templateType)!;
+      templateData.totalSent++;
+      
+      if (log.successful_deliveries > 0) {
+        templateData.successfulSent++;
+      }
+
+      // Calculate delivery time (placeholder - would need actual timestamps)
+      templateData.totalDeliveryTime += 1000; // 1 second placeholder
+    }
+
+    // Convert to response format
+    return Array.from(templateMap.entries()).map(([templateType, data]) => ({
+      templateType,
+      totalSent: data.totalSent,
+      successRate: data.totalSent > 0 ? (data.successfulSent / data.totalSent) * 100 : 0,
+      averageDeliveryTime: data.totalSent > 0 ? data.totalDeliveryTime / data.totalSent : 0
+    }));
+  }
+
+  /**
+   * Calculate time series data for analytics
+   */
+  private async calculateTimeSeriesData(deliveryLogs: any[]): Promise<Array<{
+    date: string;
+    sent: number;
+    delivered: number;
+    failed: number;
+  }>> {
+    const dateMap = new Map<string, { sent: number; delivered: number; failed: number }>();
+
+    // Process delivery logs
+    for (const log of deliveryLogs || []) {
+      const date = new Date(log.created_at).toISOString().split('T')[0];
+      if (!dateMap.has(date)) {
+        dateMap.set(date, { sent: 0, delivered: 0, failed: 0 });
+      }
+
+      const dateData = dateMap.get(date)!;
+      dateData.sent++;
+      
+      if (log.successful_deliveries > 0) {
+        dateData.delivered++;
+      } else {
+        dateData.failed++;
+      }
+    }
+
+    // Convert to response format and sort by date
+    return Array.from(dateMap.entries())
+      .map(([date, data]) => ({ date, ...data }))
+      .sort((a, b) => a.date.localeCompare(b.date));
+  }
+
+  /**
+   * Get shop reservation notifications with filtering
+   */
+  async getShopReservationNotifications(
+    shopId: string,
+    options: {
+      status?: string;
+      templateType?: string;
+      limit?: number;
+      offset?: number;
+      startDate?: string;
+      endDate?: string;
+    } = {}
+  ): Promise<Array<{
+    id: string;
+    templateType: string;
+    title: string;
+    body: string;
+    data: any;
+    status: string;
+    recipientUserId: string;
+    recipientType: 'user' | 'shop';
+    deliveryAttempts: number;
+    successfulDeliveries: number;
+    failedDeliveries: number;
+    createdAt: string;
+    updatedAt: string;
+  }>> {
+    try {
+      const { status, templateType, limit = 20, offset = 0, startDate, endDate } = options;
+
+      let query = this.supabase
+        .from('reservation_notification_delivery_log')
+        .select(`
+          id,
+          template_type,
+          user_id,
+          delivery_results,
+          successful_deliveries,
+          failed_deliveries,
+          created_at,
+          updated_at
+        `)
+        .eq('shop_id', shopId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate);
+      }
+      if (templateType) {
+        query = query.eq('template_type', templateType);
+      }
+
+      const { data: logs, error } = await query;
+      if (error) {
+        throw new Error(`Failed to fetch shop reservation notifications: ${error.message}`);
+      }
+
+      // Transform the data to include template information
+      const notifications = [];
+      for (const log of logs || []) {
+        const template = this.getReservationNotificationTemplate(log.template_type, 'shop');
+        if (template) {
+          notifications.push({
+            id: log.id,
+            templateType: log.template_type,
+            title: template.title,
+            body: template.body,
+            data: template.data,
+            status: status || 'unread', // TODO: Implement proper status tracking
+            recipientUserId: log.user_id,
+            recipientType: 'shop' as const,
+            deliveryAttempts: (log.successful_deliveries || 0) + (log.failed_deliveries || 0),
+            successfulDeliveries: log.successful_deliveries || 0,
+            failedDeliveries: log.failed_deliveries || 0,
+            createdAt: log.created_at,
+            updatedAt: log.updated_at
+          });
+        }
+      }
+
+      logger.info('Shop reservation notifications retrieved', {
+        shopId,
+        count: notifications.length,
+        options
+      });
+
+      return notifications;
+
+    } catch (error) {
+      logger.error('Failed to get shop reservation notifications', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId,
+        options
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Get shop owner notification preferences
+   */
+  async getShopOwnerNotificationPreferences(shopId: string, userId: string): Promise<{
+    reservationNotifications: {
+      newRequest: boolean;
+      confirmed: boolean;
+      cancelled: boolean;
+      completed: boolean;
+      noShow: boolean;
+      reminder: boolean;
+    };
+    deliveryPreferences: {
+      websocket: boolean;
+      push: boolean;
+      email: boolean;
+      sms: boolean;
+    };
+    timingPreferences: {
+      reminderHoursBefore: number;
+      quietHoursStart: string;
+      quietHoursEnd: string;
+    };
+    prioritySettings: {
+      newRequest: 'low' | 'medium' | 'high' | 'critical';
+      confirmed: 'low' | 'medium' | 'high' | 'critical';
+      cancelled: 'low' | 'medium' | 'high' | 'critical';
+      completed: 'low' | 'medium' | 'high' | 'critical';
+      noShow: 'low' | 'medium' | 'high' | 'critical';
+      reminder: 'low' | 'medium' | 'high' | 'critical';
+    };
+  }> {
+    try {
+      const { data: preferences, error } = await this.supabase
+        .from('shop_owner_notification_preferences')
+        .select('*')
+        .eq('shop_id', shopId)
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') { // Not found error
+        throw new Error(`Failed to fetch shop owner notification preferences: ${error.message}`);
+      }
+
+      // Return default preferences if none exist
+      if (!preferences) {
+        return {
+          reservationNotifications: {
+            newRequest: true,
+            confirmed: true,
+            cancelled: true,
+            completed: true,
+            noShow: true,
+            reminder: true
+          },
+          deliveryPreferences: {
+            websocket: true,
+            push: true,
+            email: false,
+            sms: false
+          },
+          timingPreferences: {
+            reminderHoursBefore: 24,
+            quietHoursStart: '22:00',
+            quietHoursEnd: '08:00'
+          },
+          prioritySettings: {
+            newRequest: 'high',
+            confirmed: 'medium',
+            cancelled: 'high',
+            completed: 'medium',
+            noShow: 'high',
+            reminder: 'medium'
+          }
+        };
+      }
+
+      return preferences.preferences || {
+        reservationNotifications: {
+          newRequest: true,
+          confirmed: true,
+          cancelled: true,
+          completed: true,
+          noShow: true,
+          reminder: true
+        },
+        deliveryPreferences: {
+          websocket: true,
+          push: true,
+          email: false,
+          sms: false
+        },
+        timingPreferences: {
+          reminderHoursBefore: 24,
+          quietHoursStart: '22:00',
+          quietHoursEnd: '08:00'
+        },
+        prioritySettings: {
+          newRequest: 'high',
+          confirmed: 'medium',
+          cancelled: 'high',
+          completed: 'medium',
+          noShow: 'high',
+          reminder: 'medium'
+        }
+      };
+
+    } catch (error) {
+      logger.error('Failed to get shop owner notification preferences', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId,
+        userId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Update shop owner notification preferences
+   */
+  async updateShopOwnerNotificationPreferences(
+    shopId: string,
+    userId: string,
+    preferences: any
+  ): Promise<any> {
+    try {
+      const { data, error } = await this.supabase
+        .from('shop_owner_notification_preferences')
+        .upsert({
+          shop_id: shopId,
+          user_id: userId,
+          preferences,
+          updated_at: new Date().toISOString()
+        })
+        .select()
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to update shop owner notification preferences: ${error.message}`);
+      }
+
+      logger.info('Shop owner notification preferences updated', {
+        shopId,
+        userId,
+        preferences
+      });
+
+      return data.preferences;
+
+    } catch (error) {
+      logger.error('Failed to update shop owner notification preferences', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId,
+        userId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get shop notification delivery analytics
+   */
+  async getShopNotificationAnalytics(
+    shopId: string,
+    options: {
+      startDate?: string;
+      endDate?: string;
+      templateType?: string;
+    } = {}
+  ): Promise<{
+    totalNotifications: number;
+    deliveryStats: {
+      delivered: number;
+      partiallyDelivered: number;
+      failed: number;
+      pending: number;
+    };
+    templateStats: Array<{
+      templateType: string;
+      totalSent: number;
+      successRate: number;
+      averageDeliveryTime: number;
+    }>;
+    timeSeriesData: Array<{
+      date: string;
+      sent: number;
+      delivered: number;
+      failed: number;
+    }>;
+  }> {
+    try {
+      const { startDate, endDate, templateType } = options;
+
+      // Build query filters for shop-specific notifications
+      let query = this.supabase
+        .from('reservation_notification_delivery_log')
+        .select('*')
+        .eq('shop_id', shopId);
+
+      if (startDate) {
+        query = query.gte('created_at', startDate);
+      }
+      if (endDate) {
+        query = query.lte('created_at', endDate);
+      }
+      if (templateType) {
+        query = query.eq('template_type', templateType);
+      }
+
+      const { data: deliveryLogs, error } = await query;
+      if (error) {
+        throw new Error(`Failed to fetch shop notification analytics: ${error.message}`);
+      }
+
+      // Calculate shop-specific stats
+      const totalNotifications = deliveryLogs?.length || 0;
+      const deliveryStats = {
+        delivered: deliveryLogs?.filter(log => log.successful_deliveries > 0 && log.failed_deliveries === 0).length || 0,
+        partiallyDelivered: deliveryLogs?.filter(log => log.successful_deliveries > 0 && log.failed_deliveries > 0).length || 0,
+        failed: deliveryLogs?.filter(log => log.successful_deliveries === 0).length || 0,
+        pending: 0 // TODO: Implement pending status tracking
+      };
+
+      // Calculate template stats for shop
+      const templateStats = await this.calculateTemplateStats(deliveryLogs);
+
+      // Calculate time series data for shop
+      const timeSeriesData = await this.calculateTimeSeriesData(deliveryLogs);
+
+      logger.info('Shop notification analytics calculated', {
+        shopId,
+        totalNotifications,
+        deliveryStats,
+        templateCount: templateStats.length
+      });
+
+      return {
+        totalNotifications,
+        deliveryStats,
+        templateStats,
+        timeSeriesData
+      };
+
+    } catch (error) {
+      logger.error('Failed to get shop notification analytics', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId,
+        options
+      });
+
+      return {
+        totalNotifications: 0,
+        deliveryStats: { delivered: 0, partiallyDelivered: 0, failed: 0, pending: 0 },
+        templateStats: [],
+        timeSeriesData: []
+      };
+    }
+  }
+
+  /**
+   * Enhanced delivery tracking for reservation notifications
+   */
+  async trackReservationNotificationDelivery(
+    notificationId: string,
+    userId: string,
+    templateType: string,
+    deliveryResults: Array<{ success: boolean; messageId?: string; error?: string }>
+  ): Promise<void> {
+    try {
+      const successCount = deliveryResults.filter(result => result.success).length;
+      const failureCount = deliveryResults.length - successCount;
+
+      // Update notification history with delivery tracking
+      await this.supabase
+        .from('notification_history')
+        .update({
+          delivery_attempts: deliveryResults.length,
+          successful_deliveries: successCount,
+          failed_deliveries: failureCount,
+          delivery_details: JSON.stringify(deliveryResults),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', notificationId);
+
+      // Log delivery tracking for analytics
+      await this.supabase
+        .from('reservation_notification_delivery_log')
+        .insert({
+          notification_id: notificationId,
+          user_id: userId,
+          template_type: templateType,
+          total_devices: deliveryResults.length,
+          successful_deliveries: successCount,
+          failed_deliveries: failureCount,
+          delivery_results: deliveryResults,
+          created_at: new Date().toISOString()
+        });
+
+      logger.info('Reservation notification delivery tracked', {
+        notificationId,
+        userId,
+        templateType,
+        successCount,
+        failureCount
+      });
+
+    } catch (error) {
+      logger.error('Failed to track reservation notification delivery', {
+        error,
+        notificationId,
+        userId
+      });
+    }
+  }
+
+  /**
+   * Customize reservation template with dynamic data
+   */
+  private customizeReservationTemplate(
+    template: NotificationTemplate,
+    reservationData?: Record<string, any>
+  ): NotificationTemplate {
+    if (!reservationData) {
+      return template;
+    }
+
+    let customizedTitle = template.title;
+    let customizedBody = template.body;
+
+    // Replace placeholders in title and body
+    if (reservationData.shopName) {
+      customizedTitle = customizedTitle.replace('{shopName}', reservationData.shopName);
+      customizedBody = customizedBody.replace('{shopName}', reservationData.shopName);
+    }
+
+    if (reservationData.serviceName) {
+      customizedTitle = customizedTitle.replace('{serviceName}', reservationData.serviceName);
+      customizedBody = customizedBody.replace('{serviceName}', reservationData.serviceName);
+    }
+
+    if (reservationData.reservationTime) {
+      customizedTitle = customizedTitle.replace('{reservationTime}', reservationData.reservationTime);
+      customizedBody = customizedBody.replace('{reservationTime}', reservationData.reservationTime);
+    }
+
+    if (reservationData.refundAmount) {
+      customizedTitle = customizedTitle.replace('{refundAmount}', reservationData.refundAmount);
+      customizedBody = customizedBody.replace('{refundAmount}', reservationData.refundAmount);
+    }
+
+    return {
+      ...template,
+      title: customizedTitle,
+      body: customizedBody,
+      data: {
+        ...template.data,
+        ...reservationData
+      }
+    };
+  }
+
+  /**
    * Get notification templates
    */
   async getNotificationTemplates(): Promise<NotificationTemplate[]> {
+    // Get reservation templates
+    const reservationTemplates = this.getAllReservationNotificationTemplates();
+    
     const legacyTemplates: NotificationTemplate[] = [
       {
         id: 'reservation_confirmed',
@@ -1825,7 +3437,7 @@ export class NotificationService {
     ];
 
     // Combine legacy templates with user management templates
-    return [...legacyTemplates, ...this.getAllTemplates()];
+    return [...legacyTemplates, ...reservationTemplates, ...this.getAllTemplates()];
   }
 
   /**

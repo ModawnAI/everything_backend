@@ -1,5 +1,6 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { ShopOwnerRequest } from '../middleware/shop-owner-auth.middleware';
 import { notificationService, NotificationPayload } from '../services/notification.service';
 import { logger } from '../utils/logger';
 
@@ -439,6 +440,391 @@ export default class NotificationController {
         error: {
           code: 'INTERNAL_ERROR',
           message: '디바이스 토큰 조회 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  // ===== SHOP OWNER NOTIFICATION ENDPOINTS =====
+
+  /**
+   * Get shop reservation notifications for shop owner
+   */
+  async getShopReservationNotifications(req: ShopOwnerRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const shopId = req.shop?.id;
+      const { 
+        status = 'unread',
+        templateType,
+        limit = 20,
+        offset = 0,
+        startDate,
+        endDate
+      } = req.query;
+
+      if (!userId || !shopId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '샵 운영자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const notifications = await notificationService.getShopReservationNotifications(
+        shopId,
+        {
+          status: status as string,
+          templateType: templateType as string,
+          limit: parseInt(limit as string),
+          offset: parseInt(offset as string),
+          startDate: startDate as string,
+          endDate: endDate as string
+        }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: '샵 예약 알림을 조회했습니다.',
+        data: {
+          shopId,
+          notifications,
+          total: notifications.length,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get shop reservation notifications', { 
+        error, 
+        userId: req.user?.id,
+        shopId: req.shop?.id 
+      });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '샵 예약 알림 조회 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Send reservation notification to customer from shop owner
+   */
+  async sendReservationNotificationToCustomer(req: ShopOwnerRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const shopId = req.shop?.id;
+      const { 
+        reservationId, 
+        notificationType, 
+        customMessage,
+        priority = 'medium',
+        useFallback = true
+      } = req.body;
+
+      if (!userId || !shopId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '샵 운영자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      if (!reservationId || !notificationType) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: '예약 ID와 알림 유형이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      // Validate that the reservation belongs to this shop
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+      const { data: reservation, error } = await supabase
+        .from('reservations')
+        .select('id, user_id, shop_id, status')
+        .eq('id', reservationId)
+        .eq('shop_id', shopId)
+        .single();
+
+      if (error || !reservation) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'RESERVATION_NOT_FOUND',
+            message: '예약을 찾을 수 없거나 권한이 없습니다.'
+          }
+        });
+        return;
+      }
+
+      let result;
+      if (useFallback) {
+        // Use fallback delivery system
+        result = await notificationService.sendReservationNotificationWithFallback(
+          reservation.user_id,
+          notificationType,
+          'user',
+          {
+            reservationId,
+            shopId,
+            shopName: req.shop?.name,
+            customMessage
+          },
+          {
+            priority: priority as 'low' | 'medium' | 'high' | 'critical',
+            fallbackChannels: ['websocket', 'push', 'email'],
+            maxRetries: 3,
+            requireConfirmation: false
+          }
+        );
+      } else {
+        // Use standard notification system
+        const history = await notificationService.sendReservationNotification(
+          reservation.user_id,
+          notificationType,
+          'user',
+          {
+            reservationId,
+            shopId,
+            shopName: req.shop?.name,
+            customMessage
+          }
+        );
+        result = {
+          success: history.status !== 'failed',
+          deliveryResults: [{
+            channel: 'push',
+            success: history.status !== 'failed',
+            messageId: history.id,
+            error: history.errorMessage,
+            attemptNumber: 1,
+            deliveredAt: history.status !== 'failed' ? new Date().toISOString() : undefined
+          }],
+          finalStatus: history.status !== 'failed' ? 'delivered' : 'failed'
+        };
+      }
+
+      // Log the notification for shop owner audit trail
+      await supabase
+        .from('shop_owner_notification_log')
+        .insert({
+          shop_id: shopId,
+          shop_owner_id: userId,
+          reservation_id: reservationId,
+          notification_type: notificationType,
+          recipient_user_id: reservation.user_id,
+          priority,
+          success: result.success,
+          delivery_method: useFallback ? 'fallback' : 'standard',
+          delivery_details: JSON.stringify(result.deliveryResults),
+          custom_message: customMessage,
+          created_at: new Date().toISOString()
+        });
+
+      res.status(200).json({
+        success: true,
+        message: '예약 알림이 고객에게 전송되었습니다.',
+        data: {
+          reservationId,
+          customerId: reservation.user_id,
+          notificationType,
+          priority,
+          deliveryMethod: useFallback ? 'fallback' : 'standard',
+          result,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to send reservation notification to customer', { 
+        error, 
+        userId: req.user?.id,
+        shopId: req.shop?.id,
+        reservationId: req.body?.reservationId 
+      });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '고객 알림 전송 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get shop owner notification preferences
+   */
+  async getShopOwnerNotificationPreferences(req: ShopOwnerRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const shopId = req.shop?.id;
+
+      if (!userId || !shopId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '샵 운영자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const preferences = await notificationService.getShopOwnerNotificationPreferences(shopId, userId);
+
+      res.status(200).json({
+        success: true,
+        message: '샵 운영자 알림 설정을 조회했습니다.',
+        data: {
+          shopId,
+          preferences,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get shop owner notification preferences', { 
+        error, 
+        userId: req.user?.id,
+        shopId: req.shop?.id 
+      });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '샵 운영자 알림 설정 조회 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Update shop owner notification preferences
+   */
+  async updateShopOwnerNotificationPreferences(req: ShopOwnerRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const shopId = req.shop?.id;
+      const { preferences } = req.body;
+
+      if (!userId || !shopId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '샵 운영자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      if (!preferences) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: '알림 설정이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const updatedPreferences = await notificationService.updateShopOwnerNotificationPreferences(
+        shopId, 
+        userId, 
+        preferences
+      );
+
+      res.status(200).json({
+        success: true,
+        message: '샵 운영자 알림 설정이 업데이트되었습니다.',
+        data: {
+          shopId,
+          preferences: updatedPreferences,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to update shop owner notification preferences', { 
+        error, 
+        userId: req.user?.id,
+        shopId: req.shop?.id 
+      });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '샵 운영자 알림 설정 업데이트 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get shop notification delivery analytics
+   */
+  async getShopNotificationAnalytics(req: ShopOwnerRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const shopId = req.shop?.id;
+      const { 
+        startDate,
+        endDate,
+        templateType
+      } = req.query;
+
+      if (!userId || !shopId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '샵 운영자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const analytics = await notificationService.getShopNotificationAnalytics(
+        shopId,
+        {
+          startDate: startDate as string,
+          endDate: endDate as string,
+          templateType: templateType as string
+        }
+      );
+
+      res.status(200).json({
+        success: true,
+        message: '샵 알림 분석 데이터를 조회했습니다.',
+        data: {
+          shopId,
+          analytics,
+          timestamp: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      logger.error('Failed to get shop notification analytics', { 
+        error, 
+        userId: req.user?.id,
+        shopId: req.shop?.id 
+      });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '샵 알림 분석 데이터 조회 중 오류가 발생했습니다.'
         }
       });
     }

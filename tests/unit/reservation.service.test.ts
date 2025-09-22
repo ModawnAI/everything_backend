@@ -42,7 +42,8 @@ jest.mock('../../src/services/time-slot.service', () => ({
   timeSlotService: {
     isSlotAvailable: jest.fn(),
     getAvailableTimeSlots: jest.fn(),
-    getNextAvailableSlot: jest.fn()
+    getNextAvailableSlot: jest.fn(),
+    validateSlotAvailability: jest.fn()
   }
 }));
 
@@ -144,12 +145,16 @@ describe('Reservation Service Tests', () => {
     };
 
     it('should check time slot availability before creating reservation', async () => {
-      mockTimeSlotService.isSlotAvailable.mockResolvedValue(false);
+      mockTimeSlotService.validateSlotAvailability.mockResolvedValue({
+        available: false,
+        conflictReason: 'Time slot is no longer available',
+        conflictingReservations: []
+      });
 
       await expect(reservationService.createReservation(mockRequest))
         .rejects.toThrow('Selected time slot is no longer available');
 
-      expect(mockTimeSlotService.isSlotAvailable).toHaveBeenCalledWith(
+      expect(mockTimeSlotService.validateSlotAvailability).toHaveBeenCalledWith(
         'shop-123',
         '2024-03-15',
         '10:00',
@@ -158,7 +163,11 @@ describe('Reservation Service Tests', () => {
     });
 
     it('should proceed when time slot is available', async () => {
-      mockTimeSlotService.isSlotAvailable.mockResolvedValue(true);
+      mockTimeSlotService.validateSlotAvailability.mockResolvedValue({
+        available: true,
+        conflictReason: null,
+        conflictingReservations: []
+      });
       
       // Debug: Check if the mock is set up correctly
       console.log('mockSupabase:', mockSupabase);

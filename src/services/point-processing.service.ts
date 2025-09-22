@@ -572,6 +572,252 @@ export class PointProcessingService {
       throw error;
     }
   }
+
+  /**
+   * Award points for service completion
+   */
+  async awardPointsForCompletion(params: {
+    reservationId: string;
+    userId: string;
+    finalAmount: number;
+    shopId: string;
+    shopName: string;
+    services: any[];
+    completionNotes?: string;
+  }): Promise<{ success: boolean; pointsAwarded: number; error?: string }> {
+    try {
+      const { reservationId, userId, finalAmount, shopId, shopName, services, completionNotes } = params;
+
+      logger.info('Awarding points for service completion', {
+        reservationId,
+        userId,
+        finalAmount,
+        shopId
+      });
+
+      // Calculate points based on final amount (2.5% rate, 300,000 KRW max)
+      const maxEligibleAmount = 300000; // 300,000 KRW
+      const eligibleAmount = Math.min(finalAmount, maxEligibleAmount);
+      const pointsToAward = Math.floor(eligibleAmount * 0.025); // 2.5% rate
+
+      if (pointsToAward <= 0) {
+        logger.info('No points to award for completion', {
+          reservationId,
+          userId,
+          finalAmount,
+          eligibleAmount,
+          pointsToAward
+        });
+
+        return {
+          success: true,
+          pointsAwarded: 0
+        };
+      }
+
+      // Create point transaction for completion
+      const { data: pointTransaction, error: transactionError } = await this.supabase
+        .from('point_transactions')
+        .insert({
+          user_id: userId,
+          amount: pointsToAward,
+          transaction_type: 'earned',
+          source_type: 'service_completion',
+          source_id: reservationId,
+          description: `서비스 완료 포인트 - ${shopName}`,
+          status: 'pending',
+          available_from: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days pending
+          metadata: {
+            reservationId,
+            shopId,
+            shopName,
+            finalAmount,
+            eligibleAmount,
+            pointRate: 0.025,
+            services: services.map(s => ({
+              serviceId: s.service_id,
+              serviceName: s.shop_services?.name || 'Unknown Service',
+              quantity: s.quantity,
+              unitPrice: s.unit_price,
+              totalPrice: s.total_price
+            })),
+            completionNotes
+          },
+          created_at: new Date().toISOString()
+        })
+        .select('id')
+        .single();
+
+      if (transactionError) {
+        logger.error('Failed to create point transaction for completion', {
+          error: transactionError.message,
+          reservationId,
+          userId,
+          pointsToAward
+        });
+
+        return {
+          success: false,
+          pointsAwarded: 0,
+          error: transactionError.message
+        };
+      }
+
+      // Update user's cached point balance
+      await this.updateUserPointBalance(userId);
+
+      logger.info('Successfully awarded points for service completion', {
+        reservationId,
+        userId,
+        pointsToAward,
+        transactionId: pointTransaction.id,
+        finalAmount,
+        eligibleAmount
+      });
+
+      // Process referral bonuses if applicable
+      try {
+        await this.processReferralBonuses(params.userId, params.reservationId);
+      } catch (referralError) {
+        logger.error('Failed to process referral bonuses', {
+          error: referralError instanceof Error ? referralError.message : 'Unknown error',
+          userId: params.userId,
+          reservationId: params.reservationId
+        });
+        // Don't fail the main completion if referral processing fails
+      }
+
+      return {
+        success: true,
+        pointsAwarded: pointsToAward
+      };
+
+    } catch (error) {
+      logger.error('Error awarding points for service completion', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: params.reservationId,
+        userId: params.userId,
+        finalAmount: params.finalAmount
+      });
+
+      return {
+        success: false,
+        pointsAwarded: 0,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
+
+  /**
+   * Process referral bonuses for service completion
+   */
+  private async processReferralBonuses(userId: string, reservationId: string): Promise<void> {
+    try {
+      logger.info('Processing referral bonuses for service completion', {
+        userId,
+        reservationId
+      });
+
+      // Find active referrals for this user that haven't been processed for this reservation
+      const { data: referrals, error: referralError } = await this.supabase
+        .from('referrals')
+        .select(`
+          id,
+          referrer_id,
+          referred_id,
+          status,
+          bonus_amount,
+          bonus_type,
+          bonus_paid,
+          referral_code,
+          notes
+        `)
+        .eq('referred_id', userId)
+        .eq('status', 'active')
+        .not('notes', 'like', `%reservation ${reservationId}%`); // Prevent duplicate processing
+
+      if (referralError) {
+        logger.error('Failed to fetch referrals for user', {
+          error: referralError.message,
+          userId
+        });
+        return;
+      }
+
+      if (!referrals || referrals.length === 0) {
+        logger.info('No active referrals found for user', { userId });
+        return;
+      }
+
+      // Process each active referral
+      let processedReferrals = 0;
+      let failedReferrals = 0;
+
+      for (const referral of referrals) {
+        try {
+          // Validate referral eligibility
+          if (referral.bonus_paid) {
+            logger.warn('Referral already has bonus paid, skipping', {
+              referralId: referral.id,
+              referrerId: referral.referrer_id,
+              referredId: referral.referred_id
+            });
+            continue;
+          }
+
+          // Import referral service to update status
+          const { ReferralServiceImpl } = await import('./referral.service');
+          const referralService = new ReferralServiceImpl();
+
+          // Update referral status to completed (this will trigger bonus payout)
+          await referralService.updateReferralStatus({
+            referralId: referral.id,
+            status: 'completed',
+            notes: `Service completed - reservation ${reservationId}`
+          });
+
+          processedReferrals++;
+
+          logger.info('Referral marked as completed and bonus processed', {
+            referralId: referral.id,
+            referrerId: referral.referrer_id,
+            referredId: referral.referred_id,
+            bonusAmount: referral.bonus_amount,
+            bonusType: referral.bonus_type,
+            reservationId
+          });
+
+        } catch (updateError) {
+          failedReferrals++;
+          logger.error('Failed to update referral status', {
+            error: updateError instanceof Error ? updateError.message : 'Unknown error',
+            referralId: referral.id,
+            referrerId: referral.referrer_id,
+            referredId: referral.referred_id,
+            userId,
+            reservationId
+          });
+        }
+      }
+
+      logger.info('Referral bonus processing completed', {
+        userId,
+        reservationId,
+        totalReferrals: referrals.length,
+        processedReferrals,
+        failedReferrals,
+        skippedReferrals: referrals.length - processedReferrals - failedReferrals
+      });
+
+    } catch (error) {
+      logger.error('Error processing referral bonuses', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        reservationId
+      });
+      throw error;
+    }
+  }
 }
 
 // Export singleton instance
