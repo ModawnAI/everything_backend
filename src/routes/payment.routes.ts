@@ -3,6 +3,11 @@
  * tags:
  *   - name: 결제
  *     description: 토스페이먼츠 연동 결제 API
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 /**
@@ -32,8 +37,13 @@ const paymentController = new PaymentController();
  * @swagger
  * /api/payments/toss/prepare:
  *   post:
- *     summary: Initialize payment with TossPayments
+ *     summary: Initialize payment with TossPayments (Initialize payment with TossPayments)
  *     description: Prepare a payment transaction with TossPayments for reservation deposit or full payment
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [결제]
  *     security:
  *       - bearerAuth: []
@@ -108,8 +118,13 @@ router.post(
  * @swagger
  * /api/payments/toss/confirm:
  *   post:
- *     summary: Confirm payment with TossPayments
+ *     summary: Confirm payment with TossPayments (Confirm payment with TossPayments)
  *     description: Confirm and finalize a payment transaction with TossPayments
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [결제]
  *     security:
  *       - bearerAuth: []
@@ -170,6 +185,37 @@ router.post(
 );
 
 /**
+ * Two-stage payment routes
+ */
+
+// POST /api/payments/deposit/prepare
+// Prepare deposit payment (20-30% of total amount)
+router.post(
+  '/deposit/prepare',
+  authenticateJWT,
+  paymentRateLimit(),
+  paymentController.prepareDepositPayment.bind(paymentController)
+);
+
+// POST /api/payments/final/prepare
+// Prepare final payment (remaining amount after service completion)
+router.post(
+  '/final/prepare',
+  authenticateJWT,
+  paymentRateLimit(),
+  paymentController.prepareFinalPayment.bind(paymentController)
+);
+
+// GET /api/payments/status/:reservationId
+// Get comprehensive payment status for a reservation
+router.get(
+  '/status/:reservationId',
+  authenticateJWT,
+  paymentRateLimit(),
+  paymentController.getPaymentStatus.bind(paymentController)
+);
+
+/**
  * Webhook routes
  */
 
@@ -177,8 +223,13 @@ router.post(
  * @swagger
  * /api/webhooks/toss-payments:
  *   post:
- *     summary: Handle TossPayments webhooks
+ *     summary: Handle TossPayments webhooks (Handle TossPayments webhooks)
  *     description: Receive and process webhook notifications from TossPayments for payment status updates
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [결제]
  *     requestBody:
  *       required: true
@@ -209,8 +260,13 @@ router.post(
  * @swagger
  * /api/payments/{paymentId}:
  *   get:
- *     summary: Get payment details
+ *     summary: payment details 조회
  *     description: Retrieve detailed information about a specific payment
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [결제]
  *     security:
  *       - bearerAuth: []
@@ -271,8 +327,13 @@ router.get(
  * @swagger
  * /api/payments/user/{userId}:
  *   get:
- *     summary: Get user payment history
+ *     summary: user payment history 조회
  *     description: Retrieve payment history for a specific user
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [결제]
  *     security:
  *       - bearerAuth: []
@@ -307,8 +368,13 @@ router.get(
  * @swagger
  * /api/payments/success:
  *   get:
- *     summary: Handle successful payment redirect
+ *     summary: Handle successful payment redirect (Handle successful payment redirect)
  *     description: Handle redirect from TossPayments after successful payment
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [결제]
  *     responses:
  *       200:
@@ -323,8 +389,13 @@ router.get(
  * @swagger
  * /api/payments/fail:
  *   get:
- *     summary: Handle failed payment redirect
+ *     summary: Handle failed payment redirect (Handle failed payment redirect)
  *     description: Handle redirect from TossPayments after failed payment
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [결제]
  *     responses:
  *       200:

@@ -149,8 +149,13 @@ const otpVerificationRateLimit = rateLimit({
  * @swagger
  * /social-login:
  *   post:
- *     summary: POST /social-login
+ *     summary: POST /social-login (POST /social-login)
  *     description: POST endpoint for /social-login
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -172,12 +177,62 @@ router.post('/social-login',
 );
 
 // Step 2: Profile Setup
+/**
+ * @swagger
+ * /profile-setup:
+ *   post:
+ *     summary: POST /profile-setup (POST /profile-setup)
+ *     description: POST endpoint for /profile-setup
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/profile-setup',
   validateRequestBody(profileSetupSchema),
   registrationController.setupProfile.bind(registrationController)
 );
 
 // Step 3a: Send Phone Verification
+/**
+ * @swagger
+ * /phone-verification/send:
+ *   post:
+ *     summary: POST /phone-verification/send (POST /phone-verification/send)
+ *     description: POST endpoint for /phone-verification/send
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/phone-verification/send',
   phoneVerificationRateLimit,
   validateRequestBody(phoneVerificationSchema),
@@ -185,6 +240,31 @@ router.post('/phone-verification/send',
 );
 
 // Step 3b: Verify Phone OTP
+/**
+ * @swagger
+ * /phone-verification/verify:
+ *   post:
+ *     summary: POST /phone-verification/verify (POST /phone-verification/verify)
+ *     description: POST endpoint for /phone-verification/verify
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/phone-verification/verify',
   otpVerificationRateLimit,
   validateRequestBody(otpVerificationSchema),
@@ -192,6 +272,31 @@ router.post('/phone-verification/verify',
 );
 
 // Step 4: Terms Acceptance
+/**
+ * @swagger
+ * /terms-acceptance:
+ *   post:
+ *     summary: POST /terms-acceptance (POST /terms-acceptance)
+ *     description: POST endpoint for /terms-acceptance
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/terms-acceptance',
   validateRequestBody(termsAcceptanceSchema),
   registrationController.acceptTerms.bind(registrationController)
@@ -202,8 +307,13 @@ router.post('/terms-acceptance',
  * @swagger
  * /activate:
  *   post:
- *     summary: POST /activate
+ *     summary: POST /activate (POST /activate)
  *     description: POST endpoint for /activate
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -224,11 +334,61 @@ router.post('/activate',
 );
 
 // Get session status
+/**
+ * @swagger
+ * /session/:sessionId:
+ *   get:
+ *     summary: /session/:sessionId 조회
+ *     description: GET endpoint for /session/:sessionId
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/session/:sessionId',
   registrationController.getSessionStatus.bind(registrationController)
 );
 
 // Health check
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: /health 조회
+ *     description: GET endpoint for /health
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/health', (req, res) => {
   res.status(200).json({
     success: true,

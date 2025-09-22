@@ -89,6 +89,14 @@ export class StorageService {
       fileSizeLimit: 20 * 1024 * 1024, // 20MB
       allowedMimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
       accessPolicy: 'private'
+    },
+    'feed-posts': {
+      id: 'feed-posts',
+      name: 'feed-posts',
+      public: true,
+      fileSizeLimit: 8 * 1024 * 1024, // 8MB per image
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+      accessPolicy: 'authenticated'
     }
   };
 
@@ -179,6 +187,22 @@ export class StorageService {
         AND user_role = 'admin'
       )`,
       description: 'Admins can access all business documents'
+    },
+
+    // Feed post images - users can manage their own
+    {
+      bucketId: 'feed-posts',
+      policyName: 'feed_posts_owner_manage',
+      policyType: 'ALL',
+      condition: 'auth.uid()::text = (storage.foldername(name))[1]',
+      description: 'Users can manage their own feed post images'
+    },
+    {
+      bucketId: 'feed-posts',
+      policyName: 'feed_posts_public_read',
+      policyType: 'SELECT',
+      condition: 'true',
+      description: 'Public can read all feed post images'
     }
   ];
 

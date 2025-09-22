@@ -26,8 +26,13 @@ router.use(requireAdmin());
  * @swagger
  * /statistics:
  *   get:
- *     summary: GET /statistics
+ *     summary: /statistics 조회
  *     description: GET endpoint for /statistics
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -81,8 +86,13 @@ router.get('/statistics', async (req: Request, res: Response) => {
  * @swagger
  * /recent:
  *   get:
- *     summary: GET /recent
+ *     summary: /recent 조회
  *     description: GET endpoint for /recent
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -164,8 +174,13 @@ router.get('/recent', async (req: Request, res: Response) => {
  * @swagger
  * /alerts:
  *   get:
- *     summary: GET /alerts
+ *     summary: /alerts 조회
  *     description: GET endpoint for /alerts
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -218,8 +233,13 @@ router.get('/alerts', async (req: Request, res: Response) => {
  * @swagger
  * /alerts/:alertId/resolve:
  *   post:
- *     summary: POST /alerts/:alertId/resolve
+ *     summary: POST /alerts/:alertId/resolve (POST /alerts/:alertId/resolve)
  *     description: POST endpoint for /alerts/:alertId/resolve
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -283,8 +303,13 @@ router.post('/alerts/:alertId/resolve', async (req: Request, res: Response) => {
  * @swagger
  * /compliance-report:
  *   get:
- *     summary: GET /compliance-report
+ *     summary: /compliance-report 조회
  *     description: GET endpoint for /compliance-report
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -327,6 +352,31 @@ router.get('/compliance-report', async (req: Request, res: Response) => {
  * GET /api/admin/security-events/middleware-stats
  * Get statistics by middleware
  */
+/**
+ * @swagger
+ * /middleware-stats:
+ *   get:
+ *     summary: /middleware-stats 조회
+ *     description: GET endpoint for /middleware-stats
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/middleware-stats', async (req: Request, res: Response) => {
   try {
     const timeWindow = parseInt(req.query.timeWindow as string) || 24 * 60 * 60 * 1000;
@@ -373,8 +423,13 @@ router.get('/middleware-stats', async (req: Request, res: Response) => {
  * @swagger
  * /threat-analysis:
  *   get:
- *     summary: GET /threat-analysis
+ *     summary: /threat-analysis 조회
  *     description: GET endpoint for /threat-analysis
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -437,8 +492,13 @@ router.get('/threat-analysis', async (req: Request, res: Response) => {
  * @swagger
  * /export:
  *   post:
- *     summary: POST /export
+ *     summary: POST /export (POST /export)
  *     description: POST endpoint for /export
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []

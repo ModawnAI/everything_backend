@@ -6,7 +6,7 @@
  * and security event monitoring
  */
 
-import Joi from 'joi';
+import * as Joi from 'joi';
 
 /**
  * Common security patterns and constants

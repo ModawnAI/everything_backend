@@ -101,8 +101,13 @@ const router = Router();
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       관리자용 샵 관리 API입니다. 샵 등록, 승인, 상태 관리를 수행합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -184,8 +189,13 @@ router.get('/', adminShopApprovalController.getShopsForApproval);
  * @swagger
  * /statistics:
  *   get:
- *     summary: GET /statistics
+ *     summary: /statistics 조회
  *     description: GET endpoint for /statistics
+ *       
+ *       관리자용 샵 관리 API입니다. 샵 등록, 승인, 상태 관리를 수행합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -258,8 +268,13 @@ router.get('/statistics', adminShopApprovalController.getShopVerificationStatist
  * @swagger
  * /:id:
  *   put:
- *     summary: PUT /:id
+ *     summary: PUT /:id (PUT /:id)
  *     description: PUT endpoint for /:id
+ *       
+ *       관리자용 샵 관리 API입니다. 샵 등록, 승인, 상태 관리를 수행합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -381,8 +396,13 @@ router.put('/:id', adminShopApprovalController.processShopApproval);
  * @swagger
  * /:id/details:
  *   get:
- *     summary: GET /:id/details
+ *     summary: /:id/details 조회
  *     description: GET endpoint for /:id/details
+ *       
+ *       관리자용 샵 관리 API입니다. 샵 등록, 승인, 상태 관리를 수행합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -454,8 +474,13 @@ router.get('/:id/details', adminShopApprovalController.getShopApprovalDetails);
  * @swagger
  * /bulk-approval:
  *   post:
- *     summary: POST /bulk-approval
+ *     summary: POST /bulk-approval (POST /bulk-approval)
  *     description: POST endpoint for /bulk-approval
+ *       
+ *       관리자용 샵 관리 API입니다. 샵 등록, 승인, 상태 관리를 수행합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

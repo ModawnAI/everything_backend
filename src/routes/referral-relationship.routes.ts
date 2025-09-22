@@ -32,8 +32,13 @@ const checkCircularReferenceSchema = Joi.object({
  * @swagger
  * /:
  *   post:
- *     summary: POST /
+ *     summary: POST / (POST /)
  *     description: POST endpoint for /
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -59,6 +64,31 @@ router.post('/',
  * @desc Validate referral eligibility for a user
  * @access Private
  */
+/**
+ * @swagger
+ * /validate/:referredId:
+ *   get:
+ *     summary: /validate/:referredId 조회
+ *     description: GET endpoint for /validate/:referredId
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/validate/:referredId',
   authenticateJWT(),
   referralRelationshipController.referralRelationshipRateLimit,
@@ -71,6 +101,31 @@ router.get('/validate/:referredId',
  * @desc Get referral chain for a user (defaults to current user)
  * @access Private
  */
+/**
+ * @swagger
+ * /chain/:userId?:
+ *   get:
+ *     summary: /chain/:userId? 조회
+ *     description: GET endpoint for /chain/:userId?
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/chain/:userId?',
   authenticateJWT(),
   referralRelationshipController.referralRelationshipRateLimit,
@@ -87,8 +142,13 @@ router.get('/chain/:userId?',
  * @swagger
  * /check-circular:
  *   post:
- *     summary: POST /check-circular
+ *     summary: POST /check-circular (POST /check-circular)
  *     description: POST endpoint for /check-circular
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -114,6 +174,31 @@ router.post('/check-circular',
  * @desc Get referral relationship statistics (admin only)
  * @access Admin
  */
+/**
+ * @swagger
+ * /stats:
+ *   get:
+ *     summary: /stats 조회
+ *     description: GET endpoint for /stats
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/stats',
   authenticateJWT(),
   requireRole('admin'),

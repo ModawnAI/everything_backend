@@ -8,6 +8,9 @@ import { Request, Response } from 'express';
 import { monitoringService } from '../services/monitoring.service';
 import { timeSlotService } from '../services/time-slot.service';
 import { conflictResolutionService } from '../services/conflict-resolution.service';
+import { healthCheckService } from '../services/health-check.service';
+import { feedAlertingService } from '../services/feed-alerting.service';
+import { feedDashboardService } from '../services/feed-dashboard.service';
 import { logger } from '../utils/logger';
 
 export class MonitoringController {
@@ -462,6 +465,789 @@ export class MonitoringController {
       res.status(500).json({
         success: false,
         error: 'Failed to get monitoring dashboard',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  // ========================================
+  // FEED-SPECIFIC MONITORING ENDPOINTS
+  // ========================================
+
+  /**
+   * Get feed-specific metrics
+   */
+  async getFeedMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const timeRange = startDate && endDate ? {
+        start: startDate as string,
+        end: endDate as string
+      } : undefined;
+
+      const feedMetrics = await monitoringService.getFeedMetrics(timeRange);
+
+      res.status(200).json({
+        success: true,
+        data: feedMetrics,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed metrics:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed metrics',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed-specific alerts
+   */
+  async getFeedAlerts(req: Request, res: Response): Promise<void> {
+    try {
+      const { severity, type } = req.query;
+
+      // Get all alerts and filter for feed-specific ones
+      const allAlerts = monitoringService.getActiveAlerts();
+      let feedAlerts = allAlerts.filter(alert => alert.type === 'feed');
+
+      // Filter by severity if specified
+      if (severity) {
+        feedAlerts = feedAlerts.filter(alert => alert.severity === severity);
+      }
+
+      // Filter by type if specified (performance, moderation, engagement, error, security)
+      if (type) {
+        feedAlerts = feedAlerts.filter(alert => 
+          alert.metadata?.feedAlert && alert.metadata?.type === type
+        );
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          alerts: feedAlerts,
+          count: feedAlerts.length,
+          types: {
+            performance: feedAlerts.filter(a => a.metadata?.type === 'performance').length,
+            moderation: feedAlerts.filter(a => a.metadata?.type === 'moderation').length,
+            engagement: feedAlerts.filter(a => a.metadata?.type === 'engagement').length,
+            error: feedAlerts.filter(a => a.metadata?.type === 'error').length,
+            security: feedAlerts.filter(a => a.metadata?.type === 'security').length
+          }
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed alerts:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed alerts',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed performance metrics
+   */
+  async getFeedPerformance(req: Request, res: Response): Promise<void> {
+    try {
+      const { timeRange } = req.query; // '1h', '24h', '7d', '30d'
+      
+      const now = new Date();
+      let startTime: Date;
+      
+      switch (timeRange) {
+        case '1h':
+          startTime = new Date(now.getTime() - 60 * 60 * 1000);
+          break;
+        case '24h':
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case '7d':
+          startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30d':
+          startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startTime = new Date(now.getTime() - 60 * 60 * 1000); // Default to 1 hour
+      }
+
+      const feedMetrics = await monitoringService.getFeedMetrics({
+        start: startTime.toISOString(),
+        end: now.toISOString()
+      });
+
+      // Extract performance-specific data
+      const performanceData = {
+        avgFeedLoadTime: feedMetrics.performance.avgFeedLoadTime,
+        avgPostCreationTime: feedMetrics.performance.avgPostCreationTime,
+        avgCommentCreationTime: feedMetrics.performance.avgCommentCreationTime,
+        cacheHitRate: feedMetrics.performance.cacheHitRate,
+        redisLatency: feedMetrics.performance.redisLatency,
+        errorRate: monitoringService.calculateFeedErrorRate(),
+        throughput: {
+          postsPerHour: feedMetrics.posts.creationRate,
+          commentsPerHour: feedMetrics.comments.creationRate,
+          activeUsers: feedMetrics.engagement.activeUsers
+        }
+      };
+
+      res.status(200).json({
+        success: true,
+        data: performanceData,
+        timeRange: {
+          start: startTime.toISOString(),
+          end: now.toISOString(),
+          duration: timeRange || '1h'
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed performance:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed performance metrics',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get moderation queue status
+   */
+  async getModerationQueue(req: Request, res: Response): Promise<void> {
+    try {
+      const feedMetrics = await monitoringService.getFeedMetrics();
+      
+      const queueStatus = {
+        totalPending: feedMetrics.moderation.queueLength,
+        breakdown: {
+          posts: feedMetrics.posts.pending,
+          comments: feedMetrics.comments.pending
+        },
+        processing: {
+          avgProcessingTime: feedMetrics.moderation.avgProcessingTime,
+          autoApprovalRate: feedMetrics.moderation.autoApprovalRate,
+          manualReviewRate: feedMetrics.moderation.manualReviewRate
+        },
+        rates: {
+          approvalRate: feedMetrics.moderation.approvalRate,
+          rejectionRate: feedMetrics.moderation.rejectionRate
+        }
+      };
+
+      res.status(200).json({
+        success: true,
+        data: queueStatus,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting moderation queue status:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get moderation queue status',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed engagement analytics
+   */
+  async getFeedEngagement(req: Request, res: Response): Promise<void> {
+    try {
+      const { timeRange } = req.query; // '1h', '24h', '7d', '30d'
+      
+      const now = new Date();
+      let startTime: Date;
+      
+      switch (timeRange) {
+        case '1h':
+          startTime = new Date(now.getTime() - 60 * 60 * 1000);
+          break;
+        case '24h':
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          break;
+        case '7d':
+          startTime = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30d':
+          startTime = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startTime = new Date(now.getTime() - 24 * 60 * 60 * 1000); // Default to 24 hours
+      }
+
+      const feedMetrics = await monitoringService.getFeedMetrics({
+        start: startTime.toISOString(),
+        end: now.toISOString()
+      });
+
+      const engagementData = {
+        activity: {
+          totalLikes: feedMetrics.engagement.totalLikes,
+          totalComments: feedMetrics.engagement.totalComments,
+          totalShares: feedMetrics.engagement.totalShares,
+          activeUsers: feedMetrics.engagement.activeUsers,
+          trendingPosts: feedMetrics.engagement.trendingPosts
+        },
+        content: {
+          postsCreated: feedMetrics.posts.total,
+          commentsCreated: feedMetrics.comments.total,
+          postsPerHour: feedMetrics.posts.creationRate,
+          commentsPerHour: feedMetrics.comments.creationRate,
+          engagementRate: feedMetrics.posts.engagementRate
+        },
+        health: {
+          publishedPosts: feedMetrics.posts.published,
+          pendingPosts: feedMetrics.posts.pending,
+          approvedComments: feedMetrics.comments.approved,
+          pendingComments: feedMetrics.comments.pending
+        }
+      };
+
+      res.status(200).json({
+        success: true,
+        data: engagementData,
+        timeRange: {
+          start: startTime.toISOString(),
+          end: now.toISOString(),
+          duration: timeRange || '24h'
+        },
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed engagement:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed engagement analytics',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed system health status
+   */
+  async getFeedHealth(req: Request, res: Response): Promise<void> {
+    try {
+      const { detailed } = req.query;
+      
+      if (detailed === 'true') {
+        // Get detailed feed health checks
+        const [
+          feedApiEndpoints,
+          feedRedisCache,
+          feedImageProcessing,
+          feedContentModeration,
+          feedRanking,
+          feedDatabaseQueries
+        ] = await Promise.all([
+          healthCheckService.checkFeedApiEndpoints(),
+          healthCheckService.checkFeedRedisCache(),
+          healthCheckService.checkImageProcessing(),
+          healthCheckService.checkContentModeration(),
+          healthCheckService.checkFeedRanking(),
+          healthCheckService.checkFeedDatabaseQueries()
+        ]);
+
+        const feedChecks = {
+          apiEndpoints: feedApiEndpoints,
+          redisCache: feedRedisCache,
+          imageProcessing: feedImageProcessing,
+          contentModeration: feedContentModeration,
+          feedRanking: feedRanking,
+          databaseQueries: feedDatabaseQueries
+        };
+
+        // Calculate feed system overall status
+        const allFeedChecks = Object.values(feedChecks);
+        const healthyCount = allFeedChecks.filter(check => check.status === 'healthy').length;
+        const degradedCount = allFeedChecks.filter(check => check.status === 'degraded').length;
+        const unhealthyCount = allFeedChecks.filter(check => check.status === 'unhealthy').length;
+
+        let overallStatus = 'healthy';
+        if (unhealthyCount > 0) overallStatus = 'unhealthy';
+        else if (degradedCount > 0) overallStatus = 'degraded';
+
+        res.status(200).json({
+          success: true,
+          data: {
+            status: overallStatus,
+            timestamp: new Date().toISOString(),
+            checks: feedChecks,
+            summary: {
+              totalChecks: allFeedChecks.length,
+              healthyChecks: healthyCount,
+              degradedChecks: degradedCount,
+              unhealthyChecks: unhealthyCount
+            }
+          },
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        // Get basic feed health status
+        const feedApiEndpoints = await healthCheckService.checkFeedApiEndpoints();
+        const feedRedisCache = await healthCheckService.checkFeedRedisCache();
+        
+        const basicChecks = [feedApiEndpoints, feedRedisCache];
+        const healthyCount = basicChecks.filter(check => check.status === 'healthy').length;
+        
+        let overallStatus = 'healthy';
+        if (healthyCount < basicChecks.length) {
+          overallStatus = 'degraded';
+        }
+
+        res.status(200).json({
+          success: true,
+          data: {
+            status: overallStatus,
+            timestamp: new Date().toISOString(),
+            checks: {
+              apiEndpoints: feedApiEndpoints,
+              redisCache: feedRedisCache
+            },
+            summary: {
+              totalChecks: basicChecks.length,
+              healthyChecks: healthyCount,
+              degradedChecks: basicChecks.length - healthyCount,
+              unhealthyChecks: 0
+            }
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error getting feed health status:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed health status',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed alerting configuration
+   */
+  async getFeedAlertingConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const { type } = req.query;
+      
+      if (type === 'thresholds') {
+        const thresholds = feedAlertingService.getThresholds();
+        res.status(200).json({
+          success: true,
+          data: { thresholds },
+          timestamp: new Date().toISOString()
+        });
+      } else if (type === 'rules') {
+        const rules = feedAlertingService.getRules();
+        res.status(200).json({
+          success: true,
+          data: { rules },
+          timestamp: new Date().toISOString()
+        });
+      } else {
+        const thresholds = feedAlertingService.getThresholds();
+        const rules = feedAlertingService.getRules();
+        const status = feedAlertingService.getMonitoringStatus();
+        
+        res.status(200).json({
+          success: true,
+          data: {
+            thresholds,
+            rules,
+            status
+          },
+          timestamp: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error getting feed alerting configuration:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed alerting configuration',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Update feed alerting threshold
+   */
+  async updateFeedAlertingThreshold(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const thresholdData = req.body;
+
+      // Validate required fields
+      if (!thresholdData.id || !thresholdData.name || !thresholdData.metric) {
+        res.status(400).json({
+          success: false,
+          error: 'Missing required fields: id, name, metric',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      await feedAlertingService.updateThreshold(thresholdData);
+
+      res.status(200).json({
+        success: true,
+        message: 'Feed alerting threshold updated successfully',
+        data: thresholdData,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error updating feed alerting threshold:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update feed alerting threshold',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Update feed alerting rule
+   */
+  async updateFeedAlertingRule(req: Request, res: Response): Promise<void> {
+    try {
+      const { id } = req.params;
+      const ruleData = req.body;
+
+      // Validate required fields
+      if (!ruleData.id || !ruleData.name || !ruleData.conditions) {
+        res.status(400).json({
+          success: false,
+          error: 'Missing required fields: id, name, conditions',
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      await feedAlertingService.updateRule(ruleData);
+
+      res.status(200).json({
+        success: true,
+        message: 'Feed alerting rule updated successfully',
+        data: ruleData,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error updating feed alerting rule:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update feed alerting rule',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Start feed alerting monitoring
+   */
+  async startFeedAlerting(req: Request, res: Response): Promise<void> {
+    try {
+      await feedAlertingService.startMonitoring();
+
+      res.status(200).json({
+        success: true,
+        message: 'Feed alerting monitoring started successfully',
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error starting feed alerting monitoring:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to start feed alerting monitoring',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Stop feed alerting monitoring
+   */
+  async stopFeedAlerting(req: Request, res: Response): Promise<void> {
+    try {
+      feedAlertingService.stopMonitoring();
+
+      res.status(200).json({
+        success: true,
+        message: 'Feed alerting monitoring stopped successfully',
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error stopping feed alerting monitoring:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to stop feed alerting monitoring',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed alerting status
+   */
+  async getFeedAlertingStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const status = feedAlertingService.getMonitoringStatus();
+
+      res.status(200).json({
+        success: true,
+        data: status,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed alerting status:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed alerting status',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed dashboard overview
+   */
+  async getFeedDashboardOverview(req: Request, res: Response): Promise<void> {
+    try {
+      const overview = await feedDashboardService.getDashboardOverview();
+
+      res.status(200).json({
+        success: true,
+        data: overview,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed dashboard overview:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed dashboard overview',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed dashboard metrics
+   */
+  async getFeedDashboardMetrics(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const timeRange = startDate && endDate ? {
+        start: startDate as string,
+        end: endDate as string
+      } : undefined;
+
+      const metrics = await feedDashboardService.getDashboardMetrics(timeRange);
+
+      res.status(200).json({
+        success: true,
+        data: metrics,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed dashboard metrics:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed dashboard metrics',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed dashboard alerts
+   */
+  async getFeedDashboardAlerts(req: Request, res: Response): Promise<void> {
+    try {
+      const alerts = await feedDashboardService.getDashboardAlerts();
+
+      res.status(200).json({
+        success: true,
+        data: alerts,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed dashboard alerts:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed dashboard alerts',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed dashboard trends
+   */
+  async getFeedDashboardTrends(req: Request, res: Response): Promise<void> {
+    try {
+      const { startDate, endDate } = req.query;
+
+      const timeRange = startDate && endDate ? {
+        start: startDate as string,
+        end: endDate as string
+      } : undefined;
+
+      const trends = await feedDashboardService.getDashboardTrends(timeRange);
+
+      res.status(200).json({
+        success: true,
+        data: trends,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed dashboard trends:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed dashboard trends',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed dashboard configuration
+   */
+  async getFeedDashboardConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const config = feedDashboardService.getDashboardConfig();
+
+      res.status(200).json({
+        success: true,
+        data: config,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed dashboard configuration:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed dashboard configuration',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Update feed dashboard configuration
+   */
+  async updateFeedDashboardConfig(req: Request, res: Response): Promise<void> {
+    try {
+      const configData = req.body;
+
+      await feedDashboardService.updateDashboardConfig(configData);
+
+      res.status(200).json({
+        success: true,
+        message: 'Feed dashboard configuration updated successfully',
+        data: feedDashboardService.getDashboardConfig(),
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error updating feed dashboard configuration:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to update feed dashboard configuration',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get real-time feed dashboard updates
+   */
+  async getFeedDashboardRealTime(req: Request, res: Response): Promise<void> {
+    try {
+      const updates = await feedDashboardService.getRealTimeUpdates();
+
+      res.status(200).json({
+        success: true,
+        data: updates,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting real-time feed dashboard updates:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get real-time feed dashboard updates',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Clear feed dashboard cache
+   */
+  async clearFeedDashboardCache(req: Request, res: Response): Promise<void> {
+    try {
+      feedDashboardService.clearCache();
+
+      res.status(200).json({
+        success: true,
+        message: 'Feed dashboard cache cleared successfully',
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error clearing feed dashboard cache:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to clear feed dashboard cache',
+        timestamp: new Date().toISOString()
+      });
+    }
+  }
+
+  /**
+   * Get feed dashboard cache statistics
+   */
+  async getFeedDashboardCacheStats(req: Request, res: Response): Promise<void> {
+    try {
+      const stats = feedDashboardService.getCacheStats();
+
+      res.status(200).json({
+        success: true,
+        data: stats,
+        timestamp: new Date().toISOString()
+      });
+
+    } catch (error) {
+      logger.error('Error getting feed dashboard cache statistics:', { error: (error as Error).message });
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get feed dashboard cache statistics',
         timestamp: new Date().toISOString()
       });
     }

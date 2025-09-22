@@ -84,50 +84,56 @@ export class PointService {
   }
 
   /**
-   * Deduct points from user account
+   * Deduct points from user account using FIFO logic
    */
   async deductPoints(
     userId: string, 
     amount: number, 
     type: PointTransaction['type'], 
     source: PointTransaction['source'],
-    description: string
+    description: string,
+    reservationId?: string
   ): Promise<PointTransaction> {
     try {
-      // Check if user has sufficient points
-      const balance = await this.getUserPointBalance(userId);
-      if (balance.available_points < amount) {
-        throw new Error('Insufficient points');
-      }
+      // Import FIFO service dynamically to avoid circular dependency
+      const { fifoPointUsageService } = await import('./fifo-point-usage.service');
 
-      // Create point transaction record
-      const { data: transaction, error } = await this.supabase
-        .from('point_transactions')
-        .insert({
-          user_id: userId,
-          amount: -Math.abs(amount), // Negative amount for deduction
+      // Use FIFO point usage service
+      const result = await fifoPointUsageService.usePointsFIFO({
+        userId,
+        amountToUse: amount,
+        reservationId,
+        description,
+        metadata: {
           type,
           source,
-          description,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        })
-        .select()
-        .single();
+          deductedViaPointService: true
+        }
+      });
 
-      if (error) {
-        throw new Error(`Failed to create point transaction: ${error.message}`);
+      if (!result.success) {
+        throw new Error('Failed to deduct points using FIFO logic');
       }
 
-      // Update user's point balance
-      await this.updateUserPointBalance(userId, -amount);
+      // Get the created transaction
+      const { data: transaction, error } = await this.supabase
+        .from('point_transactions')
+        .select('*')
+        .eq('id', result.newTransactionId)
+        .single();
 
-      logger.info('Points deducted successfully', {
+      if (error || !transaction) {
+        throw new Error('Failed to retrieve created transaction');
+      }
+
+      logger.info('Points deducted successfully using FIFO', {
         userId,
         amount,
         type,
         source,
-        transactionId: transaction.id
+        transactionId: transaction.id,
+        transactionsUsed: result.transactionsUsed.length,
+        remainingBalance: result.remainingBalance
       });
 
       return transaction;

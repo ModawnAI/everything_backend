@@ -44,8 +44,13 @@ const dashboardQuerySchema = Joi.object({
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
@@ -72,6 +77,31 @@ router.get('/',
  * @desc Get authentication trends over time
  * @access Admin
  */
+/**
+ * @swagger
+ * /trends:
+ *   get:
+ *     summary: /trends 조회
+ *     description: GET endpoint for /trends
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/trends',
   authenticateToken,
   requireAdminRole,
@@ -85,6 +115,31 @@ router.get('/trends',
  * @desc Get security insights and threat analysis
  * @access Admin
  */
+/**
+ * @swagger
+ * /insights:
+ *   get:
+ *     summary: /insights 조회
+ *     description: GET endpoint for /insights
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/insights',
   authenticateToken,
   requireAdminRole,
@@ -103,8 +158,13 @@ router.get('/insights',
  * @swagger
  * /users/:userId/profile:
  *   get:
- *     summary: GET /users/:userId/profile
+ *     summary: /users/:userId/profile 조회
  *     description: GET endpoint for /users/:userId/profile
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Authentication]
  *     security:
  *       - bearerAuth: []
@@ -131,6 +191,31 @@ router.get('/users/:userId/profile',
  * @desc Get real-time authentication metrics
  * @access Admin
  */
+/**
+ * @swagger
+ * /realtime:
+ *   get:
+ *     summary: /realtime 조회
+ *     description: GET endpoint for /realtime
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/realtime',
   authenticateToken,
   requireAdminRole,
@@ -143,6 +228,31 @@ router.get('/realtime',
  * @desc Get comprehensive dashboard data
  * @access Admin
  */
+/**
+ * @swagger
+ * /dashboard:
+ *   get:
+ *     summary: /dashboard 조회
+ *     description: GET endpoint for /dashboard
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/dashboard',
   authenticateToken,
   requireAdminRole,

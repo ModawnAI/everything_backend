@@ -28,6 +28,11 @@ const router = Router();
  * tags:
  *   - name: Shop Services
  *     description: Shop service catalog management operations for shop owners
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 // Rate limiting for service operations
@@ -54,8 +59,13 @@ router.use(authenticateJWT);
  * @swagger
  * /api/shop/services:
  *   get:
- *     summary: Get shop services
+ *     summary: 샵 서비스 조회
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Retrieve all services for the authenticated shop owner's shop with optional filtering and pagination.
  *       
  *       **Features:**
@@ -76,6 +86,11 @@ router.use(authenticateJWT);
  *           type: string
  *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair]
  *         description: Filter services by category
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "nail"
  *       - in: query
  *         name: is_available
@@ -173,8 +188,13 @@ router.use(authenticateJWT);
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -220,8 +240,13 @@ router.get('/',
  * @swagger
  * /api/shop/services:
  *   post:
- *     summary: Create new service
+ *     summary: new service 생성
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Create a new service for the authenticated shop owner's shop.
  *       
  *       **Key Features:**
@@ -260,6 +285,11 @@ router.get('/',
  *                 minLength: 1
  *                 maxLength: 255
  *                 description: Service name
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *                 example: "젤네일"
  *               description:
  *                 type: string
@@ -431,8 +461,13 @@ router.get('/',
  * @swagger
  * /:
  *   post:
- *     summary: POST /
+ *     summary: POST / (POST /)
  *     description: POST endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -478,8 +513,13 @@ router.post('/',
  * @swagger
  * /api/shop/services/{id}:
  *   get:
- *     summary: Get service by ID
+ *     summary: service by ID 조회
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Retrieve detailed information for a specific service by ID.
  *       
  *       **Authorization:** Requires valid JWT token. Only shop owners can access their own services.
@@ -496,6 +536,11 @@ router.post('/',
  *           type: string
  *           format: uuid
  *         description: Service unique identifier
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     responses:
  *       200:
@@ -543,8 +588,13 @@ router.post('/',
  * @swagger
  * /:id:
  *   get:
- *     summary: GET /:id
+ *     summary: /:id 조회
  *     description: GET endpoint for /:id
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -590,8 +640,13 @@ router.get('/:id',
  * @swagger
  * /api/shop/services/{id}:
  *   put:
- *     summary: Update service
+ *     summary: service 수정
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Update an existing service for the authenticated shop owner.
  *       
  *       **Key Features:**
@@ -614,6 +669,11 @@ router.get('/:id',
  *           type: string
  *           format: uuid
  *         description: Service unique identifier
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     requestBody:
  *       required: true
@@ -750,8 +810,13 @@ router.get('/:id',
  * @swagger
  * /:id:
  *   put:
- *     summary: PUT /:id
+ *     summary: PUT /:id (PUT /:id)
  *     description: PUT endpoint for /:id
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -799,8 +864,13 @@ router.put('/:id',
  * @swagger
  * /api/shop/services/{id}:
  *   delete:
- *     summary: Delete service
+ *     summary: service 삭제
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Delete a service from the authenticated shop owner's catalog.
  *       
  *       **Important Constraints:**
@@ -827,6 +897,11 @@ router.put('/:id',
  *           type: string
  *           format: uuid
  *         description: Service unique identifier
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     responses:
  *       200:
@@ -884,8 +959,13 @@ router.put('/:id',
  * @swagger
  * /:id:
  *   delete:
- *     summary: DELETE /:id
+ *     summary: /:id 삭제
  *     description: DELETE endpoint for /:id
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

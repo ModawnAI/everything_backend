@@ -337,8 +337,13 @@ const router = Router();
  * @swagger
  * /api/admin/payments:
  *   get:
- *     summary: Get comprehensive payment list with advanced filtering
+ *     summary: comprehensive payment list with advanced filtering 조회
  *     description: Retrieve payment transactions with advanced filtering, sorting, and pagination capabilities
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Payments]
  *     security:
  *       - bearerAuth: []
@@ -443,8 +448,13 @@ const router = Router();
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Payments]
  *     security:
  *       - bearerAuth: []
@@ -469,8 +479,13 @@ router.get('/',
  * @swagger
  * /api/admin/payments/summary:
  *   get:
- *     summary: Get payment summary with aggregated statistics
+ *     summary: payment summary with aggregated statistics 조회
  *     description: Retrieve comprehensive payment summary with aggregated statistics and insights
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Payments]
  *     security:
  *       - bearerAuth: []
@@ -510,8 +525,13 @@ router.get('/summary',
  * @swagger
  * /api/admin/payments/settlements:
  *   get:
- *     summary: Get comprehensive settlement report
+ *     summary: comprehensive settlement report 조회
  *     description: Retrieve detailed settlement report for financial oversight and shop payouts
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Payments]
  *     security:
  *       - bearerAuth: []
@@ -551,8 +571,13 @@ router.get('/settlements',
  * @swagger
  * /api/admin/payments/analytics:
  *   get:
- *     summary: Get comprehensive payment analytics
+ *     summary: comprehensive payment analytics 조회
  *     description: Retrieve detailed payment analytics and business intelligence data
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Payments]
  *     security:
  *       - bearerAuth: []
@@ -592,8 +617,13 @@ router.get('/analytics',
  * @swagger
  * /api/admin/payments/export:
  *   get:
- *     summary: Export payment data for external analysis
+ *     summary: Export payment data for external analysis (Export payment data for external analysis)
  *     description: Export payment data as CSV for external analysis and reporting
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Payments]
  *     security:
  *       - bearerAuth: []
@@ -683,8 +713,13 @@ router.get('/analytics',
  * @swagger
  * /export:
  *   get:
- *     summary: GET /export
+ *     summary: /export 조회
  *     description: GET endpoint for /export
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Payments]
  *     security:
  *       - bearerAuth: []
@@ -709,8 +744,13 @@ router.get('/export',
  * @swagger
  * /api/admin/payments/{paymentId}:
  *   get:
- *     summary: Get detailed information for a specific payment
+ *     summary: detailed information for a specific payment 조회
  *     description: Retrieve comprehensive details for a specific payment transaction
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Payments]
  *     security:
  *       - bearerAuth: []
@@ -754,8 +794,13 @@ router.get('/:paymentId',
  * @swagger
  * /api/admin/payments/{paymentId}/refund:
  *   post:
- *     summary: Process refund for a specific payment
+ *     summary: refund for a specific payment 처리
  *     description: Process refund for a specific payment with comprehensive tracking and customer notification
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Payments]
  *     security:
  *       - bearerAuth: []
@@ -833,8 +878,13 @@ router.get('/:paymentId',
  * @swagger
  * /:paymentId/refund:
  *   post:
- *     summary: POST /:paymentId/refund
+ *     summary: POST /:paymentId/refund (POST /:paymentId/refund)
  *     description: POST endpoint for /:paymentId/refund
+ *       
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Payments]
  *     security:
  *       - bearerAuth: []

@@ -12,6 +12,9 @@
 import { getSupabaseClient } from '../config/database';
 import { config } from '../config/environment';
 import { logger } from '../utils/logger';
+import { realTimePatternAnalysisService, PaymentPattern } from './real-time-pattern-analysis.service';
+import { geographicAnomalyDetectionService, GeographicAnomalyRequest } from './geographic-anomaly-detection.service';
+import { automatedPaymentBlockingService } from './automated-payment-blocking.service';
 import {
   FraudDetectionRequest,
   FraudDetectionResponse,
@@ -178,8 +181,25 @@ export class FraudDetectionService {
       totalRiskScore += behavioralResults.riskScore;
       ruleCount += behavioralResults.ruleCount;
 
+      // Perform real-time pattern analysis
+      const patternResults = await this.performRealTimePatternAnalysis(request);
+      detectedRules.push(...patternResults.detectedRules);
+      securityAlerts.push(...patternResults.alerts);
+      totalRiskScore += patternResults.riskScore;
+      ruleCount += patternResults.ruleCount;
+
+      // Perform geographic anomaly detection
+      const geographicResults = await this.performGeographicAnomalyDetection(request);
+      detectedRules.push(...geographicResults.detectedRules);
+      securityAlerts.push(...geographicResults.alerts);
+      totalRiskScore += geographicResults.riskScore;
+      ruleCount += geographicResults.ruleCount;
+
       // Calculate final risk score (average)
       const finalRiskScore = ruleCount > 0 ? Math.min(100, totalRiskScore / ruleCount) : 0;
+      
+      // Make automated blocking decision
+      const blockingDecision = await this.makeAutomatedBlockingDecision(request, finalRiskScore, detectedRules);
       
       // Determine risk level and action
       const riskLevel = this.calculateRiskLevel(finalRiskScore);
@@ -219,17 +239,27 @@ export class FraudDetectionService {
       });
 
       return {
-        isAllowed: action === 'allow',
+        isAllowed: action === 'allow' && !blockingDecision.shouldBlock,
         riskScore: finalRiskScore,
         riskLevel,
-        action,
+        action: blockingDecision.shouldBlock ? 'block' : action,
         detectedRules,
         securityAlerts,
-        recommendations,
+        recommendations: blockingDecision.shouldBlock 
+          ? [...recommendations, `Blocked: ${blockingDecision.blockingReason}`]
+          : recommendations,
         metadata: {
           processingTime,
           rulesEvaluated: ruleCount,
-          timestamp: new Date().toISOString()
+          timestamp: new Date().toISOString(),
+          blockingDecision: {
+            shouldBlock: blockingDecision.shouldBlock,
+            blockingReason: blockingDecision.blockingReason,
+            blockingRule: blockingDecision.blockingRule,
+            severity: blockingDecision.severity,
+            overrideRequired: blockingDecision.overrideRequired,
+            reviewRequired: blockingDecision.reviewRequired
+          }
         }
       };
 
@@ -850,6 +880,291 @@ export class FraudDetectionService {
     }
 
     return recommendations;
+  }
+
+  /**
+   * Perform real-time pattern analysis
+   */
+  private async performRealTimePatternAnalysis(request: FraudDetectionRequest): Promise<{
+    detectedRules: FraudDetectionResult[];
+    alerts: SecurityAlert[];
+    riskScore: number;
+    ruleCount: number;
+  }> {
+    const detectedRules: FraudDetectionResult[] = [];
+    const alerts: SecurityAlert[] = [];
+    let totalRiskScore = 0;
+    let ruleCount = 0;
+
+    try {
+      // Convert fraud detection request to payment pattern
+      const paymentPattern: PaymentPattern = {
+        userId: request.userId,
+        amount: request.amount,
+        paymentMethod: request.paymentMethod,
+        timeOfDay: new Date().getHours(),
+        dayOfWeek: new Date().getDay(),
+        merchantCategory: request.metadata?.merchantCategory || 'unknown',
+        location: {
+          country: request.geolocation?.country || 'unknown',
+          region: request.geolocation?.region || 'unknown',
+          city: request.geolocation?.city || 'unknown'
+        },
+        deviceFingerprint: request.deviceFingerprint || '',
+        ipAddress: request.ipAddress,
+        userAgent: request.userAgent || '',
+        sessionDuration: request.metadata?.sessionDuration || 30,
+        previousPaymentGap: request.metadata?.previousPaymentGap || 24,
+        timestamp: new Date().toISOString()
+      };
+
+      // Run real-time pattern analysis
+      const patternResult = await realTimePatternAnalysisService.analyzePaymentPattern(paymentPattern);
+
+      if (patternResult.isAnomaly) {
+        // Create fraud detection rule result
+        detectedRules.push({
+          ruleId: 'real_time_pattern_analysis',
+          ruleName: 'Real-Time Pattern Analysis',
+          detectionType: 'pattern_analysis',
+          riskLevel: patternResult.anomalyScore >= 80 ? 'critical' : 
+                    patternResult.anomalyScore >= 60 ? 'high' : 'medium',
+          action: patternResult.anomalyScore >= 80 ? 'block' : 
+                 patternResult.anomalyScore >= 60 ? 'review' : 'challenge',
+          confidence: patternResult.confidence,
+          triggeredAt: new Date().toISOString(),
+          details: {
+            anomalyScore: patternResult.anomalyScore,
+            detectedPatterns: patternResult.detectedPatterns,
+            riskFactors: patternResult.riskFactors,
+            modelVersion: patternResult.modelVersion
+          }
+        });
+
+        totalRiskScore += patternResult.anomalyScore;
+        ruleCount++;
+
+        // Create security alert
+        alerts.push({
+          id: `pattern_analysis_${request.paymentId}`,
+          type: 'pattern_anomaly',
+          severity: patternResult.anomalyScore >= 80 ? 'error' : 
+                   patternResult.anomalyScore >= 60 ? 'warning' : 'info',
+          title: 'Pattern Analysis Anomaly Detected',
+          message: `Real-time pattern analysis detected suspicious activity: ${patternResult.detectedPatterns.join(', ')}`,
+          userId: request.userId,
+          paymentId: request.paymentId,
+          ipAddress: request.ipAddress,
+          metadata: {
+            anomalyScore: patternResult.anomalyScore,
+            confidence: patternResult.confidence,
+            detectedPatterns: patternResult.detectedPatterns,
+            riskFactors: patternResult.riskFactors,
+            recommendations: patternResult.recommendations,
+            modelVersion: patternResult.modelVersion,
+            analysisTime: patternResult.analysisTime
+          },
+          isResolved: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error in real-time pattern analysis', { 
+        paymentId: request.paymentId, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      });
+    }
+
+    return {
+      detectedRules,
+      alerts,
+      riskScore: totalRiskScore,
+      ruleCount
+    };
+  }
+
+  /**
+   * Perform geographic anomaly detection
+   */
+  private async performGeographicAnomalyDetection(request: FraudDetectionRequest): Promise<{
+    detectedRules: FraudDetectionResult[];
+    alerts: SecurityAlert[];
+    riskScore: number;
+    ruleCount: number;
+  }> {
+    const detectedRules: FraudDetectionResult[] = [];
+    const alerts: SecurityAlert[] = [];
+    let totalRiskScore = 0;
+    let ruleCount = 0;
+
+    try {
+      const geographicRequest: GeographicAnomalyRequest = {
+        userId: request.userId,
+        paymentId: request.paymentId,
+        ipAddress: request.ipAddress,
+        userAgent: request.userAgent || '',
+        timestamp: new Date().toISOString(),
+        previousLocation: request.metadata?.previousLocation,
+        metadata: request.metadata
+      };
+
+      const geographicResult = await geographicAnomalyDetectionService.detectGeographicAnomaly(geographicRequest);
+
+      if (geographicResult.isAnomaly) {
+        // Convert geographic anomalies to fraud detection results
+        geographicResult.detectedAnomalies.forEach(anomaly => {
+          detectedRules.push({
+            ruleId: `geographic_${anomaly.type}`,
+            ruleName: `Geographic Anomaly: ${anomaly.type.replace('_', ' ').toUpperCase()}`,
+            detectionType: 'geographic_analysis',
+            riskLevel: anomaly.severity as 'low' | 'medium' | 'high' | 'critical',
+            action: anomaly.severity === 'critical' ? 'block' :
+                   anomaly.severity === 'high' ? 'review' : 'challenge',
+            confidence: 85, // Geographic analysis confidence
+            triggeredAt: new Date().toISOString(),
+            details: {
+              anomalyType: anomaly.type,
+              anomalyDescription: anomaly.description,
+              anomalyDetails: anomaly.details,
+              geolocationData: geographicResult.geolocationData,
+              travelAnalysis: geographicResult.travelAnalysis,
+              recommendations: geographicResult.recommendations
+            }
+          });
+
+          totalRiskScore += anomaly.score;
+          ruleCount++;
+        });
+
+        // Create security alert for geographic anomaly
+        alerts.push({
+          id: `geographic_anomaly_${request.paymentId}`,
+          type: 'geographic_anomaly',
+          severity: geographicResult.riskLevel === 'critical' ? 'error' :
+                   geographicResult.riskLevel === 'high' ? 'warning' : 'info',
+          title: 'Geographic Anomaly Detected',
+          message: `Geographic anomaly detected for payment ${request.paymentId}: ${geographicResult.detectedAnomalies.map(a => a.description).join(', ')}`,
+          userId: request.userId,
+          paymentId: request.paymentId,
+          ipAddress: request.ipAddress,
+          metadata: {
+            anomalyScore: geographicResult.anomalyScore,
+            riskLevel: geographicResult.riskLevel,
+            detectedAnomalies: geographicResult.detectedAnomalies,
+            geolocationData: geographicResult.geolocationData,
+            travelAnalysis: geographicResult.travelAnalysis,
+            recommendations: geographicResult.recommendations,
+            analysisTime: geographicResult.metadata.analysisTime,
+            dataSource: geographicResult.metadata.dataSource
+          },
+          isResolved: false,
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString()
+        });
+      }
+
+    } catch (error) {
+      logger.error('Error in geographic anomaly detection', {
+        paymentId: request.paymentId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+    }
+
+    return {
+      detectedRules,
+      alerts,
+      riskScore: totalRiskScore,
+      ruleCount
+    };
+  }
+
+  /**
+   * Make automated blocking decision
+   */
+  private async makeAutomatedBlockingDecision(
+    request: FraudDetectionRequest,
+    fraudScore: number,
+    detectedRules: FraudDetectionResult[]
+  ): Promise<{
+    shouldBlock: boolean;
+    blockingReason: string;
+    blockingRule: string;
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    confidence: number;
+    actions: Array<{
+      type: string;
+      parameters: Record<string, any>;
+      severity: string;
+      message?: string;
+    }>;
+    overrideRequired: boolean;
+    reviewRequired: boolean;
+    metadata: Record<string, any>;
+  }> {
+    try {
+      const blockingRequest = {
+        userId: request.userId,
+        paymentId: request.paymentId,
+        amount: request.amount,
+        paymentMethod: request.paymentMethod,
+        ipAddress: request.ipAddress,
+        userAgent: request.userAgent || '',
+        deviceFingerprint: request.deviceFingerprint,
+        email: request.metadata?.email,
+        phone: request.metadata?.phone,
+        cardNumber: request.metadata?.cardNumber,
+        country: request.geolocation?.country,
+        isp: request.metadata?.isp,
+        fraudScore,
+        riskLevel: this.calculateRiskLevel(fraudScore),
+        detectedRules: detectedRules.map(rule => ({
+          ruleId: rule.ruleId,
+          ruleName: rule.ruleName,
+          riskLevel: rule.riskLevel,
+          action: rule.action
+        })),
+        metadata: request.metadata
+      };
+
+      const decision = await automatedPaymentBlockingService.makeBlockingDecision(blockingRequest);
+
+      // Log blocking decision
+      if (decision.shouldBlock) {
+        logger.info('Payment blocked by automated system', {
+          userId: request.userId,
+          paymentId: request.paymentId,
+          blockingReason: decision.blockingReason,
+          blockingRule: decision.blockingRule,
+          severity: decision.severity
+        });
+      }
+
+      return decision;
+
+    } catch (error) {
+      logger.error('Error making automated blocking decision', {
+        paymentId: request.paymentId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      // Return safe default - allow payment on error
+      return {
+        shouldBlock: false,
+        blockingReason: 'Blocking system error - allowing payment',
+        blockingRule: 'system_error',
+        severity: 'low',
+        confidence: 0,
+        actions: [],
+        overrideRequired: false,
+        reviewRequired: false,
+        metadata: {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          fallbackAction: 'allow'
+        }
+      };
+    }
   }
 
   /**

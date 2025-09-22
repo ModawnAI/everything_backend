@@ -146,8 +146,13 @@ router.use(authenticateJWT);
  * @swagger
  * /dashboard:
  *   get:
- *     summary: GET /dashboard
+ *     summary: /dashboard 조회
  *     description: GET endpoint for /dashboard
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -204,8 +209,13 @@ router.get('/dashboard',
  * @swagger
  * /analytics:
  *   get:
- *     summary: GET /analytics
+ *     summary: /analytics 조회
  *     description: GET endpoint for /analytics
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -266,8 +276,13 @@ router.get('/analytics',
  * @swagger
  * /reservations:
  *   get:
- *     summary: GET /reservations
+ *     summary: /reservations 조회
  *     description: GET endpoint for /reservations
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -327,8 +342,13 @@ router.get('/reservations',
  * @swagger
  * /reservations/pending:
  *   get:
- *     summary: GET /reservations/pending
+ *     summary: /reservations/pending 조회
  *     description: GET endpoint for /reservations/pending
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -394,8 +414,13 @@ router.get('/reservations/pending',
  * @swagger
  * /reservations/:reservationId/confirm:
  *   put:
- *     summary: PUT /reservations/:reservationId/confirm
+ *     summary: PUT /reservations/:reservationId/confirm (PUT /reservations/:reservationId/confirm)
  *     description: PUT endpoint for /reservations/:reservationId/confirm
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -463,8 +488,13 @@ router.put('/reservations/:reservationId/confirm',
  * @swagger
  * /reservations/:reservationId/reject:
  *   put:
- *     summary: PUT /reservations/:reservationId/reject
+ *     summary: PUT /reservations/:reservationId/reject (PUT /reservations/:reservationId/reject)
  *     description: PUT endpoint for /reservations/:reservationId/reject
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -535,8 +565,13 @@ router.put('/reservations/:reservationId/reject',
  * @swagger
  * /reservations/:reservationId/complete:
  *   put:
- *     summary: PUT /reservations/:reservationId/complete
+ *     summary: PUT /reservations/:reservationId/complete (PUT /reservations/:reservationId/complete)
  *     description: PUT endpoint for /reservations/:reservationId/complete
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -599,8 +634,13 @@ router.put('/reservations/:reservationId/complete',
  * @swagger
  * /reservations/:reservationId/status:
  *   put:
- *     summary: PUT /reservations/:reservationId/status
+ *     summary: PUT /reservations/:reservationId/status (PUT /reservations/:reservationId/status)
  *     description: PUT endpoint for /reservations/:reservationId/status
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -654,8 +694,13 @@ router.put('/reservations/:reservationId/status',
  * @swagger
  * /profile:
  *   get:
- *     summary: GET /profile
+ *     summary: /profile 조회
  *     description: GET endpoint for /profile
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

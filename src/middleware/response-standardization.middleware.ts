@@ -21,6 +21,8 @@ export function responseStandardizationMiddleware() {
   return (req: Request, res: Response, next: NextFunction) => {
     // Skip response standardization for Swagger UI and documentation routes
     if (req.path.startsWith('/api-docs') || 
+        req.path.startsWith('/admin-docs') ||
+        req.path.startsWith('/service-docs') ||
         req.path === '/swagger.json' || 
         req.path === '/api/openapi.json' ||
         req.path.includes('swagger-ui')) {
@@ -53,6 +55,8 @@ export function responseValidationMiddleware() {
   return (req: Request, res: Response, next: NextFunction) => {
     // Skip response standardization for Swagger UI and documentation routes
     if (req.path.startsWith('/api-docs') || 
+        req.path.startsWith('/admin-docs') ||
+        req.path.startsWith('/service-docs') ||
         req.path === '/swagger.json' || 
         req.path === '/api/openapi.json' ||
         req.path.includes('swagger-ui')) {

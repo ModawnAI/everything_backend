@@ -38,12 +38,68 @@ export interface ConflictMetrics {
   };
 }
 
+// Feed-specific metrics interfaces
+export interface FeedMetrics {
+  posts: {
+    total: number;
+    published: number;
+    pending: number;
+    hidden: number;
+    reported: number;
+    creationRate: number; // posts per hour
+    engagementRate: number; // avg likes/comments per post
+    trendingPosts: number;
+  };
+  comments: {
+    total: number;
+    approved: number;
+    pending: number;
+    hidden: number;
+    reported: number;
+    creationRate: number; // comments per hour
+  };
+  moderation: {
+    queueLength: number;
+    avgProcessingTime: number; // milliseconds
+    approvalRate: number;
+    rejectionRate: number;
+    autoApprovalRate: number;
+    manualReviewRate: number;
+  };
+  performance: {
+    avgFeedLoadTime: number; // milliseconds
+    avgPostCreationTime: number;
+    avgCommentCreationTime: number;
+    cacheHitRate: number;
+    redisLatency: number;
+  };
+  engagement: {
+    totalLikes: number;
+    totalComments: number;
+    totalShares: number;
+    activeUsers: number; // users who interacted in last hour
+    trendingPosts: number;
+  };
+}
+
+export interface FeedAlert {
+  id: string;
+  type: 'performance' | 'moderation' | 'engagement' | 'error' | 'security';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  message: string;
+  timestamp: string;
+  resolved: boolean;
+  metadata: Record<string, any>;
+}
+
 export interface SystemHealthMetrics {
   totalRequests: number;
   successRate: number;
   averageResponseTime: number;
   errorRate: number;
   conflictRate: number;
+  feedMetrics?: FeedMetrics; // Optional feed metrics
   timeSlot: {
     total: number;
     available: number;
@@ -58,7 +114,7 @@ export interface SystemHealthMetrics {
 
 export interface Alert {
   id: string;
-  type: 'performance' | 'error' | 'conflict' | 'capacity' | 'system';
+  type: 'performance' | 'error' | 'conflict' | 'capacity' | 'system' | 'feed';
   severity: 'low' | 'medium' | 'high' | 'critical';
   title: string;
   description: string;
@@ -1173,6 +1229,364 @@ export class MonitoringService {
     } catch (error) {
       logger.error('Error checking notification thresholds:', error);
     }
+  }
+
+  // ========================================
+  // FEED-SPECIFIC MONITORING METHODS
+  // ========================================
+
+  /**
+   * Get comprehensive feed metrics
+   */
+  async getFeedMetrics(timeRange?: { start: string; end: string }): Promise<FeedMetrics> {
+    try {
+      const now = new Date();
+      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+      
+      const startTime = timeRange?.start ? new Date(timeRange.start) : oneHourAgo;
+      const endTime = timeRange?.end ? new Date(timeRange.end) : now;
+
+      // Get post metrics
+      const postMetrics = await this.getPostMetrics(startTime, endTime);
+      
+      // Get comment metrics
+      const commentMetrics = await this.getCommentMetrics(startTime, endTime);
+      
+      // Get moderation metrics
+      const moderationMetrics = await this.getModerationMetrics(startTime, endTime);
+      
+      // Get performance metrics
+      const performanceMetrics = await this.getFeedPerformanceMetrics();
+      
+      // Get engagement metrics
+      const engagementMetrics = await this.getEngagementMetrics(startTime, endTime);
+
+      return {
+        posts: postMetrics,
+        comments: commentMetrics,
+        moderation: moderationMetrics,
+        performance: performanceMetrics,
+        engagement: engagementMetrics
+      };
+
+    } catch (error) {
+      logger.error('Error getting feed metrics:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get post-specific metrics
+   */
+  private async getPostMetrics(startTime: Date, endTime: Date) {
+    const { data: posts, error } = await this.supabase
+      .from('feed_posts')
+      .select('id, status, created_at, like_count, comment_count, share_count')
+      .gte('created_at', startTime.toISOString())
+      .lte('created_at', endTime.toISOString());
+
+    if (error) {
+      logger.error('Error fetching post metrics:', error);
+      throw error;
+    }
+
+    const totalPosts = posts?.length || 0;
+    const publishedPosts = posts?.filter(p => p.status === 'published').length || 0;
+    const pendingPosts = posts?.filter(p => p.status === 'pending').length || 0;
+    const hiddenPosts = posts?.filter(p => p.status === 'hidden').length || 0;
+
+    // Calculate engagement rate
+    const totalLikes = posts?.reduce((sum, post) => sum + (post.like_count || 0), 0) || 0;
+    const totalComments = posts?.reduce((sum, post) => sum + (post.comment_count || 0), 0) || 0;
+    const engagementRate = publishedPosts > 0 ? (totalLikes + totalComments) / publishedPosts : 0;
+
+    // Calculate creation rate (posts per hour)
+    const hoursDiff = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    const creationRate = hoursDiff > 0 ? totalPosts / hoursDiff : 0;
+
+    // Calculate trending posts (posts with high engagement in the last 24 hours)
+    const trendingPosts = posts?.filter(post => {
+      const totalEngagement = (post.like_count || 0) + (post.comment_count || 0) + (post.share_count || 0);
+      return totalEngagement > 10; // Consider posts with >10 total engagements as trending
+    }).length || 0;
+
+    return {
+      total: totalPosts,
+      published: publishedPosts,
+      pending: pendingPosts,
+      hidden: hiddenPosts,
+      reported: 0, // Will be calculated from reports table
+      creationRate,
+      engagementRate,
+      trendingPosts
+    };
+  }
+
+  /**
+   * Get comment-specific metrics
+   */
+  private async getCommentMetrics(startTime: Date, endTime: Date) {
+    const { data: comments, error } = await this.supabase
+      .from('post_comments')
+      .select('id, status, created_at')
+      .gte('created_at', startTime.toISOString())
+      .lte('created_at', endTime.toISOString());
+
+    if (error) {
+      logger.error('Error fetching comment metrics:', error);
+      throw error;
+    }
+
+    const totalComments = comments?.length || 0;
+    const approvedComments = comments?.filter(c => c.status === 'approved').length || 0;
+    const pendingComments = comments?.filter(c => c.status === 'pending').length || 0;
+    const hiddenComments = comments?.filter(c => c.status === 'hidden').length || 0;
+
+    // Calculate creation rate (comments per hour)
+    const hoursDiff = (endTime.getTime() - startTime.getTime()) / (1000 * 60 * 60);
+    const creationRate = hoursDiff > 0 ? totalComments / hoursDiff : 0;
+
+    return {
+      total: totalComments,
+      approved: approvedComments,
+      pending: pendingComments,
+      hidden: hiddenComments,
+      reported: 0, // Will be calculated from reports table
+      creationRate
+    };
+  }
+
+  /**
+   * Get moderation-specific metrics
+   */
+  private async getModerationMetrics(startTime: Date, endTime: Date) {
+    // Get moderation queue length (pending items)
+    const { data: pendingPosts } = await this.supabase
+      .from('feed_posts')
+      .select('id')
+      .eq('status', 'pending');
+
+    const { data: pendingComments } = await this.supabase
+      .from('post_comments')
+      .select('id')
+      .eq('status', 'pending');
+
+    const queueLength = (pendingPosts?.length || 0) + (pendingComments?.length || 0);
+
+    // Get moderation logs for processing time and rates
+    const { data: moderationLogs } = await this.supabase
+      .from('moderation_log')
+      .select('*')
+      .gte('created_at', startTime.toISOString())
+      .lte('created_at', endTime.toISOString());
+
+    const totalModerations = moderationLogs?.length || 0;
+    const automatedModerations = moderationLogs?.filter(log => log.automated).length || 0;
+    const manualModerations = totalModerations - automatedModerations;
+
+    // Calculate rates
+    const autoApprovalRate = totalModerations > 0 ? automatedModerations / totalModerations : 0;
+    const manualReviewRate = totalModerations > 0 ? manualModerations / totalModerations : 0;
+
+    return {
+      queueLength,
+      avgProcessingTime: 0, // Will be calculated from actual processing times
+      approvalRate: 0, // Will be calculated from moderation results
+      rejectionRate: 0, // Will be calculated from moderation results
+      autoApprovalRate,
+      manualReviewRate
+    };
+  }
+
+  /**
+   * Get feed performance metrics
+   */
+  private async getFeedPerformanceMetrics() {
+    // Get performance metrics from stored metrics
+    const feedLoadMetrics = this.metrics.get('feed_load') || [];
+    const postCreationMetrics = this.metrics.get('post_creation') || [];
+    const commentCreationMetrics = this.metrics.get('comment_creation') || [];
+
+    // Calculate average response times
+    const avgFeedLoadTime = feedLoadMetrics.length > 0 
+      ? feedLoadMetrics.reduce((sum, metric) => sum + metric.duration, 0) / feedLoadMetrics.length 
+      : 0;
+
+    const avgPostCreationTime = postCreationMetrics.length > 0
+      ? postCreationMetrics.reduce((sum, metric) => sum + metric.duration, 0) / postCreationMetrics.length
+      : 0;
+
+    const avgCommentCreationTime = commentCreationMetrics.length > 0
+      ? commentCreationMetrics.reduce((sum, metric) => sum + metric.duration, 0) / commentCreationMetrics.length
+      : 0;
+
+    // TODO: Implement Redis latency and cache hit rate monitoring
+    return {
+      avgFeedLoadTime,
+      avgPostCreationTime,
+      avgCommentCreationTime,
+      cacheHitRate: 0, // Will be implemented with Redis monitoring
+      redisLatency: 0 // Will be implemented with Redis monitoring
+    };
+  }
+
+  /**
+   * Get engagement metrics
+   */
+  private async getEngagementMetrics(startTime: Date, endTime: Date) {
+    // Get total engagement counts
+    const { data: likes } = await this.supabase
+      .from('post_likes')
+      .select('id')
+      .gte('created_at', startTime.toISOString())
+      .lte('created_at', endTime.toISOString());
+
+    const { data: comments } = await this.supabase
+      .from('post_comments')
+      .select('id')
+      .gte('created_at', startTime.toISOString())
+      .lte('created_at', endTime.toISOString());
+
+    // Get active users (users who interacted in the time period)
+    const { data: activeUsers } = await this.supabase
+      .from('post_likes')
+      .select('user_id')
+      .gte('created_at', startTime.toISOString())
+      .lte('created_at', endTime.toISOString());
+
+    const uniqueUsers = new Set(activeUsers?.map(like => like.user_id) || []).size;
+
+    // TODO: Implement trending posts calculation
+    return {
+      totalLikes: likes?.length || 0,
+      totalComments: comments?.length || 0,
+      totalShares: 0, // Shares not implemented yet
+      activeUsers: uniqueUsers,
+      trendingPosts: 0 // Will be calculated from trending algorithm
+    };
+  }
+
+  /**
+   * Track feed-specific performance metrics
+   */
+  trackFeedPerformance(
+    operation: 'feed_load' | 'post_creation' | 'comment_creation' | 'moderation' | 'image_upload',
+    duration: number,
+    success: boolean,
+    metadata: Record<string, any> = {}
+  ): void {
+    this.trackPerformance(`feed_${operation}`, duration, success, {
+      ...metadata,
+      feedOperation: true
+    });
+  }
+
+  /**
+   * Create feed-specific alerts
+   */
+  createFeedAlert(
+    type: 'performance' | 'moderation' | 'engagement' | 'error' | 'security',
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    title: string,
+    message: string,
+    metadata: Record<string, any> = {}
+  ): void {
+    const alertId = `feed_${type}_${Date.now()}`;
+    
+    const feedAlert: FeedAlert = {
+      id: alertId,
+      type,
+      severity,
+      title,
+      message,
+      timestamp: new Date().toISOString(),
+      resolved: false,
+      metadata: {
+        ...metadata,
+        feedAlert: true
+      }
+    };
+
+    // Store in alerts map
+    this.alerts.set(alertId, {
+      id: alertId,
+      type: 'feed',
+      severity,
+      title: feedAlert.title,
+      description: message,
+      triggeredAt: feedAlert.timestamp,
+      metadata: feedAlert.metadata
+    });
+
+    logger.warn(`Feed alert created: ${title}`, feedAlert);
+  }
+
+  /**
+   * Check feed metrics against thresholds and create alerts
+   */
+  async checkFeedThresholds(metrics: FeedMetrics): Promise<void> {
+    try {
+      // Check performance thresholds
+      if (metrics.performance.avgFeedLoadTime > 2000) { // 2 seconds
+        this.createFeedAlert(
+          'performance',
+          'high',
+          'Slow Feed Load Time',
+          `Average feed load time is ${metrics.performance.avgFeedLoadTime}ms, exceeding 2s threshold`
+        );
+      }
+
+      // Check moderation queue length
+      if (metrics.moderation.queueLength > 100) {
+        this.createFeedAlert(
+          'moderation',
+          'medium',
+          'High Moderation Queue',
+          `Moderation queue has ${metrics.moderation.queueLength} items pending review`
+        );
+      }
+
+      // Check engagement drop
+      if (metrics.engagement.activeUsers < 10 && metrics.posts.creationRate > 5) {
+        this.createFeedAlert(
+          'engagement',
+          'medium',
+          'Low User Engagement',
+          `High post creation rate (${metrics.posts.creationRate}/hr) but low active users (${metrics.engagement.activeUsers})`
+        );
+      }
+
+      // Check error rates
+      const errorRate = this.calculateFeedErrorRate();
+      if (errorRate > 5) { // 5% error rate
+        this.createFeedAlert(
+          'error',
+          'high',
+          'High Feed Error Rate',
+          `Feed operations error rate is ${errorRate}%, exceeding 5% threshold`
+        );
+      }
+
+    } catch (error) {
+      logger.error('Error checking feed thresholds:', error);
+    }
+  }
+
+  /**
+   * Calculate feed-specific error rate
+   */
+  calculateFeedErrorRate(): number {
+    const feedOperations = ['feed_feed_load', 'feed_post_creation', 'feed_comment_creation', 'feed_moderation'];
+    let totalOperations = 0;
+    let failedOperations = 0;
+
+    feedOperations.forEach(operation => {
+      const metrics = this.metrics.get(operation) || [];
+      totalOperations += metrics.length;
+      failedOperations += metrics.filter(m => !m.success).length;
+    });
+
+    return totalOperations > 0 ? (failedOperations / totalOperations) * 100 : 0;
   }
 }
 

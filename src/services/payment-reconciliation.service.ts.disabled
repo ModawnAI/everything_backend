@@ -1,0 +1,3618 @@
+/**
+ * Payment Reconciliation Service
+ * 
+ * Comprehensive payment reconciliation system with external payment providers:
+ * - TossPayments settlement data integration
+ * - Transaction matching algorithms for payment verification
+ * - Discrepancy detection and resolution workflows
+ * - Reconciliation reporting and audit trails
+ * - Automated alerts for reconciliation failures
+ * - Manual reconciliation tools for admin users
+ * - Reconciliation data archiving and retention policies
+ */
+
+import { getSupabaseClient } from '../config/database';
+import { logger } from '../utils/logger';
+import { TossPaymentsService } from './toss-payments.service';
+
+export interface SettlementData {
+  settlementId: string;
+  settlementDate: string;
+  totalAmount: number;
+  totalCount: number;
+  fees: number;
+  netAmount: number;
+  currency: string;
+  status: 'pending' | 'completed' | 'failed' | 'cancelled';
+  transactions: SettlementTransaction[];
+  metadata: Record<string, any>;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface SettlementTransaction {
+  transactionId: string;
+  paymentId: string;
+  amount: number;
+  fees: number;
+  netAmount: number;
+  status: 'success' | 'failed' | 'cancelled' | 'refunded';
+  paymentMethod: string;
+  cardNumber?: string;
+  approvalNumber?: string;
+  processedAt: string;
+  metadata: Record<string, any>;
+}
+
+export interface ReconciliationRecord {
+  id: string;
+  reconciliationDate: string;
+  settlementId: string;
+  totalSettlementAmount: number;
+  totalInternalAmount: number;
+  discrepancyAmount: number;
+  discrepancyCount: number;
+  status: 'pending' | 'in_progress' | 'completed' | 'failed' | 'discrepancy';
+  matchedTransactions: number;
+  unmatchedTransactions: number;
+  discrepancies: ReconciliationDiscrepancy[];
+  createdAt: string;
+  updatedAt: string;
+  completedAt?: string;
+  completedBy?: string;
+}
+
+export interface ReconciliationDiscrepancy {
+  id: string;
+  reconciliationId: string;
+  type: 'amount_mismatch' | 'missing_transaction' | 'extra_transaction' | 'status_mismatch' | 'fee_mismatch';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  description: string;
+  settlementData: any;
+  internalData: any;
+  expectedValue: any;
+  actualValue: any;
+  resolution?: string;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  status: 'open' | 'investigating' | 'resolved' | 'ignored';
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TransactionMatch {
+  settlementTransaction: SettlementTransaction;
+  internalTransaction: any;
+  matchScore: number;
+  matchType: 'exact' | 'fuzzy' | 'manual' | 'unmatched';
+  confidence: number;
+  discrepancies: string[];
+  createdAt: string;
+}
+
+export interface ReconciliationReport {
+  reconciliationId: string;
+  reportDate: string;
+  summary: {
+    totalSettlementAmount: number;
+    totalInternalAmount: number;
+    discrepancyAmount: number;
+    matchRate: number;
+    discrepancyCount: number;
+  };
+  transactionBreakdown: {
+    exactMatches: number;
+    fuzzyMatches: number;
+    manualMatches: number;
+    unmatched: number;
+  };
+  discrepancyBreakdown: {
+    amountMismatches: number;
+    missingTransactions: number;
+    extraTransactions: number;
+    statusMismatches: number;
+    feeMismatches: number;
+  };
+  recommendations: string[];
+  generatedAt: string;
+  generatedBy: string;
+}
+
+export interface ReconciliationAlert {
+  id: string;
+  reconciliationId: string;
+  type: 'discrepancy' | 'failure' | 'completion' | 'threshold_exceeded';
+  severity: 'low' | 'medium' | 'high' | 'critical';
+  title: string;
+  message: string;
+  data: Record<string, any>;
+  isResolved: boolean;
+  resolvedBy?: string;
+  resolvedAt?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReconciliationReport {
+  id: string;
+  reconciliationId: string;
+  reportType: 'summary' | 'detailed' | 'discrepancies';
+  generatedAt: string;
+  generatedBy: string;
+  summary: {
+    totalSettlementAmount: number;
+    totalInternalAmount: number;
+    discrepancyAmount: number;
+    discrepancyCount: number;
+    matchRate: number;
+    totalTransactions: number;
+    matchedTransactions: number;
+    unmatchedTransactions: number;
+  };
+  settlementData: {
+    settlementId: string;
+    settlementDate: string;
+    totalAmount: number;
+    totalCount: number;
+    fees: number;
+    netAmount: number;
+    currency: string;
+    status: string;
+  };
+  reconciliationData: {
+    reconciliationDate: string;
+    status: string;
+    completedBy?: string;
+    completedAt?: string;
+  };
+  discrepancies: ReconciliationDiscrepancy[];
+  transactionMatches: any[];
+  statistics: any;
+  recommendations: string[];
+  metadata: {
+    reportVersion: string;
+    generatedBy: string;
+    reportFormat: string;
+  };
+}
+
+export class PaymentReconciliationService {
+  private supabase = getSupabaseClient();
+  private tossPaymentsService = new TossPaymentsService();
+  private readonly MODEL_VERSION = '1.0.0';
+
+  /**
+   * Fetch settlement data from TossPayments
+   */
+  async fetchSettlementData(date: string): Promise<SettlementData> {
+    try {
+      logger.info('Fetching settlement data from TossPayments', { date });
+
+      // In production, this would call the actual TossPayments API
+      // For now, we'll simulate the API call
+      const settlementData = await this.simulateTossPaymentsSettlementAPI(date);
+
+      // Store settlement data in database
+      await this.storeSettlementData(settlementData);
+
+      logger.info('Successfully fetched settlement data', {
+        settlementId: settlementData.settlementId,
+        totalAmount: settlementData.totalAmount,
+        transactionCount: settlementData.transactions.length
+      });
+
+      return settlementData;
+
+    } catch (error) {
+      logger.error('Error fetching settlement data', {
+        date,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Simulate TossPayments settlement API call
+   */
+  private async simulateTossPaymentsSettlementAPI(date: string): Promise<SettlementData> {
+    // This is a simulation - in production, you would call the actual TossPayments API
+    await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate API delay
+
+    const settlementId = `settlement_${date.replace(/-/g, '')}_${Date.now()}`;
+    const transactions: SettlementTransaction[] = [];
+
+    // Generate mock settlement transactions
+    const transactionCount = Math.floor(Math.random() * 50) + 10; // 10-60 transactions
+    let totalAmount = 0;
+    let totalFees = 0;
+
+    for (let i = 0; i < transactionCount; i++) {
+      const amount = Math.floor(Math.random() * 100000) + 1000; // 1,000 - 100,000 KRW
+      const fees = Math.floor(amount * 0.029) + 100; // 2.9% + 100 KRW
+      const netAmount = amount - fees;
+
+      transactions.push({
+        transactionId: `txn_${settlementId}_${i + 1}`,
+        paymentId: `payment_${Date.now()}_${i + 1}`,
+        amount,
+        fees,
+        netAmount,
+        status: Math.random() > 0.05 ? 'success' : 'failed', // 95% success rate
+        paymentMethod: Math.random() > 0.5 ? 'card' : 'bank_transfer',
+        cardNumber: Math.random() > 0.5 ? `****-****-****-${Math.floor(Math.random() * 9000) + 1000}` : undefined,
+        approvalNumber: Math.random() > 0.5 ? `A${Math.floor(Math.random() * 900000) + 100000}` : undefined,
+        processedAt: new Date(Date.now() - Math.random() * 24 * 60 * 60 * 1000).toISOString(),
+        metadata: {
+          merchantId: 'merchant_123',
+          terminalId: 'terminal_456',
+          batchNumber: `batch_${date}`
+        }
+      });
+
+      totalAmount += amount;
+      totalFees += fees;
+    }
+
+    return {
+      settlementId,
+      settlementDate: date,
+      totalAmount,
+      totalCount: transactions.length,
+      fees: totalFees,
+      netAmount: totalAmount - totalFees,
+      currency: 'KRW',
+      status: 'completed',
+      transactions,
+      metadata: {
+        provider: 'TossPayments',
+        apiVersion: '2022-11-16',
+        batchId: `batch_${date}`,
+        processingTime: '2024-01-15T10:30:00Z'
+      },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  /**
+   * Store settlement data in database
+   */
+  private async storeSettlementData(settlementData: SettlementData): Promise<void> {
+    try {
+      // Store settlement record
+      const { error: settlementError } = await this.supabase
+        .from('settlement_data')
+        .insert({
+          id: settlementData.settlementId,
+          settlement_date: settlementData.settlementDate,
+          total_amount: settlementData.totalAmount,
+          total_count: settlementData.totalCount,
+          fees: settlementData.fees,
+          net_amount: settlementData.netAmount,
+          currency: settlementData.currency,
+          status: settlementData.status,
+          metadata: settlementData.metadata,
+          created_at: settlementData.createdAt,
+          updated_at: settlementData.updatedAt
+        });
+
+      if (settlementError) {
+        throw new Error(`Failed to store settlement data: ${settlementError.message}`);
+      }
+
+      // Store settlement transactions
+      const transactionRecords = settlementData.transactions.map(txn => ({
+        id: txn.transactionId,
+        settlement_id: settlementData.settlementId,
+        payment_id: txn.paymentId,
+        amount: txn.amount,
+        fees: txn.fees,
+        net_amount: txn.netAmount,
+        status: txn.status,
+        payment_method: txn.paymentMethod,
+        card_number: txn.cardNumber,
+        approval_number: txn.approvalNumber,
+        processed_at: txn.processedAt,
+        metadata: txn.metadata
+      }));
+
+      const { error: transactionsError } = await this.supabase
+        .from('settlement_transactions')
+        .insert(transactionRecords);
+
+      if (transactionsError) {
+        throw new Error(`Failed to store settlement transactions: ${transactionsError.message}`);
+      }
+
+      logger.info('Successfully stored settlement data', {
+        settlementId: settlementData.settlementId,
+        transactionCount: settlementData.transactions.length
+      });
+
+    } catch (error) {
+      logger.error('Error storing settlement data', {
+        settlementId: settlementData.settlementId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get settlement data by date range
+   */
+  async getSettlementData(startDate: string, endDate: string): Promise<SettlementData[]> {
+    try {
+      const { data: settlements, error } = await this.supabase
+        .from('settlement_data')
+        .select(`
+          *,
+          settlement_transactions (*)
+        `)
+        .gte('settlement_date', startDate)
+        .lte('settlement_date', endDate)
+        .order('settlement_date', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch settlement data: ${error.message}`);
+      }
+
+      return settlements?.map(settlement => ({
+        settlementId: settlement.id,
+        settlementDate: settlement.settlement_date,
+        totalAmount: settlement.total_amount,
+        totalCount: settlement.total_count,
+        fees: settlement.fees,
+        netAmount: settlement.net_amount,
+        currency: settlement.currency,
+        status: settlement.status,
+        transactions: settlement.settlement_transactions?.map((txn: any) => ({
+          transactionId: txn.id,
+          paymentId: txn.payment_id,
+          amount: txn.amount,
+          fees: txn.fees,
+          netAmount: txn.net_amount,
+          status: txn.status,
+          paymentMethod: txn.payment_method,
+          cardNumber: txn.card_number,
+          approvalNumber: txn.approval_number,
+          processedAt: txn.processed_at,
+          metadata: txn.metadata
+        })) || [],
+        metadata: settlement.metadata,
+        createdAt: settlement.created_at,
+        updatedAt: settlement.updated_at
+      })) || [];
+
+    } catch (error) {
+      logger.error('Error fetching settlement data', {
+        startDate,
+        endDate,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get settlement data by ID
+   */
+  async getSettlementDataById(settlementId: string): Promise<SettlementData | null> {
+    try {
+      const { data: settlement, error } = await this.supabase
+        .from('settlement_data')
+        .select(`
+          *,
+          settlement_transactions (*)
+        `)
+        .eq('id', settlementId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null; // Not found
+        }
+        throw new Error(`Failed to fetch settlement data: ${error.message}`);
+      }
+
+      return {
+        settlementId: settlement.id,
+        settlementDate: settlement.settlement_date,
+        totalAmount: settlement.total_amount,
+        totalCount: settlement.total_count,
+        fees: settlement.fees,
+        netAmount: settlement.net_amount,
+        currency: settlement.currency,
+        status: settlement.status,
+        transactions: settlement.settlement_transactions?.map((txn: any) => ({
+          transactionId: txn.id,
+          paymentId: txn.payment_id,
+          amount: txn.amount,
+          fees: txn.fees,
+          netAmount: txn.net_amount,
+          status: txn.status,
+          paymentMethod: txn.payment_method,
+          cardNumber: txn.card_number,
+          approvalNumber: txn.approval_number,
+          processedAt: txn.processed_at,
+          metadata: txn.metadata
+        })) || [],
+        metadata: settlement.metadata,
+        createdAt: settlement.created_at,
+        updatedAt: settlement.updated_at
+      };
+
+    } catch (error) {
+      logger.error('Error fetching settlement data by ID', {
+        settlementId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get internal payment transactions for reconciliation
+   */
+  async getInternalTransactions(startDate: string, endDate: string): Promise<any[]> {
+    try {
+      const { data: payments, error } = await this.supabase
+        .from('payments')
+        .select(`
+          *,
+          reservations (
+            id,
+            user_id,
+            shop_id,
+            service_id,
+            status
+          )
+        `)
+        .gte('created_at', startDate)
+        .lte('created_at', endDate)
+        .eq('payment_status', 'fully_paid')
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch internal transactions: ${error.message}`);
+      }
+
+      return payments || [];
+
+    } catch (error) {
+      logger.error('Error fetching internal transactions', {
+        startDate,
+        endDate,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Create reconciliation record
+   */
+  async createReconciliationRecord(settlementId: string): Promise<string> {
+    try {
+      const reconciliationId = crypto.randomUUID();
+      const reconciliationDate = new Date().toISOString().split('T')[0];
+
+      const { error } = await this.supabase
+        .from('reconciliation_records')
+        .insert({
+          id: reconciliationId,
+          reconciliation_date: reconciliationDate,
+          settlement_id: settlementId,
+          status: 'pending',
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        });
+
+      if (error) {
+        throw new Error(`Failed to create reconciliation record: ${error.message}`);
+      }
+
+      logger.info('Created reconciliation record', {
+        reconciliationId,
+        settlementId,
+        reconciliationDate
+      });
+
+      return reconciliationId;
+
+    } catch (error) {
+      logger.error('Error creating reconciliation record', {
+        settlementId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get reconciliation record by ID
+   */
+  async getReconciliationRecord(reconciliationId: string): Promise<ReconciliationRecord | null> {
+    try {
+      const { data: record, error } = await this.supabase
+        .from('reconciliation_records')
+        .select(`
+          *,
+          reconciliation_discrepancies (*)
+        `)
+        .eq('id', reconciliationId)
+        .single();
+
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null; // Not found
+        }
+        throw new Error(`Failed to fetch reconciliation record: ${error.message}`);
+      }
+
+      return {
+        id: record.id,
+        reconciliationDate: record.reconciliation_date,
+        settlementId: record.settlement_id,
+        totalSettlementAmount: record.total_settlement_amount || 0,
+        totalInternalAmount: record.total_internal_amount || 0,
+        discrepancyAmount: record.discrepancy_amount || 0,
+        discrepancyCount: record.discrepancy_count || 0,
+        status: record.status,
+        matchedTransactions: record.matched_transactions || 0,
+        unmatchedTransactions: record.unmatched_transactions || 0,
+        discrepancies: record.reconciliation_discrepancies?.map((disc: any) => ({
+          id: disc.id,
+          reconciliationId: disc.reconciliation_id,
+          type: disc.type,
+          severity: disc.severity,
+          description: disc.description,
+          settlementData: disc.settlement_data,
+          internalData: disc.internal_data,
+          expectedValue: disc.expected_value,
+          actualValue: disc.actual_value,
+          resolution: disc.resolution,
+          resolvedBy: disc.resolved_by,
+          resolvedAt: disc.resolved_at,
+          status: disc.status,
+          createdAt: disc.created_at,
+          updatedAt: disc.updated_at
+        })) || [],
+        createdAt: record.created_at,
+        updatedAt: record.updated_at,
+        completedAt: record.completed_at,
+        completedBy: record.completed_by
+      };
+
+    } catch (error) {
+      logger.error('Error fetching reconciliation record', {
+        reconciliationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get reconciliation records by date range
+   */
+  async getReconciliationRecords(startDate: string, endDate: string): Promise<ReconciliationRecord[]> {
+    try {
+      const { data: records, error } = await this.supabase
+        .from('reconciliation_records')
+        .select(`
+          *,
+          reconciliation_discrepancies (*)
+        `)
+        .gte('reconciliation_date', startDate)
+        .lte('reconciliation_date', endDate)
+        .order('reconciliation_date', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch reconciliation records: ${error.message}`);
+      }
+
+      return records?.map(record => ({
+        id: record.id,
+        reconciliationDate: record.reconciliation_date,
+        settlementId: record.settlement_id,
+        totalSettlementAmount: record.total_settlement_amount || 0,
+        totalInternalAmount: record.total_internal_amount || 0,
+        discrepancyAmount: record.discrepancy_amount || 0,
+        discrepancyCount: record.discrepancy_count || 0,
+        status: record.status,
+        matchedTransactions: record.matched_transactions || 0,
+        unmatchedTransactions: record.unmatched_transactions || 0,
+        discrepancies: record.reconciliation_discrepancies?.map((disc: any) => ({
+          id: disc.id,
+          reconciliationId: disc.reconciliation_id,
+          type: disc.type,
+          severity: disc.severity,
+          description: disc.description,
+          settlementData: disc.settlement_data,
+          internalData: disc.internal_data,
+          expectedValue: disc.expected_value,
+          actualValue: disc.actual_value,
+          resolution: disc.resolution,
+          resolvedBy: disc.resolved_by,
+          resolvedAt: disc.resolved_at,
+          status: disc.status,
+          createdAt: disc.created_at,
+          updatedAt: disc.updated_at
+        })) || [],
+        createdAt: record.created_at,
+        updatedAt: record.updated_at,
+        completedAt: record.completed_at,
+        completedBy: record.completed_by
+      })) || [];
+
+    } catch (error) {
+      logger.error('Error fetching reconciliation records', {
+        startDate,
+        endDate,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Perform transaction matching between settlement and internal transactions
+   */
+  async performTransactionMatching(
+    settlementId: string,
+    reconciliationId: string
+  ): Promise<{
+    matches: TransactionMatch[];
+    unmatchedSettlement: SettlementTransaction[];
+    unmatchedInternal: any[];
+    summary: {
+      totalSettlement: number;
+      totalInternal: number;
+      exactMatches: number;
+      fuzzyMatches: number;
+      manualMatches: number;
+      unmatched: number;
+      matchRate: number;
+    };
+  }> {
+    try {
+      logger.info('Starting transaction matching', { settlementId, reconciliationId });
+
+      // Get settlement data
+      const settlementData = await this.getSettlementDataById(settlementId);
+      if (!settlementData) {
+        throw new Error(`Settlement data not found: ${settlementId}`);
+      }
+
+      // Get internal transactions for the same date range
+      const internalTransactions = await this.getInternalTransactions(
+        settlementData.settlementDate,
+        settlementData.settlementDate
+      );
+
+      // Perform matching algorithms
+      const matches: TransactionMatch[] = [];
+      const unmatchedSettlement: SettlementTransaction[] = [...settlementData.transactions];
+      const unmatchedInternal: any[] = [...internalTransactions];
+
+      // 1. Exact matching by payment ID
+      const exactMatches = await this.performExactMatching(
+        settlementData.transactions,
+        internalTransactions
+      );
+      matches.push(...exactMatches);
+
+      // Remove matched transactions
+      this.removeMatchedTransactions(unmatchedSettlement, unmatchedInternal, exactMatches);
+
+      // 2. Fuzzy matching by amount and timestamp
+      const fuzzyMatches = await this.performFuzzyMatching(
+        unmatchedSettlement,
+        unmatchedInternal
+      );
+      matches.push(...fuzzyMatches);
+
+      // Remove matched transactions
+      this.removeMatchedTransactions(unmatchedSettlement, unmatchedInternal, fuzzyMatches);
+
+      // 3. Manual matching candidates (high confidence but not exact)
+      const manualMatches = await this.performManualMatching(
+        unmatchedSettlement,
+        unmatchedInternal
+      );
+      matches.push(...manualMatches);
+
+      // Remove matched transactions
+      this.removeMatchedTransactions(unmatchedSettlement, unmatchedInternal, manualMatches);
+
+      // Calculate summary
+      const exactMatchCount = matches.filter(m => m.matchType === 'exact').length;
+      const fuzzyMatchCount = matches.filter(m => m.matchType === 'fuzzy').length;
+      const manualMatchCount = matches.filter(m => m.matchType === 'manual').length;
+      const totalMatched = exactMatchCount + fuzzyMatchCount + manualMatchCount;
+      const totalSettlement = settlementData.transactions.length;
+      const totalInternal = internalTransactions.length;
+
+      const summary = {
+        totalSettlement,
+        totalInternal,
+        exactMatches: exactMatchCount,
+        fuzzyMatches: fuzzyMatchCount,
+        manualMatches: manualMatchCount,
+        unmatched: totalSettlement - totalMatched,
+        matchRate: totalSettlement > 0 ? (totalMatched / totalSettlement) * 100 : 0
+      };
+
+      // Store matching results
+      await this.storeTransactionMatches(reconciliationId, matches);
+
+      logger.info('Transaction matching completed', {
+        reconciliationId,
+        totalMatches: matches.length,
+        matchRate: summary.matchRate,
+        unmatchedSettlement: unmatchedSettlement.length,
+        unmatchedInternal: unmatchedInternal.length
+      });
+
+      return {
+        matches,
+        unmatchedSettlement,
+        unmatchedInternal,
+        summary
+      };
+
+    } catch (error) {
+      logger.error('Error performing transaction matching', {
+        settlementId,
+        reconciliationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Perform exact matching by payment ID
+   */
+  private async performExactMatching(
+    settlementTransactions: SettlementTransaction[],
+    internalTransactions: any[]
+  ): Promise<TransactionMatch[]> {
+    const matches: TransactionMatch[] = [];
+
+    for (const settlementTxn of settlementTransactions) {
+      const internalTxn = internalTransactions.find(
+        internal => internal.id === settlementTxn.paymentId
+      );
+
+      if (internalTxn) {
+        const discrepancies = this.identifyDiscrepancies(settlementTxn, internalTxn);
+        const matchScore = this.calculateMatchScore(settlementTxn, internalTxn, 'exact');
+        const confidence = discrepancies.length === 0 ? 100 : 85;
+
+        matches.push({
+          settlementTransaction: settlementTxn,
+          internalTransaction: internalTxn,
+          matchScore,
+          matchType: 'exact',
+          confidence,
+          discrepancies,
+          createdAt: new Date().toISOString()
+        });
+      }
+    }
+
+    return matches;
+  }
+
+  /**
+   * Perform fuzzy matching by amount and timestamp
+   */
+  private async performFuzzyMatching(
+    settlementTransactions: SettlementTransaction[],
+    internalTransactions: any[]
+  ): Promise<TransactionMatch[]> {
+    const matches: TransactionMatch[] = [];
+    const amountTolerance = 100; // 100 KRW tolerance
+    const timeTolerance = 5 * 60 * 1000; // 5 minutes tolerance
+
+    for (const settlementTxn of settlementTransactions) {
+      const settlementTime = new Date(settlementTxn.processedAt).getTime();
+
+      for (const internalTxn of internalTransactions) {
+        const internalTime = new Date(internalTxn.created_at).getTime();
+        const amountDiff = Math.abs(settlementTxn.amount - internalTxn.amount);
+        const timeDiff = Math.abs(settlementTime - internalTime);
+
+        // Check if amounts match within tolerance
+        if (amountDiff <= amountTolerance && timeDiff <= timeTolerance) {
+          const discrepancies = this.identifyDiscrepancies(settlementTxn, internalTxn);
+          const matchScore = this.calculateMatchScore(settlementTxn, internalTxn, 'fuzzy');
+          const confidence = this.calculateFuzzyConfidence(amountDiff, timeDiff, discrepancies.length);
+
+          if (confidence >= 70) { // Minimum confidence threshold
+            matches.push({
+              settlementTransaction: settlementTxn,
+              internalTransaction: internalTxn,
+              matchScore,
+              matchType: 'fuzzy',
+              confidence,
+              discrepancies,
+              createdAt: new Date().toISOString()
+            });
+
+            // Remove from internal transactions to prevent duplicate matches
+            const index = internalTransactions.indexOf(internalTxn);
+            if (index > -1) {
+              internalTransactions.splice(index, 1);
+            }
+            break; // Move to next settlement transaction
+          }
+        }
+      }
+    }
+
+    return matches;
+  }
+
+  /**
+   * Perform manual matching for high-confidence candidates
+   */
+  private async performManualMatching(
+    settlementTransactions: SettlementTransaction[],
+    internalTransactions: any[]
+  ): Promise<TransactionMatch[]> {
+    const matches: TransactionMatch[] = [];
+    const amountTolerance = 500; // 500 KRW tolerance for manual matching
+    const timeTolerance = 30 * 60 * 1000; // 30 minutes tolerance
+
+    for (const settlementTxn of settlementTransactions) {
+      const settlementTime = new Date(settlementTxn.processedAt).getTime();
+
+      for (const internalTxn of internalTransactions) {
+        const internalTime = new Date(internalTxn.created_at).getTime();
+        const amountDiff = Math.abs(settlementTxn.amount - internalTxn.amount);
+        const timeDiff = Math.abs(settlementTime - internalTime);
+
+        // Check if amounts match within tolerance
+        if (amountDiff <= amountTolerance && timeDiff <= timeTolerance) {
+          const discrepancies = this.identifyDiscrepancies(settlementTxn, internalTxn);
+          const matchScore = this.calculateMatchScore(settlementTxn, internalTxn, 'manual');
+          const confidence = this.calculateFuzzyConfidence(amountDiff, timeDiff, discrepancies.length);
+
+          if (confidence >= 50) { // Lower threshold for manual matching
+            matches.push({
+              settlementTransaction: settlementTxn,
+              internalTransaction: internalTxn,
+              matchScore,
+              matchType: 'manual',
+              confidence,
+              discrepancies,
+              createdAt: new Date().toISOString()
+            });
+
+            // Remove from internal transactions to prevent duplicate matches
+            const index = internalTransactions.indexOf(internalTxn);
+            if (index > -1) {
+              internalTransactions.splice(index, 1);
+            }
+            break; // Move to next settlement transaction
+          }
+        }
+      }
+    }
+
+    return matches;
+  }
+
+  /**
+   * Identify discrepancies between settlement and internal transactions
+   */
+  private identifyDiscrepancies(
+    settlementTxn: SettlementTransaction,
+    internalTxn: any
+  ): string[] {
+    const discrepancies: string[] = [];
+
+    // Amount discrepancy
+    if (Math.abs(settlementTxn.amount - internalTxn.amount) > 0) {
+      discrepancies.push(`Amount mismatch: settlement=${settlementTxn.amount}, internal=${internalTxn.amount}`);
+    }
+
+    // Status discrepancy
+    const settlementStatus = this.mapSettlementStatusToInternal(settlementTxn.status);
+    if (settlementStatus !== internalTxn.payment_status) {
+      discrepancies.push(`Status mismatch: settlement=${settlementTxn.status}, internal=${internalTxn.payment_status}`);
+    }
+
+    // Payment method discrepancy
+    if (settlementTxn.paymentMethod !== internalTxn.payment_method) {
+      discrepancies.push(`Payment method mismatch: settlement=${settlementTxn.paymentMethod}, internal=${internalTxn.payment_method}`);
+    }
+
+    // Fee discrepancy (if available in internal transaction)
+    if (internalTxn.fees && Math.abs(settlementTxn.fees - internalTxn.fees) > 0) {
+      discrepancies.push(`Fee mismatch: settlement=${settlementTxn.fees}, internal=${internalTxn.fees}`);
+    }
+
+    return discrepancies;
+  }
+
+  /**
+   * Calculate match score based on various factors
+   */
+  private calculateMatchScore(
+    settlementTxn: SettlementTransaction,
+    internalTxn: any,
+    matchType: 'exact' | 'fuzzy' | 'manual'
+  ): number {
+    let score = 0;
+
+    // Base score by match type
+    switch (matchType) {
+      case 'exact':
+        score = 100;
+        break;
+      case 'fuzzy':
+        score = 80;
+        break;
+      case 'manual':
+        score = 60;
+        break;
+    }
+
+    // Adjust score based on discrepancies
+    const discrepancies = this.identifyDiscrepancies(settlementTxn, internalTxn);
+    score -= discrepancies.length * 10; // Reduce score for each discrepancy
+
+    // Adjust score based on amount difference
+    const amountDiff = Math.abs(settlementTxn.amount - internalTxn.amount);
+    const amountDiffPercent = (amountDiff / settlementTxn.amount) * 100;
+    score -= Math.min(amountDiffPercent * 2, 30); // Max 30 point reduction
+
+    // Adjust score based on time difference
+    const settlementTime = new Date(settlementTxn.processedAt).getTime();
+    const internalTime = new Date(internalTxn.created_at).getTime();
+    const timeDiff = Math.abs(settlementTime - internalTime);
+    const timeDiffMinutes = timeDiff / (1000 * 60);
+    score -= Math.min(timeDiffMinutes * 0.5, 20); // Max 20 point reduction
+
+    return Math.max(0, Math.min(100, score));
+  }
+
+  /**
+   * Calculate fuzzy matching confidence
+   */
+  private calculateFuzzyConfidence(
+    amountDiff: number,
+    timeDiff: number,
+    discrepancyCount: number
+  ): number {
+    let confidence = 100;
+
+    // Reduce confidence based on amount difference
+    const amountDiffPercent = (amountDiff / 1000) * 10; // Assuming 1000 KRW base
+    confidence -= Math.min(amountDiffPercent, 30);
+
+    // Reduce confidence based on time difference
+    const timeDiffMinutes = timeDiff / (1000 * 60);
+    confidence -= Math.min(timeDiffMinutes * 0.5, 20);
+
+    // Reduce confidence based on discrepancy count
+    confidence -= discrepancyCount * 15;
+
+    return Math.max(0, Math.min(100, confidence));
+  }
+
+  /**
+   * Map settlement status to internal payment status
+   */
+  private mapSettlementStatusToInternal(settlementStatus: string): string {
+    const statusMap: Record<string, string> = {
+      'success': 'fully_paid',
+      'failed': 'failed',
+      'cancelled': 'cancelled',
+      'refunded': 'refunded'
+    };
+
+    return statusMap[settlementStatus] || 'unknown';
+  }
+
+  /**
+   * Remove matched transactions from unmatched arrays
+   */
+  private removeMatchedTransactions(
+    unmatchedSettlement: SettlementTransaction[],
+    unmatchedInternal: any[],
+    matches: TransactionMatch[]
+  ): void {
+    for (const match of matches) {
+      // Remove from settlement transactions
+      const settlementIndex = unmatchedSettlement.findIndex(
+        txn => txn.transactionId === match.settlementTransaction.transactionId
+      );
+      if (settlementIndex > -1) {
+        unmatchedSettlement.splice(settlementIndex, 1);
+      }
+
+      // Remove from internal transactions
+      const internalIndex = unmatchedInternal.findIndex(
+        txn => txn.id === match.internalTransaction.id
+      );
+      if (internalIndex > -1) {
+        unmatchedInternal.splice(internalIndex, 1);
+      }
+    }
+  }
+
+  /**
+   * Store transaction matches in database
+   */
+  private async storeTransactionMatches(
+    reconciliationId: string,
+    matches: TransactionMatch[]
+  ): Promise<void> {
+    try {
+      const matchRecords = matches.map(match => ({
+        reconciliation_id: reconciliationId,
+        settlement_transaction_id: match.settlementTransaction.transactionId,
+        internal_transaction_id: match.internalTransaction.id,
+        match_score: match.matchScore,
+        match_type: match.matchType,
+        confidence: match.confidence,
+        discrepancies: match.discrepancies,
+        created_at: match.createdAt
+      }));
+
+      const { error } = await this.supabase
+        .from('transaction_matches')
+        .insert(matchRecords);
+
+      if (error) {
+        throw new Error(`Failed to store transaction matches: ${error.message}`);
+      }
+
+      logger.info('Stored transaction matches', {
+        reconciliationId,
+        matchCount: matches.length
+      });
+
+    } catch (error) {
+      logger.error('Error storing transaction matches', {
+        reconciliationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Detect and create discrepancies from unmatched transactions
+   */
+  async detectDiscrepancies(
+    reconciliationId: string,
+    unmatchedSettlement: SettlementTransaction[],
+    unmatchedInternal: any[]
+  ): Promise<ReconciliationDiscrepancy[]> {
+    try {
+      logger.info('Starting discrepancy detection', { reconciliationId });
+
+      const discrepancies: ReconciliationDiscrepancy[] = [];
+
+      // Detect missing internal transactions (settlement has transaction but internal doesn't)
+      for (const settlementTxn of unmatchedSettlement) {
+        const discrepancy = await this.createDiscrepancy(
+          reconciliationId,
+          'missing_transaction',
+          'high',
+          `Missing internal transaction for settlement transaction ${settlementTxn.transactionId}`,
+          settlementTxn,
+          null,
+          settlementTxn.amount,
+          null
+        );
+        discrepancies.push(discrepancy);
+      }
+
+      // Detect extra internal transactions (internal has transaction but settlement doesn't)
+      for (const internalTxn of unmatchedInternal) {
+        const discrepancy = await this.createDiscrepancy(
+          reconciliationId,
+          'extra_transaction',
+          'medium',
+          `Extra internal transaction ${internalTxn.id} not found in settlement`,
+          null,
+          internalTxn,
+          null,
+          internalTxn.amount
+        );
+        discrepancies.push(discrepancy);
+      }
+
+      // Store discrepancies in database
+      await this.storeDiscrepancies(discrepancies);
+
+      logger.info('Discrepancy detection completed', {
+        reconciliationId,
+        discrepancyCount: discrepancies.length
+      });
+
+      return discrepancies;
+
+    } catch (error) {
+      logger.error('Error detecting discrepancies', {
+        reconciliationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Create a discrepancy record
+   */
+  private async createDiscrepancy(
+    reconciliationId: string,
+    type: 'amount_mismatch' | 'missing_transaction' | 'extra_transaction' | 'status_mismatch' | 'fee_mismatch',
+    severity: 'low' | 'medium' | 'high' | 'critical',
+    description: string,
+    settlementData: any,
+    internalData: any,
+    expectedValue: any,
+    actualValue: any
+  ): Promise<ReconciliationDiscrepancy> {
+    const discrepancyId = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    return {
+      id: discrepancyId,
+      reconciliationId,
+      type,
+      severity,
+      description,
+      settlementData: settlementData || {},
+      internalData: internalData || {},
+      expectedValue,
+      actualValue,
+      status: 'open',
+      createdAt: now,
+      updatedAt: now
+    };
+  }
+
+  /**
+   * Store discrepancies in database
+   */
+  private async storeDiscrepancies(discrepancies: ReconciliationDiscrepancy[]): Promise<void> {
+    try {
+      const discrepancyRecords = discrepancies.map(disc => ({
+        id: disc.id,
+        reconciliation_id: disc.reconciliationId,
+        type: disc.type,
+        severity: disc.severity,
+        description: disc.description,
+        settlement_data: disc.settlementData,
+        internal_data: disc.internalData,
+        expected_value: disc.expectedValue,
+        actual_value: disc.actualValue,
+        status: disc.status,
+        created_at: disc.createdAt,
+        updated_at: disc.updatedAt
+      }));
+
+      const { error } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .insert(discrepancyRecords);
+
+      if (error) {
+        throw new Error(`Failed to store discrepancies: ${error.message}`);
+      }
+
+      logger.info('Stored discrepancies', {
+        discrepancyCount: discrepancies.length
+      });
+
+    } catch (error) {
+      logger.error('Error storing discrepancies', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get discrepancies for a reconciliation
+   */
+  async getDiscrepancies(reconciliationId: string): Promise<ReconciliationDiscrepancy[]> {
+    try {
+      const { data: discrepancies, error } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .select('*')
+        .eq('reconciliation_id', reconciliationId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        throw new Error(`Failed to fetch discrepancies: ${error.message}`);
+      }
+
+      return discrepancies?.map(disc => ({
+        id: disc.id,
+        reconciliationId: disc.reconciliation_id,
+        type: disc.type,
+        severity: disc.severity,
+        description: disc.description,
+        settlementData: disc.settlement_data,
+        internalData: disc.internal_data,
+        expectedValue: disc.expected_value,
+        actualValue: disc.actual_value,
+        resolution: disc.resolution,
+        resolvedBy: disc.resolved_by,
+        resolvedAt: disc.resolved_at,
+        status: disc.status,
+        createdAt: disc.created_at,
+        updatedAt: disc.updated_at
+      })) || [];
+
+    } catch (error) {
+      logger.error('Error fetching discrepancies', {
+        reconciliationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve a discrepancy
+   */
+  async resolveDiscrepancy(
+    discrepancyId: string,
+    resolution: string,
+    resolvedBy: string
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .update({
+          resolution,
+          resolved_by: resolvedBy,
+          resolved_at: new Date().toISOString(),
+          status: 'resolved',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', discrepancyId);
+
+      if (error) {
+        throw new Error(`Failed to resolve discrepancy: ${error.message}`);
+      }
+
+      logger.info('Discrepancy resolved', {
+        discrepancyId,
+        resolvedBy
+      });
+
+    } catch (error) {
+      logger.error('Error resolving discrepancy', {
+        discrepancyId,
+        resolvedBy,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Ignore a discrepancy
+   */
+  async ignoreDiscrepancy(
+    discrepancyId: string,
+    reason: string,
+    ignoredBy: string
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .update({
+          resolution: reason,
+          resolved_by: ignoredBy,
+          resolved_at: new Date().toISOString(),
+          status: 'ignored',
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', discrepancyId);
+
+      if (error) {
+        throw new Error(`Failed to ignore discrepancy: ${error.message}`);
+      }
+
+      logger.info('Discrepancy ignored', {
+        discrepancyId,
+        ignoredBy,
+        reason
+      });
+
+    } catch (error) {
+      logger.error('Error ignoring discrepancy', {
+        discrepancyId,
+        ignoredBy,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get discrepancy statistics
+   */
+  async getDiscrepancyStatistics(reconciliationId: string): Promise<{
+    total: number;
+    byType: Record<string, number>;
+    bySeverity: Record<string, number>;
+    byStatus: Record<string, number>;
+    openCount: number;
+    resolvedCount: number;
+    ignoredCount: number;
+  }> {
+    try {
+      const { data: discrepancies, error } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .select('type, severity, status')
+        .eq('reconciliation_id', reconciliationId);
+
+      if (error) {
+        throw new Error(`Failed to fetch discrepancy statistics: ${error.message}`);
+      }
+
+      const stats = {
+        total: discrepancies?.length || 0,
+        byType: {} as Record<string, number>,
+        bySeverity: {} as Record<string, number>,
+        byStatus: {} as Record<string, number>,
+        openCount: 0,
+        resolvedCount: 0,
+        ignoredCount: 0
+      };
+
+      discrepancies?.forEach(disc => {
+        // Count by type
+        stats.byType[disc.type] = (stats.byType[disc.type] || 0) + 1;
+        
+        // Count by severity
+        stats.bySeverity[disc.severity] = (stats.bySeverity[disc.severity] || 0) + 1;
+        
+        // Count by status
+        stats.byStatus[disc.status] = (stats.byStatus[disc.status] || 0) + 1;
+
+        // Count specific statuses
+        if (disc.status === 'open') stats.openCount++;
+        else if (disc.status === 'resolved') stats.resolvedCount++;
+        else if (disc.status === 'ignored') stats.ignoredCount++;
+      });
+
+      return stats;
+
+    } catch (error) {
+      logger.error('Error fetching discrepancy statistics', {
+        reconciliationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Auto-resolve discrepancies based on business rules
+   */
+  async autoResolveDiscrepancies(reconciliationId: string): Promise<{
+    resolved: number;
+    ignored: number;
+    remaining: number;
+  }> {
+    try {
+      logger.info('Starting auto-resolution of discrepancies', { reconciliationId });
+
+      const discrepancies = await this.getDiscrepancies(reconciliationId);
+      let resolved = 0;
+      let ignored = 0;
+
+      for (const discrepancy of discrepancies) {
+        if (discrepancy.status !== 'open') continue;
+
+        let shouldResolve = false;
+        let shouldIgnore = false;
+        let resolution = '';
+
+        // Auto-resolution rules
+        switch (discrepancy.type) {
+          case 'amount_mismatch':
+            // Auto-resolve small amount differences (< 100 KRW)
+            const amountDiff = Math.abs((discrepancy.expectedValue || 0) - (discrepancy.actualValue || 0));
+            if (amountDiff < 100) {
+              shouldResolve = true;
+              resolution = `Auto-resolved: Small amount difference (${amountDiff} KRW) within tolerance`;
+            }
+            break;
+
+          case 'status_mismatch':
+            // Auto-resolve if both are successful variants
+            const settlementStatus = discrepancy.settlementData?.status;
+            const internalStatus = discrepancy.internalData?.payment_status;
+            if ((settlementStatus === 'success' && internalStatus === 'fully_paid') ||
+                (settlementStatus === 'failed' && internalStatus === 'failed')) {
+              shouldResolve = true;
+              resolution = 'Auto-resolved: Status mismatch is acceptable (both indicate success/failure)';
+            }
+            break;
+
+          case 'fee_mismatch':
+            // Auto-resolve small fee differences (< 50 KRW)
+            const feeDiff = Math.abs((discrepancy.expectedValue || 0) - (discrepancy.actualValue || 0));
+            if (feeDiff < 50) {
+              shouldResolve = true;
+              resolution = `Auto-resolved: Small fee difference (${feeDiff} KRW) within tolerance`;
+            }
+            break;
+
+          case 'missing_transaction':
+            // Auto-ignore if settlement transaction is very old (> 30 days)
+            const settlementDate = new Date(discrepancy.settlementData?.processedAt || 0);
+            const daysDiff = (Date.now() - settlementDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (daysDiff > 30) {
+              shouldIgnore = true;
+              resolution = `Auto-ignored: Settlement transaction is very old (${Math.floor(daysDiff)} days)`;
+            }
+            break;
+
+          case 'extra_transaction':
+            // Auto-ignore if internal transaction is very old (> 30 days)
+            const internalDate = new Date(discrepancy.internalData?.created_at || 0);
+            const internalDaysDiff = (Date.now() - internalDate.getTime()) / (1000 * 60 * 60 * 24);
+            if (internalDaysDiff > 30) {
+              shouldIgnore = true;
+              resolution = `Auto-ignored: Internal transaction is very old (${Math.floor(internalDaysDiff)} days)`;
+            }
+            break;
+        }
+
+        if (shouldResolve) {
+          await this.resolveDiscrepancy(discrepancy.id, resolution, 'system');
+          resolved++;
+        } else if (shouldIgnore) {
+          await this.ignoreDiscrepancy(discrepancy.id, resolution, 'system');
+          ignored++;
+        }
+      }
+
+      const remaining = discrepancies.length - resolved - ignored;
+
+      logger.info('Auto-resolution completed', {
+        reconciliationId,
+        resolved,
+        ignored,
+        remaining
+      });
+
+      return { resolved, ignored, remaining };
+
+    } catch (error) {
+      logger.error('Error in auto-resolution', {
+        reconciliationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Complete reconciliation with discrepancy detection and resolution
+   */
+  async completeReconciliation(
+    reconciliationId: string,
+    completedBy: string,
+    autoResolve: boolean = true
+  ): Promise<{
+    reconciliation: ReconciliationRecord;
+    discrepancies: ReconciliationDiscrepancy[];
+    autoResolution: { resolved: number; ignored: number; remaining: number };
+  }> {
+    try {
+      logger.info('Starting reconciliation completion', { reconciliationId, completedBy });
+
+      // Get reconciliation record
+      const reconciliation = await this.getReconciliationRecord(reconciliationId);
+      if (!reconciliation) {
+        throw new Error(`Reconciliation record not found: ${reconciliationId}`);
+      }
+
+      // Get settlement data
+      const settlementData = await this.getSettlementDataById(reconciliation.settlementId);
+      if (!settlementData) {
+        throw new Error(`Settlement data not found: ${reconciliation.settlementId}`);
+      }
+
+      // Perform transaction matching
+      const matchingResult = await this.performTransactionMatching(
+        reconciliation.settlementId,
+        reconciliationId
+      );
+
+      // Detect discrepancies
+      const discrepancies = await this.detectDiscrepancies(
+        reconciliationId,
+        matchingResult.unmatchedSettlement,
+        matchingResult.unmatchedInternal
+      );
+
+      // Auto-resolve discrepancies if requested
+      let autoResolution = { resolved: 0, ignored: 0, remaining: 0 };
+      if (autoResolve) {
+        autoResolution = await this.autoResolveDiscrepancies(reconciliationId);
+      }
+
+      // Update reconciliation record
+      const { error: updateError } = await this.supabase
+        .from('reconciliation_records')
+        .update({
+          total_settlement_amount: settlementData.totalAmount,
+          total_internal_amount: matchingResult.summary.totalInternal * 1000, // Convert to KRW
+          discrepancy_amount: Math.abs(settlementData.totalAmount - (matchingResult.summary.totalInternal * 1000)),
+          discrepancy_count: discrepancies.length,
+          matched_transactions: matchingResult.summary.exactMatches + matchingResult.summary.fuzzyMatches + matchingResult.summary.manualMatches,
+          unmatched_transactions: matchingResult.summary.unmatched,
+          status: discrepancies.length === 0 ? 'completed' : 'discrepancy',
+          completed_by: completedBy,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reconciliationId);
+
+      if (updateError) {
+        throw new Error(`Failed to update reconciliation record: ${updateError.message}`);
+      }
+
+      // Get updated reconciliation record
+      const updatedReconciliation = await this.getReconciliationRecord(reconciliationId);
+      const updatedDiscrepancies = await this.getDiscrepancies(reconciliationId);
+
+      logger.info('Reconciliation completed', {
+        reconciliationId,
+        status: updatedReconciliation?.status,
+        discrepancyCount: updatedDiscrepancies.length,
+        autoResolution
+      });
+
+      return {
+        reconciliation: updatedReconciliation!,
+        discrepancies: updatedDiscrepancies,
+        autoResolution
+      };
+
+    } catch (error) {
+      logger.error('Error completing reconciliation', {
+        reconciliationId,
+        completedBy,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Generate reconciliation report
+   */
+  async generateReconciliationReport(
+    reconciliationId: string,
+    reportType: 'summary' | 'detailed' | 'discrepancies' = 'summary'
+  ): Promise<ReconciliationReport> {
+    try {
+      const reconciliation = await this.getReconciliationRecord(reconciliationId);
+      if (!reconciliation) {
+        throw new Error(`Reconciliation record not found: ${reconciliationId}`);
+      }
+
+      const settlement = await this.getSettlementDataById(reconciliation.settlementId);
+      if (!settlement) {
+        throw new Error(`Settlement data not found: ${reconciliation.settlementId}`);
+      }
+
+      const discrepancies = await this.getDiscrepancies(reconciliationId);
+      const stats = await this.getDiscrepancyStatistics(reconciliationId);
+
+      // Get transaction matches
+      const { data: matches, error: matchesError } = await this.supabase
+        .from('transaction_matches')
+        .select('*')
+        .eq('reconciliation_id', reconciliationId);
+
+      if (matchesError) {
+        throw new Error(`Failed to fetch transaction matches: ${matchesError.message}`);
+      }
+
+      const report: ReconciliationReport = {
+        id: `report_${reconciliationId}_${Date.now()}`,
+        reconciliationId,
+        reportType,
+        generatedAt: new Date().toISOString(),
+        generatedBy: 'system',
+        summary: {
+          totalSettlementAmount: settlement.totalAmount,
+          totalInternalAmount: reconciliation.totalInternalAmount,
+          discrepancyAmount: reconciliation.discrepancyAmount,
+          discrepancyCount: reconciliation.discrepancyCount,
+          matchRate: reconciliation.matchedTransactions / (reconciliation.matchedTransactions + reconciliation.unmatchedTransactions) * 100,
+          totalTransactions: settlement.totalCount,
+          matchedTransactions: reconciliation.matchedTransactions,
+          unmatchedTransactions: reconciliation.unmatchedTransactions
+        },
+        settlementData: {
+          settlementId: settlement.settlementId,
+          settlementDate: settlement.settlementDate,
+          totalAmount: settlement.totalAmount,
+          totalCount: settlement.totalCount,
+          fees: settlement.fees,
+          netAmount: settlement.netAmount,
+          currency: settlement.currency,
+          status: settlement.status
+        },
+        reconciliationData: {
+          reconciliationDate: reconciliation.reconciliationDate,
+          status: reconciliation.status,
+          completedBy: reconciliation.completedBy,
+          completedAt: reconciliation.completedAt
+        },
+        discrepancies: reportType === 'discrepancies' ? discrepancies : [],
+        transactionMatches: reportType === 'detailed' ? matches || [] : [],
+        statistics: stats,
+        recommendations: this.generateRecommendations(stats, discrepancies),
+        metadata: {
+          reportVersion: this.MODEL_VERSION,
+          generatedBy: 'payment-reconciliation-service',
+          reportFormat: 'json'
+        }
+      };
+
+      // Store report
+      await this.storeReconciliationReport(report);
+
+      return report;
+    } catch (error) {
+      logger.error('Failed to generate reconciliation report', { error, reconciliationId });
+      throw error;
+    }
+  }
+
+  /**
+   * Store reconciliation report
+   */
+  private async storeReconciliationReport(report: ReconciliationReport): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('reconciliation_reports')
+        .insert({
+          id: report.id,
+          reconciliation_id: report.reconciliationId,
+          report_type: report.reportType,
+          generated_at: report.generatedAt,
+          generated_by: report.generatedBy,
+          report_data: report,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        throw new Error(`Failed to store reconciliation report: ${error.message}`);
+      }
+    } catch (error) {
+      logger.error('Failed to store reconciliation report', { error, reportId: report.id });
+      throw error;
+    }
+  }
+
+  /**
+   * Get reconciliation reports
+   */
+  async getReconciliationReports(
+    reconciliationId?: string,
+    reportType?: string,
+    startDate?: string,
+    endDate?: string
+  ): Promise<ReconciliationReport[]> {
+    try {
+      let query = this.supabase
+        .from('reconciliation_reports')
+        .select('report_data')
+        .order('generated_at', { ascending: false });
+
+      if (reconciliationId) {
+        query = query.eq('reconciliation_id', reconciliationId);
+      }
+
+      if (reportType) {
+        query = query.eq('report_type', reportType);
+      }
+
+      if (startDate) {
+        query = query.gte('generated_at', startDate);
+      }
+
+      if (endDate) {
+        query = query.lte('generated_at', endDate);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw new Error(`Failed to fetch reconciliation reports: ${error.message}`);
+      }
+
+      return data?.map(row => row.report_data) || [];
+    } catch (error) {
+      logger.error('Failed to get reconciliation reports', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Create reconciliation alert
+   */
+  async createReconciliationAlert(
+    reconciliationId: string,
+    alertType: 'discrepancy' | 'failure' | 'warning' | 'info',
+    message: string,
+    severity: 'low' | 'medium' | 'high' | 'critical' = 'medium',
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    try {
+      const alert = {
+        id: `alert_${reconciliationId}_${Date.now()}`,
+        reconciliation_id: reconciliationId,
+        alert_type: alertType,
+        message,
+        severity,
+        status: 'active' as const,
+        metadata: metadata || {},
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      const { error } = await this.supabase
+        .from('reconciliation_alerts')
+        .insert(alert);
+
+      if (error) {
+        throw new Error(`Failed to create reconciliation alert: ${error.message}`);
+      }
+
+      logger.warn('Reconciliation alert created', { alert });
+    } catch (error) {
+      logger.error('Failed to create reconciliation alert', { error, reconciliationId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get reconciliation alerts
+   */
+  async getReconciliationAlerts(
+    reconciliationId?: string,
+    status?: 'active' | 'resolved' | 'dismissed',
+    severity?: 'low' | 'medium' | 'high' | 'critical'
+  ): Promise<any[]> {
+    try {
+      let query = this.supabase
+        .from('reconciliation_alerts')
+        .select('*')
+        .order('created_at', { ascending: false });
+
+      if (reconciliationId) {
+        query = query.eq('reconciliation_id', reconciliationId);
+      }
+
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      if (severity) {
+        query = query.eq('severity', severity);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw new Error(`Failed to fetch reconciliation alerts: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (error) {
+      logger.error('Failed to get reconciliation alerts', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Resolve reconciliation alert
+   */
+  async resolveReconciliationAlert(
+    alertId: string,
+    resolvedBy: string,
+    resolution?: string
+  ): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('reconciliation_alerts')
+        .update({
+          status: 'resolved',
+          resolved_by: resolvedBy,
+          resolved_at: new Date().toISOString(),
+          resolution,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', alertId);
+
+      if (error) {
+        throw new Error(`Failed to resolve reconciliation alert: ${error.message}`);
+      }
+    } catch (error) {
+      logger.error('Failed to resolve reconciliation alert', { error, alertId });
+      throw error;
+    }
+  }
+
+  /**
+   * Generate recommendations based on statistics and discrepancies
+   */
+  private generateRecommendations(
+    stats: any,
+    discrepancies: ReconciliationDiscrepancy[]
+  ): string[] {
+    const recommendations: string[] = [];
+
+    // High discrepancy count
+    if (stats.openCount > 10) {
+      recommendations.push('High number of open discrepancies detected. Consider reviewing reconciliation process and improving transaction matching algorithms.');
+    }
+
+    // High severity discrepancies
+    if (stats.bySeverity.high > 5) {
+      recommendations.push('Multiple high-severity discrepancies found. Immediate manual review recommended.');
+    }
+
+    // Low match rate
+    const matchRate = stats.total > 0 ? ((stats.total - stats.openCount) / stats.total) * 100 : 100;
+    if (matchRate < 90) {
+      recommendations.push('Low transaction match rate detected. Consider improving fuzzy matching algorithms or reviewing data quality.');
+    }
+
+    // Missing transactions
+    if (stats.byType.missing_transaction > 0) {
+      recommendations.push('Missing internal transactions detected. Verify payment processing pipeline and check for failed webhook deliveries.');
+    }
+
+    // Amount mismatches
+    if (stats.byType.amount_mismatch > 0) {
+      recommendations.push('Amount discrepancies found. Review fee calculations and currency conversion logic.');
+    }
+
+    // Status mismatches
+    if (stats.byType.status_mismatch > 0) {
+      recommendations.push('Status mismatches detected. Verify payment status mapping between internal and external systems.');
+    }
+
+    return recommendations;
+  }
+
+  /**
+   * Get reconciliation audit trail
+   */
+  async getReconciliationAuditTrail(
+    reconciliationId: string
+  ): Promise<any[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('reconciliation_audit_logs')
+        .select('*')
+        .eq('reconciliation_id', reconciliationId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        throw new Error(`Failed to fetch reconciliation audit trail: ${error.message}`);
+      }
+
+      return data || [];
+    } catch (error) {
+      logger.error('Failed to get reconciliation audit trail', { error, reconciliationId });
+      throw error;
+    }
+  }
+
+  /**
+   * Log reconciliation audit event
+   */
+  private async logReconciliationAuditEvent(
+    reconciliationId: string,
+    action: string,
+    performedBy: string,
+    details?: Record<string, any>
+  ): Promise<void> {
+    try {
+      const auditLog = {
+        id: `audit_${reconciliationId}_${Date.now()}`,
+        reconciliation_id: reconciliationId,
+        action,
+        performed_by: performedBy,
+        details: details || {},
+        created_at: new Date().toISOString()
+      };
+
+      const { error } = await this.supabase
+        .from('reconciliation_audit_logs')
+        .insert(auditLog);
+
+      if (error) {
+        logger.error('Failed to log reconciliation audit event', { error, reconciliationId });
+      }
+    } catch (error) {
+      logger.error('Failed to log reconciliation audit event', { error, reconciliationId });
+    }
+  }
+
+  /**
+   * Generate daily reconciliation summary report
+   */
+  async generateDailySummaryReport(date: string): Promise<{
+    date: string;
+    totalReconciliations: number;
+    completedReconciliations: number;
+    failedReconciliations: number;
+    totalDiscrepancies: number;
+    resolvedDiscrepancies: number;
+    openDiscrepancies: number;
+    totalSettlementAmount: number;
+    totalInternalAmount: number;
+    discrepancyAmount: number;
+    matchRate: number;
+    avgProcessingTime: number;
+  }> {
+    try {
+      const startDate = `${date}T00:00:00.000Z`;
+      const endDate = `${date}T23:59:59.999Z`;
+
+      // Get all reconciliations for the date
+      const reconciliations = await this.getReconciliationRecords(date, date);
+      
+      // Get all discrepancies for the date
+      const { data: discrepancies, error: discError } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .select('*')
+        .gte('created_at', startDate)
+        .lte('created_at', endDate);
+
+      if (discError) {
+        throw new Error(`Failed to fetch discrepancies: ${discError.message}`);
+      }
+
+      const totalReconciliations = reconciliations.length;
+      const completedReconciliations = reconciliations.filter(r => r.status === 'completed').length;
+      const failedReconciliations = reconciliations.filter(r => r.status === 'failed').length;
+      
+      const totalDiscrepancies = discrepancies?.length || 0;
+      const resolvedDiscrepancies = discrepancies?.filter(d => d.status === 'resolved').length || 0;
+      const openDiscrepancies = discrepancies?.filter(d => d.status === 'open').length || 0;
+
+      const totalSettlementAmount = reconciliations.reduce((sum, r) => sum + r.totalSettlementAmount, 0);
+      const totalInternalAmount = reconciliations.reduce((sum, r) => sum + r.totalInternalAmount, 0);
+      const discrepancyAmount = Math.abs(totalSettlementAmount - totalInternalAmount);
+
+      const totalMatched = reconciliations.reduce((sum, r) => sum + r.matchedTransactions, 0);
+      const totalTransactions = reconciliations.reduce((sum, r) => sum + r.matchedTransactions + r.unmatchedTransactions, 0);
+      const matchRate = totalTransactions > 0 ? (totalMatched / totalTransactions) * 100 : 100;
+
+      // Calculate average processing time (mock calculation)
+      const avgProcessingTime = totalReconciliations > 0 ? 
+        reconciliations.reduce((sum, r) => {
+          const start = new Date(r.createdAt).getTime();
+          const end = new Date(r.completedAt || r.updatedAt).getTime();
+          return sum + (end - start);
+        }, 0) / totalReconciliations / 1000 : 0; // Convert to seconds
+
+      return {
+        date,
+        totalReconciliations,
+        completedReconciliations,
+        failedReconciliations,
+        totalDiscrepancies,
+        resolvedDiscrepancies,
+        openDiscrepancies,
+        totalSettlementAmount,
+        totalInternalAmount,
+        discrepancyAmount,
+        matchRate,
+        avgProcessingTime
+      };
+
+    } catch (error) {
+      logger.error('Error generating daily summary report', { date, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Generate weekly reconciliation report
+   */
+  async generateWeeklyReport(startDate: string): Promise<{
+    weekStart: string;
+    weekEnd: string;
+    dailyReports: any[];
+    weeklyTotals: {
+      totalReconciliations: number;
+      totalDiscrepancies: number;
+      totalSettlementAmount: number;
+      avgMatchRate: number;
+      avgProcessingTime: number;
+    };
+  }> {
+    try {
+      const start = new Date(startDate);
+      const dailyReports = [];
+      
+      // Generate reports for each day of the week
+      for (let i = 0; i < 7; i++) {
+        const currentDate = new Date(start);
+        currentDate.setDate(start.getDate() + i);
+        const dateStr = currentDate.toISOString().split('T')[0];
+        
+        try {
+          const dailyReport = await this.generateDailySummaryReport(dateStr);
+          dailyReports.push(dailyReport);
+        } catch (error) {
+          logger.warn('Failed to generate daily report', { date: dateStr, error });
+          // Continue with other days
+        }
+      }
+
+      const weekEnd = new Date(start);
+      weekEnd.setDate(start.getDate() + 6);
+      const weekEndStr = weekEnd.toISOString().split('T')[0];
+
+      const weeklyTotals = {
+        totalReconciliations: dailyReports.reduce((sum, r) => sum + r.totalReconciliations, 0),
+        totalDiscrepancies: dailyReports.reduce((sum, r) => sum + r.totalDiscrepancies, 0),
+        totalSettlementAmount: dailyReports.reduce((sum, r) => sum + r.totalSettlementAmount, 0),
+        avgMatchRate: dailyReports.length > 0 ? 
+          dailyReports.reduce((sum, r) => sum + r.matchRate, 0) / dailyReports.length : 0,
+        avgProcessingTime: dailyReports.length > 0 ? 
+          dailyReports.reduce((sum, r) => sum + r.avgProcessingTime, 0) / dailyReports.length : 0
+      };
+
+      return {
+        weekStart: startDate,
+        weekEnd: weekEndStr,
+        dailyReports,
+        weeklyTotals
+      };
+
+    } catch (error) {
+      logger.error('Error generating weekly report', { startDate, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Generate monthly reconciliation report
+   */
+  async generateMonthlyReport(year: number, month: number): Promise<{
+    year: number;
+    month: number;
+    monthlyTotals: {
+      totalReconciliations: number;
+      totalDiscrepancies: number;
+      totalSettlementAmount: number;
+      avgMatchRate: number;
+      avgProcessingTime: number;
+    };
+    weeklyBreakdown: any[];
+    topDiscrepancyTypes: Array<{ type: string; count: number }>;
+  }> {
+    try {
+      const startDate = `${year}-${month.toString().padStart(2, '0')}-01`;
+      const endDate = new Date(year, month, 0).toISOString().split('T')[0]; // Last day of month
+
+      // Get all reconciliations for the month
+      const reconciliations = await this.getReconciliationRecords(startDate, endDate);
+
+      // Get all discrepancies for the month
+      const { data: discrepancies, error: discError } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .select('*')
+        .gte('created_at', `${startDate}T00:00:00.000Z`)
+        .lte('created_at', `${endDate}T23:59:59.999Z`);
+
+      if (discError) {
+        throw new Error(`Failed to fetch discrepancies: ${discError.message}`);
+      }
+
+      // Calculate monthly totals
+      const monthlyTotals = {
+        totalReconciliations: reconciliations.length,
+        totalDiscrepancies: discrepancies?.length || 0,
+        totalSettlementAmount: reconciliations.reduce((sum, r) => sum + r.totalSettlementAmount, 0),
+        avgMatchRate: reconciliations.length > 0 ? 
+          reconciliations.reduce((sum, r) => {
+            const total = r.matchedTransactions + r.unmatchedTransactions;
+            return sum + (total > 0 ? (r.matchedTransactions / total) * 100 : 100);
+          }, 0) / reconciliations.length : 100,
+        avgProcessingTime: reconciliations.length > 0 ? 
+          reconciliations.reduce((sum, r) => {
+            const start = new Date(r.createdAt).getTime();
+            const end = new Date(r.completedAt || r.updatedAt).getTime();
+            return sum + (end - start);
+          }, 0) / reconciliations.length / 1000 : 0
+      };
+
+      // Generate weekly breakdown
+      const weeklyBreakdown = [];
+      const start = new Date(startDate);
+      let currentWeekStart = new Date(start);
+      
+      while (currentWeekStart.getMonth() === month - 1) {
+        const weekEnd = new Date(currentWeekStart);
+        weekEnd.setDate(currentWeekStart.getDate() + 6);
+        
+        if (weekEnd.getMonth() !== month - 1) {
+          weekEnd.setDate(new Date(year, month, 0).getDate());
+        }
+
+        try {
+          const weekReport = await this.generateWeeklyReport(currentWeekStart.toISOString().split('T')[0]);
+          weeklyBreakdown.push(weekReport);
+        } catch (error) {
+          logger.warn('Failed to generate weekly report', { weekStart: currentWeekStart.toISOString().split('T')[0], error });
+        }
+
+        currentWeekStart.setDate(currentWeekStart.getDate() + 7);
+      }
+
+      // Calculate top discrepancy types
+      const discrepancyTypeCounts: Record<string, number> = {};
+      discrepancies?.forEach(disc => {
+        discrepancyTypeCounts[disc.type] = (discrepancyTypeCounts[disc.type] || 0) + 1;
+      });
+
+      const topDiscrepancyTypes = Object.entries(discrepancyTypeCounts)
+        .map(([type, count]) => ({ type, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      return {
+        year,
+        month,
+        monthlyTotals,
+        weeklyBreakdown,
+        topDiscrepancyTypes
+      };
+
+    } catch (error) {
+      logger.error('Error generating monthly report', { year, month, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Export reconciliation report to CSV format
+   */
+  async exportReconciliationReportToCSV(
+    reconciliationId: string,
+    reportType: 'summary' | 'detailed' | 'discrepancies' = 'summary'
+  ): Promise<string> {
+    try {
+      const report = await this.generateReconciliationReport(reconciliationId, reportType);
+      
+      let csvContent = '';
+      
+      if (reportType === 'summary') {
+        csvContent = `Reconciliation Summary Report\n`;
+        csvContent += `Report ID,${report.id}\n`;
+        csvContent += `Reconciliation ID,${report.reconciliationId}\n`;
+        csvContent += `Generated At,${report.generatedAt}\n`;
+        csvContent += `Generated By,${report.generatedBy}\n\n`;
+        
+        csvContent += `Summary\n`;
+        csvContent += `Total Settlement Amount,${report.summary.totalSettlementAmount}\n`;
+        csvContent += `Total Internal Amount,${report.summary.totalInternalAmount}\n`;
+        csvContent += `Discrepancy Amount,${report.summary.discrepancyAmount}\n`;
+        csvContent += `Discrepancy Count,${report.summary.discrepancyCount}\n`;
+        csvContent += `Match Rate,${report.summary.matchRate.toFixed(2)}%\n`;
+        csvContent += `Total Transactions,${report.summary.totalTransactions}\n`;
+        csvContent += `Matched Transactions,${report.summary.matchedTransactions}\n`;
+        csvContent += `Unmatched Transactions,${report.summary.unmatchedTransactions}\n`;
+      } else if (reportType === 'discrepancies') {
+        csvContent = `Reconciliation Discrepancies Report\n`;
+        csvContent += `Reconciliation ID,${reconciliationId}\n`;
+        csvContent += `Generated At,${report.generatedAt}\n\n`;
+        
+        csvContent += `Discrepancy ID,Type,Severity,Description,Status,Expected Value,Actual Value,Created At\n`;
+        report.discrepancies.forEach(disc => {
+          csvContent += `${disc.id},${disc.type},${disc.severity},"${disc.description}",${disc.status},${disc.expectedValue || ''},${disc.actualValue || ''},${disc.createdAt}\n`;
+        });
+      }
+
+      return csvContent;
+
+    } catch (error) {
+      logger.error('Error exporting reconciliation report to CSV', { reconciliationId, reportType, error });
+      throw error;
+    }
+  }
+
+  /**
+   * Get reconciliation metrics dashboard data
+   */
+  async getReconciliationMetricsDashboard(
+    startDate?: string,
+    endDate?: string
+  ): Promise<{
+    overview: {
+      totalReconciliations: number;
+      completedReconciliations: number;
+      failedReconciliations: number;
+      totalDiscrepancies: number;
+      openDiscrepancies: number;
+      avgMatchRate: number;
+      avgProcessingTime: number;
+    };
+    trends: {
+      daily: Array<{
+        date: string;
+        reconciliations: number;
+        discrepancies: number;
+        matchRate: number;
+      }>;
+      weekly: Array<{
+        week: string;
+        reconciliations: number;
+        discrepancies: number;
+        matchRate: number;
+      }>;
+    };
+    topDiscrepancyTypes: Array<{ type: string; count: number; percentage: number }>;
+    performanceMetrics: {
+      avgProcessingTime: number;
+      successRate: number;
+      discrepancyRate: number;
+    };
+  }> {
+    try {
+      const defaultStartDate = startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const defaultEndDate = endDate || new Date().toISOString().split('T')[0];
+
+      // Get reconciliations for the period
+      const reconciliations = await this.getReconciliationRecords(defaultStartDate, defaultEndDate);
+
+      // Get discrepancies for the period
+      const { data: discrepancies, error: discError } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .select('*')
+        .gte('created_at', `${defaultStartDate}T00:00:00.000Z`)
+        .lte('created_at', `${defaultEndDate}T23:59:59.999Z`);
+
+      if (discError) {
+        throw new Error(`Failed to fetch discrepancies: ${discError.message}`);
+      }
+
+      // Calculate overview metrics
+      const overview = {
+        totalReconciliations: reconciliations.length,
+        completedReconciliations: reconciliations.filter(r => r.status === 'completed').length,
+        failedReconciliations: reconciliations.filter(r => r.status === 'failed').length,
+        totalDiscrepancies: discrepancies?.length || 0,
+        openDiscrepancies: discrepancies?.filter(d => d.status === 'open').length || 0,
+        avgMatchRate: reconciliations.length > 0 ? 
+          reconciliations.reduce((sum, r) => {
+            const total = r.matchedTransactions + r.unmatchedTransactions;
+            return sum + (total > 0 ? (r.matchedTransactions / total) * 100 : 100);
+          }, 0) / reconciliations.length : 100,
+        avgProcessingTime: reconciliations.length > 0 ? 
+          reconciliations.reduce((sum, r) => {
+            const start = new Date(r.createdAt).getTime();
+            const end = new Date(r.completedAt || r.updatedAt).getTime();
+            return sum + (end - start);
+          }, 0) / reconciliations.length / 1000 : 0
+      };
+
+      // Generate daily trends (last 30 days)
+      const dailyTrends = [];
+      const start = new Date(defaultStartDate);
+      const end = new Date(defaultEndDate);
+      
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        const dateStr = d.toISOString().split('T')[0];
+        const dayReconciliations = reconciliations.filter(r => r.reconciliationDate === dateStr);
+        const dayDiscrepancies = discrepancies?.filter(disc => 
+          disc.created_at.startsWith(dateStr)
+        ) || [];
+
+        const dayMatchRate = dayReconciliations.length > 0 ? 
+          dayReconciliations.reduce((sum, r) => {
+            const total = r.matchedTransactions + r.unmatchedTransactions;
+            return sum + (total > 0 ? (r.matchedTransactions / total) * 100 : 100);
+          }, 0) / dayReconciliations.length : 100;
+
+        dailyTrends.push({
+          date: dateStr,
+          reconciliations: dayReconciliations.length,
+          discrepancies: dayDiscrepancies.length,
+          matchRate: dayMatchRate
+        });
+      }
+
+      // Calculate top discrepancy types
+      const discrepancyTypeCounts: Record<string, number> = {};
+      discrepancies?.forEach(disc => {
+        discrepancyTypeCounts[disc.type] = (discrepancyTypeCounts[disc.type] || 0) + 1;
+      });
+
+      const totalDiscrepancies = discrepancies?.length || 1;
+      const topDiscrepancyTypes = Object.entries(discrepancyTypeCounts)
+        .map(([type, count]) => ({ 
+          type, 
+          count, 
+          percentage: (count / totalDiscrepancies) * 100 
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      // Performance metrics
+      const performanceMetrics = {
+        avgProcessingTime: overview.avgProcessingTime,
+        successRate: overview.totalReconciliations > 0 ? 
+          (overview.completedReconciliations / overview.totalReconciliations) * 100 : 100,
+        discrepancyRate: overview.totalReconciliations > 0 ? 
+          (overview.totalDiscrepancies / overview.totalReconciliations) * 100 : 0
+      };
+
+      return {
+        overview,
+        trends: {
+          daily: dailyTrends,
+          weekly: [] // Could be implemented similarly to daily trends
+        },
+        topDiscrepancyTypes,
+        performanceMetrics
+      };
+
+    } catch (error) {
+      logger.error('Error getting reconciliation metrics dashboard', { startDate, endDate, error });
+      throw error;
+    }
+  }
+
+  /**
+   * MANUAL RECONCILIATION TOOLS
+   */
+
+  /**
+   * Manual transaction matching for admin override
+   */
+  async manualTransactionMatch(
+    reconciliationId: string,
+    settlementTransactionId: string,
+    internalTransactionId: string,
+    performedBy: string,
+    reason: string,
+    confidence: number = 100
+  ): Promise<TransactionMatch> {
+    try {
+      logger.info('Manual transaction matching initiated', {
+        reconciliationId,
+        settlementTransactionId,
+        internalTransactionId,
+        performedBy
+      });
+
+      // Get settlement transaction
+      const { data: settlementTxn, error: settlementError } = await this.supabase
+        .from('settlement_transactions')
+        .select('*')
+        .eq('id', settlementTransactionId)
+        .single();
+
+      if (settlementError || !settlementTxn) {
+        throw new Error(`Settlement transaction not found: ${settlementTransactionId}`);
+      }
+
+      // Get internal transaction
+      const { data: internalTxn, error: internalError } = await this.supabase
+        .from('payments')
+        .select('*')
+        .eq('id', internalTransactionId)
+        .single();
+
+      if (internalError || !internalTxn) {
+        throw new Error(`Internal transaction not found: ${internalTransactionId}`);
+      }
+
+      // Create manual match
+      const match: TransactionMatch = {
+        settlementTransaction: {
+          transactionId: settlementTxn.id,
+          paymentId: settlementTxn.payment_id,
+          amount: settlementTxn.amount,
+          fees: settlementTxn.fees,
+          netAmount: settlementTxn.net_amount,
+          status: settlementTxn.status,
+          paymentMethod: settlementTxn.payment_method,
+          cardNumber: settlementTxn.card_number,
+          approvalNumber: settlementTxn.approval_number,
+          processedAt: settlementTxn.processed_at,
+          metadata: settlementTxn.metadata
+        },
+        internalTransaction: internalTxn,
+        matchScore: confidence,
+        matchType: 'manual',
+        confidence,
+        discrepancies: [`Manual match by ${performedBy}: ${reason}`],
+        createdAt: new Date().toISOString()
+      };
+
+      // Store manual match
+      const { error: insertError } = await this.supabase
+        .from('transaction_matches')
+        .insert({
+          reconciliation_id: reconciliationId,
+          settlement_transaction_id: settlementTransactionId,
+          internal_transaction_id: internalTransactionId,
+          match_score: confidence,
+          match_type: 'manual',
+          confidence,
+          discrepancies: match.discrepancies,
+          created_at: match.createdAt,
+          manual_override: true,
+          manual_reason: reason,
+          performed_by: performedBy
+        });
+
+      if (insertError) {
+        throw new Error(`Failed to store manual match: ${insertError.message}`);
+      }
+
+      // Log audit event
+      await this.logReconciliationAuditEvent(
+        reconciliationId,
+        'manual_transaction_match',
+        performedBy,
+        {
+          settlementTransactionId,
+          internalTransactionId,
+          reason,
+          confidence
+        }
+      );
+
+      logger.info('Manual transaction match completed', {
+        reconciliationId,
+        settlementTransactionId,
+        internalTransactionId,
+        performedBy
+      });
+
+      return match;
+
+    } catch (error) {
+      logger.error('Error in manual transaction matching', {
+        reconciliationId,
+        settlementTransactionId,
+        internalTransactionId,
+        performedBy,
+        error
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Bulk reconciliation for historical data cleanup
+   */
+  async bulkReconciliation(
+    startDate: string,
+    endDate: string,
+    performedBy: string,
+    options: {
+      autoResolve?: boolean;
+      forceMatch?: boolean;
+      skipValidation?: boolean;
+    } = {}
+  ): Promise<{
+    processedReconciliations: number;
+    successfulReconciliations: number;
+    failedReconciliations: number;
+    totalDiscrepancies: number;
+    resolvedDiscrepancies: number;
+    processingTime: number;
+  }> {
+    try {
+      const startTime = Date.now();
+      logger.info('Starting bulk reconciliation', {
+        startDate,
+        endDate,
+        performedBy,
+        options
+      });
+
+      // Get all reconciliations in date range
+      const reconciliations = await this.getReconciliationRecords(startDate, endDate);
+      
+      let processedReconciliations = 0;
+      let successfulReconciliations = 0;
+      let failedReconciliations = 0;
+      let totalDiscrepancies = 0;
+      let resolvedDiscrepancies = 0;
+
+      for (const reconciliation of reconciliations) {
+        try {
+          processedReconciliations++;
+
+          // Skip if already completed and not forcing
+          if (reconciliation.status === 'completed' && !options.forceMatch) {
+            successfulReconciliations++;
+            continue;
+          }
+
+          // Perform reconciliation
+          const result = await this.completeReconciliation(
+            reconciliation.id,
+            performedBy,
+            options.autoResolve || false
+          );
+
+          successfulReconciliations++;
+          totalDiscrepancies += result.discrepancies.length;
+          resolvedDiscrepancies += result.autoResolution.resolved + result.autoResolution.ignored;
+
+          // Log progress
+          if (processedReconciliations % 10 === 0) {
+            logger.info('Bulk reconciliation progress', {
+              processed: processedReconciliations,
+              total: reconciliations.length,
+              successful: successfulReconciliations,
+              failed: failedReconciliations
+            });
+          }
+
+        } catch (error) {
+          failedReconciliations++;
+          logger.error('Failed to process reconciliation in bulk operation', {
+            reconciliationId: reconciliation.id,
+            error
+          });
+
+          // Create alert for failed reconciliation
+          await this.createReconciliationAlert(
+            reconciliation.id,
+            'failure',
+            `Bulk reconciliation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+            'high'
+          );
+        }
+      }
+
+      const processingTime = Date.now() - startTime;
+
+      // Log audit event
+      await this.logReconciliationAuditEvent(
+        'bulk_operation',
+        'bulk_reconciliation',
+        performedBy,
+        {
+          startDate,
+          endDate,
+          processedReconciliations,
+          successfulReconciliations,
+          failedReconciliations,
+          totalDiscrepancies,
+          resolvedDiscrepancies,
+          processingTime,
+          options
+        }
+      );
+
+      logger.info('Bulk reconciliation completed', {
+        processedReconciliations,
+        successfulReconciliations,
+        failedReconciliations,
+        totalDiscrepancies,
+        resolvedDiscrepancies,
+        processingTime
+      });
+
+      return {
+        processedReconciliations,
+        successfulReconciliations,
+        failedReconciliations,
+        totalDiscrepancies,
+        resolvedDiscrepancies,
+        processingTime
+      };
+
+    } catch (error) {
+      logger.error('Error in bulk reconciliation', {
+        startDate,
+        endDate,
+        performedBy,
+        error
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Override reconciliation status (admin only)
+   */
+  async overrideReconciliationStatus(
+    reconciliationId: string,
+    newStatus: 'completed' | 'failed' | 'discrepancy' | 'pending',
+    performedBy: string,
+    reason: string,
+    force: boolean = false
+  ): Promise<void> {
+    try {
+      logger.info('Overriding reconciliation status', {
+        reconciliationId,
+        newStatus,
+        performedBy,
+        reason,
+        force
+      });
+
+      const reconciliation = await this.getReconciliationRecord(reconciliationId);
+      if (!reconciliation) {
+        throw new Error(`Reconciliation not found: ${reconciliationId}`);
+      }
+
+      // Validate status transition
+      if (!force && !this.isValidStatusTransition(reconciliation.status, newStatus)) {
+        throw new Error(`Invalid status transition from ${reconciliation.status} to ${newStatus}`);
+      }
+
+      // Update reconciliation status
+      const { error } = await this.supabase
+        .from('reconciliation_records')
+        .update({
+          status: newStatus,
+          updated_at: new Date().toISOString(),
+          ...(newStatus === 'completed' && {
+            completed_by: performedBy,
+            completed_at: new Date().toISOString()
+          })
+        })
+        .eq('id', reconciliationId);
+
+      if (error) {
+        throw new Error(`Failed to update reconciliation status: ${error.message}`);
+      }
+
+      // Log audit event
+      await this.logReconciliationAuditEvent(
+        reconciliationId,
+        'status_override',
+        performedBy,
+        {
+          oldStatus: reconciliation.status,
+          newStatus,
+          reason,
+          force
+        }
+      );
+
+      logger.info('Reconciliation status override completed', {
+        reconciliationId,
+        newStatus,
+        performedBy
+      });
+
+    } catch (error) {
+      logger.error('Error overriding reconciliation status', {
+        reconciliationId,
+        newStatus,
+        performedBy,
+        error
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Validate status transition
+   */
+  private isValidStatusTransition(currentStatus: string, newStatus: string): boolean {
+    const validTransitions: Record<string, string[]> = {
+      'pending': ['in_progress', 'completed', 'failed'],
+      'in_progress': ['completed', 'failed', 'discrepancy'],
+      'completed': ['discrepancy'], // Can be reopened if discrepancies found
+      'failed': ['pending', 'in_progress'], // Can be retried
+      'discrepancy': ['completed', 'failed'] // Can be resolved or marked as failed
+    };
+
+    return validTransitions[currentStatus]?.includes(newStatus) || false;
+  }
+
+  /**
+   * ENHANCED ALERTING SYSTEM
+   */
+
+  /**
+   * Start real-time monitoring for reconciliation alerts
+   */
+  async startRealtimeMonitoring(): Promise<void> {
+    try {
+      logger.info('Starting real-time reconciliation monitoring');
+
+      // Check for high discrepancy counts
+      const highDiscrepancyAlerts = await this.checkHighDiscrepancyCounts();
+      
+      // Check for processing delays
+      const processingDelayAlerts = await this.checkProcessingDelays();
+      
+      // Check for reconciliation failures
+      const failureAlerts = await this.checkReconciliationFailures();
+
+      logger.info('Real-time monitoring checks completed', {
+        highDiscrepancyAlerts: highDiscrepancyAlerts.length,
+        processingDelayAlerts: processingDelayAlerts.length,
+        failureAlerts: failureAlerts.length
+      });
+
+    } catch (error) {
+      logger.error('Error in real-time monitoring', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Check for high discrepancy counts and create alerts
+   */
+  private async checkHighDiscrepancyCounts(): Promise<any[]> {
+    try {
+      const alerts: any[] = [];
+
+      // Check reconciliations from last 24 hours
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
+
+      const reconciliations = await this.getReconciliationRecords(yesterday, today);
+
+      for (const reconciliation of reconciliations) {
+        // High discrepancy threshold: > 10 discrepancies
+        if (reconciliation.discrepancyCount > 10) {
+          await this.createReconciliationAlert(
+            reconciliation.id,
+            'discrepancy',
+            `High discrepancy count detected: ${reconciliation.discrepancyCount} discrepancies found`,
+            'high',
+            {
+              discrepancyCount: reconciliation.discrepancyCount,
+              threshold: 10,
+              reconciliationDate: reconciliation.reconciliationDate
+            }
+          );
+          alerts.push({ reconciliationId: reconciliation.id, type: 'high_discrepancy' });
+        }
+
+        // Critical discrepancy threshold: > 50 discrepancies
+        if (reconciliation.discrepancyCount > 50) {
+          await this.createReconciliationAlert(
+            reconciliation.id,
+            'discrepancy',
+            `Critical discrepancy count detected: ${reconciliation.discrepancyCount} discrepancies found`,
+            'critical',
+            {
+              discrepancyCount: reconciliation.discrepancyCount,
+              threshold: 50,
+              reconciliationDate: reconciliation.reconciliationDate
+            }
+          );
+          alerts.push({ reconciliationId: reconciliation.id, type: 'critical_discrepancy' });
+        }
+      }
+
+      return alerts;
+
+    } catch (error) {
+      logger.error('Error checking high discrepancy counts', { error });
+      return [];
+    }
+  }
+
+  /**
+   * Check for processing delays and create alerts
+   */
+  private async checkProcessingDelays(): Promise<any[]> {
+    try {
+      const alerts: any[] = [];
+
+      // Check reconciliations that have been in progress for more than 2 hours
+      const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+
+      const { data: delayedReconciliations, error } = await this.supabase
+        .from('reconciliation_records')
+        .select('*')
+        .eq('status', 'in_progress')
+        .lt('updated_at', twoHoursAgo);
+
+      if (error) {
+        throw new Error(`Failed to fetch delayed reconciliations: ${error.message}`);
+      }
+
+      for (const reconciliation of delayedReconciliations || []) {
+        await this.createReconciliationAlert(
+          reconciliation.id,
+          'warning',
+          `Reconciliation processing delay: ${reconciliation.id} has been in progress for over 2 hours`,
+          'medium',
+          {
+            reconciliationId: reconciliation.id,
+            status: reconciliation.status,
+            lastUpdated: reconciliation.updated_at,
+            delayHours: 2
+          }
+        );
+        alerts.push({ reconciliationId: reconciliation.id, type: 'processing_delay' });
+      }
+
+      return alerts;
+
+    } catch (error) {
+      logger.error('Error checking processing delays', { error });
+      return [];
+    }
+  }
+
+  /**
+   * Check for reconciliation failures and create alerts
+   */
+  private async checkReconciliationFailures(): Promise<any[]> {
+    try {
+      const alerts: any[] = [];
+
+      // Check failed reconciliations from last 24 hours
+      const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+      const today = new Date().toISOString().split('T')[0];
+
+      const { data: failedReconciliations, error } = await this.supabase
+        .from('reconciliation_records')
+        .select('*')
+        .eq('status', 'failed')
+        .gte('reconciliation_date', yesterday)
+        .lte('reconciliation_date', today);
+
+      if (error) {
+        throw new Error(`Failed to fetch failed reconciliations: ${error.message}`);
+      }
+
+      for (const reconciliation of failedReconciliations || []) {
+        await this.createReconciliationAlert(
+          reconciliation.id,
+          'failure',
+          `Reconciliation failed: ${reconciliation.id} failed to complete`,
+          'high',
+          {
+            reconciliationId: reconciliation.id,
+            reconciliationDate: reconciliation.reconciliation_date,
+            failureTime: reconciliation.updated_at
+          }
+        );
+        alerts.push({ reconciliationId: reconciliation.id, type: 'reconciliation_failure' });
+      }
+
+      return alerts;
+
+    } catch (error) {
+      logger.error('Error checking reconciliation failures', { error });
+      return [];
+    }
+  }
+
+  /**
+   * DATA ARCHIVING SYSTEM
+   */
+
+  /**
+   * Archive old reconciliation data based on retention policies
+   */
+  async archiveOldReconciliationData(
+    performedBy: string,
+    retentionDays: number = 90,
+    archiveYears: number = 7
+  ): Promise<{
+    archivedReconciliations: number;
+    archivedDiscrepancies: number;
+    archivedReports: number;
+    archivedAlerts: number;
+  }> {
+    try {
+      logger.info('Starting reconciliation data archiving', {
+        performedBy,
+        retentionDays,
+        archiveYears
+      });
+
+      const archiveDate = new Date(Date.now() - retentionDays * 24 * 60 * 60 * 1000).toISOString();
+      const deleteDate = new Date(Date.now() - archiveYears * 365 * 24 * 60 * 60 * 1000).toISOString();
+
+      let archivedReconciliations = 0;
+      let archivedDiscrepancies = 0;
+      let archivedReports = 0;
+      let archivedAlerts = 0;
+
+      // Archive old reconciliation records (move to archive table)
+      const { data: oldReconciliations, error: reconciliationError } = await this.supabase
+        .from('reconciliation_records')
+        .select('*')
+        .lt('created_at', archiveDate)
+        .eq('status', 'completed'); // Only archive completed reconciliations
+
+      if (reconciliationError) {
+        throw new Error(`Failed to fetch old reconciliations: ${reconciliationError.message}`);
+      }
+
+      if (oldReconciliations && oldReconciliations.length > 0) {
+        // Move to archive table (assuming reconciliation_archives table exists)
+        const { error: archiveError } = await this.supabase
+          .from('reconciliation_archives')
+          .insert(oldReconciliations.map(rec => ({
+            ...rec,
+            archived_at: new Date().toISOString(),
+            archived_by: performedBy
+          })));
+
+        if (archiveError) {
+          logger.warn('Failed to archive reconciliation records', { error: archiveError });
+        } else {
+          // Delete from main table after successful archive
+          const { error: deleteError } = await this.supabase
+            .from('reconciliation_records')
+            .delete()
+            .in('id', oldReconciliations.map(r => r.id));
+
+          if (deleteError) {
+            logger.warn('Failed to delete archived reconciliation records', { error: deleteError });
+          } else {
+            archivedReconciliations = oldReconciliations.length;
+          }
+        }
+      }
+
+      // Archive old discrepancies
+      const { data: oldDiscrepancies, error: discrepancyError } = await this.supabase
+        .from('reconciliation_discrepancies')
+        .select('*')
+        .lt('created_at', archiveDate)
+        .eq('status', 'resolved'); // Only archive resolved discrepancies
+
+      if (!discrepancyError && oldDiscrepancies && oldDiscrepancies.length > 0) {
+        const { error: archiveError } = await this.supabase
+          .from('reconciliation_discrepancy_archives')
+          .insert(oldDiscrepancies.map(disc => ({
+            ...disc,
+            archived_at: new Date().toISOString(),
+            archived_by: performedBy
+          })));
+
+        if (!archiveError) {
+          const { error: deleteError } = await this.supabase
+            .from('reconciliation_discrepancies')
+            .delete()
+            .in('id', oldDiscrepancies.map(d => d.id));
+
+          if (!deleteError) {
+            archivedDiscrepancies = oldDiscrepancies.length;
+          }
+        }
+      }
+
+      // Archive old reports
+      const { data: oldReports, error: reportError } = await this.supabase
+        .from('reconciliation_reports')
+        .select('*')
+        .lt('generated_at', archiveDate);
+
+      if (!reportError && oldReports && oldReports.length > 0) {
+        const { error: archiveError } = await this.supabase
+          .from('reconciliation_report_archives')
+          .insert(oldReports.map(report => ({
+            ...report,
+            archived_at: new Date().toISOString(),
+            archived_by: performedBy
+          })));
+
+        if (!archiveError) {
+          const { error: deleteError } = await this.supabase
+            .from('reconciliation_reports')
+            .delete()
+            .in('id', oldReports.map(r => r.id));
+
+          if (!deleteError) {
+            archivedReports = oldReports.length;
+          }
+        }
+      }
+
+      // Archive old alerts
+      const { data: oldAlerts, error: alertError } = await this.supabase
+        .from('reconciliation_alerts')
+        .select('*')
+        .lt('created_at', archiveDate)
+        .eq('status', 'resolved'); // Only archive resolved alerts
+
+      if (!alertError && oldAlerts && oldAlerts.length > 0) {
+        const { error: archiveError } = await this.supabase
+          .from('reconciliation_alert_archives')
+          .insert(oldAlerts.map(alert => ({
+            ...alert,
+            archived_at: new Date().toISOString(),
+            archived_by: performedBy
+          })));
+
+        if (!archiveError) {
+          const { error: deleteError } = await this.supabase
+            .from('reconciliation_alerts')
+            .delete()
+            .in('id', oldAlerts.map(a => a.id));
+
+          if (!deleteError) {
+            archivedAlerts = oldAlerts.length;
+          }
+        }
+      }
+
+      // Log audit event
+      await this.logReconciliationAuditEvent(
+        'archive_operation',
+        'data_archiving',
+        performedBy,
+        {
+          retentionDays,
+          archiveYears,
+          archivedReconciliations,
+          archivedDiscrepancies,
+          archivedReports,
+          archivedAlerts
+        }
+      );
+
+      logger.info('Reconciliation data archiving completed', {
+        archivedReconciliations,
+        archivedDiscrepancies,
+        archivedReports,
+        archivedAlerts
+      });
+
+      return {
+        archivedReconciliations,
+        archivedDiscrepancies,
+        archivedReports,
+        archivedAlerts
+      };
+
+    } catch (error) {
+      logger.error('Error in reconciliation data archiving', {
+        performedBy,
+        retentionDays,
+        archiveYears,
+        error
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Get archiving statistics
+   */
+  async getArchivingStatistics(): Promise<{
+    totalArchivedReconciliations: number;
+    totalArchivedDiscrepancies: number;
+    totalArchivedReports: number;
+    totalArchivedAlerts: number;
+    oldestArchiveDate: string;
+    newestArchiveDate: string;
+    storageUsage: {
+      activeData: number;
+      archivedData: number;
+      totalData: number;
+    };
+  }> {
+    try {
+      // Get archived data counts
+      const [
+        { count: archivedReconciliations },
+        { count: archivedDiscrepancies },
+        { count: archivedReports },
+        { count: archivedAlerts }
+      ] = await Promise.all([
+        this.supabase.from('reconciliation_archives').select('*', { count: 'exact', head: true }),
+        this.supabase.from('reconciliation_discrepancy_archives').select('*', { count: 'exact', head: true }),
+        this.supabase.from('reconciliation_report_archives').select('*', { count: 'exact', head: true }),
+        this.supabase.from('reconciliation_alert_archives').select('*', { count: 'exact', head: true })
+      ]);
+
+      // Get active data counts
+      const [
+        { count: activeReconciliations },
+        { count: activeDiscrepancies },
+        { count: activeReports },
+        { count: activeAlerts }
+      ] = await Promise.all([
+        this.supabase.from('reconciliation_records').select('*', { count: 'exact', head: true }),
+        this.supabase.from('reconciliation_discrepancies').select('*', { count: 'exact', head: true }),
+        this.supabase.from('reconciliation_reports').select('*', { count: 'exact', head: true }),
+        this.supabase.from('reconciliation_alerts').select('*', { count: 'exact', head: true })
+      ]);
+
+      // Get archive date range
+      const { data: oldestArchive, error: oldestError } = await this.supabase
+        .from('reconciliation_archives')
+        .select('archived_at')
+        .order('archived_at', { ascending: true })
+        .limit(1);
+
+      const { data: newestArchive, error: newestError } = await this.supabase
+        .from('reconciliation_archives')
+        .select('archived_at')
+        .order('archived_at', { ascending: false })
+        .limit(1);
+
+      const totalArchived = (archivedReconciliations || 0) + (archivedDiscrepancies || 0) + (archivedReports || 0) + (archivedAlerts || 0);
+      const totalActive = (activeReconciliations || 0) + (activeDiscrepancies || 0) + (activeReports || 0) + (activeAlerts || 0);
+
+      return {
+        totalArchivedReconciliations: archivedReconciliations || 0,
+        totalArchivedDiscrepancies: archivedDiscrepancies || 0,
+        totalArchivedReports: archivedReports || 0,
+        totalArchivedAlerts: archivedAlerts || 0,
+        oldestArchiveDate: oldestArchive?.[0]?.archived_at || 'N/A',
+        newestArchiveDate: newestArchive?.[0]?.archived_at || 'N/A',
+        storageUsage: {
+          activeData: totalActive,
+          archivedData: totalArchived,
+          totalData: totalActive + totalArchived
+        }
+      };
+
+    } catch (error) {
+      logger.error('Error getting archiving statistics', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Create automated reconciliation alerts based on thresholds
+   */
+  async createAutomatedAlerts(reconciliationId: string): Promise<void> {
+    try {
+      const reconciliation = await this.getReconciliationRecord(reconciliationId);
+      if (!reconciliation) {
+        throw new Error(`Reconciliation record not found: ${reconciliationId}`);
+      }
+
+      const stats = await this.getDiscrepancyStatistics(reconciliationId);
+      const discrepancies = await this.getDiscrepancies(reconciliationId);
+
+      // High discrepancy count alert
+      if (stats.openCount > 10) {
+        await this.createReconciliationAlert(
+          reconciliationId,
+          'discrepancy',
+          `High number of open discrepancies detected: ${stats.openCount}`,
+          'high',
+          { discrepancyCount: stats.openCount, threshold: 10 }
+        );
+      }
+
+      // Critical severity discrepancies alert
+      if (stats.bySeverity.high > 5) {
+        await this.createReconciliationAlert(
+          reconciliationId,
+          'discrepancy',
+          `Multiple high-severity discrepancies found: ${stats.bySeverity.high}`,
+          'critical',
+          { highSeverityCount: stats.bySeverity.high, threshold: 5 }
+        );
+      }
+
+      // Low match rate alert
+      const matchRate = reconciliation.matchedTransactions / (reconciliation.matchedTransactions + reconciliation.unmatchedTransactions) * 100;
+      if (matchRate < 90) {
+        await this.createReconciliationAlert(
+          reconciliationId,
+          'warning',
+          `Low transaction match rate: ${matchRate.toFixed(2)}%`,
+          'medium',
+          { matchRate, threshold: 90 }
+        );
+      }
+
+      // Large discrepancy amount alert
+      if (reconciliation.discrepancyAmount > 100000) { // 100,000 KRW
+        await this.createReconciliationAlert(
+          reconciliationId,
+          'discrepancy',
+          `Large discrepancy amount detected: ${reconciliation.discrepancyAmount} KRW`,
+          'high',
+          { discrepancyAmount: reconciliation.discrepancyAmount, threshold: 100000 }
+        );
+      }
+
+      // Missing transactions alert
+      if (stats.byType.missing_transaction > 0) {
+        await this.createReconciliationAlert(
+          reconciliationId,
+          'warning',
+          `Missing internal transactions detected: ${stats.byType.missing_transaction}`,
+          'medium',
+          { missingTransactionCount: stats.byType.missing_transaction }
+        );
+      }
+
+      this.logger.info('Automated alerts created for reconciliation', {
+        reconciliationId,
+        alertsCreated: {
+          highDiscrepancyCount: stats.openCount > 10,
+          criticalSeverity: stats.bySeverity.high > 5,
+          lowMatchRate: matchRate < 90,
+          largeDiscrepancyAmount: reconciliation.discrepancyAmount > 100000,
+          missingTransactions: stats.byType.missing_transaction > 0
+        }
+      });
+    } catch (error) {
+      this.logger.error('Failed to create automated alerts', { error, reconciliationId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get manual reconciliation tools data
+   */
+  async getManualReconciliationTools(reconciliationId: string): Promise<{
+    reconciliation: ReconciliationRecord;
+    settlement: SettlementData;
+    discrepancies: ReconciliationDiscrepancy[];
+    statistics: any;
+    recommendations: string[];
+    transactionMatches: any[];
+    alerts: any[];
+  }> {
+    try {
+      const reconciliation = await this.getReconciliationRecord(reconciliationId);
+      if (!reconciliation) {
+        throw new Error(`Reconciliation record not found: ${reconciliationId}`);
+      }
+
+      const settlement = await this.getSettlementDataById(reconciliation.settlementId);
+      if (!settlement) {
+        throw new Error(`Settlement data not found: ${reconciliation.settlementId}`);
+      }
+
+      const discrepancies = await this.getDiscrepancies(reconciliationId);
+      const statistics = await this.getDiscrepancyStatistics(reconciliationId);
+      const alerts = await this.getReconciliationAlerts(reconciliationId);
+
+      // Get transaction matches
+      const { data: matches, error: matchesError } = await this.supabase
+        .from('transaction_matches')
+        .select('*')
+        .eq('reconciliation_id', reconciliationId);
+
+      if (matchesError) {
+        throw new Error(`Failed to fetch transaction matches: ${matchesError.message}`);
+      }
+
+      const recommendations = this.generateRecommendations(statistics, discrepancies);
+
+      return {
+        reconciliation,
+        settlement,
+        discrepancies,
+        statistics,
+        recommendations,
+        transactionMatches: matches || [],
+        alerts
+      };
+    } catch (error) {
+      this.logger.error('Failed to get manual reconciliation tools data', { error, reconciliationId });
+      throw error;
+    }
+  }
+
+  /**
+   * Manual discrepancy resolution
+   */
+  async manualResolveDiscrepancy(
+    discrepancyId: string,
+    resolution: string,
+    resolvedBy: string,
+    resolutionType: 'resolve' | 'ignore' = 'resolve',
+    metadata?: Record<string, any>
+  ): Promise<void> {
+    try {
+      if (resolutionType === 'resolve') {
+        await this.resolveDiscrepancy(discrepancyId, resolution, resolvedBy);
+      } else {
+        await this.ignoreDiscrepancy(discrepancyId, resolution, resolvedBy);
+      }
+
+      // Log audit event
+      await this.logReconciliationAuditEvent(
+        discrepancyId, // Using discrepancyId as reconciliationId for audit trail
+        `manual_${resolutionType}_discrepancy`,
+        resolvedBy,
+        {
+          discrepancyId,
+          resolution,
+          resolutionType,
+          metadata
+        }
+      );
+
+      this.logger.info('Manual discrepancy resolution completed', {
+        discrepancyId,
+        resolutionType,
+        resolvedBy
+      });
+    } catch (error) {
+      this.logger.error('Failed to manually resolve discrepancy', { error, discrepancyId });
+      throw error;
+    }
+  }
+
+  /**
+   * Bulk discrepancy resolution
+   */
+  async bulkResolveDiscrepancies(
+    discrepancyIds: string[],
+    resolution: string,
+    resolvedBy: string,
+    resolutionType: 'resolve' | 'ignore' = 'resolve'
+  ): Promise<{
+    successful: number;
+    failed: number;
+    errors: string[];
+  }> {
+    const results = {
+      successful: 0,
+      failed: 0,
+      errors: [] as string[]
+    };
+
+    for (const discrepancyId of discrepancyIds) {
+      try {
+        await this.manualResolveDiscrepancy(
+          discrepancyId,
+          resolution,
+          resolvedBy,
+          resolutionType
+        );
+        results.successful++;
+      } catch (error) {
+        results.failed++;
+        results.errors.push(`Discrepancy ${discrepancyId}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+
+    this.logger.info('Bulk discrepancy resolution completed', {
+      total: discrepancyIds.length,
+      successful: results.successful,
+      failed: results.failed,
+      resolvedBy
+    });
+
+    return results;
+  }
+
+  /**
+   * Force reconciliation completion
+   */
+  async forceReconciliationCompletion(
+    reconciliationId: string,
+    completedBy: string,
+    forceReason: string
+  ): Promise<void> {
+    try {
+      const reconciliation = await this.getReconciliationRecord(reconciliationId);
+      if (!reconciliation) {
+        throw new Error(`Reconciliation record not found: ${reconciliationId}`);
+      }
+
+      // Update reconciliation record to completed status
+      const { error: updateError } = await this.supabase
+        .from('reconciliation_records')
+        .update({
+          status: 'completed',
+          completed_by: completedBy,
+          completed_at: new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', reconciliationId);
+
+      if (updateError) {
+        throw new Error(`Failed to force reconciliation completion: ${updateError.message}`);
+      }
+
+      // Create alert for forced completion
+      await this.createReconciliationAlert(
+        reconciliationId,
+        'info',
+        `Reconciliation force completed: ${forceReason}`,
+        'medium',
+        { forceReason, completedBy }
+      );
+
+      // Log audit event
+      await this.logReconciliationAuditEvent(
+        reconciliationId,
+        'force_completion',
+        completedBy,
+        { forceReason }
+      );
+
+      this.logger.warn('Reconciliation force completed', {
+        reconciliationId,
+        completedBy,
+        forceReason
+      });
+    } catch (error) {
+      this.logger.error('Failed to force reconciliation completion', { error, reconciliationId });
+      throw error;
+    }
+  }
+
+  /**
+   * Get reconciliation dashboard data
+   */
+  async getReconciliationDashboard(
+    startDate?: string,
+    endDate?: string
+  ): Promise<{
+    summary: {
+      totalReconciliations: number;
+      completedReconciliations: number;
+      pendingReconciliations: number;
+      failedReconciliations: number;
+      totalDiscrepancies: number;
+      openDiscrepancies: number;
+      resolvedDiscrepancies: number;
+      averageMatchRate: number;
+    };
+    recentReconciliations: ReconciliationRecord[];
+    activeAlerts: any[];
+    topDiscrepancies: ReconciliationDiscrepancy[];
+  }> {
+    try {
+      // Get reconciliation records
+      const reconciliations = await this.getReconciliationRecords(startDate, endDate);
+      
+      // Get active alerts
+      const activeAlerts = await this.getReconciliationAlerts(undefined, 'active');
+
+      // Calculate summary statistics
+      const summary = {
+        totalReconciliations: reconciliations.length,
+        completedReconciliations: reconciliations.filter(r => r.status === 'completed').length,
+        pendingReconciliations: reconciliations.filter(r => r.status === 'pending').length,
+        failedReconciliations: reconciliations.filter(r => r.status === 'failed').length,
+        totalDiscrepancies: reconciliations.reduce((sum, r) => sum + r.discrepancyCount, 0),
+        openDiscrepancies: 0, // Will be calculated from individual discrepancy queries
+        resolvedDiscrepancies: 0, // Will be calculated from individual discrepancy queries
+        averageMatchRate: 0 // Will be calculated
+      };
+
+      // Calculate average match rate
+      if (reconciliations.length > 0) {
+        const totalMatchRate = reconciliations.reduce((sum, r) => {
+          const matchRate = r.matchedTransactions / (r.matchedTransactions + r.unmatchedTransactions) * 100;
+          return sum + (isNaN(matchRate) ? 0 : matchRate);
+        }, 0);
+        summary.averageMatchRate = totalMatchRate / reconciliations.length;
+      }
+
+      // Get recent reconciliations (last 10)
+      const recentReconciliations = reconciliations
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10);
+
+      // Get top discrepancies (most recent open discrepancies)
+      const topDiscrepancies: ReconciliationDiscrepancy[] = [];
+      for (const reconciliation of recentReconciliations.slice(0, 5)) {
+        const discrepancies = await this.getDiscrepancies(reconciliation.id);
+        const openDiscrepancies = discrepancies.filter(d => d.status === 'open');
+        topDiscrepancies.push(...openDiscrepancies.slice(0, 3));
+      }
+
+      // Update summary with discrepancy counts
+      summary.openDiscrepancies = topDiscrepancies.filter(d => d.status === 'open').length;
+      summary.resolvedDiscrepancies = topDiscrepancies.filter(d => d.status === 'resolved').length;
+
+      return {
+        summary,
+        recentReconciliations,
+        activeAlerts,
+        topDiscrepancies: topDiscrepancies.slice(0, 10)
+      };
+    } catch (error) {
+      this.logger.error('Failed to get reconciliation dashboard data', { error });
+      throw error;
+    }
+  }
+
+  /**
+   * Export reconciliation data
+   */
+  async exportReconciliationData(
+    reconciliationId: string,
+    format: 'json' | 'csv' = 'json'
+  ): Promise<{
+    data: any;
+    format: string;
+    exportedAt: string;
+    exportedBy: string;
+  }> {
+    try {
+      const toolsData = await this.getManualReconciliationTools(reconciliationId);
+      
+      const exportData = {
+        reconciliation: toolsData.reconciliation,
+        settlement: toolsData.settlement,
+        discrepancies: toolsData.discrepancies,
+        statistics: toolsData.statistics,
+        transactionMatches: toolsData.transactionMatches,
+        alerts: toolsData.alerts,
+        recommendations: toolsData.recommendations,
+        exportedAt: new Date().toISOString(),
+        exportedBy: 'system'
+      };
+
+      if (format === 'csv') {
+        // Convert to CSV format (simplified implementation)
+        const csvData = this.convertToCSV(exportData);
+        return {
+          data: csvData,
+          format: 'csv',
+          exportedAt: exportData.exportedAt,
+          exportedBy: exportData.exportedBy
+        };
+      }
+
+      return {
+        data: exportData,
+        format: 'json',
+        exportedAt: exportData.exportedAt,
+        exportedBy: exportData.exportedBy
+      };
+    } catch (error) {
+      this.logger.error('Failed to export reconciliation data', { error, reconciliationId });
+      throw error;
+    }
+  }
+
+  /**
+   * Convert data to CSV format
+   */
+  private convertToCSV(data: any): string {
+    // Simplified CSV conversion - in a real implementation, you'd use a proper CSV library
+    const lines: string[] = [];
+    
+    // Add headers
+    lines.push('Type,ID,Status,Amount,Description');
+    
+    // Add reconciliation data
+    lines.push(`Reconciliation,${data.reconciliation.id},${data.reconciliation.status},${data.reconciliation.totalSettlementAmount},Reconciliation Record`);
+    
+    // Add discrepancies
+    data.discrepancies.forEach((d: any) => {
+      lines.push(`Discrepancy,${d.id},${d.status},${d.expectedValue || 0},${d.description}`);
+    });
+    
+    return lines.join('\n');
+  }
+}
+
+export const paymentReconciliationService = new PaymentReconciliationService();

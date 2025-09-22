@@ -12,6 +12,7 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { PointStatus } from '../types/database.types';
+import { POINT_CALCULATIONS, POINT_POLICY_V32 } from '../constants/point-policies';
 
 export interface PointProcessingStats {
   pendingProcessed: number;
@@ -595,17 +596,18 @@ export class PointProcessingService {
         shopId
       });
 
-      // Calculate points based on final amount (2.5% rate, 300,000 KRW max)
-      const maxEligibleAmount = 300000; // 300,000 KRW
-      const eligibleAmount = Math.min(finalAmount, maxEligibleAmount);
-      const pointsToAward = Math.floor(eligibleAmount * 0.025); // 2.5% rate
+      // Calculate points using v3.2 policies
+      const pointsToAward = POINT_CALCULATIONS.calculateServicePoints(
+        finalAmount,
+        false, // Will be determined by user data
+        1.0 // Will be calculated based on user tier
+      );
 
       if (pointsToAward <= 0) {
         logger.info('No points to award for completion', {
           reservationId,
           userId,
           finalAmount,
-          eligibleAmount,
           pointsToAward
         });
 
@@ -632,7 +634,7 @@ export class PointProcessingService {
             shopId,
             shopName,
             finalAmount,
-            eligibleAmount,
+            eligibleAmount: Math.min(finalAmount, POINT_POLICY_V32.MAX_ELIGIBLE_AMOUNT),
             pointRate: 0.025,
             services: services.map(s => ({
               serviceId: s.service_id,
@@ -672,7 +674,7 @@ export class PointProcessingService {
         pointsToAward,
         transactionId: pointTransaction.id,
         finalAmount,
-        eligibleAmount
+        eligibleAmount: Math.min(finalAmount, POINT_POLICY_V32.MAX_ELIGIBLE_AMOUNT)
       });
 
       // Process referral bonuses if applicable

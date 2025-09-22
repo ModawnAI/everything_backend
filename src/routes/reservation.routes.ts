@@ -3,6 +3,11 @@
  * tags:
  *   - name: 예약
  *     description: 예약 생성, 수정, 취소 API
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 /**
@@ -127,8 +132,13 @@ const reservationIdSchema = Joi.object({
  *   get:
  *     tags:
  *       - Reservations
- *     summary: Get available time slots
+ *     summary: available time slots 조회
  *     description: Get available time slots for a shop on a specific date
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     parameters:
  *       - name: shopId
  *         in: path
@@ -189,6 +199,31 @@ const reservationIdSchema = Joi.object({
  *         $ref: '#/components/responses/NotFound'
  */
 
+/**
+ * @swagger
+ * /shops/:shopId/available-slots:
+ *   get:
+ *     summary: /shops/:shopId/available-slots 조회
+ *     description: GET endpoint for /shops/:shopId/available-slots
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Reservation]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/shops/:shopId/available-slots',
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
   async (req, res) => {
@@ -216,8 +251,13 @@ router.get('/shops/:shopId/available-slots',
  * @swagger
  * /api/reservations:
  *   post:
- *     summary: Create a new reservation
+ *     summary: a new reservation 생성
  *     description: Create a new reservation with services, date, and time
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -297,6 +337,31 @@ router.get('/shops/:shopId/available-slots',
  *         description: Internal server error
  */
 
+/**
+ * @swagger
+ * /:
+ *   post:
+ *     summary: POST / (POST /)
+ *     description: POST endpoint for /
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Reservation]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // 20 requests per 15 minutes
@@ -326,8 +391,13 @@ router.post('/',
  * @swagger
  * /api/reservations:
  *   get:
- *     summary: Get user's reservations
+ *     summary: user's reservations 조회
  *     description: Retrieve user's reservations with filtering options
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -398,6 +468,31 @@ router.post('/',
  *         description: Internal server error
  */
 
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: / 조회
+ *     description: GET endpoint for /
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Reservation]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
@@ -425,8 +520,13 @@ router.get('/',
  * @swagger
  * /api/reservations/{id}:
  *   get:
- *     summary: Get reservation details
+ *     summary: reservation details 조회
  *     description: Retrieve detailed information about a specific reservation
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -505,8 +605,13 @@ const cancelReservationSchema = Joi.object({
  * @swagger
  * /api/reservations/{id}/cancel:
  *   put:
- *     summary: Cancel a reservation
+ *     summary: Cancel a reservation (Cancel a reservation)
  *     description: Cancel a reservation with comprehensive cancellation system and refund processing
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -577,6 +682,31 @@ const cancelReservationSchema = Joi.object({
  *         description: Reservation not found
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /:id/cancel:
+ *   put:
+ *     summary: PUT /:id/cancel (PUT /:id/cancel)
+ *     description: PUT endpoint for /:id/cancel
+ *       
+ *       예약 관련 API입니다. 예약 생성, 조회, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Reservation]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 
 router.put('/:id/cancel',

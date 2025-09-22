@@ -27,8 +27,13 @@ router.use(authenticateJWT);
  * @swagger
  * /users/:userId/points/balance:
  *   get:
- *     summary: GET /users/:userId/points/balance
+ *     summary: /users/:userId/points/balance 조회
  *     description: GET endpoint for /users/:userId/points/balance
+ *       
+ *       포인트 시스템 API입니다. 포인트 적립, 사용, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -58,6 +63,31 @@ router.get('/users/:userId/points/balance', pointBalanceController.getPointBalan
  * 
  * Response: PointHistoryResponse with transactions array and pagination info
  */
+/**
+ * @swagger
+ * /users/:userId/points/history:
+ *   get:
+ *     summary: /users/:userId/points/history 조회
+ *     description: GET endpoint for /users/:userId/points/history
+ *       
+ *       포인트 시스템 API입니다. 포인트 적립, 사용, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Point System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/users/:userId/points/history', pointBalanceController.getPointHistory);
 
 /**
@@ -69,6 +99,31 @@ router.get('/users/:userId/points/history', pointBalanceController.getPointHisto
  * 
  * Response: PointAnalytics with earning/spending statistics
  */
+/**
+ * @swagger
+ * /users/:userId/points/analytics:
+ *   get:
+ *     summary: /users/:userId/points/analytics 조회
+ *     description: GET endpoint for /users/:userId/points/analytics
+ *       
+ *       포인트 시스템 API입니다. 포인트 적립, 사용, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Point System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/users/:userId/points/analytics', pointBalanceController.getPointAnalytics);
 
 /**
@@ -85,8 +140,13 @@ router.get('/users/:userId/points/analytics', pointBalanceController.getPointAna
  * @swagger
  * /users/:userId/points/projection:
  *   get:
- *     summary: GET /users/:userId/points/projection
+ *     summary: /users/:userId/points/projection 조회
  *     description: GET endpoint for /users/:userId/points/projection
+ *       
+ *       포인트 시스템 API입니다. 포인트 적립, 사용, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -109,6 +169,31 @@ router.get('/users/:userId/points/projection', pointBalanceController.getPointPr
  * Query Parameters: None
  * Response: Complete summary with balance, analytics, and projection
  */
+/**
+ * @swagger
+ * /users/:userId/points/summary:
+ *   get:
+ *     summary: /users/:userId/points/summary 조회
+ *     description: GET endpoint for /users/:userId/points/summary
+ *       
+ *       포인트 시스템 API입니다. 포인트 적립, 사용, 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Point System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/users/:userId/points/summary', pointBalanceController.getPointSummary);
 
 export default router; 

@@ -102,6 +102,11 @@ const updateRateLimit = rateLimit({
  *           type: string
  *           enum: [phone, email, kakao_channel, instagram, facebook, website, other]
  *           description: Type of contact method
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         value:
  *           type: string
  *           description: The contact information (phone number, email, URL, etc.)
@@ -194,14 +199,24 @@ const updateRateLimit = rateLimit({
  * tags:
  *   name: Shop Contact Methods
  *   description: API endpoints for managing shop contact methods
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 /**
  * @swagger
  * /api/shop/contact-methods:
  *   put:
- *     summary: Update shop contact methods
+ *     summary: shop contact methods 수정
  *     description: Update all contact methods for a shop. This replaces existing contact methods with the provided ones.
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Contact Methods]
  *     security:
  *       - bearerAuth: []
@@ -313,8 +328,13 @@ router.put(
  * @swagger
  * /api/shop/contact-methods:
  *   get:
- *     summary: Get shop contact methods
+ *     summary: shop contact methods 조회
  *     description: Retrieve all contact methods for a shop
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Contact Methods]
  *     security:
  *       - bearerAuth: []
@@ -343,8 +363,13 @@ router.get(
  * @swagger
  * /api/shop/contact-methods/{contactMethodId}:
  *   delete:
- *     summary: Delete a specific contact method
+ *     summary: a specific contact method 삭제
  *     description: Delete a specific contact method by its ID
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Contact Methods]
  *     security:
  *       - bearerAuth: []

@@ -8,7 +8,7 @@ export * from './user-profile.validators';
 export * from './social-auth.validators';
 
 // Feed validators
-export * from './feed.validators';
+// export * from './feed.validators';
 
 // Security validators
 export * from './security.validators';

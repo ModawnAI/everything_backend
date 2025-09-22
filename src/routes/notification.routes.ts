@@ -17,6 +17,11 @@ const notificationController = new NotificationController();
  *         id:
  *           type: string
  *           description: Device token ID
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *         userId:
  *           type: string
  *           description: User ID
@@ -153,8 +158,13 @@ const notificationController = new NotificationController();
  * @swagger
  * /api/notifications/register:
  *   post:
- *     summary: Register device token for push notifications
+ *     summary: Register device token for push notifications (Register device token for push notifications)
  *     description: Register a device token to receive push notifications
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -212,8 +222,13 @@ const notificationController = new NotificationController();
  * @swagger
  * /register:
  *   post:
- *     summary: POST /register
+ *     summary: POST /register (POST /register)
  *     description: POST endpoint for /register
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -237,8 +252,13 @@ router.post('/register',
  * @swagger
  * /api/notifications/unregister:
  *   post:
- *     summary: Unregister device token
+ *     summary: Unregister device token (Unregister device token)
  *     description: Unregister a device token to stop receiving push notifications
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -284,6 +304,31 @@ router.post('/register',
  *       500:
  *         description: Internal server error
  */
+/**
+ * @swagger
+ * /unregister:
+ *   post:
+ *     summary: POST /unregister (POST /unregister)
+ *     description: POST endpoint for /unregister
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Notification]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/unregister',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }),
@@ -294,8 +339,13 @@ router.post('/unregister',
  * @swagger
  * /api/notifications/send:
  *   post:
- *     summary: Send notification to current user
+ *     summary: Send notification to current user (Send notification to current user)
  *     description: Send a test notification to the authenticated user
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -357,8 +407,13 @@ router.post('/unregister',
  * @swagger
  * /send:
  *   post:
- *     summary: POST /send
+ *     summary: POST /send (POST /send)
  *     description: POST endpoint for /send
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -382,8 +437,13 @@ router.post('/send',
  * @swagger
  * /api/notifications/template:
  *   post:
- *     summary: Send template notification
+ *     summary: Send template notification (Send template notification)
  *     description: Send a notification using a predefined template
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -443,8 +503,13 @@ router.post('/send',
  * @swagger
  * /template:
  *   post:
- *     summary: POST /template
+ *     summary: POST /template (POST /template)
  *     description: POST endpoint for /template
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -468,8 +533,13 @@ router.post('/template',
  * @swagger
  * /api/notifications/templates:
  *   get:
- *     summary: Get notification templates
+ *     summary: notification templates 조회
  *     description: Retrieve all available notification templates
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -512,8 +582,13 @@ router.get('/templates',
  * @swagger
  * /api/notifications/settings:
  *   get:
- *     summary: Get user notification settings
+ *     summary: user notification settings 조회
  *     description: Retrieve notification settings for the authenticated user
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -552,8 +627,13 @@ router.get('/settings',
  * @swagger
  * /api/notifications/settings:
  *   put:
- *     summary: Update user notification settings
+ *     summary: user notification settings 수정
  *     description: Update notification settings for the authenticated user
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -600,8 +680,13 @@ router.put('/settings',
  * @swagger
  * /api/notifications/history:
  *   get:
- *     summary: Get user notification history
+ *     summary: user notification history 조회
  *     description: Retrieve notification history for the authenticated user
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -659,8 +744,13 @@ router.put('/settings',
  * @swagger
  * /history:
  *   get:
- *     summary: GET /history
+ *     summary: /history 조회
  *     description: GET endpoint for /history
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -684,8 +774,13 @@ router.get('/history',
  * @swagger
  * /api/notifications/tokens:
  *   get:
- *     summary: Get user device tokens
+ *     summary: user device tokens 조회
  *     description: Retrieve all active device tokens for the authenticated user
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -730,8 +825,13 @@ router.get('/tokens',
  * @swagger
  * /api/notifications/shop/reservations:
  *   get:
- *     summary: Get shop reservation notifications
+ *     summary: shop reservation notifications 조회
  *     description: Retrieve reservation notifications for the authenticated shop owner
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Notifications]
  *     security:
  *       - bearerAuth: []
@@ -828,8 +928,13 @@ router.get('/tokens',
  * @swagger
  * /shop/reservations:
  *   get:
- *     summary: GET /shop/reservations
+ *     summary: /shop/reservations 조회
  *     description: GET endpoint for /shop/reservations
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -854,8 +959,13 @@ router.get('/shop/reservations',
  * @swagger
  * /api/notifications/shop/send:
  *   post:
- *     summary: Send reservation notification to customer
+ *     summary: Send reservation notification to customer (Send reservation notification to customer)
  *     description: Send a reservation notification to a customer from the shop owner
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Notifications]
  *     security:
  *       - bearerAuth: []
@@ -952,8 +1062,13 @@ router.get('/shop/reservations',
  * @swagger
  * /shop/send:
  *   post:
- *     summary: POST /shop/send
+ *     summary: POST /shop/send (POST /shop/send)
  *     description: POST endpoint for /shop/send
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -978,8 +1093,13 @@ router.post('/shop/send',
  * @swagger
  * /api/notifications/shop/preferences:
  *   get:
- *     summary: Get shop owner notification preferences
+ *     summary: shop owner notification preferences 조회
  *     description: Retrieve notification preferences for the authenticated shop owner
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Notifications]
  *     security:
  *       - bearerAuth: []
@@ -1072,8 +1192,13 @@ router.post('/shop/send',
  * @swagger
  * /shop/preferences:
  *   get:
- *     summary: GET /shop/preferences
+ *     summary: /shop/preferences 조회
  *     description: GET endpoint for /shop/preferences
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -1098,8 +1223,13 @@ router.get('/shop/preferences',
  * @swagger
  * /api/notifications/shop/preferences:
  *   put:
- *     summary: Update shop owner notification preferences
+ *     summary: shop owner notification preferences 수정
  *     description: Update notification preferences for the authenticated shop owner
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Notifications]
  *     security:
  *       - bearerAuth: []
@@ -1203,8 +1333,13 @@ router.get('/shop/preferences',
  * @swagger
  * /shop/preferences:
  *   put:
- *     summary: PUT /shop/preferences
+ *     summary: PUT /shop/preferences (PUT /shop/preferences)
  *     description: PUT endpoint for /shop/preferences
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []
@@ -1229,8 +1364,13 @@ router.put('/shop/preferences',
  * @swagger
  * /api/notifications/shop/analytics:
  *   get:
- *     summary: Get shop notification delivery analytics
+ *     summary: shop notification delivery analytics 조회
  *     description: Retrieve notification delivery analytics for the authenticated shop
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shop Notifications]
  *     security:
  *       - bearerAuth: []
@@ -1324,8 +1464,13 @@ router.put('/shop/preferences',
  * @swagger
  * /shop/analytics:
  *   get:
- *     summary: GET /shop/analytics
+ *     summary: /shop/analytics 조회
  *     description: GET endpoint for /shop/analytics
+ *       
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Notifications]
  *     security:
  *       - bearerAuth: []

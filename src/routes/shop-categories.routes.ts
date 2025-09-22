@@ -42,13 +42,18 @@ const searchQuerySchemaWithLimit = Joi.object({
  * tags:
  *   name: Shop Categories
  *   description: Shop categories and service catalog management
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 /**
  * @swagger
  * /api/shops/categories:
  *   get:
- *     summary: Get all shop categories
+ *     summary: all shop categories 조회
  *     tags: [Shop Categories]
  *     parameters:
  *       - in: query
@@ -56,6 +61,11 @@ const searchQuerySchemaWithLimit = Joi.object({
  *         schema:
  *           type: boolean
  *         description: Include inactive categories
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       - in: query
  *         name: withServiceTypes
  *         schema:
@@ -102,7 +112,7 @@ router.get(
  * @swagger
  * /api/shops/categories/search:
  *   get:
- *     summary: Search categories and service types
+ *     summary: Search categories and service types (Search categories and service types)
  *     tags: [Shop Categories]
  *     parameters:
  *       - in: query
@@ -113,6 +123,11 @@ router.get(
  *           minLength: 1
  *           maxLength: 100
  *         description: Search query
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       - in: query
  *         name: type
  *         schema:
@@ -166,7 +181,7 @@ router.get(
  * @swagger
  * /api/shops/categories/popular/services:
  *   get:
- *     summary: Get popular service types across all categories
+ *     summary: popular service types across all categories 조회
  *     tags: [Shop Categories]
  *     parameters:
  *       - in: query
@@ -176,6 +191,11 @@ router.get(
  *           minimum: 1
  *           maximum: 50
  *         description: Maximum number of popular services to return
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     responses:
  *       200:
  *         description: Popular services retrieved successfully
@@ -214,11 +234,16 @@ router.get(
  * @swagger
  * /api/shops/categories/stats:
  *   get:
- *     summary: Get category statistics
+ *     summary: category statistics 조회
  *     tags: [Shop Categories]
  *     responses:
  *       200:
  *         description: Category statistics retrieved successfully
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         content:
  *           application/json:
  *             schema:
@@ -244,11 +269,16 @@ router.get(
  * @swagger
  * /api/shops/categories/hierarchy:
  *   get:
- *     summary: Get category hierarchy
+ *     summary: category hierarchy 조회
  *     tags: [Shop Categories]
  *     responses:
  *       200:
  *         description: Category hierarchy retrieved successfully
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         content:
  *           application/json:
  *             schema:
@@ -276,7 +306,7 @@ router.get(
  * @swagger
  * /api/shops/categories/{categoryId}:
  *   get:
- *     summary: Get specific category details
+ *     summary: specific category details 조회
  *     tags: [Shop Categories]
  *     parameters:
  *       - in: path
@@ -286,6 +316,11 @@ router.get(
  *           type: string
  *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair]
  *         description: Category ID
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     responses:
  *       200:
  *         description: Category details retrieved successfully
@@ -317,7 +352,7 @@ router.get(
  * @swagger
  * /api/shops/categories/{categoryId}/services:
  *   get:
- *     summary: Get service types for a specific category
+ *     summary: service types for a specific category 조회
  *     tags: [Shop Categories]
  *     parameters:
  *       - in: path
@@ -327,6 +362,11 @@ router.get(
  *           type: string
  *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair]
  *         description: Category ID
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     responses:
  *       200:
  *         description: Service types retrieved successfully

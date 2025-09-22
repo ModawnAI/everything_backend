@@ -15,6 +15,11 @@ const router = Router();
  *           type: string
  *           enum: [healthy, degraded, unhealthy]
  *           description: Overall health status
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         timestamp:
  *           type: string
  *           format: date-time
@@ -109,8 +114,13 @@ const router = Router();
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -164,8 +174,13 @@ router.get('/', async (req: Request, res: Response) => {
  * @swagger
  * /detailed:
  *   get:
- *     summary: GET /detailed
+ *     summary: /detailed 조회
  *     description: GET endpoint for /detailed
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -189,7 +204,7 @@ router.get('/detailed', async (req: Request, res: Response) => {
       correlationId: (req as any).correlationId,
       status: health.status,
       responseTime,
-      summary: health.summary,
+      summary: health.summary
     });
 
     res.status(200).json({
@@ -224,8 +239,13 @@ router.get('/detailed', async (req: Request, res: Response) => {
  * @swagger
  * /ready:
  *   get:
- *     summary: GET /ready
+ *     summary: /ready 조회
  *     description: GET endpoint for /ready
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -294,8 +314,13 @@ router.get('/ready', async (req: Request, res: Response) => {
  * @swagger
  * /live:
  *   get:
- *     summary: GET /live
+ *     summary: /live 조회
  *     description: GET endpoint for /live
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -349,8 +374,13 @@ router.get('/live', async (req: Request, res: Response) => {
  * @swagger
  * /cache/clear:
  *   post:
- *     summary: POST /cache/clear
+ *     summary: POST /cache/clear (POST /cache/clear)
  *     description: POST endpoint for /cache/clear
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

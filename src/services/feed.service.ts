@@ -7,6 +7,8 @@
 
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
+import { contentModerator } from './content-moderator.service';
+import { notificationService } from './notification.service';
 import { cacheService } from './cache.service';
 
 export interface FeedPost {
@@ -137,6 +139,28 @@ export class FeedService {
         return { success: false, error: 'Content exceeds maximum length of 2000 characters' };
       }
 
+      // Content moderation analysis
+      const moderationResult = await contentModerator.analyzeFeedPost({
+        content: postData.content,
+        hashtags: postData.hashtags,
+        images: postData.images?.map(img => ({ url: img.image_url, alt_text: img.alt_text })),
+        location_tag: postData.location_tag,
+        category: postData.category
+      });
+
+      // Handle critical violations
+      if (moderationResult.autoAction === 'remove') {
+        logger.warn('Post creation blocked due to content violations', {
+          score: moderationResult.score,
+          severity: moderationResult.severity,
+          violations: moderationResult.violations.map(v => v.type)
+        });
+        return { 
+          success: false, 
+          error: 'Content violates community guidelines and cannot be posted' 
+        };
+      }
+
       // Create post
       const { data: post, error: postError } = await this.supabase
         .from('feed_posts')
@@ -146,7 +170,12 @@ export class FeedService {
           location_tag: postData.location_tag,
           tagged_shop_id: postData.tagged_shop_id,
           hashtags: postData.hashtags || [],
-          status: 'active'
+          status: 'active',
+          moderation_status: moderationResult.autoAction === 'flag' ? 'flagged' : 
+                           moderationResult.autoAction === 'hide' ? 'hidden' : 'approved',
+          moderation_score: moderationResult.score,
+          is_hidden: moderationResult.autoAction === 'hide',
+          requires_review: moderationResult.requiresReview
         })
         .select()
         .single();
@@ -177,6 +206,16 @@ export class FeedService {
 
       // Get the complete post with author info
       const completePost = await this.getPostById(post.id, post.author_id);
+      
+      logger.info('Feed post created successfully', {
+        postId: post.id,
+        authorId: post.author_id,
+        category: post.category,
+        hashtagCount: postData.hashtags?.length || 0,
+        moderationStatus: post.moderation_status,
+        moderationScore: post.moderation_score,
+        requiresReview: post.requires_review
+      });
       
       return { success: true, post: completePost.post };
 
@@ -778,53 +817,6 @@ export class FeedService {
     }
   }
 
-  /**
-   * Report a feed post
-   */
-  async reportPost(postId: string, userId: string, reportData: {
-    reason: string;
-    description?: string;
-  }): Promise<{ success: boolean; error?: string }> {
-    try {
-      // Add report
-      const { error } = await this.supabase
-        .from('post_reports')
-        .insert({
-          post_id: postId,
-          reporter_id: userId,
-          reason: reportData.reason,
-          description: reportData.description
-        });
-
-      if (error) {
-        logger.error('Error adding report', { error });
-        return { success: false, error: 'Failed to report post' };
-      }
-
-      // Check if post should be auto-hidden (5 reports threshold)
-      const { count: reportCount } = await this.supabase
-        .from('post_reports')
-        .select('*', { count: 'exact', head: true })
-        .eq('post_id', postId);
-
-      if (reportCount && reportCount >= 5) {
-        // Auto-hide post
-        await this.supabase
-          .from('feed_posts')
-          .update({ 
-            status: 'hidden',
-            updated_at: new Date().toISOString()
-          })
-          .eq('id', postId);
-      }
-
-      return { success: true };
-
-    } catch (error) {
-      logger.error('Error in reportPost', { error: error instanceof Error ? error.message : 'Unknown error' });
-      return { success: false, error: 'Internal server error' };
-    }
-  }
 
   /**
    * Add user-specific data to posts (like status, etc.)
@@ -857,51 +849,319 @@ export class FeedService {
   }
 
   /**
-   * Apply feed algorithm for ranking posts
+   * Apply feed algorithm for ranking posts with caching and performance optimization
    */
   private applyFeedAlgorithm(posts: FeedPost[], userId: string): FeedPost[] {
     try {
-      return posts.sort((a, b) => {
-        const scoreA = this.calculateFeedScore(a, userId);
-        const scoreB = this.calculateFeedScore(b, userId);
-        return scoreB - scoreA; // Higher score first
+      // Cache scores to avoid recalculation during sorting
+      const postsWithScores = posts.map(post => ({
+        post,
+        score: this.calculateFeedScore(post, userId)
+      }));
+
+      // Sort by score (higher first), with tiebreakers
+      postsWithScores.sort((a, b) => {
+        // Primary sort: by calculated score
+        if (b.score !== a.score) {
+          return b.score - a.score;
+        }
+        
+        // Tiebreaker 1: Featured posts first
+        if (a.post.is_featured !== b.post.is_featured) {
+          return b.post.is_featured ? 1 : -1;
+        }
+        
+        // Tiebreaker 2: More recent posts first
+        const timeA = new Date(a.post.created_at).getTime();
+        const timeB = new Date(b.post.created_at).getTime();
+        return timeB - timeA;
       });
+
+      // Log algorithm performance for monitoring
+      logger.debug('Feed algorithm applied', {
+        userId,
+        totalPosts: posts.length,
+        scoreRange: {
+          highest: postsWithScores[0]?.score || 0,
+          lowest: postsWithScores[postsWithScores.length - 1]?.score || 0
+        },
+        featuredPosts: posts.filter(p => p.is_featured).length,
+        influencerPosts: posts.filter(p => p.author?.is_influencer).length
+      });
+
+      return postsWithScores.map(item => item.post);
     } catch (error) {
-      logger.error('Error applying feed algorithm', { error: error instanceof Error ? error.message : 'Unknown error' });
+      logger.error('Error applying feed algorithm', { 
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        postCount: posts.length
+      });
       return posts; // Return original order if error occurs
     }
   }
 
   /**
-   * Calculate feed score for a post
+   * Calculate feed score for a post using weighted algorithm
+   * Weights: Recency (40%), Engagement (30%), Relevance (20%), Author Influence (10%)
    */
   private calculateFeedScore(post: FeedPost, userId: string): number {
     let score = 0;
 
-    // Recency (40% weight)
-    const hoursAge = (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
-    score += Math.max(0, 100 - hoursAge) * 0.4;
+    // 1. Recency Score (40% weight) - Exponential decay over time
+    const recencyScore = this.calculateRecencyScore(post);
+    score += recencyScore * 0.4;
 
-    // Engagement (30% weight)
-    const engagementRate = (post.like_count + post.comment_count * 2) / Math.max(post.view_count, 1);
-    score += Math.min(engagementRate * 100, 100) * 0.3;
+    // 2. Engagement Score (30% weight) - Likes + Comments*2 / Views
+    const engagementScore = this.calculateEngagementScore(post);
+    score += engagementScore * 0.3;
 
-    // Relevance (20% weight) - simplified for now
-    if (post.location_tag) {
-      score += 20; // Boost for location-tagged posts
-    }
+    // 3. Relevance Score (20% weight) - Location/Category matching
+    const relevanceScore = this.calculateRelevanceScore(post, userId);
+    score += relevanceScore * 0.2;
 
-    // Author influence (10% weight)
-    if (post.author?.is_influencer) {
-      score += 10;
-    }
+    // 4. Author Influence Score (10% weight) - Influencer status and following
+    const authorInfluenceScore = this.calculateAuthorInfluenceScore(post);
+    score += authorInfluenceScore * 0.1;
+
+    // Trending boost for viral content
+    const trendingBoost = this.calculateTrendingBoost(post);
+    score += trendingBoost;
 
     // Featured posts boost
     if (post.is_featured) {
-      score += 15;
+      score += 5; // Reduced from 15 to maintain algorithm balance
     }
 
-    return score;
+    return Math.max(0, score); // Ensure non-negative score
+  }
+
+  /**
+   * Calculate recency score with exponential decay
+   */
+  private calculateRecencyScore(post: FeedPost): number {
+    const hoursAge = (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
+    
+    // Exponential decay: newer posts get higher scores
+    // Score decreases by half every 24 hours
+    const decayRate = 0.693 / 24; // ln(2) / 24 hours
+    const recencyScore = 100 * Math.exp(-decayRate * hoursAge);
+    
+    return Math.max(0, Math.min(100, recencyScore));
+  }
+
+  /**
+   * Calculate engagement score based on interactions
+   */
+  private calculateEngagementScore(post: FeedPost): number {
+    const views = Math.max(post.view_count, 1); // Avoid division by zero
+    const likes = post.like_count || 0;
+    const comments = post.comment_count || 0;
+    
+    // Comments are weighted 2x more than likes
+    const totalEngagement = likes + (comments * 2);
+    const engagementRate = totalEngagement / views;
+    
+    // Normalize to 0-100 scale with logarithmic scaling for viral content
+    let engagementScore = Math.min(engagementRate * 100, 100);
+    
+    // Boost for high engagement (viral detection)
+    if (engagementRate > 0.1) { // 10% engagement rate
+      engagementScore = Math.min(engagementScore * 1.2, 100);
+    }
+    
+    return engagementScore;
+  }
+
+  /**
+   * Calculate relevance score based on user preferences and content matching
+   */
+  private calculateRelevanceScore(post: FeedPost, userId: string): number {
+    let relevanceScore = 0;
+    
+    // Base relevance for posts with location tags (future: match user location)
+    if (post.location_tag) {
+      relevanceScore += 30;
+    }
+    
+    // Category relevance (future: match user category preferences)
+    if (post.category) {
+      relevanceScore += 25;
+    }
+    
+    // Shop tagging relevance (posts about specific shops)
+    if (post.tagged_shop_id) {
+      relevanceScore += 20;
+    }
+    
+    // Hashtag relevance (future: match user interests)
+    if (post.hashtags && post.hashtags.length > 0) {
+      relevanceScore += Math.min(post.hashtags.length * 5, 25);
+    }
+    
+    return Math.min(relevanceScore, 100);
+  }
+
+  /**
+   * Calculate author influence score
+   */
+  private calculateAuthorInfluenceScore(post: FeedPost): number {
+    let influenceScore = 0;
+    
+    // Verified influencer boost
+    if (post.author?.is_influencer) {
+      influenceScore += 60;
+    }
+    
+    // Author activity boost (future: based on follower count, engagement history)
+    // For now, use a simple heuristic based on post engagement
+    const authorEngagement = (post.like_count + post.comment_count) / Math.max(post.view_count, 1);
+    if (authorEngagement > 0.05) { // 5% engagement rate
+      influenceScore += 40;
+    }
+    
+    return Math.min(influenceScore, 100);
+  }
+
+  /**
+   * Calculate trending boost for viral content detection
+   */
+  private calculateTrendingBoost(post: FeedPost): number {
+    const hoursAge = (Date.now() - new Date(post.created_at).getTime()) / (1000 * 60 * 60);
+    
+    // Only apply trending boost to recent posts (within 48 hours)
+    if (hoursAge > 48) {
+      return 0;
+    }
+    
+    const views = Math.max(post.view_count, 1);
+    const engagement = post.like_count + (post.comment_count * 2);
+    const engagementRate = engagement / views;
+    
+    // High engagement rate indicates trending content
+    if (engagementRate > 0.15 && engagement > 10) { // 15% rate with minimum interactions
+      return 10; // Trending boost
+    }
+    
+    if (engagementRate > 0.25 && engagement > 5) { // Very high engagement
+      return 15; // Higher trending boost
+    }
+    
+    return 0;
+  }
+
+  /**
+   * Report a feed post
+   */
+  async reportPost(postId: string, userId: string, reportData: {
+    reason: string;
+    description?: string;
+  }): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Check if post exists
+      const { data: post, error: postError } = await this.supabase
+        .from('posts')
+        .select('id, author_id, content')
+        .eq('id', postId)
+        .single();
+
+      if (postError || !post) {
+        return { success: false, error: 'Post not found' };
+      }
+
+      // Check if user already reported this post
+      const { data: existingReport, error: checkError } = await this.supabase
+        .from('post_reports')
+        .select('id')
+        .eq('post_id', postId)
+        .eq('reporter_id', userId)
+        .eq('status', 'pending')
+        .single();
+
+      if (checkError && checkError.code !== 'PGRST116') {
+        logger.error('Error checking existing report', { error: checkError });
+        return { success: false, error: 'Failed to check existing reports' };
+      }
+
+      if (existingReport) {
+        return { success: false, error: 'You have already reported this post' };
+      }
+
+      // Add report
+      const { error } = await this.supabase
+        .from('post_reports')
+        .insert({
+          post_id: postId,
+          reporter_id: userId,
+          reason: reportData.reason,
+          description: reportData.description,
+          status: 'pending'
+        });
+
+      if (error) {
+        logger.error('Error creating report', { error });
+        return { success: false, error: 'Failed to submit report' };
+      }
+
+      // Send acknowledgment notification to reporter
+      try {
+        await notificationService.sendReportAcknowledgment(
+          userId,
+          'post',
+          postId,
+          reportData.reason
+        );
+      } catch (notificationError) {
+        logger.warn('Failed to send report acknowledgment', { 
+          error: notificationError,
+          reporterId: userId,
+          postId 
+        });
+        // Don't fail the report if notification fails
+      }
+
+      // Check if this post should trigger admin alerts
+      const { data: reportCount } = await this.supabase
+        .from('post_reports')
+        .select('id', { count: 'exact' })
+        .eq('post_id', postId)
+        .eq('status', 'pending');
+
+      const count = reportCount?.length || 0;
+
+      // Send admin alerts for high report counts
+      if (count >= 3) {
+        try {
+          const priority = count >= 7 ? 'critical' : 'high';
+          await notificationService.sendAdminModerationAlert(
+            'post',
+            postId,
+            priority,
+            `Multiple reports received: ${reportData.reason}`,
+            count,
+            post.author_id
+          );
+        } catch (alertError) {
+          logger.warn('Failed to send admin moderation alert', { 
+            error: alertError,
+            postId,
+            reportCount: count 
+          });
+        }
+      }
+
+      logger.info('Post reported successfully', {
+        postId,
+        reporterId: userId,
+        reason: reportData.reason,
+        totalReports: count
+      });
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Error in reportPost', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
   }
 }
 

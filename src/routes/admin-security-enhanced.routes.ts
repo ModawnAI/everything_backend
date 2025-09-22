@@ -32,8 +32,13 @@ const router = Router();
  * @swagger
  * /stats:
  *   get:
- *     summary: GET /stats
+ *     summary: /stats 조회
  *     description: GET endpoint for /stats
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -92,8 +97,13 @@ router.get('/stats', requireAdminAuth, async (req: Request, res: Response) => {
  * @swagger
  * /xss/stats:
  *   get:
- *     summary: GET /xss/stats
+ *     summary: /xss/stats 조회
  *     description: GET endpoint for /xss/stats
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -131,6 +141,31 @@ router.get('/xss/stats', requireAdminAuth, async (req: Request, res: Response) =
 /**
  * Get CSRF protection statistics
  */
+/**
+ * @swagger
+ * /csrf/stats:
+ *   get:
+ *     summary: /csrf/stats 조회
+ *     description: GET endpoint for /csrf/stats
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/csrf/stats', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const stats = getCSRFProtectionStats();
@@ -160,8 +195,13 @@ router.get('/csrf/stats', requireAdminAuth, async (req: Request, res: Response) 
  * @swagger
  * /sql-injection/stats:
  *   get:
- *     summary: GET /sql-injection/stats
+ *     summary: /sql-injection/stats 조회
  *     description: GET endpoint for /sql-injection/stats
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -199,6 +239,31 @@ router.get('/sql-injection/stats', requireAdminAuth, async (req: Request, res: R
 /**
  * Get RPC security statistics
  */
+/**
+ * @swagger
+ * /rpc/stats:
+ *   get:
+ *     summary: /rpc/stats 조회
+ *     description: GET endpoint for /rpc/stats
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/rpc/stats', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const stats = getRPCSecurityStats();
@@ -228,8 +293,13 @@ router.get('/rpc/stats', requireAdminAuth, async (req: Request, res: Response) =
  * @swagger
  * /xss/reset:
  *   post:
- *     summary: POST /xss/reset
+ *     summary: POST /xss/reset (POST /xss/reset)
  *     description: POST endpoint for /xss/reset
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -271,6 +341,31 @@ router.post('/xss/reset', requireAdminAuth, async (req: Request, res: Response) 
 /**
  * Reset CSRF protection history
  */
+/**
+ * @swagger
+ * /csrf/reset:
+ *   post:
+ *     summary: POST /csrf/reset (POST /csrf/reset)
+ *     description: POST endpoint for /csrf/reset
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/csrf/reset', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     resetCSRFProtectionHistory();
@@ -304,8 +399,13 @@ router.post('/csrf/reset', requireAdminAuth, async (req: Request, res: Response)
  * @swagger
  * /sql-injection/reset:
  *   post:
- *     summary: POST /sql-injection/reset
+ *     summary: POST /sql-injection/reset (POST /sql-injection/reset)
  *     description: POST endpoint for /sql-injection/reset
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -347,6 +447,31 @@ router.post('/sql-injection/reset', requireAdminAuth, async (req: Request, res: 
 /**
  * Reset RPC security history
  */
+/**
+ * @swagger
+ * /rpc/reset:
+ *   post:
+ *     summary: POST /rpc/reset (POST /rpc/reset)
+ *     description: POST endpoint for /rpc/reset
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/rpc/reset', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     resetRPCSecurityHistory();
@@ -380,8 +505,13 @@ router.post('/rpc/reset', requireAdminAuth, async (req: Request, res: Response) 
  * @swagger
  * /reset-all:
  *   post:
- *     summary: POST /reset-all
+ *     summary: POST /reset-all (POST /reset-all)
  *     description: POST endpoint for /reset-all
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -426,6 +556,31 @@ router.post('/reset-all', requireAdminAuth, async (req: Request, res: Response) 
 /**
  * Get security health status
  */
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: /health 조회
+ *     description: GET endpoint for /health
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/health', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const xssStats = getXSSProtectionStats();

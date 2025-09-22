@@ -62,6 +62,35 @@ export type NotificationType =
 export type NotificationStatus = 'unread' | 'read' | 'deleted';
 export type ReportReason = 'spam' | 'inappropriate_content' | 'harassment' | 'other';
 
+// Social Feed Types
+export type PostStatus = 'active' | 'hidden' | 'reported' | 'deleted';
+export type CommentStatus = 'active' | 'hidden' | 'deleted';
+export type PostCategory = 'beauty' | 'lifestyle' | 'review' | 'promotion' | 'general';
+export type ModerationStatus = 'approved' | 'flagged' | 'hidden' | 'removed' | 'banned' | 'warned';
+export type ModerationAction = 'approve' | 'flag' | 'hide' | 'remove' | 'warn' | 'ban';
+export type ContentReportReason = 
+  | 'spam' 
+  | 'harassment' 
+  | 'inappropriate_content' 
+  | 'fake_information' 
+  | 'violence' 
+  | 'hate_speech' 
+  | 'copyright_violation' 
+  | 'impersonation' 
+  | 'scam' 
+  | 'adult_content' 
+  | 'other';
+export type ReportStatus = 'pending' | 'under_review' | 'resolved' | 'dismissed';
+export type ContentViolationType = 
+  | 'profanity' 
+  | 'spam' 
+  | 'harassment' 
+  | 'inappropriate' 
+  | 'fake_content' 
+  | 'phishing' 
+  | 'hate_speech';
+export type ModerationSeverity = 'low' | 'medium' | 'high' | 'critical';
+
 export type AdminActionType = 
   | 'user_suspended' 
   | 'shop_approved' 
@@ -692,7 +721,27 @@ export type DatabaseRecord =
   | PhoneVerification
   | RefreshToken
   | ReservationRescheduleHistory
-  | Conflict; 
+  | Conflict
+  | FeedPost
+  | PostImage
+  | FeedComment
+  | PostLike
+  | CommentLike
+  | PostReport
+  | CommentReport
+  | PostView
+  | UserFollow
+  | Hashtag
+  | PostHashtag
+  | ModerationResult
+  | ModerationLog
+  | ModerationQueueItem
+  | FeedAnalytics
+  | UserAnalytics
+  | ContentPerformance
+  | TrendingContent
+  | ExecutiveDashboard
+  | FinancialAnalytics; 
 
 // =============================================
 // REFRESH TOKEN INTERFACE (For auth system)
@@ -747,4 +796,747 @@ export interface Conflict {
     applied_at?: string;
   };
   metadata?: Record<string, any>; // JSONB
+}
+
+// =============================================
+// SOCIAL FEED INTERFACES
+// =============================================
+
+/**
+ * Social Feed Post Interface
+ * Represents a user-generated content post in the social feed
+ */
+export interface FeedPost {
+  id: string; // UUID
+  author_id: string; // References users(id)
+  content: string; // Max 2000 characters
+  category?: PostCategory;
+  location_tag?: string; // Max 100 characters
+  tagged_shop_id?: string; // References shops(id)
+  hashtags: string[]; // Max 10 hashtags, each max 50 chars
+  like_count: number;
+  comment_count: number;
+  view_count: number;
+  share_count: number;
+  report_count: number;
+  status: PostStatus;
+  moderation_status: ModerationStatus;
+  moderation_score: number; // 0-100, higher means more problematic
+  is_hidden: boolean;
+  requires_review: boolean;
+  hidden_at?: string; // Timestamp
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+  
+  // Computed/joined fields (not stored in DB)
+  author?: Pick<User, 'id' | 'name' | 'nickname' | 'profile_image_url' | 'is_influencer'>;
+  images?: PostImage[];
+  is_liked_by_user?: boolean; // For current user context
+  user_like_id?: string; // For current user context
+}
+
+/**
+ * Post Image Interface
+ * Represents images attached to feed posts
+ */
+export interface PostImage {
+  id: string; // UUID
+  post_id: string; // References feed_posts(id)
+  image_url: string; // Full URL to image
+  thumbnail_url?: string; // Optimized thumbnail URL
+  alt_text?: string; // Max 200 characters
+  display_order: number; // 1-10
+  width?: number;
+  height?: number;
+  file_size?: number; // In bytes
+  format?: string; // 'jpeg', 'png', 'webp'
+  created_at: string; // Timestamp
+}
+
+/**
+ * Feed Comment Interface
+ * Represents comments on feed posts
+ */
+export interface FeedComment {
+  id: string; // UUID
+  post_id: string; // References feed_posts(id)
+  author_id: string; // References users(id)
+  parent_comment_id?: string; // References feed_comments(id) for replies
+  content: string; // Max 500 characters
+  like_count: number;
+  reply_count: number;
+  status: CommentStatus;
+  moderation_status: ModerationStatus;
+  moderation_score: number; // 0-100
+  is_hidden: boolean;
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+  
+  // Computed/joined fields
+  author?: Pick<User, 'id' | 'name' | 'nickname' | 'profile_image_url'>;
+  replies?: FeedComment[];
+  is_liked_by_user?: boolean;
+}
+
+/**
+ * Post Like Interface
+ * Represents likes on feed posts
+ */
+export interface PostLike {
+  id: string; // UUID
+  post_id: string; // References feed_posts(id)
+  user_id: string; // References users(id)
+  created_at: string; // Timestamp
+}
+
+/**
+ * Comment Like Interface
+ * Represents likes on comments
+ */
+export interface CommentLike {
+  id: string; // UUID
+  comment_id: string; // References feed_comments(id)
+  user_id: string; // References users(id)
+  created_at: string; // Timestamp
+}
+
+/**
+ * Post Report Interface
+ * Represents user reports on feed posts
+ */
+export interface PostReport {
+  id: string; // UUID
+  post_id: string; // References feed_posts(id)
+  reporter_id: string; // References users(id)
+  reason: ContentReportReason;
+  description?: string; // Max 500 characters
+  status: ReportStatus;
+  admin_action?: ModerationAction;
+  admin_reason?: string;
+  resolved_by?: string; // References users(id) - admin who resolved
+  resolved_at?: string; // Timestamp
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+}
+
+/**
+ * Comment Report Interface
+ * Represents user reports on comments
+ */
+export interface CommentReport {
+  id: string; // UUID
+  comment_id: string; // References feed_comments(id)
+  reporter_id: string; // References users(id)
+  reason: ContentReportReason;
+  description?: string; // Max 500 characters
+  status: ReportStatus;
+  admin_action?: ModerationAction;
+  admin_reason?: string;
+  resolved_by?: string; // References users(id)
+  resolved_at?: string; // Timestamp
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+}
+
+/**
+ * Feed View Interface
+ * Tracks post views for analytics
+ */
+export interface PostView {
+  id: string; // UUID
+  post_id: string; // References feed_posts(id)
+  user_id?: string; // References users(id) - null for anonymous views
+  ip_address?: string; // For anonymous tracking
+  user_agent?: string;
+  view_duration?: number; // In seconds
+  created_at: string; // Timestamp
+}
+
+/**
+ * User Follow Interface
+ * Represents user following relationships
+ */
+export interface UserFollow {
+  id: string; // UUID
+  follower_id: string; // References users(id) - who is following
+  following_id: string; // References users(id) - who is being followed
+  created_at: string; // Timestamp
+}
+
+/**
+ * Hashtag Interface
+ * Represents trending hashtags
+ */
+export interface Hashtag {
+  id: string; // UUID
+  tag: string; // The hashtag without #, max 50 chars
+  usage_count: number;
+  trending_score: number; // Calculated trending score
+  category?: PostCategory;
+  is_trending: boolean;
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+}
+
+/**
+ * Post Hashtag Junction Interface
+ * Links posts to hashtags
+ */
+export interface PostHashtag {
+  id: string; // UUID
+  post_id: string; // References feed_posts(id)
+  hashtag_id: string; // References hashtags(id)
+  created_at: string; // Timestamp
+}
+
+// =============================================
+// CONTENT MODERATION INTERFACES
+// =============================================
+
+/**
+ * Content Violation Interface
+ * Represents detected violations in content
+ */
+export interface ContentViolation {
+  type: ContentViolationType;
+  description: string;
+  severity: ModerationSeverity;
+  confidence: number; // 0-100
+  context?: string; // Additional context about the violation
+}
+
+/**
+ * Content Analysis Result Interface
+ * Result of automated content moderation analysis
+ */
+export interface ContentAnalysisResult {
+  isAppropriate: boolean;
+  severity: ModerationSeverity;
+  score: number; // 0-100, higher means more problematic
+  violations: ContentViolation[];
+  suggestedAction: 'allow' | 'flag' | 'block' | 'review';
+  confidence: number; // 0-100, confidence in the analysis
+  requiresReview?: boolean;
+  autoAction?: 'none' | 'flag' | 'hide' | 'remove';
+}
+
+/**
+ * Moderation Result Interface
+ * Result of content moderation (automated or manual)
+ */
+export interface ModerationResult {
+  id: string; // UUID
+  content_id: string; // References the content being moderated
+  content_type: 'post' | 'comment';
+  moderator_id?: string; // References users(id) - null for automated
+  action: ModerationAction;
+  reason?: string;
+  severity: ModerationSeverity;
+  confidence: number;
+  violations: ContentViolation[];
+  is_automated: boolean;
+  reviewed_by?: string; // References users(id) - admin who reviewed
+  reviewed_at?: string; // Timestamp
+  created_at: string; // Timestamp
+  metadata?: Record<string, any>; // Additional moderation data
+}
+
+/**
+ * Content Moderator Configuration Interface
+ * Configuration for automated content moderation
+ */
+export interface ContentModeratorConfig {
+  thresholds: {
+    low: number; // Score threshold for low severity (0-40)
+    medium: number; // Score threshold for medium severity (40-70)
+    flag: number; // Score threshold for flagging (70-85)
+    block: number; // Score threshold for blocking (85-100)
+  };
+  minConfidence: number; // Minimum confidence required for automated actions
+  enabledChecks: {
+    profanity: boolean;
+    spam: boolean;
+    harassment: boolean;
+    inappropriate: boolean;
+    fakeContent: boolean;
+    phishing: boolean;
+    hateSpeech: boolean;
+  };
+  languages: string[]; // Supported languages for moderation
+  customPatterns?: string[]; // Custom regex patterns for detection
+}
+
+/**
+ * Moderation Log Interface
+ * Audit trail for moderation actions
+ */
+export interface ModerationLog {
+  id: string; // UUID
+  content_id: string;
+  content_type: 'post' | 'comment';
+  action: ModerationAction;
+  reason: string;
+  moderator_id?: string; // References users(id) - null for automated
+  is_automated: boolean;
+  previous_status?: ModerationStatus;
+  new_status: ModerationStatus;
+  metadata?: {
+    score?: number;
+    violations?: ContentViolation[];
+    user_reports_count?: number;
+    escalation_reason?: string;
+    admin_notes?: string;
+  };
+  created_at: string; // Timestamp
+}
+
+/**
+ * Moderation Queue Item Interface
+ * Items waiting for manual moderation review
+ */
+export interface ModerationQueueItem {
+  id: string; // UUID
+  content_id: string;
+  content_type: 'post' | 'comment';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  reason: string;
+  report_count: number;
+  moderation_score: number;
+  violations: ContentViolation[];
+  assigned_to?: string; // References users(id) - admin assigned
+  assigned_at?: string; // Timestamp
+  due_date?: string; // Timestamp
+  created_at: string; // Timestamp
+  
+  // Computed/joined fields
+  content?: Pick<FeedPost | FeedComment, 'id' | 'content' | 'author_id' | 'created_at'>;
+  author?: Pick<User, 'id' | 'name' | 'nickname' | 'profile_image_url'>;
+  recent_reports?: Pick<PostReport | CommentReport, 'id' | 'reason' | 'description' | 'created_at'>[];
+}
+
+// =============================================
+// ANALYTICS AND DASHBOARD INTERFACES
+// =============================================
+
+/**
+ * Feed Analytics Interface
+ * Analytics data for social feed performance
+ */
+export interface FeedAnalytics {
+  id: string; // UUID
+  date: string; // Date string (YYYY-MM-DD)
+  total_posts: number;
+  total_comments: number;
+  total_likes: number;
+  total_views: number;
+  total_shares: number;
+  total_reports: number;
+  active_users: number;
+  new_users: number;
+  engagement_rate: number; // Percentage
+  top_categories: Array<{
+    category: PostCategory;
+    post_count: number;
+    engagement_rate: number;
+  }>;
+  top_hashtags: Array<{
+    hashtag: string;
+    usage_count: number;
+    engagement_rate: number;
+  }>;
+  moderation_stats: {
+    total_moderated: number;
+    auto_moderated: number;
+    manual_moderated: number;
+    false_positives: number;
+    appeals_processed: number;
+  };
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+}
+
+/**
+ * User Analytics Interface
+ * Analytics data for individual user performance
+ */
+export interface UserAnalytics {
+  id: string; // UUID
+  user_id: string; // References users(id)
+  date: string; // Date string (YYYY-MM-DD)
+  posts_created: number;
+  comments_made: number;
+  likes_given: number;
+  likes_received: number;
+  views_received: number;
+  shares_received: number;
+  followers_gained: number;
+  followers_lost: number;
+  engagement_rate: number; // Percentage
+  reach: number; // Unique users who saw content
+  impressions: number; // Total content views
+  top_performing_post_id?: string; // References feed_posts(id)
+  created_at: string; // Timestamp
+}
+
+/**
+ * Content Performance Interface
+ * Performance metrics for individual content pieces
+ */
+export interface ContentPerformance {
+  id: string; // UUID
+  content_id: string; // References feed_posts(id) or feed_comments(id)
+  content_type: 'post' | 'comment';
+  views: number;
+  likes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  reports: number;
+  engagement_rate: number; // Percentage
+  reach: number; // Unique users reached
+  impressions: number; // Total impressions
+  click_through_rate?: number; // For posts with links
+  conversion_rate?: number; // For promotional posts
+  demographic_breakdown: {
+    age_groups: Record<string, number>; // e.g., "18-24": 150
+    genders: Record<string, number>; // e.g., "female": 200
+    locations: Record<string, number>; // e.g., "Seoul": 300
+  };
+  time_metrics: {
+    peak_engagement_hour: number; // 0-23
+    average_view_duration: number; // In seconds
+    bounce_rate: number; // Percentage
+  };
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+}
+
+/**
+ * Trending Content Interface
+ * Content that is currently trending
+ */
+export interface TrendingContent {
+  id: string; // UUID
+  content_id: string; // References feed_posts(id)
+  content_type: 'post' | 'hashtag' | 'user';
+  trending_score: number; // Calculated trending score
+  rank: number; // Current trending rank
+  category?: PostCategory;
+  time_window: '1h' | '6h' | '24h' | '7d'; // Trending time window
+  metrics: {
+    engagement_velocity: number; // Engagement per hour
+    viral_coefficient: number; // Share rate
+    quality_score: number; // Content quality assessment
+  };
+  started_trending_at: string; // Timestamp
+  expires_at?: string; // Timestamp
+  created_at: string; // Timestamp
+}
+
+/**
+ * Executive Dashboard Interface
+ * High-level metrics for executive reporting
+ */
+export interface ExecutiveDashboard {
+  id: string; // UUID
+  report_date: string; // Date string
+  period: 'daily' | 'weekly' | 'monthly' | 'quarterly';
+  
+  // User Metrics
+  total_users: number;
+  active_users: number;
+  new_users: number;
+  user_retention_rate: number; // Percentage
+  
+  // Content Metrics
+  total_posts: number;
+  total_comments: number;
+  content_growth_rate: number; // Percentage
+  
+  // Engagement Metrics
+  total_engagement: number; // Likes + comments + shares
+  engagement_rate: number; // Percentage
+  average_session_duration: number; // In minutes
+  
+  // Moderation Metrics
+  content_moderated: number;
+  moderation_accuracy: number; // Percentage
+  user_reports: number;
+  
+  // Business Metrics
+  influencer_count: number;
+  shop_integrations: number;
+  conversion_rate: number; // Posts to shop visits
+  
+  // Performance Indicators
+  server_uptime: number; // Percentage
+  average_response_time: number; // In milliseconds
+  error_rate: number; // Percentage
+  
+  created_at: string; // Timestamp
+}
+
+/**
+ * Financial Analytics Interface
+ * Financial metrics related to social feed
+ */
+export interface FinancialAnalytics {
+  id: string; // UUID
+  date: string; // Date string
+  period: 'daily' | 'weekly' | 'monthly';
+  
+  // Revenue Metrics
+  total_revenue: number; // In won
+  advertising_revenue: number;
+  commission_revenue: number;
+  subscription_revenue: number;
+  
+  // Cost Metrics
+  content_moderation_cost: number;
+  storage_cost: number;
+  bandwidth_cost: number;
+  ai_processing_cost: number;
+  
+  // ROI Metrics
+  customer_acquisition_cost: number;
+  lifetime_value: number;
+  return_on_ad_spend: number; // Percentage
+  
+  // Conversion Metrics
+  post_to_shop_visit_rate: number; // Percentage
+  shop_visit_to_purchase_rate: number; // Percentage
+  influencer_conversion_rate: number; // Percentage
+  
+  created_at: string; // Timestamp
+}
+
+/**
+ * Real-time Dashboard Interface
+ * Real-time metrics for monitoring
+ */
+export interface RealTimeDashboard {
+  timestamp: string; // Current timestamp
+  
+  // Live Activity
+  active_users_now: number;
+  posts_last_hour: number;
+  comments_last_hour: number;
+  likes_last_hour: number;
+  
+  // System Health
+  server_status: 'healthy' | 'warning' | 'critical';
+  response_time_avg: number; // In milliseconds
+  error_rate_last_hour: number; // Percentage
+  
+  // Content Flow
+  pending_moderation: number;
+  auto_moderated_last_hour: number;
+  user_reports_last_hour: number;
+  
+  // Trending Now
+  trending_hashtags: Array<{
+    hashtag: string;
+    mentions_last_hour: number;
+    growth_rate: number;
+  }>;
+  
+  viral_posts: Array<{
+    post_id: string;
+    engagement_velocity: number;
+    current_rank: number;
+  }>;
+  
+  // Alerts
+  active_alerts: Array<{
+    type: 'performance' | 'moderation' | 'security' | 'business';
+    severity: 'low' | 'medium' | 'high' | 'critical';
+    message: string;
+    created_at: string;
+  }>;
+}
+
+// =============================================
+// FEED STORAGE INTERFACES
+// =============================================
+
+/**
+ * Feed Storage Configuration Interface
+ * Configuration for feed content storage and caching
+ */
+export interface FeedStorageConfig {
+  cache: {
+    ttl: number; // Time to live in seconds
+    maxSize: number; // Maximum cache size in MB
+    strategy: 'lru' | 'lfu' | 'fifo'; // Cache eviction strategy
+  };
+  storage: {
+    provider: 'supabase' | 'aws_s3' | 'gcp_storage';
+    bucket: string;
+    region?: string;
+    compression: boolean;
+    encryption: boolean;
+  };
+  performance: {
+    batchSize: number; // Batch size for bulk operations
+    maxConcurrency: number; // Max concurrent operations
+    retryAttempts: number;
+    retryDelay: number; // In milliseconds
+  };
+}
+
+/**
+ * Feed Storage Interface
+ * Main interface for feed content storage operations
+ */
+export interface FeedStorage {
+  // Post Operations
+  createPost(post: Omit<FeedPost, 'id' | 'created_at' | 'updated_at'>): Promise<FeedPost>;
+  getPost(postId: string, userId?: string): Promise<FeedPost | null>;
+  updatePost(postId: string, updates: Partial<FeedPost>): Promise<FeedPost>;
+  deletePost(postId: string): Promise<boolean>;
+  
+  // Batch Operations
+  getPosts(filters: FeedPostFilters): Promise<{
+    posts: FeedPost[];
+    total: number;
+    hasMore: boolean;
+    nextCursor?: string;
+  }>;
+  
+  // Comment Operations
+  createComment(comment: Omit<FeedComment, 'id' | 'created_at' | 'updated_at'>): Promise<FeedComment>;
+  getComments(postId: string, filters?: CommentFilters): Promise<{
+    comments: FeedComment[];
+    total: number;
+    hasMore: boolean;
+  }>;
+  updateComment(commentId: string, updates: Partial<FeedComment>): Promise<FeedComment>;
+  deleteComment(commentId: string): Promise<boolean>;
+  
+  // Like Operations
+  likePost(postId: string, userId: string): Promise<PostLike>;
+  unlikePost(postId: string, userId: string): Promise<boolean>;
+  likeComment(commentId: string, userId: string): Promise<CommentLike>;
+  unlikeComment(commentId: string, userId: string): Promise<boolean>;
+  
+  // Analytics Operations
+  recordView(postId: string, userId?: string, metadata?: Record<string, any>): Promise<void>;
+  getAnalytics(contentId: string, type: 'post' | 'comment'): Promise<ContentPerformance>;
+  
+  // Cache Operations
+  invalidateCache(key: string): Promise<void>;
+  clearUserCache(userId: string): Promise<void>;
+  warmCache(contentIds: string[]): Promise<void>;
+}
+
+/**
+ * Feed Post Filters Interface
+ * Filters for querying feed posts
+ */
+export interface FeedPostFilters {
+  // Basic Filters
+  authorId?: string;
+  category?: PostCategory;
+  status?: PostStatus;
+  moderationStatus?: ModerationStatus;
+  
+  // Content Filters
+  hashtags?: string[];
+  taggedShopId?: string;
+  locationTag?: string;
+  hasImages?: boolean;
+  
+  // Engagement Filters
+  minLikes?: number;
+  maxLikes?: number;
+  minComments?: number;
+  maxComments?: number;
+  minViews?: number;
+  
+  // Time Filters
+  createdAfter?: string; // ISO timestamp
+  createdBefore?: string; // ISO timestamp
+  updatedAfter?: string;
+  updatedBefore?: string;
+  
+  // Sorting and Pagination
+  sortBy?: 'created_at' | 'updated_at' | 'like_count' | 'comment_count' | 'view_count' | 'trending_score';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+  cursor?: string; // For cursor-based pagination
+  
+  // User Context
+  userId?: string; // For personalized results
+  includeHidden?: boolean; // Include hidden posts (admin only)
+  includeReported?: boolean; // Include reported posts (admin only)
+}
+
+/**
+ * Comment Filters Interface
+ * Filters for querying comments
+ */
+export interface CommentFilters {
+  authorId?: string;
+  parentCommentId?: string; // For replies
+  status?: CommentStatus;
+  moderationStatus?: ModerationStatus;
+  
+  // Engagement Filters
+  minLikes?: number;
+  maxLikes?: number;
+  
+  // Time Filters
+  createdAfter?: string;
+  createdBefore?: string;
+  
+  // Sorting and Pagination
+  sortBy?: 'created_at' | 'like_count';
+  sortOrder?: 'asc' | 'desc';
+  limit?: number;
+  offset?: number;
+  
+  // User Context
+  userId?: string;
+  includeHidden?: boolean;
+}
+
+/**
+ * Storage Operation Result Interface
+ * Standardized result format for storage operations
+ */
+export interface StorageOperationResult<T = any> {
+  success: boolean;
+  data?: T;
+  error?: {
+    code: string;
+    message: string;
+    details?: Record<string, any>;
+  };
+  metadata?: {
+    executionTime: number; // In milliseconds
+    cacheHit?: boolean;
+    affectedRows?: number;
+    warnings?: string[];
+  };
+}
+
+/**
+ * Bulk Operation Result Interface
+ * Result format for bulk storage operations
+ */
+export interface BulkOperationResult<T = any> {
+  success: boolean;
+  results: Array<{
+    id: string;
+    success: boolean;
+    data?: T;
+    error?: string;
+  }>;
+  summary: {
+    total: number;
+    successful: number;
+    failed: number;
+    executionTime: number;
+  };
 } 

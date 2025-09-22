@@ -9,23 +9,24 @@ import { Request } from 'express';
 
 // Base permission actions
 export type PermissionAction = 
-  | 'create' 
-  | 'read' 
-  | 'update' 
-  | 'delete' 
-  | 'list' 
-  | 'manage' 
-  | 'approve' 
-  | 'reject' 
-  | 'export' 
+  | 'create'
+  | 'read'
+  | 'update'
+  | 'delete'
+  | 'list'
+  | 'manage'
+  | 'approve'
+  | 'reject'
+  | 'export'
   | 'import'
   | 'analytics'
-  | 'configure';
+  | 'configure'
+  | 'resolve';
 
 // Platform resources
 export type Resource = 
   | 'users'
-  | 'shops' 
+  | 'shops'
   | 'shop_services'
   | 'reservations'
   | 'payments'
@@ -38,7 +39,12 @@ export type Resource =
   | 'reports'
   | 'system_settings'
   | 'audit_logs'
-  | 'influencer_content';
+  | 'influencer_content'
+  | 'feed_posts'
+  | 'feed_comments'
+  | 'feed_likes'
+  | 'feed_reports'
+  | 'feed_moderation';
 
 // User roles from database schema
 export type UserRole = 'user' | 'shop_owner' | 'admin' | 'influencer';

@@ -14,6 +14,11 @@ const router = Router();
  *         isShuttingDown:
  *           type: boolean
  *           description: Whether the system is currently shutting down
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         startTime:
  *           type: number
  *           description: Timestamp when shutdown started
@@ -76,8 +81,13 @@ router.get('/status', async (req: Request, res: Response) => {
  * @swagger
  * /initiate:
  *   post:
- *     summary: POST /initiate
+ *     summary: POST /initiate (POST /initiate)
  *     description: POST endpoint for /initiate
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -147,8 +157,13 @@ router.post('/initiate', async (req: Request, res: Response) => {
  * @swagger
  * /test:
  *   post:
- *     summary: POST /test
+ *     summary: POST /test (POST /test)
  *     description: POST endpoint for /test
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -221,8 +236,13 @@ router.post('/test', async (req: Request, res: Response) => {
  * @swagger
  * /health:
  *   get:
- *     summary: GET /health
+ *     summary: /health 조회
  *     description: GET endpoint for /health
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     responses:
  *       200:

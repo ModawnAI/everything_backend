@@ -3,6 +3,11 @@
  * tags:
  *   - name: Shops
  *     description: Shop management and discovery endpoints
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 /**
@@ -237,8 +242,13 @@ router.use(publicRateLimit);
  *   post:
  *     tags:
  *       - Shops
- *     summary: Create a new shop
+ *     summary: a new shop 생성
  *     description: Create a new shop (requires authentication and shop owner role)
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -328,8 +338,13 @@ router.use(publicRateLimit);
  * @swagger
  * /:
  *   post:
- *     summary: POST /
+ *     summary: POST / (POST /)
  *     description: POST endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -385,8 +400,13 @@ router.post('/',
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -442,8 +462,13 @@ router.get('/',
  * @swagger
  * /nearby:
  *   get:
- *     summary: GET /nearby
+ *     summary: /nearby 조회
  *     description: GET endpoint for /nearby
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -500,8 +525,13 @@ router.get('/nearby',
  * @swagger
  * /bounds:
  *   get:
- *     summary: GET /bounds
+ *     summary: /bounds 조회
  *     description: GET endpoint for /bounds
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -548,6 +578,11 @@ router.get('/bounds',
  * Body Parameters: (all optional)
  * - name: Shop name
  * - description: Shop description
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  * - phone_number: Contact phone number
  * - email: Contact email
  * - address: Shop address
@@ -569,8 +604,13 @@ router.get('/bounds',
  * @swagger
  * /:id:
  *   put:
- *     summary: PUT /:id
+ *     summary: PUT /:id (PUT /:id)
  *     description: PUT endpoint for /:id
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -623,8 +663,13 @@ router.put('/:id',
  * @swagger
  * /:id:
  *   delete:
- *     summary: DELETE /:id
+ *     summary: /:id 삭제
  *     description: DELETE endpoint for /:id
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -670,6 +715,31 @@ router.delete('/:id',
  * 
  * Example: GET /api/shops/123e4567-e89b-12d3-a456-426614174000
  */
+/**
+ * @swagger
+ * /:id:
+ *   get:
+ *     summary: /:id 조회
+ *     description: GET endpoint for /:id
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Shop Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/:id',
   validateRequestBody(shopIdSchema),
   async (req, res) => {
@@ -696,8 +766,13 @@ router.get('/:id',
  * @swagger
  * /api/shops/{id}/contact-info:
  *   get:
- *     summary: Get public contact information for a shop
+ *     summary: public contact information for a shop 조회
  *     description: Retrieve public contact information for a specific shop including phone, email, social media, etc.
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     parameters:
  *       - in: path
@@ -753,8 +828,13 @@ router.get('/:id',
  * @swagger
  * /:id/contact-info:
  *   get:
- *     summary: GET /:id/contact-info
+ *     summary: /:id/contact-info 조회
  *     description: GET endpoint for /:id/contact-info
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

@@ -18,6 +18,13 @@ import {
   PointStatus,
   User 
 } from '../types/database.types';
+import {
+  POINT_POLICY_V32,
+  POINT_CALCULATIONS,
+  POINT_VALIDATION_RULES,
+  POINT_TRANSACTION_TYPES,
+  POINT_STATUS
+} from '../constants/point-policies';
 
 export interface CreatePointTransactionRequest {
   userId: string;
@@ -497,7 +504,7 @@ export class PointTransactionService {
   }
 
   /**
-   * Calculate transaction details based on type and user
+   * Calculate transaction details based on type and user using v3.2 policies
    */
   private async calculateTransactionDetails(
     request: CreatePointTransactionRequest,
@@ -511,83 +518,113 @@ export class PointTransactionService {
     metadata: Record<string, any>;
   }> {
     const now = new Date();
-    const oneYearFromNow = new Date(now.getTime() + 365 * 24 * 60 * 60 * 1000);
+    const availabilityDate = POINT_CALCULATIONS.calculateAvailabilityDate();
+    const expirationDate = POINT_CALCULATIONS.calculateExpirationDate(availabilityDate);
+
+    // Get user's tier for multiplier calculations
+    const userTotalPoints = await this.getUserTotalPointsEarned(user.id);
+    const tierMultiplier = POINT_CALCULATIONS.getTierMultiplier(userTotalPoints);
 
     switch (request.transactionType) {
       case 'earned_service':
+        // Calculate points using v3.2 policy with influencer and tier bonuses
+        const servicePoints = POINT_CALCULATIONS.calculateServicePoints(
+          request.amount, 
+          user.is_influencer || false, 
+          tierMultiplier
+        );
+        
         return {
-          amount: request.amount,
-          status: 'pending',
-          availableFrom: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-          expiresAt: oneYearFromNow.toISOString(),
+          amount: servicePoints,
+          status: POINT_STATUS.PENDING,
+          availableFrom: availabilityDate.toISOString(),
+          expiresAt: expirationDate.toISOString(),
           description: request.description || '서비스 이용 적립',
           metadata: {
             source: 'service_completion',
-            baseAmount: request.amount,
-            bonusAmount: 0
+            originalAmount: request.amount,
+            eligibleAmount: Math.min(request.amount, POINT_POLICY_V32.MAX_ELIGIBLE_AMOUNT),
+            basePoints: Math.floor(Math.min(request.amount, POINT_POLICY_V32.MAX_ELIGIBLE_AMOUNT) * POINT_POLICY_V32.EARNING_RATE),
+            influencerBonus: user.is_influencer ? Math.floor(Math.min(request.amount, POINT_POLICY_V32.MAX_ELIGIBLE_AMOUNT) * POINT_POLICY_V32.EARNING_RATE * (POINT_POLICY_V32.INFLUENCER_MULTIPLIER - 1)) : 0,
+            tierBonus: Math.floor(Math.min(request.amount, POINT_POLICY_V32.MAX_ELIGIBLE_AMOUNT) * POINT_POLICY_V32.EARNING_RATE * (tierMultiplier - 1)),
+            isInfluencer: user.is_influencer || false,
+            userTier: POINT_CALCULATIONS.getUserTier(userTotalPoints),
+            tierMultiplier,
+            policyVersion: 'v3.2'
           }
         };
 
       case 'earned_referral':
         return {
-          amount: request.amount,
-          status: 'pending',
-          availableFrom: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-          expiresAt: oneYearFromNow.toISOString(),
+          amount: POINT_POLICY_V32.REFERRAL_BASE_BONUS,
+          status: POINT_STATUS.PENDING,
+          availableFrom: availabilityDate.toISOString(),
+          expiresAt: expirationDate.toISOString(),
           description: request.description || '추천 적립',
           metadata: {
             source: 'referral',
-            referredUserId: request.relatedUserId
+            referredUserId: request.relatedUserId,
+            baseBonus: POINT_POLICY_V32.REFERRAL_BASE_BONUS,
+            policyVersion: 'v3.2'
           }
         };
 
       case 'influencer_bonus':
-        const bonusAmount = user.is_influencer ? request.amount * 2 : request.amount;
+        // Apply v3.2 influencer multiplier (2x)
+        const influencerBonusAmount = user.is_influencer ? 
+          Math.floor(request.amount * POINT_POLICY_V32.INFLUENCER_MULTIPLIER) : 
+          request.amount;
+          
         return {
-          amount: bonusAmount,
-          status: 'pending',
-          availableFrom: new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString(), // 7 days
-          expiresAt: oneYearFromNow.toISOString(),
+          amount: influencerBonusAmount,
+          status: POINT_STATUS.PENDING,
+          availableFrom: availabilityDate.toISOString(),
+          expiresAt: expirationDate.toISOString(),
           description: request.description || '인플루언서 보너스',
           metadata: {
             source: 'influencer_bonus',
             baseAmount: request.amount,
-            bonusAmount: user.is_influencer ? request.amount : 0,
-            isInfluencer: user.is_influencer
+            bonusAmount: user.is_influencer ? Math.floor(request.amount * (POINT_POLICY_V32.INFLUENCER_MULTIPLIER - 1)) : 0,
+            multiplier: POINT_POLICY_V32.INFLUENCER_MULTIPLIER,
+            isInfluencer: user.is_influencer || false,
+            policyVersion: 'v3.2'
           }
         };
 
       case 'used_service':
         return {
           amount: request.amount, // Should be negative
-          status: 'used',
+          status: POINT_STATUS.USED,
           description: request.description || '서비스 결제 사용',
           metadata: {
             source: 'service_payment',
-            reservationId: request.reservationId
+            reservationId: request.reservationId,
+            policyVersion: 'v3.2'
           }
         };
 
       case 'expired':
         return {
           amount: request.amount, // Should be negative
-          status: 'expired',
+          status: POINT_STATUS.EXPIRED,
           description: request.description || '포인트 만료',
           metadata: {
             source: 'expiration',
-            expiredAt: now.toISOString()
+            expiredAt: now.toISOString(),
+            policyVersion: 'v3.2'
           }
         };
 
       case 'adjusted':
         return {
           amount: request.amount,
-          status: 'available',
-          expiresAt: oneYearFromNow.toISOString(),
+          status: POINT_STATUS.AVAILABLE,
+          expiresAt: expirationDate.toISOString(),
           description: request.description || '관리자 조정',
           metadata: {
             source: 'admin_adjustment',
-            adjustedBy: 'system'
+            adjustedBy: 'system',
+            policyVersion: 'v3.2'
           }
         };
 
@@ -695,6 +732,36 @@ export class PointTransactionService {
     }
 
     return user;
+  }
+
+  /**
+   * Get user's total points earned (for tier calculation)
+   */
+  private async getUserTotalPointsEarned(userId: string): Promise<number> {
+    try {
+      const { data: transactions, error } = await this.supabase
+        .from('point_transactions')
+        .select('amount')
+        .eq('user_id', userId)
+        .gt('amount', 0); // Only positive amounts (earned points)
+
+      if (error) {
+        logger.error('Failed to get user total points earned', {
+          error: error.message,
+          userId
+        });
+        return 0;
+      }
+
+      const totalEarned = transactions?.reduce((sum, t) => sum + t.amount, 0) || 0;
+      return totalEarned;
+    } catch (error) {
+      logger.error('Error calculating user total points earned', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId
+      });
+      return 0;
+    }
   }
 
   /**

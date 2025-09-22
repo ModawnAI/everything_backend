@@ -165,6 +165,11 @@ const queryParamsSchema = Joi.object({
  *           type: string
  *           format: uuid
  *           description: Unique identifier for the report
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         shop_id:
  *           type: string
  *           format: uuid
@@ -279,8 +284,13 @@ const queryParamsSchema = Joi.object({
  * @swagger
  * /api/shops/{shopId}/report:
  *   post:
- *     summary: Report a shop for inappropriate content or behavior
+ *     summary: Report a shop for inappropriate content or behavior (Report a shop for inappropriate content or behavior)
  *     description: Create a new report for a specific shop. Users can submit up to 5 reports per day.
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Shop Reporting
  *     security:
@@ -380,8 +390,13 @@ router.post(
  * @swagger
  * /api/shops/reports:
  *   get:
- *     summary: Get user's shop reports
+ *     summary: user's shop reports 조회
  *     description: Retrieve a paginated list of reports submitted by the authenticated user
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Shop Reporting
  *     security:
@@ -436,8 +451,13 @@ router.get(
  * @swagger
  * /api/shops/reports/{reportId}:
  *   get:
- *     summary: Get a specific shop report
+ *     summary: a specific shop report 조회
  *     description: Retrieve details of a specific report submitted by the authenticated user
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Shop Reporting
  *     security:
@@ -490,8 +510,13 @@ router.get(
  * @swagger
  * /api/shops/reports/{reportId}:
  *   put:
- *     summary: Update a shop report
+ *     summary: a shop report 수정
  *     description: Update a pending report submitted by the authenticated user. Only pending reports can be updated.
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Shop Reporting
  *     security:
@@ -575,8 +600,13 @@ router.put(
  * @swagger
  * /api/shops/reports/{reportId}:
  *   delete:
- *     summary: Delete a shop report
+ *     summary: a shop report 삭제
  *     description: Delete a pending report submitted by the authenticated user. Only pending reports can be deleted.
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Shop Reporting
  *     security:

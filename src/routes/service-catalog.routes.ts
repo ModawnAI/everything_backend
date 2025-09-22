@@ -77,8 +77,13 @@ router.use(serviceCatalogRateLimit);
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -102,6 +107,31 @@ router.get('/',
  * @desc Search service catalog entries with advanced filtering
  * @access Public
  */
+/**
+ * @swagger
+ * /search:
+ *   get:
+ *     summary: /search 조회
+ *     description: GET endpoint for /search
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/search',
   searchRateLimit,
   validateRequestWithSchema(serviceCatalogSearchSchema, 'query'),
@@ -113,6 +143,31 @@ router.get('/search',
  * @desc Get service catalog statistics
  * @access Public
  */
+/**
+ * @swagger
+ * /stats:
+ *   get:
+ *     summary: /stats 조회
+ *     description: GET endpoint for /stats
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/stats',
   serviceCatalogController.getServiceCatalogStats.bind(serviceCatalogController)
 );
@@ -122,6 +177,31 @@ router.get('/stats',
  * @desc Get service type metadata
  * @access Public
  */
+/**
+ * @swagger
+ * /metadata:
+ *   get:
+ *     summary: /metadata 조회
+ *     description: GET endpoint for /metadata
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/metadata',
   serviceCatalogController.getServiceTypeMetadata.bind(serviceCatalogController)
 );
@@ -136,8 +216,13 @@ router.get('/metadata',
  * @swagger
  * /popular:
  *   get:
- *     summary: GET /popular
+ *     summary: /popular 조회
  *     description: GET endpoint for /popular
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -160,6 +245,31 @@ router.get('/popular',
  * @desc Get trending services
  * @access Public
  */
+/**
+ * @swagger
+ * /trending:
+ *   get:
+ *     summary: /trending 조회
+ *     description: GET endpoint for /trending
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/trending',
   serviceCatalogController.getTrendingServices.bind(serviceCatalogController)
 );
@@ -169,6 +279,31 @@ router.get('/trending',
  * @desc Get service catalog configuration
  * @access Public
  */
+/**
+ * @swagger
+ * /config:
+ *   get:
+ *     summary: /config 조회
+ *     description: GET endpoint for /config
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/config',
   serviceCatalogController.getServiceCatalogConfig.bind(serviceCatalogController)
 );
@@ -178,6 +313,31 @@ router.get('/config',
  * @desc Get a specific service catalog entry by ID
  * @access Public
  */
+/**
+ * @swagger
+ * /:serviceId:
+ *   get:
+ *     summary: /:serviceId 조회
+ *     description: GET endpoint for /:serviceId
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/:serviceId',
   serviceCatalogController.getServiceCatalogEntryById.bind(serviceCatalogController)
 );
@@ -192,8 +352,13 @@ router.get('/:serviceId',
  * @swagger
  * /:serviceId/popularity:
  *   put:
- *     summary: PUT /:serviceId/popularity
+ *     summary: PUT /:serviceId/popularity (PUT /:serviceId/popularity)
  *     description: PUT endpoint for /:serviceId/popularity
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -217,6 +382,31 @@ router.put('/:serviceId/popularity',
  * @desc Mark service as trending (internal use)
  * @access Internal
  */
+/**
+ * @swagger
+ * /:serviceId/trending:
+ *   put:
+ *     summary: PUT /:serviceId/trending (PUT /:serviceId/trending)
+ *     description: PUT endpoint for /:serviceId/trending
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service Catalog]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.put('/:serviceId/trending',
   validateRequestWithSchema(markTrendingSchema, 'body'),
   serviceCatalogController.markServiceAsTrending.bind(serviceCatalogController)

@@ -14,6 +14,11 @@ const router = Router();
  *         hits:
  *           type: number
  *           description: Number of cache hits
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         misses:
  *           type: number
  *           description: Number of cache misses
@@ -72,8 +77,13 @@ router.get('/stats', async (req: Request, res: Response) => {
  * @swagger
  * /set:
  *   post:
- *     summary: POST /set
+ *     summary: POST /set (POST /set)
  *     description: POST endpoint for /set
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -142,8 +152,13 @@ router.post('/set', async (req: Request, res: Response) => {
  * @swagger
  * /get/:key:
  *   get:
- *     summary: GET /get/:key
+ *     summary: /get/:key 조회
  *     description: GET endpoint for /get/:key
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -212,8 +227,13 @@ router.get('/get/:key', async (req: Request, res: Response) => {
  * @swagger
  * /delete/:key:
  *   delete:
- *     summary: DELETE /delete/:key
+ *     summary: /delete/:key 삭제
  *     description: DELETE endpoint for /delete/:key
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -271,8 +291,13 @@ router.delete('/delete/:key', async (req: Request, res: Response) => {
  * @swagger
  * /invalidate:
  *   post:
- *     summary: POST /invalidate
+ *     summary: POST /invalidate (POST /invalidate)
  *     description: POST endpoint for /invalidate
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -339,8 +364,13 @@ router.post('/invalidate', async (req: Request, res: Response) => {
  * @swagger
  * /clear:
  *   post:
- *     summary: POST /clear
+ *     summary: POST /clear (POST /clear)
  *     description: POST endpoint for /clear
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -393,8 +423,13 @@ router.post('/clear', async (req: Request, res: Response) => {
  * @swagger
  * /warm:
  *   post:
- *     summary: POST /warm
+ *     summary: POST /warm (POST /warm)
  *     description: POST endpoint for /warm
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

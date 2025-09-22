@@ -20,7 +20,9 @@ export type FraudDetectionType =
   | 'card_velocity' 
   | 'user_pattern' 
   | 'time_anomaly' 
-  | 'amount_anomaly';
+  | 'amount_anomaly'
+  | 'pattern_analysis'
+  | 'geographic_analysis';
 
 export type FraudAction = 
   | 'allow' 
@@ -40,7 +42,9 @@ export type SecurityAlertType =
   | 'user_suspended' 
   | 'payment_failed' 
   | 'webhook_failure' 
-  | 'system_error';
+  | 'system_error'
+  | 'pattern_anomaly'
+  | 'geographic_anomaly';
 
 export type SecurityAlertSeverity = 'info' | 'warning' | 'error' | 'critical';
 

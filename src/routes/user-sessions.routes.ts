@@ -25,8 +25,13 @@ const revokeAllOtherSessionsSchema = Joi.object({
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       사용자 관련 API입니다. 사용자 계정과 프로필 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -51,6 +56,31 @@ router.get('/',
  * @desc Get session analytics for the authenticated user
  * @access Private
  */
+/**
+ * @swagger
+ * /analytics:
+ *   get:
+ *     summary: /analytics 조회
+ *     description: GET endpoint for /analytics
+ *       
+ *       사용자 관련 API입니다. 사용자 계정과 프로필 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [User Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/analytics',
   authenticateToken,
   userSessionsController.sessionManagementRateLimit,
@@ -62,6 +92,31 @@ router.get('/analytics',
  * @desc Revoke a specific session
  * @access Private
  */
+/**
+ * @swagger
+ * /:sessionId:
+ *   delete:
+ *     summary: /:sessionId 삭제
+ *     description: DELETE endpoint for /:sessionId
+ *       
+ *       사용자 관련 API입니다. 사용자 계정과 프로필 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [User Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.delete('/:sessionId',
   authenticateToken,
   userSessionsController.sessionManagementRateLimit,
@@ -79,8 +134,13 @@ router.delete('/:sessionId',
  * @swagger
  * /revoke-all-others:
  *   post:
- *     summary: POST /revoke-all-others
+ *     summary: POST /revoke-all-others (POST /revoke-all-others)
  *     description: POST endpoint for /revoke-all-others
+ *       
+ *       사용자 관련 API입니다. 사용자 계정과 프로필 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []

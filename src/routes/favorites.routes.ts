@@ -71,8 +71,13 @@ const checkFavoritesBodySchema = Joi.object({
  * @swagger
  * /api/shops/{shopId}/favorite:
  *   post:
- *     summary: Add shop to favorites
+ *     summary: Add shop to favorites (Add shop to favorites)
  *     description: Add a specific shop to the authenticated user's favorites list
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -123,8 +128,13 @@ router.post('/shops/:shopId/favorite',
  * @swagger
  * /api/shops/{shopId}/favorite:
  *   delete:
- *     summary: Remove shop from favorites
+ *     summary: Remove shop from favorites (Remove shop from favorites)
  *     description: Remove a specific shop from the authenticated user's favorites list
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -174,8 +184,13 @@ router.delete('/shops/:shopId/favorite',
  * @swagger
  * /api/shops/{shopId}/favorite:
  *   put:
- *     summary: Toggle shop favorite status
+ *     summary: Toggle shop favorite status (Toggle shop favorite status)
  *     description: Toggle the favorite status of a shop (add if not favorited, remove if favorited)
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -226,8 +241,13 @@ router.put('/shops/:shopId/favorite',
  * @swagger
  * /api/shops/{shopId}/favorite/status:
  *   get:
- *     summary: Check shop favorite status
+ *     summary: Check shop favorite status (Check shop favorite status)
  *     description: Check if a specific shop is in the authenticated user's favorites
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -275,8 +295,13 @@ router.get('/shops/:shopId/favorite/status',
  * @swagger
  * /api/user/favorites:
  *   get:
- *     summary: Get user's favorite shops
+ *     summary: user's favorite shops 조회
  *     description: Retrieve the authenticated user's favorite shops with pagination and filtering options
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -333,8 +358,13 @@ router.get('/shops/:shopId/favorite/status',
  * @swagger
  * /user/favorites:
  *   get:
- *     summary: GET /user/favorites
+ *     summary: /user/favorites 조회
  *     description: GET endpoint for /user/favorites
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -359,8 +389,13 @@ router.get('/user/favorites',
  * @swagger
  * /api/user/favorites/stats:
  *   get:
- *     summary: Get user's favorites statistics
+ *     summary: user's favorites statistics 조회
  *     description: Retrieve statistics about the authenticated user's favorite shops
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -393,8 +428,13 @@ router.get('/user/favorites/stats',
  * @swagger
  * /api/user/favorites/bulk:
  *   post:
- *     summary: Bulk add/remove favorites
+ *     summary: Bulk add/remove favorites (Bulk add/remove favorites)
  *     description: Add or remove multiple shops from favorites in a single operation
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -461,8 +501,13 @@ router.get('/user/favorites/stats',
  * @swagger
  * /user/favorites/bulk:
  *   post:
- *     summary: POST /user/favorites/bulk
+ *     summary: POST /user/favorites/bulk (POST /user/favorites/bulk)
  *     description: POST endpoint for /user/favorites/bulk
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -487,8 +532,13 @@ router.post('/user/favorites/bulk',
  * @swagger
  * /api/user/favorites/check:
  *   post:
- *     summary: Check favorite status for multiple shops
+ *     summary: Check favorite status for multiple shops (Check favorite status for multiple shops)
  *     description: Check the favorite status for multiple shops in a single request
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -546,8 +596,13 @@ router.post('/user/favorites/bulk',
  * @swagger
  * /user/favorites/check:
  *   post:
- *     summary: POST /user/favorites/check
+ *     summary: POST /user/favorites/check (POST /user/favorites/check)
  *     description: POST endpoint for /user/favorites/check
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

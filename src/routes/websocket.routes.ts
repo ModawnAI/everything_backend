@@ -16,6 +16,11 @@ const websocketController = new WebSocketController();
  *         id:
  *           type: string
  *           description: Connection ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         userId:
  *           type: string
  *           description: User ID
@@ -118,8 +123,13 @@ const websocketController = new WebSocketController();
  * @swagger
  * /api/websocket/stats:
  *   get:
- *     summary: Get WebSocket connection statistics
+ *     summary: WebSocket connection statistics 조회
  *     description: Retrieve WebSocket connection statistics and room information
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -173,8 +183,13 @@ router.get('/stats',
  * @swagger
  * /api/websocket/rooms:
  *   get:
- *     summary: Get all active rooms
+ *     summary: all active rooms 조회
  *     description: Retrieve all active WebSocket rooms accessible to the user
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -218,8 +233,13 @@ router.get('/rooms',
  * @swagger
  * /api/websocket/rooms/{roomId}:
  *   get:
- *     summary: Get room information
+ *     summary: room information 조회
  *     description: Retrieve detailed information about a specific WebSocket room
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -271,8 +291,13 @@ router.get('/rooms/:roomId',
  * @swagger
  * /api/websocket/admin/notification:
  *   post:
- *     summary: Send admin notification
+ *     summary: Send admin notification (Send admin notification)
  *     description: Send a notification to all admin users via WebSocket
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -344,8 +369,13 @@ router.get('/rooms/:roomId',
  * @swagger
  * /admin/notification:
  *   post:
- *     summary: POST /admin/notification
+ *     summary: POST /admin/notification (POST /admin/notification)
  *     description: POST endpoint for /admin/notification
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -371,6 +401,11 @@ router.post('/admin/notification',
  *   post:
  *     summary: Send reservation update
  *     description: Send a reservation update to relevant users via WebSocket
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -441,6 +476,11 @@ router.post('/admin/notification',
  *   post:
  *     summary: POST /reservation/update
  *     description: POST endpoint for /reservation/update
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -464,8 +504,13 @@ router.post('/reservation/update',
  * @swagger
  * /api/websocket/user/message:
  *   post:
- *     summary: Send message to specific user
+ *     summary: Send message to specific user (Send message to specific user)
  *     description: Send a message to a specific user via WebSocket
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -528,8 +573,13 @@ router.post('/reservation/update',
  * @swagger
  * /user/message:
  *   post:
- *     summary: POST /user/message
+ *     summary: POST /user/message (POST /user/message)
  *     description: POST endpoint for /user/message
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -553,8 +603,13 @@ router.post('/user/message',
  * @swagger
  * /api/websocket/room/message:
  *   post:
- *     summary: Send message to room
+ *     summary: Send message to room (Send message to room)
  *     description: Send a message to all users in a specific room via WebSocket
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -619,8 +674,13 @@ router.post('/user/message',
  * @swagger
  * /room/message:
  *   post:
- *     summary: POST /room/message
+ *     summary: POST /room/message (POST /room/message)
  *     description: POST endpoint for /room/message
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -644,8 +704,13 @@ router.post('/room/message',
  * @swagger
  * /api/websocket/broadcast:
  *   post:
- *     summary: Broadcast message to all clients
+ *     summary: Broadcast message to all clients (Broadcast message to all clients)
  *     description: Broadcast a message to all connected WebSocket clients (admin only)
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -702,8 +767,13 @@ router.post('/room/message',
  * @swagger
  * /broadcast:
  *   post:
- *     summary: POST /broadcast
+ *     summary: POST /broadcast (POST /broadcast)
  *     description: POST endpoint for /broadcast
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []
@@ -727,8 +797,13 @@ router.post('/broadcast',
  * @swagger
  * /api/websocket/cleanup:
  *   post:
- *     summary: Clean up inactive connections
+ *     summary: Clean up inactive connections (Clean up inactive connections)
  *     description: Clean up inactive WebSocket connections (admin only)
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [WebSocket]
  *     security:
  *       - bearerAuth: []

@@ -8,6 +8,7 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { referralRelationshipService } from './referral-relationship.service';
+import { enhancedReferralService } from './enhanced-referral.service';
 import {
   ReferralRecord,
   ReferralStatus,
@@ -693,6 +694,66 @@ class ReferralServiceImpl {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
     }
+  }
+
+  /**
+   * Enhanced referral reward calculation based on original payment amounts (10% of base points)
+   */
+  async calculateReferralReward(
+    referrerId: string,
+    referredId: string,
+    originalPaymentAmount: number
+  ) {
+    return await enhancedReferralService.calculateReferralReward(
+      referrerId,
+      referredId,
+      originalPaymentAmount
+    );
+  }
+
+  /**
+   * Check and automatically promote user to influencer status when reaching 50 successful referrals
+   */
+  async checkAndPromoteInfluencer(userId: string) {
+    return await enhancedReferralService.checkAndPromoteInfluencer(userId);
+  }
+
+  /**
+   * Validate referral chain to prevent circular references
+   */
+  async validateReferralChain(referrerId: string, referredId: string) {
+    return await enhancedReferralService.validateReferralChain(referrerId, referredId);
+  }
+
+  /**
+   * Generate unique referral code with collision prevention
+   */
+  async generateReferralCode(userId: string) {
+    return await enhancedReferralService.generateReferralCode(userId);
+  }
+
+  /**
+   * Get comprehensive referral analytics for a user
+   */
+  async getUserReferralAnalytics(userId: string) {
+    return await enhancedReferralService.getReferralAnalytics(userId);
+  }
+
+  /**
+   * Process referral reward payout with enhanced calculation
+   */
+  async processReferralReward(
+    referrerId: string,
+    referredId: string,
+    originalPaymentAmount: number,
+    reservationId?: string
+  ) {
+    return await enhancedReferralService.processReferralReward(
+      referrerId,
+      referredId,
+      originalPaymentAmount,
+      reservationId
+    );
   }
 }
 

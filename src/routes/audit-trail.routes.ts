@@ -63,8 +63,13 @@ router.use(strictRateLimit(20, 60000)); // 20 requests per minute for audit oper
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -101,6 +106,31 @@ router.get('/', async (req, res) => {
  * GET /api/admin/audit-trail/compliance-report
  * Generate comprehensive compliance report
  */
+/**
+ * @swagger
+ * /compliance-report:
+ *   get:
+ *     summary: /compliance-report 조회
+ *     description: GET endpoint for /compliance-report
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/compliance-report', async (req, res) => {
   try {
     await auditTrailController.generateComplianceReport(req, res);
@@ -129,8 +159,13 @@ router.get('/compliance-report', async (req, res) => {
  * @swagger
  * /trends:
  *   get:
- *     summary: GET /trends
+ *     summary: /trends 조회
  *     description: GET endpoint for /trends
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -167,6 +202,31 @@ router.get('/trends', async (req, res) => {
  * POST /api/admin/audit-trail/export
  * Export audit trail data
  */
+/**
+ * @swagger
+ * /export:
+ *   post:
+ *     summary: POST /export (POST /export)
+ *     description: POST endpoint for /export
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/export',
   validateRequestBody(exportRequestSchema),
   async (req, res) => {
@@ -198,8 +258,13 @@ router.post('/export',
  * @swagger
  * /reservation/:reservationId:
  *   get:
- *     summary: GET /reservation/:reservationId
+ *     summary: /reservation/:reservationId 조회
  *     description: GET endpoint for /reservation/:reservationId
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -236,6 +301,31 @@ router.get('/reservation/:reservationId', async (req, res) => {
  * POST /api/admin/audit-trail/cleanup
  * Clean up old audit trail entries (data retention)
  */
+/**
+ * @swagger
+ * /cleanup:
+ *   post:
+ *     summary: POST /cleanup (POST /cleanup)
+ *     description: POST endpoint for /cleanup
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/cleanup',
   validateRequestBody(cleanupRequestSchema),
   async (req, res) => {
@@ -267,8 +357,13 @@ router.post('/cleanup',
  * @swagger
  * /stats:
  *   get:
- *     summary: GET /stats
+ *     summary: /stats 조회
  *     description: GET endpoint for /stats
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

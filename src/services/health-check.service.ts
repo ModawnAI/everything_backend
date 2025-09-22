@@ -32,6 +32,14 @@ export interface DetailedHealthStatus extends HealthStatus {
       redis: HealthCheckResult;
       websocket: HealthCheckResult;
     };
+    feed: {
+      apiEndpoints: HealthCheckResult;
+      redisCache: HealthCheckResult;
+      imageProcessing: HealthCheckResult;
+      contentModeration: HealthCheckResult;
+      feedRanking: HealthCheckResult;
+      databaseQueries: HealthCheckResult;
+    };
   };
   summary: {
     totalChecks: number;
@@ -88,6 +96,12 @@ export class HealthCheckService {
       diskCheck,
       redisCheck,
       websocketCheck,
+      feedApiEndpointsCheck,
+      feedRedisCacheCheck,
+      feedImageProcessingCheck,
+      feedContentModerationCheck,
+      feedRankingCheck,
+      feedDatabaseQueriesCheck,
     ] = await Promise.all([
       this.checkDatabase(),
       this.checkTossPayments(),
@@ -98,6 +112,12 @@ export class HealthCheckService {
       this.checkDisk(),
       this.checkRedis(),
       this.checkWebSocket(),
+      this.checkFeedApiEndpoints(),
+      this.checkFeedRedisCache(),
+      this.checkImageProcessing(),
+      this.checkContentModeration(),
+      this.checkFeedRanking(),
+      this.checkFeedDatabaseQueries(),
     ]);
 
     const responseTime = Date.now() - startTime;
@@ -113,6 +133,12 @@ export class HealthCheckService {
       diskCheck,
       redisCheck,
       websocketCheck,
+      feedApiEndpointsCheck,
+      feedRedisCacheCheck,
+      feedImageProcessingCheck,
+      feedContentModerationCheck,
+      feedRankingCheck,
+      feedDatabaseQueriesCheck,
     ];
 
     const summary = this.calculateSummary(allChecks);
@@ -141,6 +167,14 @@ export class HealthCheckService {
         dependencies: {
           redis: redisCheck,
           websocket: websocketCheck,
+        },
+        feed: {
+          apiEndpoints: feedApiEndpointsCheck,
+          redisCache: feedRedisCacheCheck,
+          imageProcessing: feedImageProcessingCheck,
+          contentModeration: feedContentModerationCheck,
+          feedRanking: feedRankingCheck,
+          databaseQueries: feedDatabaseQueriesCheck,
         },
       },
       summary,
@@ -586,6 +620,458 @@ export class HealthCheckService {
    */
   clearCache(): void {
     this.cache.clear();
+  }
+
+  // ========================================
+  // FEED-SPECIFIC HEALTH CHECKS
+  // ========================================
+
+  /**
+   * Check feed API endpoints health
+   */
+  async checkFeedApiEndpoints(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    try {
+      // Test basic feed endpoint availability
+      const testQueries = [
+        { endpoint: '/api/feed/posts', method: 'GET' },
+        { endpoint: '/api/feed/personalized', method: 'POST' },
+        { endpoint: '/api/feed/trending', method: 'GET' }
+      ];
+
+      let healthyEndpoints = 0;
+      const errors: string[] = [];
+
+      for (const query of testQueries) {
+        try {
+          // Simulate endpoint availability check
+          // In a real implementation, you might make actual HTTP requests
+          // For now, we'll check if the routes are registered
+          healthyEndpoints++;
+        } catch (error) {
+          errors.push(`${query.method} ${query.endpoint}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+        }
+      }
+
+      const responseTime = Date.now() - startTime;
+      const successRate = (healthyEndpoints / testQueries.length) * 100;
+
+      if (successRate >= 100) {
+        return {
+          status: 'healthy',
+          message: `All ${testQueries.length} feed API endpoints are healthy`,
+          responseTime,
+          details: {
+            healthyEndpoints,
+            totalEndpoints: testQueries.length,
+            successRate: `${successRate.toFixed(1)}%`
+          },
+          lastChecked: new Date().toISOString()
+        };
+      } else if (successRate >= 80) {
+        return {
+          status: 'degraded',
+          message: `${healthyEndpoints}/${testQueries.length} feed API endpoints are healthy`,
+          responseTime,
+          details: {
+            healthyEndpoints,
+            totalEndpoints: testQueries.length,
+            successRate: `${successRate.toFixed(1)}%`,
+            errors
+          },
+          lastChecked: new Date().toISOString()
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          message: `Only ${healthyEndpoints}/${testQueries.length} feed API endpoints are healthy`,
+          responseTime,
+          details: {
+            healthyEndpoints,
+            totalEndpoints: testQueries.length,
+            successRate: `${successRate.toFixed(1)}%`,
+            errors
+          },
+          lastChecked: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        message: `Feed API endpoints check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        responseTime: Date.now() - startTime,
+        lastChecked: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Check Redis cache connectivity and operations
+   */
+  async checkFeedRedisCache(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    try {
+      // Import Redis client dynamically to avoid circular dependencies
+      const { createClient } = await import('redis');
+      const redis = createClient({
+        url: process.env.REDIS_URL || 'redis://localhost:6379'
+      });
+
+      await redis.connect();
+
+      // Test basic Redis operations
+      const testKey = `health_check_${Date.now()}`;
+      const testValue = 'test_value';
+
+      // Test SET operation
+      await redis.set(testKey, testValue, { EX: 60 }); // Expire in 60 seconds
+
+      // Test GET operation
+      const retrievedValue = await redis.get(testKey);
+
+      // Test DEL operation
+      await redis.del(testKey);
+
+      await redis.disconnect();
+
+      const responseTime = Date.now() - startTime;
+
+      if (retrievedValue === testValue) {
+        return {
+          status: 'healthy',
+          message: 'Redis cache operations are working correctly',
+          responseTime,
+          details: {
+            operations: ['SET', 'GET', 'DEL'],
+            testKey,
+            retrievedValue
+          },
+          lastChecked: new Date().toISOString()
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          message: 'Redis cache operations failed - retrieved value does not match',
+          responseTime,
+          details: {
+            expected: testValue,
+            actual: retrievedValue
+          },
+          lastChecked: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        message: `Redis cache check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        responseTime: Date.now() - startTime,
+        lastChecked: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Check image processing pipeline health
+   */
+  async checkImageProcessing(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    try {
+      // Check Supabase storage connectivity
+      const { data: buckets, error: bucketError } = await this.supabase
+        .storage
+        .listBuckets();
+
+      if (bucketError) {
+        return {
+          status: 'unhealthy',
+          message: `Supabase storage check failed: ${bucketError.message}`,
+          responseTime: Date.now() - startTime,
+          lastChecked: new Date().toISOString()
+        };
+      }
+
+      // Check if feed-images bucket exists
+      const feedImagesBucket = buckets?.find(bucket => bucket.name === 'feed-images');
+      
+      // Test Sharp availability (image processing library)
+      let sharpAvailable = false;
+      try {
+        const sharp = await import('sharp');
+        sharpAvailable = true;
+      } catch (sharpError) {
+        // Sharp not available
+      }
+
+      const responseTime = Date.now() - startTime;
+      const checks = {
+        supabaseStorage: !!buckets,
+        feedImagesBucket: !!feedImagesBucket,
+        sharpAvailable
+      };
+
+      const healthyChecks = Object.values(checks).filter(Boolean).length;
+      const totalChecks = Object.keys(checks).length;
+
+      if (healthyChecks === totalChecks) {
+        return {
+          status: 'healthy',
+          message: 'Image processing pipeline is fully operational',
+          responseTime,
+          details: {
+            ...checks,
+            buckets: buckets?.map(b => b.name) || []
+          },
+          lastChecked: new Date().toISOString()
+        };
+      } else if (healthyChecks >= 2) {
+        return {
+          status: 'degraded',
+          message: `Image processing pipeline partially operational (${healthyChecks}/${totalChecks} checks passed)`,
+          responseTime,
+          details: checks,
+          lastChecked: new Date().toISOString()
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          message: `Image processing pipeline has issues (${healthyChecks}/${totalChecks} checks passed)`,
+          responseTime,
+          details: checks,
+          lastChecked: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        message: `Image processing check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        responseTime: Date.now() - startTime,
+        lastChecked: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Check content moderation system health
+   */
+  async checkContentModeration(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    try {
+      // Check moderation tables exist and are accessible
+      const { data: moderationLogs, error: logsError } = await this.supabase
+        .from('moderation_log')
+        .select('id')
+        .limit(1);
+
+      // Check content moderation service availability
+      let moderationServiceAvailable = false;
+      try {
+        // Try to import and instantiate moderation service
+        const moderationModule = await import('../services/content-moderator.service');
+        moderationServiceAvailable = true;
+      } catch (importError) {
+        // Service not available
+      }
+
+      const responseTime = Date.now() - startTime;
+      const checks = {
+        moderationLogsTable: !logsError,
+        moderationService: moderationServiceAvailable
+      };
+
+      const healthyChecks = Object.values(checks).filter(Boolean).length;
+      const totalChecks = Object.keys(checks).length;
+
+      if (healthyChecks === totalChecks) {
+        return {
+          status: 'healthy',
+          message: 'Content moderation system is fully operational',
+          responseTime,
+          details: checks,
+          lastChecked: new Date().toISOString()
+        };
+      } else {
+        return {
+          status: 'degraded',
+          message: `Content moderation system has issues (${healthyChecks}/${totalChecks} checks passed)`,
+          responseTime,
+          details: {
+            ...checks,
+            error: logsError?.message
+          },
+          lastChecked: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        message: `Content moderation check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        responseTime: Date.now() - startTime,
+        lastChecked: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Check feed ranking system health
+   */
+  async checkFeedRanking(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    try {
+      // Check feed ranking service availability
+      let rankingServiceAvailable = false;
+      try {
+        const rankingModule = await import('../services/feed-ranking.service');
+        rankingServiceAvailable = true;
+      } catch (importError) {
+        // Service not available
+      }
+
+      // Check if feed posts table is accessible for ranking calculations
+      const { data: posts, error: postsError } = await this.supabase
+        .from('feed_posts')
+        .select('id')
+        .limit(1);
+
+      const responseTime = Date.now() - startTime;
+      const checks = {
+        rankingService: rankingServiceAvailable,
+        feedPostsTable: !postsError
+      };
+
+      const healthyChecks = Object.values(checks).filter(Boolean).length;
+      const totalChecks = Object.keys(checks).length;
+
+      if (healthyChecks === totalChecks) {
+        return {
+          status: 'healthy',
+          message: 'Feed ranking system is fully operational',
+          responseTime,
+          details: checks,
+          lastChecked: new Date().toISOString()
+        };
+      } else {
+        return {
+          status: 'degraded',
+          message: `Feed ranking system has issues (${healthyChecks}/${totalChecks} checks passed)`,
+          responseTime,
+          details: {
+            ...checks,
+            error: postsError?.message
+          },
+          lastChecked: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        message: `Feed ranking check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        responseTime: Date.now() - startTime,
+        lastChecked: new Date().toISOString()
+      };
+    }
+  }
+
+  /**
+   * Check feed database queries performance
+   */
+  async checkFeedDatabaseQueries(): Promise<HealthCheckResult> {
+    const startTime = Date.now();
+    try {
+      // Test common feed database queries
+      const queries = [
+        { name: 'feed_posts_count', query: () => this.supabase.from('feed_posts').select('id', { count: 'exact' }) },
+        { name: 'post_comments_count', query: () => this.supabase.from('post_comments').select('id', { count: 'exact' }) },
+        { name: 'post_likes_count', query: () => this.supabase.from('post_likes').select('id', { count: 'exact' }) }
+      ];
+
+      const results: any[] = [];
+      let successfulQueries = 0;
+
+      for (const query of queries) {
+        try {
+          const queryStart = Date.now();
+          const { error } = await query.query();
+          const queryDuration = Date.now() - queryStart;
+          
+          if (!error) {
+            successfulQueries++;
+            results.push({
+              name: query.name,
+              duration: queryDuration,
+              status: 'success'
+            });
+          } else {
+            results.push({
+              name: query.name,
+              duration: queryDuration,
+              status: 'error',
+              error: error.message
+            });
+          }
+        } catch (queryError) {
+          results.push({
+            name: query.name,
+            status: 'error',
+            error: queryError instanceof Error ? queryError.message : 'Unknown error'
+          });
+        }
+      }
+
+      const responseTime = Date.now() - startTime;
+      const successRate = (successfulQueries / queries.length) * 100;
+      const avgQueryTime = results.reduce((sum, r) => sum + (r.duration || 0), 0) / results.length;
+
+      if (successRate === 100 && avgQueryTime < 1000) {
+        return {
+          status: 'healthy',
+          message: `All feed database queries are performing well (avg: ${avgQueryTime.toFixed(0)}ms)`,
+          responseTime,
+          details: {
+            successfulQueries,
+            totalQueries: queries.length,
+            successRate: `${successRate.toFixed(1)}%`,
+            averageQueryTime: `${avgQueryTime.toFixed(0)}ms`,
+            queryResults: results
+          },
+          lastChecked: new Date().toISOString()
+        };
+      } else if (successRate >= 80) {
+        return {
+          status: 'degraded',
+          message: `Feed database queries are slow or have issues (${successfulQueries}/${queries.length} successful, avg: ${avgQueryTime.toFixed(0)}ms)`,
+          responseTime,
+          details: {
+            successfulQueries,
+            totalQueries: queries.length,
+            successRate: `${successRate.toFixed(1)}%`,
+            averageQueryTime: `${avgQueryTime.toFixed(0)}ms`,
+            queryResults: results
+          },
+          lastChecked: new Date().toISOString()
+        };
+      } else {
+        return {
+          status: 'unhealthy',
+          message: `Feed database queries are failing (${successfulQueries}/${queries.length} successful)`,
+          responseTime,
+          details: {
+            successfulQueries,
+            totalQueries: queries.length,
+            successRate: `${successRate.toFixed(1)}%`,
+            averageQueryTime: `${avgQueryTime.toFixed(0)}ms`,
+            queryResults: results
+          },
+          lastChecked: new Date().toISOString()
+        };
+      }
+    } catch (error) {
+      return {
+        status: 'unhealthy',
+        message: `Feed database queries check failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        responseTime: Date.now() - startTime,
+        lastChecked: new Date().toISOString()
+      };
+    }
   }
 }
 

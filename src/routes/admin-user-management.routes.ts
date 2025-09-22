@@ -96,8 +96,13 @@ const router = Router();
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -189,8 +194,13 @@ router.get('/', adminUserManagementController.getUsers);
  * @swagger
  * /activity:
  *   get:
- *     summary: GET /activity
+ *     summary: /activity 조회
  *     description: GET endpoint for /activity
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -265,8 +275,13 @@ router.get('/activity', adminUserManagementController.getUserActivity);
  * @swagger
  * /statistics:
  *   get:
- *     summary: GET /statistics
+ *     summary: /statistics 조회
  *     description: GET endpoint for /statistics
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -343,8 +358,13 @@ router.get('/statistics', adminUserManagementController.getUserStatistics);
  * @swagger
  * /:id:
  *   get:
- *     summary: GET /:id
+ *     summary: /:id 조회
  *     description: GET endpoint for /:id
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -412,8 +432,13 @@ router.get('/:id', adminUserManagementController.getUserDetails);
  * @swagger
  * /:id/status:
  *   put:
- *     summary: PUT /:id/status
+ *     summary: PUT /:id/status (PUT /:id/status)
  *     description: PUT endpoint for /:id/status
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -487,8 +512,13 @@ router.put('/:id/status', adminUserManagementController.updateUserStatus);
  * @swagger
  * /:id/role:
  *   put:
- *     summary: PUT /:id/role
+ *     summary: PUT /:id/role (PUT /:id/role)
  *     description: PUT endpoint for /:id/role
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -596,8 +626,13 @@ router.put('/:id/role', adminUserManagementController.updateUserRole);
  * @swagger
  * /bulk-action:
  *   post:
- *     summary: POST /bulk-action
+ *     summary: POST /bulk-action (POST /bulk-action)
  *     description: POST endpoint for /bulk-action
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -684,8 +719,13 @@ router.post('/bulk-action', adminUserManagementController.performBulkAction);
  * @swagger
  * /audit/search:
  *   get:
- *     summary: GET /audit/search
+ *     summary: /audit/search 조회
  *     description: GET endpoint for /audit/search
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -730,6 +770,31 @@ router.get('/audit/search', adminUserManagementController.searchAuditLogs);
  * - User-specific audit access logging
  * - Comprehensive filtering and pagination
  */
+/**
+ * @swagger
+ * /:userId/audit:
+ *   get:
+ *     summary: /:userId/audit 조회
+ *     description: GET endpoint for /:userId/audit
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/:userId/audit', adminUserManagementController.getUserAuditLogs);
 
 /**
@@ -783,8 +848,13 @@ router.get('/:userId/audit', adminUserManagementController.getUserAuditLogs);
  * @swagger
  * /audit/export:
  *   post:
- *     summary: POST /audit/export
+ *     summary: POST /audit/export (POST /audit/export)
  *     description: POST endpoint for /audit/export
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -878,8 +948,13 @@ router.post('/audit/export', adminUserManagementController.exportAuditLogs);
  * @swagger
  * /analytics:
  *   get:
- *     summary: GET /analytics
+ *     summary: /analytics 조회
  *     description: GET endpoint for /analytics
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -979,8 +1054,13 @@ router.get('/analytics', adminUserManagementController.getUserAnalytics);
  * @swagger
  * /search/advanced:
  *   get:
- *     summary: GET /search/advanced
+ *     summary: /search/advanced 조회
  *     description: GET endpoint for /search/advanced
+ *       
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []

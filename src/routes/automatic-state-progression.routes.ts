@@ -61,8 +61,13 @@ router.use(strictRateLimit(10, 60000)); // 10 requests per minute for admin oper
  * @swagger
  * /status:
  *   get:
- *     summary: GET /status
+ *     summary: /status 조회
  *     description: GET endpoint for /status
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -98,6 +103,31 @@ router.get('/status', async (req, res) => {
  * POST /api/admin/state-progression/run
  * Manually trigger automatic state progression
  */
+/**
+ * @swagger
+ * /run:
+ *   post:
+ *     summary: POST /run (POST /run)
+ *     description: POST endpoint for /run
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/run', async (req, res) => {
   try {
     await automaticStateProgressionController.manualRun(req, res);
@@ -125,8 +155,13 @@ router.post('/run', async (req, res) => {
  * @swagger
  * /metrics:
  *   get:
- *     summary: GET /metrics
+ *     summary: /metrics 조회
  *     description: GET endpoint for /metrics
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -162,6 +197,31 @@ router.get('/metrics', async (req, res) => {
  * PUT /api/admin/state-progression/config
  * Update automatic state progression configuration
  */
+/**
+ * @swagger
+ * /config:
+ *   put:
+ *     summary: PUT /config (PUT /config)
+ *     description: PUT endpoint for /config
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.put('/config',
   validateRequestBody(configUpdateSchema),
   async (req, res) => {
@@ -192,8 +252,13 @@ router.put('/config',
  * @swagger
  * /reset-metrics:
  *   post:
- *     summary: POST /reset-metrics
+ *     summary: POST /reset-metrics (POST /reset-metrics)
  *     description: POST endpoint for /reset-metrics
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -229,6 +294,31 @@ router.post('/reset-metrics', async (req, res) => {
  * GET /api/admin/state-progression/health
  * Health check endpoint for monitoring systems
  */
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: /health 조회
+ *     description: GET endpoint for /health
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/health', async (req, res) => {
   try {
     await automaticStateProgressionController.healthCheck(req, res);

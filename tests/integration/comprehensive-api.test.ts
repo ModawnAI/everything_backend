@@ -358,7 +358,7 @@ describe('Comprehensive API Integration Tests', () => {
     });
 
     it('should validate shop profile update', async () => {
-      const response = await withCSRF(request(app)
+      const response = await withCSRF(request(app)ㄹ/api/shop/profile
         .put('/api/shop/profile')
         .set('Authorization', `Bearer ${shopOwnerToken}`)
         .send({

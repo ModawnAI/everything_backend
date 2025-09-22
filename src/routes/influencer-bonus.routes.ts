@@ -121,8 +121,13 @@ const influencerBonusAnalyticsQuerySchema = Joi.object({
  * @swagger
  * /admin/influencer-bonus/stats:
  *   get:
- *     summary: GET /admin/influencer-bonus/stats
+ *     summary: /admin/influencer-bonus/stats 조회
  *     description: GET endpoint for /admin/influencer-bonus/stats
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -151,6 +156,31 @@ router.get('/admin/influencer-bonus/stats',
  * Requires: Authentication + Admin role
  * Returns: Detailed influencer bonus analytics and performance metrics
  */
+/**
+ * @swagger
+ * /admin/influencer-bonus/analytics/:influencerId:
+ *   get:
+ *     summary: /admin/influencer-bonus/analytics/:influencerId 조회
+ *     description: GET endpoint for /admin/influencer-bonus/analytics/:influencerId
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Influencer System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/admin/influencer-bonus/analytics/:influencerId',
   rateLimit(),
   authenticateJWT(),
@@ -166,6 +196,31 @@ router.get('/admin/influencer-bonus/analytics/:influencerId',
  * Requires: Authentication + Admin role
  * Returns: Validation results with errors and warnings
  */
+/**
+ * @swagger
+ * /admin/influencer-bonus/validate/:transactionId:
+ *   post:
+ *     summary: POST /admin/influencer-bonus/validate/:transactionId (POST /admin/influencer-bonus/validate/:transactionId)
+ *     description: POST endpoint for /admin/influencer-bonus/validate/:transactionId
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Influencer System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/admin/influencer-bonus/validate/:transactionId',
   rateLimit(),
   authenticateJWT(),
@@ -186,8 +241,13 @@ router.post('/admin/influencer-bonus/validate/:transactionId',
  * @swagger
  * /admin/influencer-bonus/check-qualification:
  *   post:
- *     summary: POST /admin/influencer-bonus/check-qualification
+ *     summary: POST /admin/influencer-bonus/check-qualification (POST /admin/influencer-bonus/check-qualification)
  *     description: POST endpoint for /admin/influencer-bonus/check-qualification
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

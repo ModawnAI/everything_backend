@@ -133,8 +133,13 @@ const primaryRateLimit = rateLimit({
  * @swagger
  * /:shopId/images:
  *   post:
- *     summary: POST /:shopId/images
+ *     summary: POST /:shopId/images (POST /:shopId/images)
  *     description: POST endpoint for /:shopId/images
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -204,8 +209,13 @@ router.post('/:shopId/images',
  * @swagger
  * /:shopId/images:
  *   get:
- *     summary: GET /:shopId/images
+ *     summary: /:shopId/images 조회
  *     description: GET endpoint for /:shopId/images
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -228,6 +238,31 @@ router.get('/:shopId/images',
  * DELETE /api/shops/:shopId/images/:imageId
  * Delete shop image
  */
+/**
+ * @swagger
+ * /:shopId/images/:imageId:
+ *   delete:
+ *     summary: /:shopId/images/:imageId 삭제
+ *     description: DELETE endpoint for /:shopId/images/:imageId
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Shop Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.delete('/:shopId/images/:imageId',
   ...enhancedImageDeleteSecurity(),
   shopImageController.deleteShopImage
@@ -237,6 +272,31 @@ router.delete('/:shopId/images/:imageId',
  * PUT /api/shops/:shopId/images/:imageId
  * Update shop image metadata
  */
+/**
+ * @swagger
+ * /:shopId/images/:imageId:
+ *   put:
+ *     summary: PUT /:shopId/images/:imageId (PUT /:shopId/images/:imageId)
+ *     description: PUT endpoint for /:shopId/images/:imageId
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Shop Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.put('/:shopId/images/:imageId',
   ...enhancedImageUpdateSecurity(),
   validateRequestBody(updateShopImageSchema),
@@ -247,6 +307,31 @@ router.put('/:shopId/images/:imageId',
  * POST /api/shops/:shopId/images/:imageId/set-primary
  * Set image as primary
  */
+/**
+ * @swagger
+ * /:shopId/images/:imageId/set-primary:
+ *   post:
+ *     summary: POST /:shopId/images/:imageId/set-primary (POST /:shopId/images/:imageId/set-primary)
+ *     description: POST endpoint for /:shopId/images/:imageId/set-primary
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Shop Management]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/:shopId/images/:imageId/set-primary',
   ...enhancedImageUpdateSecurity(),
   shopImageController.setPrimaryImage

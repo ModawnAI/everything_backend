@@ -12,6 +12,7 @@
 import { getSupabaseClient } from '../config/database';
 import { tossPaymentsService } from './toss-payments.service';
 import { logger } from '../utils/logger';
+import { automatedRefundService } from './automated-refund.service';
 import { 
   Refund, 
   RefundApproval, 
@@ -1167,6 +1168,165 @@ export class RefundService {
       });
       // Don't throw - audit failure shouldn't break refund processing
     }
+  }
+
+  /**
+   * Process automated refund with comprehensive business rule validation and point adjustments
+   */
+  async processAutomatedRefund(request: {
+    reservationId: string;
+    userId: string;
+    refundType: 'full' | 'partial' | 'no_show' | 'cancellation';
+    refundReason: string;
+    refundAmount?: number;
+    triggeredBy: 'user' | 'system' | 'admin';
+    triggerReason?: string;
+    adminId?: string;
+    businessRuleOverride?: boolean;
+  }) {
+    return await automatedRefundService.processAutomatedRefund(request);
+  }
+
+  /**
+   * Process automated no-show refunds for eligible reservations
+   */
+  async processNoShowRefunds() {
+    return await automatedRefundService.processNoShowRefunds();
+  }
+
+  /**
+   * Validate refund business rules for a reservation
+   */
+  async validateRefundBusinessRules(
+    reservationId: string,
+    refundType: 'full' | 'partial' | 'no_show' | 'cancellation',
+    requestedAmount?: number
+  ) {
+    // Use database function for validation
+    const { data: validation, error } = await this.supabase
+      .rpc('validate_refund_business_rules', {
+        p_reservation_id: reservationId,
+        p_refund_type: refundType,
+        p_requested_amount: requestedAmount
+      });
+
+    if (error) {
+      throw new Error(`Failed to validate refund business rules: ${error.message}`);
+    }
+
+    return validation?.[0] || {
+      can_refund: false,
+      refund_percentage: 0,
+      max_refund_amount: 0,
+      policy_violations: ['Validation failed'],
+      applied_rules: []
+    };
+  }
+
+  /**
+   * Process point adjustments for refunds using database function
+   */
+  async processRefundPointAdjustments(
+    refundId: string,
+    reservationId: string,
+    userId: string,
+    refundAmount: number,
+    originalAmount: number
+  ) {
+    const { data: adjustments, error } = await this.supabase
+      .rpc('process_refund_point_adjustments', {
+        p_refund_id: refundId,
+        p_reservation_id: reservationId,
+        p_user_id: userId,
+        p_refund_amount: refundAmount,
+        p_original_amount: originalAmount
+      });
+
+    if (error) {
+      throw new Error(`Failed to process point adjustments: ${error.message}`);
+    }
+
+    return adjustments?.[0] || {
+      earned_points_reversed: 0,
+      used_points_restored: 0,
+      adjustment_count: 0
+    };
+  }
+
+  /**
+   * Queue reservation for no-show refund processing
+   */
+  async queueNoShowRefund(reservationId: string) {
+    const { data: queued, error } = await this.supabase
+      .rpc('queue_no_show_refund', {
+        p_reservation_id: reservationId
+      });
+
+    if (error) {
+      throw new Error(`Failed to queue no-show refund: ${error.message}`);
+    }
+
+    return queued || false;
+  }
+
+  /**
+   * Get comprehensive refund audit trail
+   */
+  async getRefundAuditTrail(refundId: string) {
+    const { data: auditLogs, error } = await this.supabase
+      .from('refund_audit_logs')
+      .select('*')
+      .eq('refund_id', refundId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch refund audit trail: ${error.message}`);
+    }
+
+    return auditLogs || [];
+  }
+
+  /**
+   * Get refund point adjustments summary
+   */
+  async getRefundPointAdjustments(refundId: string) {
+    const { data: adjustments, error } = await this.supabase
+      .from('refund_point_adjustments')
+      .select('*')
+      .eq('refund_id', refundId)
+      .order('processed_at', { ascending: true });
+
+    if (error) {
+      throw new Error(`Failed to fetch refund point adjustments: ${error.message}`);
+    }
+
+    return adjustments || [];
+  }
+
+  /**
+   * Get no-show refund queue status
+   */
+  async getNoShowRefundQueue(limit: number = 100) {
+    const { data: queue, error } = await this.supabase
+      .from('no_show_refund_queue')
+      .select(`
+        *,
+        reservations!inner(
+          reservation_date,
+          total_amount,
+          status,
+          users!inner(name, email)
+        )
+      `)
+      .in('processing_status', ['pending', 'processing'])
+      .order('eligible_for_processing_at', { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      throw new Error(`Failed to fetch no-show refund queue: ${error.message}`);
+    }
+
+    return queue || [];
   }
 }
 

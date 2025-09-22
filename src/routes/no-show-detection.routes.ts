@@ -23,8 +23,13 @@ router.use(authenticateJWT());
  * @swagger
  * /override:
  *   post:
- *     summary: POST /override
+ *     summary: POST /override (POST /override)
  *     description: POST endpoint for /override
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -47,6 +52,31 @@ router.post('/override',
 
 // Get no-show statistics
 // GET /api/admin/no-show/statistics?startDate=2024-01-01&endDate=2024-01-31&shopId=optional
+/**
+ * @swagger
+ * /statistics:
+ *   get:
+ *     summary: /statistics 조회
+ *     description: GET endpoint for /statistics
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/statistics',
   requireRole('shop_owner', 'admin'),
   noShowDetectionController.getStatistics.bind(noShowDetectionController)
@@ -54,6 +84,31 @@ router.get('/statistics',
 
 // Get current no-show detection configuration (admin only)
 // GET /api/admin/no-show/config
+/**
+ * @swagger
+ * /config:
+ *   get:
+ *     summary: /config 조회
+ *     description: GET endpoint for /config
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/config',
   requireRole('admin'),
   noShowDetectionController.getConfiguration.bind(noShowDetectionController)
@@ -61,6 +116,31 @@ router.get('/config',
 
 // Update no-show detection configuration (admin only)
 // PUT /api/admin/no-show/config
+/**
+ * @swagger
+ * /config:
+ *   put:
+ *     summary: PUT /config (PUT /config)
+ *     description: PUT endpoint for /config
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.put('/config',
   requireRole('admin'),
   noShowDetectionController.updateConfiguration.bind(noShowDetectionController)
@@ -68,6 +148,31 @@ router.put('/config',
 
 // Manually trigger no-show detection (admin only)
 // POST /api/admin/no-show/trigger
+/**
+ * @swagger
+ * /trigger:
+ *   post:
+ *     summary: POST /trigger (POST /trigger)
+ *     description: POST endpoint for /trigger
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Service]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/trigger',
   requireRole('admin'),
   noShowDetectionController.triggerDetection.bind(noShowDetectionController)
@@ -78,8 +183,13 @@ router.post('/trigger',
  * @swagger
  * /reservation/:reservationId:
  *   get:
- *     summary: GET /reservation/:reservationId
+ *     summary: /reservation/:reservationId 조회
  *     description: GET endpoint for /reservation/:reservationId
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

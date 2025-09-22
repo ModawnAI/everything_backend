@@ -23,6 +23,11 @@ const router = Router();
  * tags:
  *   - name: Shop Operating Hours
  *     description: Shop operating hours management operations for shop owners
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 /**
@@ -32,6 +37,11 @@ const router = Router();
  *     DayOperatingHours:
  *       type: object
  *       description: Operating hours configuration for a single day
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       properties:
  *         open:
  *           type: string
@@ -135,8 +145,13 @@ router.use(authenticateJWT);
  * @swagger
  * /api/shop/operating-hours:
  *   get:
- *     summary: Get shop operating hours
+ *     summary: shop operating hours 조회
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Retrieve the current operating hours schedule for the authenticated shop owner's shop.
  *       
  *       **Features:**
@@ -159,6 +174,11 @@ router.use(authenticateJWT);
  *     responses:
  *       200:
  *         description: Operating hours retrieved successfully
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         content:
  *           application/json:
  *             schema:
@@ -263,8 +283,13 @@ router.use(authenticateJWT);
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -308,8 +333,13 @@ router.get('/',
  * @swagger
  * /api/shop/operating-hours:
  *   put:
- *     summary: Update shop operating hours
+ *     summary: shop operating hours 수정
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Update the operating hours schedule for the authenticated shop owner's shop.
  *       
  *       **Key Features:**
@@ -353,7 +383,7 @@ router.get('/',
  *                 $ref: '#/components/schemas/WeeklyOperatingHours'
  *           examples:
  *             standard_hours:
- *               summary: Standard business hours (Mon-Sat)
+ *               summary: Standard business hours (Mon-Sat) (Standard business hours (Mon-Sat))
  *               value:
  *                 operating_hours:
  *                   monday:
@@ -383,7 +413,7 @@ router.get('/',
  *                   sunday:
  *                     closed: true
  *             with_breaks:
- *               summary: Hours with lunch breaks
+ *               summary: Hours with lunch breaks (Hours with lunch breaks)
  *               value:
  *                 operating_hours:
  *                   monday:
@@ -421,7 +451,7 @@ router.get('/',
  *                   sunday:
  *                     closed: true
  *             overnight_hours:
- *               summary: Overnight hours (e.g., late-night services)
+ *               summary: Overnight hours (e.g., late-night services) (Overnight hours (e.g., late-night services))
  *               value:
  *                 operating_hours:
  *                   friday:
@@ -433,7 +463,7 @@ router.get('/',
  *                     close: "02:00"
  *                     closed: false
  *             partial_update:
- *               summary: Update only specific days
+ *               summary: only specific days 수정
  *               value:
  *                 operating_hours:
  *                   friday:
@@ -445,7 +475,7 @@ router.get('/',
  *                     close: "22:00"
  *                     closed: false
  *             closed_days:
- *               summary: Mark specific days as closed
+ *               summary: Mark specific days as closed (Mark specific days as closed)
  *               value:
  *                 operating_hours:
  *                   sunday:
@@ -455,6 +485,11 @@ router.get('/',
  *     responses:
  *       200:
  *         description: Operating hours updated successfully
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         content:
  *           application/json:
  *             schema:
@@ -546,8 +581,13 @@ router.get('/',
  * @swagger
  * /:
  *   put:
- *     summary: PUT /
+ *     summary: PUT / (PUT /)
  *     description: PUT endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

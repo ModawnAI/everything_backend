@@ -20,6 +20,11 @@ const adminAnalyticsController = new AdminAnalyticsController();
  *             totalUsers:
  *               type: number
  *               description: Total number of users
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *             activeUsers:
  *               type: number
  *               description: Number of active users
@@ -168,8 +173,13 @@ const adminAnalyticsController = new AdminAnalyticsController();
  * @swagger
  * /api/admin/analytics/dashboard:
  *   get:
- *     summary: Get comprehensive dashboard metrics
+ *     summary: comprehensive dashboard metrics 조회
  *     description: Retrieve comprehensive analytics dashboard with user growth, revenue, reservations, payments, and business intelligence metrics
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Analytics]
  *     security:
  *       - bearerAuth: []
@@ -239,8 +249,13 @@ const adminAnalyticsController = new AdminAnalyticsController();
  * @swagger
  * /dashboard:
  *   get:
- *     summary: GET /dashboard
+ *     summary: /dashboard 조회
  *     description: GET endpoint for /dashboard
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -265,8 +280,13 @@ router.get('/dashboard',
  * @swagger
  * /api/admin/analytics/realtime:
  *   get:
- *     summary: Get real-time metrics
+ *     summary: real-time metrics 조회
  *     description: Retrieve real-time metrics for live dashboard updates
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Analytics]
  *     security:
  *       - bearerAuth: []
@@ -304,8 +324,13 @@ router.get('/realtime',
  * @swagger
  * /api/admin/analytics/export:
  *   get:
- *     summary: Export analytics data
+ *     summary: Export analytics data (Export analytics data)
  *     description: Export analytics data in various formats (CSV, JSON, Excel)
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Analytics]
  *     security:
  *       - bearerAuth: []
@@ -366,8 +391,13 @@ router.get('/realtime',
  * @swagger
  * /export:
  *   get:
- *     summary: GET /export
+ *     summary: /export 조회
  *     description: GET endpoint for /export
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -392,8 +422,13 @@ router.get('/export',
  * @swagger
  * /api/admin/analytics/cache/stats:
  *   get:
- *     summary: Get cache statistics
+ *     summary: cache statistics 조회
  *     description: Retrieve analytics cache statistics for performance monitoring
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Analytics]
  *     security:
  *       - bearerAuth: []
@@ -439,8 +474,13 @@ router.get('/cache/stats',
  * @swagger
  * /api/admin/analytics/cache/clear:
  *   post:
- *     summary: Clear analytics cache
+ *     summary: Clear analytics cache (Clear analytics cache)
  *     description: Clear all analytics cache data
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Analytics]
  *     security:
  *       - bearerAuth: []
@@ -475,8 +515,13 @@ router.post('/cache/clear',
  * @swagger
  * /api/admin/analytics/health:
  *   get:
- *     summary: Get analytics system health
+ *     summary: analytics system health 조회
  *     description: Check the health status of the analytics system
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin Analytics]
  *     security:
  *       - bearerAuth: []
@@ -539,8 +584,13 @@ router.post('/cache/clear',
  * @swagger
  * /health:
  *   get:
- *     summary: GET /health
+ *     summary: /health 조회
  *     description: GET endpoint for /health
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     responses:
  *       200:
@@ -561,8 +611,13 @@ router.get('/health',
  * @swagger
  * /api/admin/shops/{shopId}/analytics:
  *   get:
- *     summary: Get detailed analytics for a specific shop
+ *     summary: detailed analytics for a specific shop 조회
  *     description: |
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Retrieve comprehensive analytics and performance metrics for a specific shop including:
  *       - Shop basic information and status
  *       - Performance metrics (reservations, revenue, services)
@@ -582,6 +637,11 @@ router.get('/health',
  *           type: string
  *           format: uuid
  *         description: Shop ID
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *       - in: query
  *         name: startDate
@@ -892,8 +952,13 @@ router.get('/health',
  * @swagger
  * /shops/:shopId/analytics:
  *   get:
- *     summary: GET /shops/:shopId/analytics
+ *     summary: /shops/:shopId/analytics 조회
  *     description: GET endpoint for /shops/:shopId/analytics
+ *       
+ *       관리자용 분석 대시보드 API입니다. 비즈니스 지표와 분석을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []

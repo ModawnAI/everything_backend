@@ -1,0 +1,58 @@
+---
+description: Handle multiple Task Master sessions running simultaneously across different phases
+globs: **/*
+alwaysApply: true
+---
+
+# Multi-TaskMaster Session Management
+
+## **Context Switching Between Phases**
+- **Always check current tag** before executing task-master commands
+- **Switch to appropriate tag** based on work context:
+  - `phase-5-payment-points`: Payment system, security, deployment pipeline work
+  - `phase-6-social-feed`: Social feed, content management, feed algorithm work
+
+## **Tag Switching Protocol**
+- **Before any task-master command**: Check current tag with `task-master list` or verify tag in output
+- **Switch tags when needed**:
+  ```bash
+  # Switch to payment system work
+  task-master use-tag phase-5-payment-points
+  
+  # Switch to social feed work  
+  task-master use-tag phase-6-social-feed
+  ```
+
+## **Session Management Best Practices**
+- **Identify work context** from user requests:
+  - Payment, security, deployment, testing → `phase-5-payment-points`
+  - Social feed, content, algorithms, moderation → `phase-6-social-feed`
+- **Always verify tag** before marking tasks complete or updating status
+- **Switch proactively** when context changes in conversation
+- **Confirm tag switch** by checking task list after switching
+
+## **Command Execution Pattern**
+```bash
+# 1. Check current context
+task-master list
+
+# 2. Switch if needed
+task-master use-tag <appropriate-phase>
+
+# 3. Execute intended command
+task-master <command>
+```
+
+## **Context Indicators**
+- **Phase 5 Keywords**: payment, security, deployment, pipeline, health checks, monitoring, TossPayments, webhook, fraud detection
+- **Phase 6 Keywords**: social feed, posts, content, moderation, algorithms, hashtags, likes, comments, feed ranking
+
+## **Error Prevention**
+- **"Parent task X not found" error** → Wrong tag, switch to correct phase
+- **Empty task list** → Verify correct tag is active
+- **Task ID mismatch** → Check if task exists in current tag context
+
+## **Temporary Rule Status**
+- **Duration**: Until multi-session work is complete
+- **Removal**: Remove this rule when working on single phase or single session
+- **Purpose**: Prevent task management errors across multiple concurrent sessions

@@ -4,8 +4,8 @@ import pyautogui
 import sys
 
 # Configuration
-TARGET = (1323, -228)# Using negative Y coordinate (common in multi-monitor setups)
-INTERVAL = 600        # 5 minutes
+TARGET = (1394, -575)# Using negative Y coordinate (common in multi-monitor setups)
+INTERVAL = 300        # 5 minutes
 pyautogui.PAUSE = 0.1
 
 # Disable PyAutoGUI fail-safe to prevent interruption
@@ -19,7 +19,7 @@ def validate_coordinates(x, y):
     if x < 0 or x >= screen_width:
         raise ValueError(f"X coordinate ({x}) is outside screen bounds (0-{screen_width})")
     
-    # For Y, allow negative values but warn if they seem unreasonable
+    # For Y, allow negative vacontinuelues but warn if they seem unreasonable
     if y < -1000 or y > screen_height + 1000:
         raise ValueError(f"Y coordinate ({y}) seems unreasonable (should be between -1000 and {screen_height + 1000})")
     

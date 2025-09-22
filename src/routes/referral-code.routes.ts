@@ -41,8 +41,13 @@ const validateReferralCodeSchema = Joi.object({
  * @swagger
  * /generate:
  *   post:
- *     summary: POST /generate
+ *     summary: POST /generate (POST /generate)
  *     description: POST endpoint for /generate
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -68,6 +73,31 @@ router.post('/generate',
  * @desc Validate a referral code
  * @access Public
  */
+/**
+ * @swagger
+ * /validate/:code:
+ *   get:
+ *     summary: /validate/:code 조회
+ *     description: GET endpoint for /validate/:code
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/validate/:code',
   referralCodeController.referralCodeRateLimit,
   validateQueryParams(validateReferralCodeSchema),
@@ -79,6 +109,31 @@ router.get('/validate/:code',
  * @desc Batch generate referral codes (admin only)
  * @access Admin
  */
+/**
+ * @swagger
+ * /batch-generate:
+ *   post:
+ *     summary: POST /batch-generate (POST /batch-generate)
+ *     description: POST endpoint for /batch-generate
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/batch-generate',
   authenticateJWT(),
   requireRole('admin'),
@@ -97,8 +152,13 @@ router.post('/batch-generate',
  * @swagger
  * /stats:
  *   get:
- *     summary: GET /stats
+ *     summary: /stats 조회
  *     description: GET endpoint for /stats
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -124,6 +184,31 @@ router.get('/stats',
  * @desc Clear referral code cache (admin only)
  * @access Admin
  */
+/**
+ * @swagger
+ * /cache:
+ *   delete:
+ *     summary: /cache 삭제
+ *     description: DELETE endpoint for /cache
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.delete('/cache',
   authenticateJWT(),
   requireRole('admin'),
@@ -136,6 +221,31 @@ router.delete('/cache',
  * @desc Reset referral code generation statistics (admin only)
  * @access Admin
  */
+/**
+ * @swagger
+ * /stats:
+ *   delete:
+ *     summary: /stats 삭제
+ *     description: DELETE endpoint for /stats
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.delete('/stats',
   authenticateJWT(),
   requireRole('admin'),

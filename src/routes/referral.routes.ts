@@ -101,8 +101,13 @@ const referralHistoryQuerySchema = Joi.object({
  * @swagger
  * /stats:
  *   get:
- *     summary: GET /stats
+ *     summary: /stats 조회
  *     description: GET endpoint for /stats
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -131,6 +136,31 @@ router.get('/stats',
  * Query params: page (optional), limit (optional, max 100)
  * Returns: Paginated referral history
  */
+/**
+ * @swagger
+ * /history:
+ *   get:
+ *     summary: /history 조회
+ *     description: GET endpoint for /history
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/history',
   rateLimit(),
   authenticateJWT(),
@@ -147,6 +177,31 @@ router.get('/history',
  * Body: { status: string, notes?: string }
  * Returns: Updated referral record
  */
+/**
+ * @swagger
+ * /:referralId/status:
+ *   put:
+ *     summary: PUT /:referralId/status (PUT /:referralId/status)
+ *     description: PUT endpoint for /:referralId/status
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.put('/:referralId/status',
   rateLimit(),
   authenticateJWT(),
@@ -168,8 +223,13 @@ router.put('/:referralId/status',
  * @swagger
  * /:referralId/payout:
  *   post:
- *     summary: POST /:referralId/payout
+ *     summary: POST /:referralId/payout (POST /:referralId/payout)
  *     description: POST endpoint for /:referralId/payout
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Points & Rewards]
  *     security:
  *       - bearerAuth: []
@@ -198,6 +258,31 @@ router.post('/:referralId/payout',
  * Requires: Authentication + Admin role
  * Returns: Overall referral analytics and statistics
  */
+/**
+ * @swagger
+ * /analytics:
+ *   get:
+ *     summary: /analytics 조회
+ *     description: GET endpoint for /analytics
+ *       
+ *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/analytics',
   rateLimit(),
   authenticateJWT(),

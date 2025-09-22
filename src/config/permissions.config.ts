@@ -85,6 +85,26 @@ export const RESOURCE_OWNERSHIP: Record<Resource, ResourceOwnership> = {
   influencer_content: {
     resource: 'influencer_content',
     ownerField: 'influencer_id'
+  },
+  feed_posts: {
+    resource: 'feed_posts',
+    ownerField: 'author_id'
+  },
+  feed_comments: {
+    resource: 'feed_comments',
+    ownerField: 'author_id'
+  },
+  feed_likes: {
+    resource: 'feed_likes',
+    ownerField: 'user_id'
+  },
+  feed_reports: {
+    resource: 'feed_reports',
+    ownerField: 'reporter_id'
+  },
+  feed_moderation: {
+    resource: 'feed_moderation',
+    ownerField: 'moderator_id'
   }
 };
 
@@ -132,6 +152,30 @@ const USER_PERMISSIONS: Permission[] = [
   { resource: 'content', action: 'list' },
   { resource: 'influencer_content', action: 'read' },
   { resource: 'influencer_content', action: 'list' },
+  
+  // Social Feed - Posts
+  { resource: 'feed_posts', action: 'create', conditions: ['verified_user'] },
+  { resource: 'feed_posts', action: 'read' },
+  { resource: 'feed_posts', action: 'list' },
+  { resource: 'feed_posts', action: 'update', conditions: ['own_resource'] },
+  { resource: 'feed_posts', action: 'delete', conditions: ['own_resource'] },
+  
+  // Social Feed - Comments
+  { resource: 'feed_comments', action: 'create', conditions: ['verified_user'] },
+  { resource: 'feed_comments', action: 'read' },
+  { resource: 'feed_comments', action: 'list' },
+  { resource: 'feed_comments', action: 'update', conditions: ['own_resource'] },
+  { resource: 'feed_comments', action: 'delete', conditions: ['own_resource'] },
+  
+  // Social Feed - Likes
+  { resource: 'feed_likes', action: 'create', conditions: ['verified_user'] },
+  { resource: 'feed_likes', action: 'delete', conditions: ['own_resource'] },
+  { resource: 'feed_likes', action: 'read' },
+  
+  // Social Feed - Reports
+  { resource: 'feed_reports', action: 'create', conditions: ['verified_user'] },
+  { resource: 'feed_reports', action: 'read', conditions: ['own_resource'] },
+  { resource: 'feed_reports', action: 'list', conditions: ['own_resource'] },
   
   // Push notifications
   { resource: 'push_notifications', action: 'read', conditions: ['own_resource'] },
@@ -329,7 +373,47 @@ const ADMIN_PERMISSIONS: Permission[] = [
   // Audit logs
   { resource: 'audit_logs', action: 'read' },
   { resource: 'audit_logs', action: 'list' },
-  { resource: 'audit_logs', action: 'export' }
+  { resource: 'audit_logs', action: 'export' },
+  
+  // Social Feed Moderation - Full Admin Access
+  { resource: 'feed_posts', action: 'create' },
+  { resource: 'feed_posts', action: 'read' },
+  { resource: 'feed_posts', action: 'update' },
+  { resource: 'feed_posts', action: 'delete' },
+  { resource: 'feed_posts', action: 'list' },
+  { resource: 'feed_posts', action: 'manage' },
+  { resource: 'feed_posts', action: 'approve' },
+  { resource: 'feed_posts', action: 'reject' },
+  
+  { resource: 'feed_comments', action: 'create' },
+  { resource: 'feed_comments', action: 'read' },
+  { resource: 'feed_comments', action: 'update' },
+  { resource: 'feed_comments', action: 'delete' },
+  { resource: 'feed_comments', action: 'list' },
+  { resource: 'feed_comments', action: 'manage' },
+  { resource: 'feed_comments', action: 'approve' },
+  { resource: 'feed_comments', action: 'reject' },
+  
+  { resource: 'feed_likes', action: 'read' },
+  { resource: 'feed_likes', action: 'delete' },
+  { resource: 'feed_likes', action: 'list' },
+  { resource: 'feed_likes', action: 'manage' },
+  
+  { resource: 'feed_reports', action: 'create' },
+  { resource: 'feed_reports', action: 'read' },
+  { resource: 'feed_reports', action: 'update' },
+  { resource: 'feed_reports', action: 'delete' },
+  { resource: 'feed_reports', action: 'list' },
+  { resource: 'feed_reports', action: 'manage' },
+  { resource: 'feed_reports', action: 'resolve' },
+  
+  { resource: 'feed_moderation', action: 'create' },
+  { resource: 'feed_moderation', action: 'read' },
+  { resource: 'feed_moderation', action: 'update' },
+  { resource: 'feed_moderation', action: 'delete' },
+  { resource: 'feed_moderation', action: 'list' },
+  { resource: 'feed_moderation', action: 'manage' },
+  { resource: 'feed_moderation', action: 'configure' }
 ];
 
 /**

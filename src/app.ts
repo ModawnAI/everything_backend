@@ -53,6 +53,7 @@ import healthRoutes from './routes/health.routes';
 import adminUserManagementRoutes from './routes/admin-user-management.routes';
 import cacheRoutes from './routes/cache.routes';
 import monitoringRoutes from './routes/monitoring.routes';
+import monitoringDashboardRoutes from './routes/monitoring-dashboard.routes';
 import shutdownRoutes from './routes/shutdown.routes';
 import userSessionsRoutes from './routes/user-sessions.routes';
 import adminSecurityRoutes from './routes/admin-security.routes';
@@ -79,6 +80,9 @@ import shopReportingRoutes from './routes/shop-reporting.routes';
 import adminModerationRoutes from './routes/admin-moderation.routes';
 import shopCategoriesRoutes from './routes/shop-categories.routes';
 import serviceCatalogRoutes from './routes/service-catalog.routes';
+import feedRoutes from './routes/feed.routes';
+import csrfRoutes from './routes/csrf.routes';
+import adminFinancialRoutes from './routes/admin-financial.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -125,13 +129,25 @@ app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
 
-// Import comprehensive OpenAPI configuration
+// Import comprehensive OpenAPI configurations
 import { OPENAPI_GENERATION_CONFIG } from './config/openapi.config';
+import { 
+  ADMIN_OPENAPI_GENERATION_CONFIG, 
+  ADMIN_OPENAPI_UI_CONFIG 
+} from './config/openapi-admin.config';
+import { 
+  SERVICE_OPENAPI_GENERATION_CONFIG, 
+  SERVICE_OPENAPI_UI_CONFIG 
+} from './config/openapi-service.config';
 
-// Swagger configuration using comprehensive OpenAPI config
-const swaggerOptions = OPENAPI_GENERATION_CONFIG;
+// Swagger configurations
+const swaggerOptions = OPENAPI_GENERATION_CONFIG; // Keep original for backward compatibility
+const adminSwaggerOptions = ADMIN_OPENAPI_GENERATION_CONFIG;
+const serviceSwaggerOptions = SERVICE_OPENAPI_GENERATION_CONFIG;
 
 const swaggerSpec = swaggerJsdoc(swaggerOptions);
+const adminSwaggerSpec = swaggerJsdoc(adminSwaggerOptions);
+const serviceSwaggerSpec = swaggerJsdoc(serviceSwaggerOptions);
 
 // Health check endpoint
 app.get('/health', (_req, res) => {
@@ -147,7 +163,16 @@ app.get('/health', (_req, res) => {
 app.get('/', (_req, res) => {
   res.status(200).json({
     message: 'Welcome to 에뷰리띵 Backend API',
-    documentation: '/api-docs',
+    documentation: {
+      complete: '/api-docs',
+      admin: '/admin-docs',
+      service: '/service-docs'
+    },
+    openapi_specs: {
+      complete: '/api/openapi.json',
+      admin: '/api/admin/openapi.json',
+      service: '/api/service/openapi.json'
+    },
     health: '/health'
   });
 });
@@ -162,21 +187,164 @@ app.get('/manifest.json', (_req, res) => {
   res.status(204).end(); // No Content - manifest not implemented
 });
 
-// Swagger UI setup
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+// Swagger UI setup - Multiple documentation endpoints
+// Main API documentation (backward compatibility)
+app.use('/api-docs', swaggerUi.serve);
+app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
   explorer: true,
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: '에뷰리띵 API Documentation'
+  customCss: `
+    /* Hide default topbar */
+    .swagger-ui .topbar { display: none !important; }
+    
+    /* Custom header styling */
+    .swagger-ui .info .title { 
+      color: #3b82f6; 
+      font-size: 2.5rem;
+      font-weight: 700;
+      margin-bottom: 1rem;
+      text-shadow: 2px 2px 4px rgba(59, 130, 246, 0.1);
+    }
+    .swagger-ui .info .title:after { 
+      content: " 📚 COMPLETE API"; 
+      color: #3b82f6; 
+      font-weight: bold; 
+      background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+      padding: 0.5rem 1rem;
+      border-radius: 0.5rem;
+      margin-left: 1rem;
+      font-size: 1rem;
+      box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
+    }
+    
+    /* Enhanced info section */
+    .swagger-ui .info {
+      background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+      padding: 2rem;
+      border-radius: 1rem;
+      margin-bottom: 2rem;
+      border: 2px solid #bfdbfe;
+      box-shadow: 0 4px 16px rgba(59, 130, 246, 0.1);
+    }
+    
+    /* Improved tag sections */
+    .swagger-ui .opblock-tag {
+      background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+      color: white !important;
+      font-weight: 600;
+      padding: 1rem 1.5rem;
+      border-radius: 0.75rem;
+      margin: 1rem 0;
+      box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+      border: none;
+    }
+    
+    .swagger-ui .opblock-tag:hover {
+      background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+      transform: translateY(-2px);
+      transition: all 0.3s ease;
+    }
+    
+    /* Enhanced operation blocks */
+    .swagger-ui .opblock {
+      border-radius: 0.75rem;
+      margin: 1rem 0;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+      border: 1px solid #e5e7eb;
+      overflow: hidden;
+    }
+    
+    /* Enhanced try it out button */
+    .swagger-ui .btn.try-out__btn {
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 0.5rem;
+      padding: 0.5rem 1rem;
+      font-weight: 600;
+      transition: all 0.3s ease;
+    }
+    
+    .swagger-ui .btn.try-out__btn:hover {
+      background: #2563eb;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+    }
+    
+    /* Better search/filter */
+    .swagger-ui .filter-container {
+      background: #f8fafc;
+      padding: 1rem;
+      border-radius: 0.75rem;
+      margin: 1rem 0;
+      border: 1px solid #e2e8f0;
+    }
+    
+    .swagger-ui .filter-container input {
+      border: 2px solid #e2e8f0;
+      border-radius: 0.5rem;
+      padding: 0.75rem;
+      font-size: 1rem;
+      width: 100%;
+      transition: border-color 0.3s ease;
+    }
+    
+    .swagger-ui .filter-container input:focus {
+      border-color: #3b82f6;
+      outline: none;
+      box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+  `,
+  customSiteTitle: '📚 에뷰리띵 API Documentation (Complete)',
+  swaggerOptions: {
+    persistAuthorization: true,
+    displayRequestDuration: true,
+    filter: true,
+    showExtensions: true,
+    showCommonExtensions: true,
+    tagsSorter: 'alpha',
+    operationsSorter: 'alpha',
+    defaultModelsExpandDepth: 2,
+    defaultModelExpandDepth: 3,
+    docExpansion: 'list',
+    tryItOutEnabled: true
+  }
 }));
 
-// OpenAPI spec endpoint - provides JSON version of the API documentation
+// Admin API documentation
+app.use('/admin-docs', swaggerUi.serve);
+app.get('/admin-docs', swaggerUi.setup(adminSwaggerSpec, ADMIN_OPENAPI_UI_CONFIG));
+
+// Service API documentation  
+app.use('/service-docs', swaggerUi.serve);
+app.get('/service-docs', swaggerUi.setup(serviceSwaggerSpec, SERVICE_OPENAPI_UI_CONFIG));
+
+// OpenAPI spec endpoints - provides JSON version of the API documentation
+// Main API spec (backward compatibility)
 app.get('/api/openapi.json', (_req, res) => {
   res.json(swaggerSpec);
 });
 
-// Alternative Swagger JSON endpoint
+// Alternative Swagger JSON endpoint (backward compatibility)
 app.get('/swagger.json', (_req, res) => {
   res.json(swaggerSpec);
+});
+
+// Admin API spec
+app.get('/api/admin/openapi.json', (_req, res) => {
+  res.json(adminSwaggerSpec);
+});
+
+app.get('/admin-swagger.json', (_req, res) => {
+  res.json(adminSwaggerSpec);
+});
+
+// Service API spec
+app.get('/api/service/openapi.json', (_req, res) => {
+  res.json(serviceSwaggerSpec);
+});
+
+app.get('/service-swagger.json', (_req, res) => {
+  res.json(serviceSwaggerSpec);
 });
 
 // API Routes
@@ -222,6 +390,7 @@ app.use('/api', influencerBonusRoutes);
 app.use('/api', adminAdjustmentRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
+app.use('/api/admin/financial', adminFinancialRoutes);
 app.use('/api/admin', ipBlockingRoutes);
 app.use('/api/security', securityRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -230,6 +399,7 @@ app.use('/api/test-error', testErrorRoutes);
 app.use('/health', healthRoutes);
 app.use('/api/cache', cacheRoutes);
 app.use('/api/monitoring', monitoringRoutes);
+app.use('/api/monitoring', monitoringDashboardRoutes);
 app.use('/api/shutdown', shutdownRoutes);
 app.use('/api/user/sessions', userSessionsRoutes);
 app.use('/api/admin/security', adminSecurityRoutes);
@@ -242,6 +412,8 @@ app.use('/api/influencer-qualification', influencerQualificationRoutes);
 app.use('/api/referral-earnings', referralEarningsRoutes);
 app.use('/api/referral-analytics', referralAnalyticsRoutes);
 app.use('/api/users', userSettingsRoutes);
+app.use('/api/feed', feedRoutes);
+app.use('/api/csrf', csrfRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -270,7 +442,10 @@ if (require.main === module) {
     console.log(`🚀 에뷰리띵 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
     console.log(`📍 Health Check: http://localhost:${PORT}/health`);
     console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
-    console.log(`📚 API Docs: http://localhost:${PORT}/api-docs`);
+    console.log(`📚 API Documentation:`);
+    console.log(`   📖 Complete API: http://localhost:${PORT}/api-docs`);
+    console.log(`   🔒 Admin API: http://localhost:${PORT}/admin-docs`);
+    console.log(`   🛍️ Service API: http://localhost:${PORT}/service-docs`);
     
     // Initialize WebSocket service
     initializeWebSocketService(server);

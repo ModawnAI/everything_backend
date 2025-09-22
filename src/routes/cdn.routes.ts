@@ -126,8 +126,13 @@ const queryParamsSchema = Joi.object({
  * @swagger
  * /api/cdn/images/{imageId}/urls:
  *   get:
- *     summary: Get CDN URLs for an image
+ *     summary: CDN URLs for an image 조회
  *     description: Generate CDN URLs for an image with optional transformations
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [CDN]
  *     security:
  *       - bearerAuth: []
@@ -204,8 +209,13 @@ const queryParamsSchema = Joi.object({
  * @swagger
  * /images/:imageId/urls:
  *   get:
- *     summary: GET /images/:imageId/urls
+ *     summary: /images/:imageId/urls 조회
  *     description: GET endpoint for /images/:imageId/urls
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -230,8 +240,13 @@ router.get('/images/:imageId/urls',
  * @swagger
  * /api/cdn/images/{imageId}/optimized:
  *   get:
- *     summary: Get optimized CDN URLs for all sizes
+ *     summary: optimized CDN URLs for all sizes 조회
  *     description: Generate optimized CDN URLs for all sizes of an image (thumbnail, medium, large, WebP, responsive)
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [CDN]
  *     security:
  *       - bearerAuth: []
@@ -285,8 +300,13 @@ router.get('/images/:imageId/urls',
  * @swagger
  * /images/:imageId/optimized:
  *   get:
- *     summary: GET /images/:imageId/optimized
+ *     summary: /images/:imageId/optimized 조회
  *     description: GET endpoint for /images/:imageId/optimized
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -310,8 +330,13 @@ router.get('/images/:imageId/optimized',
  * @swagger
  * /api/cdn/images/{imageId}/responsive:
  *   post:
- *     summary: Generate responsive image URLs
+ *     summary: Generate responsive image URLs (Generate responsive image URLs)
  *     description: Generate responsive image URLs for different screen sizes
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [CDN]
  *     security:
  *       - bearerAuth: []
@@ -369,8 +394,13 @@ router.get('/images/:imageId/optimized',
  * @swagger
  * /images/:imageId/responsive:
  *   post:
- *     summary: POST /images/:imageId/responsive
+ *     summary: POST /images/:imageId/responsive (POST /images/:imageId/responsive)
  *     description: POST endpoint for /images/:imageId/responsive
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -395,8 +425,13 @@ router.post('/images/:imageId/responsive',
  * @swagger
  * /api/cdn/images/{imageId}/webp:
  *   get:
- *     summary: Generate WebP URLs with fallback
+ *     summary: Generate WebP URLs with fallback (Generate WebP URLs with fallback)
  *     description: Generate WebP URLs with JPEG/PNG fallback for an image
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [CDN]
  *     security:
  *       - bearerAuth: []
@@ -452,8 +487,13 @@ router.post('/images/:imageId/responsive',
  * @swagger
  * /images/:imageId/webp:
  *   get:
- *     summary: GET /images/:imageId/webp
+ *     summary: /images/:imageId/webp 조회
  *     description: GET endpoint for /images/:imageId/webp
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -478,8 +518,13 @@ router.get('/images/:imageId/webp',
  * @swagger
  * /api/cdn/config:
  *   get:
- *     summary: Get CDN configuration
+ *     summary: CDN configuration 조회
  *     description: Get current CDN configuration and validation status
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [CDN]
  *     security:
  *       - bearerAuth: []
@@ -513,8 +558,13 @@ router.get('/config',
  * @swagger
  * /api/cdn/test:
  *   post:
- *     summary: Test CDN connectivity
+ *     summary: Test CDN connectivity (Test CDN connectivity)
  *     description: Test CDN connectivity and performance
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [CDN]
  *     security:
  *       - bearerAuth: []
@@ -549,8 +599,13 @@ router.post('/test',
  * @swagger
  * /api/cdn/transform:
  *   post:
- *     summary: Transform image URL
+ *     summary: Transform image URL (Transform image URL)
  *     description: Transform an image URL with custom parameters
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [CDN]
  *     security:
  *       - bearerAuth: []
@@ -608,8 +663,13 @@ router.post('/test',
  * @swagger
  * /transform:
  *   post:
- *     summary: POST /transform
+ *     summary: POST /transform (POST /transform)
  *     description: POST endpoint for /transform
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

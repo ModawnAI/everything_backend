@@ -183,6 +183,11 @@ const bulkActionSchema = Joi.object({
  *           type: string
  *           format: uuid
  *           description: Unique identifier for the report
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         shop_id:
  *           type: string
  *           format: uuid
@@ -305,8 +310,13 @@ const bulkActionSchema = Joi.object({
  * @swagger
  * /api/admin/shop-reports:
  *   get:
- *     summary: Get all shop reports with filtering and pagination
+ *     summary: all shop reports with filtering and pagination 조회
  *     description: Retrieve a paginated list of shop reports with filtering options for admin review
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Admin Moderation
  *     security:
@@ -434,8 +444,13 @@ router.get(
  * @swagger
  * /api/admin/shop-reports/{reportId}:
  *   get:
- *     summary: Get a specific shop report by ID
+ *     summary: a specific shop report by ID 조회
  *     description: Retrieve detailed information about a specific shop report
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Admin Moderation
  *     security:
@@ -496,8 +511,13 @@ router.get(
  * @swagger
  * /api/admin/shop-reports/{reportId}:
  *   put:
- *     summary: Update shop report status and resolution
+ *     summary: shop report status and resolution 수정
  *     description: Update a shop report's status and take moderation actions
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Admin Moderation
  *     security:
@@ -590,8 +610,13 @@ router.put(
  * @swagger
  * /api/admin/shops/{shopId}/moderation-history:
  *   get:
- *     summary: Get moderation history for a specific shop
+ *     summary: moderation history for a specific shop 조회
  *     description: Retrieve complete moderation history including reports and actions for a shop
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Admin Moderation
  *     security:
@@ -693,8 +718,13 @@ router.get(
  * @swagger
  * /api/admin/shop-reports/bulk-action:
  *   post:
- *     summary: Execute bulk actions on multiple reports
+ *     summary: Execute bulk actions on multiple reports (Execute bulk actions on multiple reports)
  *     description: Apply the same moderation action to multiple shop reports at once
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Admin Moderation
  *     security:
@@ -812,8 +842,13 @@ router.post(
  * @swagger
  * /api/admin/moderation/stats:
  *   get:
- *     summary: Get moderation statistics and analytics
+ *     summary: moderation statistics and analytics 조회
  *     description: Retrieve comprehensive statistics about reports and moderation actions
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Admin Moderation
  *     security:
@@ -870,8 +905,13 @@ router.get(
  * @swagger
  * /api/admin/shops/{shopId}/analyze-content:
  *   post:
- *     summary: Analyze shop content for moderation
+ *     summary: Analyze shop content for moderation (Analyze shop content for moderation)
  *     description: Perform automated content analysis on a shop's content
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags:
  *       - Admin Moderation
  *     security:
@@ -948,6 +988,200 @@ router.post(
   validateRequestWithSchema(shopIdSchema, 'params'),
   async (req, res) => {
     await adminModerationController.analyzeShopContent(req as any, res);
+  }
+);
+
+// Feed Content Moderation Endpoints
+
+/**
+ * @swagger
+ * /api/admin/content/reported:
+ *   get:
+ *     summary: reported feed posts for admin review 조회
+ *     description: Retrieve a list of reported feed posts that require admin moderation
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Moderation]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, under_review, resolved, dismissed]
+ *         description: Filter by report status
+ *       - in: query
+ *         name: reason
+ *         schema:
+ *           type: string
+ *           enum: [spam, harassment, inappropriate_content, fake_information, violence, hate_speech, copyright_violation, impersonation, scam, adult_content, other]
+ *         description: Filter by report reason
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: List of reported posts retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get(
+  '/content/reported',
+  authenticateToken,
+  adminRateLimit,
+  validateRequestWithSchema(Joi.object({
+    status: Joi.string().valid('pending', 'under_review', 'resolved', 'dismissed').optional(),
+    reason: Joi.string().valid('spam', 'harassment', 'inappropriate_content', 'fake_information', 'violence', 'hate_speech', 'copyright_violation', 'impersonation', 'scam', 'adult_content', 'other').optional(),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(100).default(20)
+  }), 'query'),
+  async (req, res) => {
+    await adminModerationController.getReportedContent(req as any, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/content/{contentId}/moderate:
+ *   put:
+ *     summary: Moderate a reported feed post (Moderate a reported feed post)
+ *     description: Take moderation action on a reported feed post
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Moderation]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: contentId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         required: true
+ *         description: ID of the content to moderate
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - action
+ *             properties:
+ *               action:
+ *                 type: string
+ *                 enum: [approve, hide, remove, warn_user, ban_user]
+ *                 description: Moderation action to take
+ *               reason:
+ *                 type: string
+ *                 maxLength: 500
+ *                 description: Reason for the moderation action
+ *               notify_user:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Whether to notify the user of the action
+ *     responses:
+ *       200:
+ *         description: Moderation action completed successfully
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: Content not found
+ *       500:
+ *         description: Internal server error
+ */
+router.put(
+  '/content/:contentId/moderate',
+  authenticateToken,
+  adminRateLimit,
+  validateRequestWithSchema(Joi.object({
+    action: Joi.string().valid('approve', 'hide', 'remove', 'warn_user', 'ban_user').required(),
+    reason: Joi.string().max(500).optional(),
+    notify_user: Joi.boolean().default(true)
+  }), 'body'),
+  async (req, res) => {
+    await adminModerationController.moderateContent(req as any, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/content/moderation-queue:
+ *   get:
+ *     summary: content moderation queue 조회
+ *     description: Retrieve posts that need immediate admin attention based on automatic flagging
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Moderation]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: priority
+ *         schema:
+ *           type: string
+ *           enum: [high, medium, low]
+ *         description: Filter by priority level
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Moderation queue retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get(
+  '/content/moderation-queue',
+  authenticateToken,
+  adminRateLimit,
+  validateRequestWithSchema(Joi.object({
+    priority: Joi.string().valid('high', 'medium', 'low').optional(),
+    page: Joi.number().integer().min(1).default(1),
+    limit: Joi.number().integer().min(1).max(50).default(20)
+  }), 'query'),
+  async (req, res) => {
+    await adminModerationController.getModerationQueue(req as any, res);
   }
 );
 

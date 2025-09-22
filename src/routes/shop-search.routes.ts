@@ -60,14 +60,24 @@ const suggestionsRateLimit = rateLimit({
  * tags:
  *   - name: Shop Search
  *     description: Advanced shop search and filtering operations
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 /**
  * @swagger
  * /api/shops/search:
  *   get:
- *     summary: Advanced shop search with full-text search and filtering
+ *     summary: Advanced shop search with full-text search and filtering (Advanced shop search with full-text search and filtering)
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Comprehensive shop search endpoint supporting:
  *       - Full-text search across shop names, descriptions, and addresses
  *       - Location-based search with PostGIS optimization and Seoul boundary validation
@@ -97,6 +107,11 @@ const suggestionsRateLimit = rateLimit({
  *           minLength: 1
  *           maxLength: 100
  *         description: Search query text
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "네일아트"
  *       - in: query
  *         name: query
@@ -468,8 +483,13 @@ const suggestionsRateLimit = rateLimit({
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -513,8 +533,13 @@ router.get('/',
  * @swagger
  * /api/shops/search/suggestions:
  *   get:
- *     summary: Get search suggestions for autocomplete
+ *     summary: search suggestions for autocomplete 조회
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Provides search suggestions based on partial query input for autocomplete functionality.
  *       Returns popular shop names and categories that match the query.
  *     tags: [Shop Search]
@@ -527,6 +552,11 @@ router.get('/',
  *           minLength: 1
  *           maxLength: 50
  *         description: Partial search query for suggestions
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "네일"
  *       - in: query
  *         name: limit
@@ -589,8 +619,13 @@ router.get('/',
  * @swagger
  * /suggestions:
  *   get:
- *     summary: GET /suggestions
+ *     summary: /suggestions 조회
  *     description: GET endpoint for /suggestions
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -632,14 +667,24 @@ router.get('/suggestions',
  * @swagger
  * /api/shops/search/popular:
  *   get:
- *     summary: Get popular search terms and trending categories
+ *     summary: popular search terms and trending categories 조회
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Returns popular search terms and trending categories based on user search patterns.
  *       Useful for displaying popular searches on the search page.
  *     tags: [Shop Search]
  *     responses:
  *       200:
  *         description: Popular searches retrieved successfully
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         content:
  *           application/json:
  *             schema:
@@ -689,8 +734,13 @@ router.get('/suggestions',
  * @swagger
  * /popular:
  *   get:
- *     summary: GET /popular
+ *     summary: /popular 조회
  *     description: GET endpoint for /popular
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

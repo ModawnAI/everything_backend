@@ -81,8 +81,13 @@ const imageUploadSchema = Joi.object({
  *   post:
  *     tags:
  *       - Shop Registration
- *     summary: Register a new shop (multi-step or complete)
+ *     summary: Register a new shop (multi-step or complete) (Register a new shop (multi-step or complete))
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Register a new shop using either step-by-step process or complete registration.
  *       
  *       **Step-by-step process:**
@@ -204,8 +209,13 @@ const imageUploadSchema = Joi.object({
  * @swagger
  * /:
  *   post:
- *     summary: POST /
+ *     summary: POST / (POST /)
  *     description: POST endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -233,8 +243,13 @@ router.post('/',
  *   post:
  *     tags:
  *       - Shop Registration
- *     summary: Upload shop images
+ *     summary: Upload shop images (Upload shop images)
  *     description: Upload multiple images for a registered shop with display order and metadata
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     security:
  *       - bearerAuth: []
  *     requestBody:
@@ -330,8 +345,13 @@ router.post('/',
  * @swagger
  * /images:
  *   post:
- *     summary: POST /images
+ *     summary: POST /images (POST /images)
  *     description: POST endpoint for /images
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -359,8 +379,13 @@ router.post('/images',
  *   get:
  *     tags:
  *       - Shop Registration
- *     summary: Get registration status
+ *     summary: registration status 조회
  *     description: Retrieve the current status and completion progress of a shop registration
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -443,8 +468,13 @@ router.post('/images',
  * @swagger
  * /status/:registrationId:
  *   get:
- *     summary: GET /status/:registrationId
+ *     summary: /status/:registrationId 조회
  *     description: GET endpoint for /status/:registrationId
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -470,8 +500,13 @@ router.get('/status/:registrationId',
  *   get:
  *     tags:
  *       - Shop Registration
- *     summary: Validate Korean business license number
+ *     summary: Validate Korean business license number (Validate Korean business license number)
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Validate a Korean business license number using checksum algorithm.
  *       Supports formats: 123-45-67890, 1234567890
  *     parameters:
@@ -542,8 +577,13 @@ router.get('/status/:registrationId',
  * @swagger
  * /validate/business-license/:licenseNumber:
  *   get:
- *     summary: GET /validate/business-license/:licenseNumber
+ *     summary: /validate/business-license/:licenseNumber 조회
  *     description: GET endpoint for /validate/business-license/:licenseNumber
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

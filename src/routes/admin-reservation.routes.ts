@@ -117,8 +117,13 @@ const router = Router();
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       관리자용 예약 관리 API입니다. 예약 현황과 상태를 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -213,8 +218,13 @@ router.get('/', adminReservationController.getReservations);
  * @swagger
  * /analytics:
  *   get:
- *     summary: GET /analytics
+ *     summary: /analytics 조회
  *     description: GET endpoint for /analytics
+ *       
+ *       관리자용 예약 관리 API입니다. 예약 현황과 상태를 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -282,8 +292,13 @@ router.get('/analytics', adminReservationController.getReservationAnalytics);
  * @swagger
  * /:id/status:
  *   put:
- *     summary: PUT /:id/status
+ *     summary: PUT /:id/status (PUT /:id/status)
  *     description: PUT endpoint for /:id/status
+ *       
+ *       관리자용 예약 관리 API입니다. 예약 현황과 상태를 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -413,8 +428,13 @@ router.put('/:id/status', adminReservationController.updateReservationStatus);
  * @swagger
  * /:id/details:
  *   get:
- *     summary: GET /:id/details
+ *     summary: /:id/details 조회
  *     description: GET endpoint for /:id/details
+ *       
+ *       관리자용 예약 관리 API입니다. 예약 현황과 상태를 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -496,8 +516,13 @@ router.get('/:id/details', adminReservationController.getReservationDetails);
  * @swagger
  * /:id/dispute:
  *   post:
- *     summary: POST /:id/dispute
+ *     summary: POST /:id/dispute (POST /:id/dispute)
  *     description: POST endpoint for /:id/dispute
+ *       
+ *       관리자용 예약 관리 API입니다. 예약 현황과 상태를 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -565,8 +590,13 @@ router.post('/:id/dispute', adminReservationController.createReservationDispute)
  * @swagger
  * /:id/force-complete:
  *   post:
- *     summary: POST /:id/force-complete
+ *     summary: POST /:id/force-complete (POST /:id/force-complete)
  *     description: POST endpoint for /:id/force-complete
+ *       
+ *       관리자용 예약 관리 API입니다. 예약 현황과 상태를 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []
@@ -645,6 +675,11 @@ router.post('/:id/force-complete', adminReservationController.forceCompleteReser
  *   post:
  *     summary: POST /bulk-status-update
  *     description: POST endpoint for /bulk-status-update
+ *       
+ *       관리자용 예약 관리 API입니다. 예약 현황과 상태를 관리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [예약]
  *     security:
  *       - bearerAuth: []

@@ -108,7 +108,7 @@ export interface ReferralTierConfig {
 class ReferralEarningsService {
   private supabase = getSupabaseClient();
   private readonly DEFAULT_BASE_BONUS = 1000; // 1000 points
-  private readonly INFLUENCER_MULTIPLIER = 1.5;
+  private readonly INFLUENCER_MULTIPLIER = 2.0; // Updated to v3.2 policy (2x)
   private readonly TIER_MULTIPLIERS = {
     'bronze': 1.0,
     'silver': 1.2,

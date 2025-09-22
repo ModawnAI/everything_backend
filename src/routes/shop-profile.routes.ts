@@ -22,6 +22,11 @@ const router = Router();
  * tags:
  *   - name: Shop Profile
  *     description: Shop profile management operations for shop owners
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  */
 
 // Rate limiting for profile operations
@@ -48,8 +53,13 @@ router.use(authenticateJWT);
  * @swagger
  * /api/shop/profile:
  *   get:
- *     summary: Get shop owner's profile
+ *     summary: shop owner's profile 조회
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Retrieve the authenticated shop owner's complete shop profile information including:
  *       - Basic shop details (name, description, contact info)
  *       - Location information (address, coordinates)
@@ -64,6 +74,11 @@ router.use(authenticateJWT);
  *     responses:
  *       200:
  *         description: Shop profile retrieved successfully
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         content:
  *           application/json:
  *             schema:
@@ -124,8 +139,13 @@ router.use(authenticateJWT);
  * @swagger
  * /:
  *   get:
- *     summary: GET /
+ *     summary: / 조회
  *     description: GET endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -169,8 +189,13 @@ router.get('/',
  * @swagger
  * /api/shop/profile:
  *   put:
- *     summary: Update shop owner's profile
+ *     summary: shop owner's profile 수정
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Update the authenticated shop owner's shop profile information. 
  *       All fields are optional - only provided fields will be updated.
  *       
@@ -199,6 +224,11 @@ router.get('/',
  *                 minLength: 1
  *                 maxLength: 255
  *                 description: Shop name
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *                 example: "네일아트 전문점"
  *               description:
  *                 type: string
@@ -416,8 +446,13 @@ router.get('/',
  * @swagger
  * /:
  *   put:
- *     summary: PUT /
+ *     summary: PUT / (PUT /)
  *     description: PUT endpoint for /
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []
@@ -463,8 +498,13 @@ router.put('/',
  * @swagger
  * /api/shop/profile/status:
  *   get:
- *     summary: Get shop profile completion status
+ *     summary: shop profile completion status 조회
  *     description: |
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Check the completion status of the shop profile setup process.
  *       Returns detailed information about which required fields are completed
  *       and which are still missing for full profile completion.
@@ -482,6 +522,11 @@ router.put('/',
  *     responses:
  *       200:
  *         description: Profile status retrieved successfully
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         content:
  *           application/json:
  *             schema:
@@ -592,8 +637,13 @@ router.put('/',
  * @swagger
  * /status:
  *   get:
- *     summary: GET /status
+ *     summary: /status 조회
  *     description: GET endpoint for /status
+ *       
+ *       샵 관련 API입니다. 샵 정보 조회와 관리 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Shops]
  *     security:
  *       - bearerAuth: []

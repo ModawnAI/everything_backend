@@ -22,8 +22,13 @@ const tokens = new Tokens({
  * @swagger
  * /csrf-token:
  *   get:
- *     summary: GET /csrf-token
+ *     summary: /csrf-token 조회
  *     description: GET endpoint for /csrf-token
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -66,6 +71,31 @@ router.get('/csrf-token', (req, res) => {
  * 
  * Handles Content Security Policy violation reports from browsers
  */
+/**
+ * @swagger
+ * /csp-report:
+ *   post:
+ *     summary: POST /csp-report (POST /csp-report)
+ *     description: POST endpoint for /csp-report
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/csp-report', cspViolationHandler());
 
 /**
@@ -79,8 +109,13 @@ router.post('/csp-report', cspViolationHandler());
  * @swagger
  * /test-headers:
  *   get:
- *     summary: GET /test-headers
+ *     summary: /test-headers 조회
  *     description: GET endpoint for /test-headers
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -134,8 +169,13 @@ router.get('/test-headers', (req, res) => {
  * @swagger
  * /config:
  *   get:
- *     summary: GET /config
+ *     summary: /config 조회
  *     description: GET endpoint for /config
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -201,8 +241,13 @@ router.get('/config', (req, res) => {
  * @swagger
  * /health:
  *   get:
- *     summary: GET /health
+ *     summary: /health 조회
  *     description: GET endpoint for /health
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     responses:
  *       200:

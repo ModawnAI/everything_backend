@@ -51,8 +51,13 @@ const logoutSchema = Joi.object({
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Social authentication login
+ *     summary: Social authentication login (Social authentication login)
  *     description: Authenticate user with social providers (Kakao, Apple, Google)
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     requestBody:
  *       required: true
  *       content:
@@ -111,8 +116,13 @@ const logoutSchema = Joi.object({
  * @swagger
  * /social-login:
  *   post:
- *     summary: POST /social-login
+ *     summary: POST /social-login (POST /social-login)
  *     description: POST endpoint for /social-login
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [인증]
  *     security:
  *       - bearerAuth: []
@@ -138,8 +148,13 @@ router.post('/social-login',
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Complete user registration
+ *     summary: Complete user registration (Complete user registration)
  *     description: Complete user registration with profile information
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     requestBody:
  *       required: true
  *       content:
@@ -212,8 +227,13 @@ router.post('/social-login',
  * @swagger
  * /register:
  *   post:
- *     summary: POST /register
+ *     summary: POST /register (POST /register)
  *     description: POST endpoint for /register
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [인증]
  *     security:
  *       - bearerAuth: []
@@ -239,8 +259,13 @@ router.post('/register',
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Send phone verification code
+ *     summary: Send phone verification code (Send phone verification code)
  *     description: Initiate phone verification with PASS certification or SMS
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     requestBody:
  *       required: true
  *       content:
@@ -293,8 +318,13 @@ router.post('/register',
  * @swagger
  * /send-verification-code:
  *   post:
- *     summary: POST /send-verification-code
+ *     summary: POST /send-verification-code (POST /send-verification-code)
  *     description: POST endpoint for /send-verification-code
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [인증]
  *     security:
  *       - bearerAuth: []
@@ -322,6 +352,31 @@ router.post('/send-verification-code',
  * Body: { txId: string, otpCode?: string, passResult?: object, method: 'pass'|'sms' }
  * Returns: { verified, userId?, phoneNumber, method, message }
  */
+/**
+ * @swagger
+ * /verify-phone:
+ *   post:
+ *     summary: POST /verify-phone (POST /verify-phone)
+ *     description: POST endpoint for /verify-phone
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/verify-phone',
   loginRateLimit(), // Use strict rate limiting for verification confirmation
   validateRequestBody(phoneVerificationConfirmSchema),
@@ -336,6 +391,31 @@ router.post('/verify-phone',
  * Body: { txId: string, result: 'success'|'failure', ci?: string, di?: string, errorCode?, errorMessage? }
  * Returns: Redirect to success/error page
  */
+/**
+ * @swagger
+ * /pass/callback:
+ *   post:
+ *     summary: POST /pass/callback (POST /pass/callback)
+ *     description: POST endpoint for /pass/callback
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/pass/callback',
   rateLimit(), // Standard rate limiting for callbacks
   validateRequestBody(passCallbackSchema),
@@ -354,8 +434,13 @@ router.post('/pass/callback',
  * @swagger
  * /providers:
  *   get:
- *     summary: GET /providers
+ *     summary: /providers 조회
  *     description: GET endpoint for /providers
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [인증]
  *     security:
  *       - bearerAuth: []
@@ -380,8 +465,13 @@ router.get('/providers',
  *   post:
  *     tags:
  *       - Authentication
- *     summary: Refresh access token
+ *     summary: Refresh access token (Refresh access token)
  *     description: Refresh access token using refresh token
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     requestBody:
  *       required: true
  *       content:
@@ -437,8 +527,13 @@ router.post('/refresh',
  * @swagger
  * /logout:
  *   post:
- *     summary: POST /logout
+ *     summary: POST /logout (POST /logout)
  *     description: POST endpoint for /logout
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [인증]
  *     security:
  *       - bearerAuth: []
@@ -466,6 +561,31 @@ router.post('/logout',
  * Rate limited: Standard rate limiting
  * Requires: Authentication
  */
+/**
+ * @swagger
+ * /logout-all:
+ *   post:
+ *     summary: POST /logout-all (POST /logout-all)
+ *     description: POST endpoint for /logout-all
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/logout-all',
   rateLimit(),
   authenticateJWT(),
@@ -480,6 +600,31 @@ router.post('/logout-all',
  * Requires: Authentication
  * Returns: List of active sessions with device info
  */
+/**
+ * @swagger
+ * /sessions:
+ *   get:
+ *     summary: /sessions 조회
+ *     description: GET endpoint for /sessions
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/sessions',
   rateLimit(),
   authenticateJWT(),
@@ -498,8 +643,13 @@ router.get('/sessions',
  * @swagger
  * /refresh-supabase:
  *   post:
- *     summary: POST /refresh-supabase
+ *     summary: POST /refresh-supabase (POST /refresh-supabase)
  *     description: POST endpoint for /refresh-supabase
+ *       
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *       
+ *       ---
+ *       
  *     tags: [인증]
  *     security:
  *       - bearerAuth: []

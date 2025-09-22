@@ -154,8 +154,13 @@ const archiveImagesSchema = Joi.object({
  * @swagger
  * /api/shop/images/{imageId}/metadata:
  *   get:
- *     summary: Get image metadata
+ *     summary: image metadata 조회
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Retrieve comprehensive metadata for a specific image including
  *       alt text, tags, category, and optimization information.
  *       
@@ -176,6 +181,11 @@ const archiveImagesSchema = Joi.object({
  *           type: string
  *           format: uuid
  *         description: Image ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     responses:
  *       200:
@@ -229,8 +239,13 @@ router.get('/:imageId/metadata',
  * @swagger
  * /api/shop/images/{imageId}/metadata:
  *   put:
- *     summary: Update image metadata
+ *     summary: image metadata 수정
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Update metadata for a specific image including alt text, title,
  *       description, tags, category, and display order.
  *       
@@ -251,6 +266,11 @@ router.get('/:imageId/metadata',
  *           type: string
  *           format: uuid
  *         description: Image ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     requestBody:
  *       required: true
@@ -281,6 +301,11 @@ router.get('/:imageId/metadata',
  *                   maxLength: 50
  *                 maxItems: 10
  *                 description: Image tags for categorization
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *                 example: ["인테리어", "모던", "깔끔"]
  *               category:
  *                 type: string
@@ -331,8 +356,13 @@ router.get('/:imageId/metadata',
  * @swagger
  * /:imageId/metadata:
  *   put:
- *     summary: PUT /:imageId/metadata
+ *     summary: PUT /:imageId/metadata (PUT /:imageId/metadata)
  *     description: PUT endpoint for /:imageId/metadata
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -377,8 +407,13 @@ router.put('/:imageId/metadata',
  * @swagger
  * /api/shop/images/{imageId}/alt-text-suggestions:
  *   get:
- *     summary: Get alt text suggestions
+ *     summary: alt text suggestions 조회
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Generate intelligent alt text suggestions for an image based on
  *       its category, tags, and shop information.
  *       
@@ -400,6 +435,11 @@ router.put('/:imageId/metadata',
  *           type: string
  *           format: uuid
  *         description: Image ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     responses:
  *       200:
@@ -436,8 +476,13 @@ router.put('/:imageId/metadata',
  * @swagger
  * /:imageId/alt-text-suggestions:
  *   get:
- *     summary: GET /:imageId/alt-text-suggestions
+ *     summary: /:imageId/alt-text-suggestions 조회
  *     description: GET endpoint for /:imageId/alt-text-suggestions
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -480,8 +525,13 @@ router.get('/:imageId/alt-text-suggestions',
  * @swagger
  * /api/shop/{shopId}/images/reorder:
  *   put:
- *     summary: Reorder shop images
+ *     summary: Reorder shop images (Reorder shop images)
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Reorder images for a shop by updating their display order.
  *       Supports drag-and-drop reordering functionality.
  *       
@@ -502,6 +552,11 @@ router.get('/:imageId/alt-text-suggestions',
  *           type: string
  *           format: uuid
  *         description: Shop ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     requestBody:
  *       required: true
@@ -559,8 +614,13 @@ router.get('/:imageId/alt-text-suggestions',
  * @swagger
  * /:shopId/images/reorder:
  *   put:
- *     summary: PUT /:shopId/images/reorder
+ *     summary: PUT /:shopId/images/reorder (PUT /:shopId/images/reorder)
  *     description: PUT endpoint for /:shopId/images/reorder
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -605,8 +665,13 @@ router.put('/:shopId/images/reorder',
  * @swagger
  * /api/shop/{shopId}/images/batch-update:
  *   put:
- *     summary: Batch update image metadata
+ *     summary: Batch image metadata 수정
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Update metadata for multiple images in a single operation.
  *       Useful for bulk operations like adding tags or changing categories.
  *       
@@ -627,6 +692,11 @@ router.put('/:shopId/images/reorder',
  *           type: string
  *           format: uuid
  *         description: Shop ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     requestBody:
  *       required: true
@@ -661,6 +731,11 @@ router.put('/:shopId/images/reorder',
  *                 minItems: 1
  *                 maxItems: 20
  *                 description: Array of image updates
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     responses:
  *       200:
  *         description: Batch update completed
@@ -693,6 +768,11 @@ router.put('/:shopId/images/reorder',
  *   put:
  *     summary: PUT /:shopId/images/batch-update
  *     description: PUT endpoint for /:shopId/images/batch-update
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -737,8 +817,13 @@ router.put('/:shopId/images/batch-update',
  * @swagger
  * /api/shop/{shopId}/images/search:
  *   post:
- *     summary: Search images by metadata
+ *     summary: Search images by metadata (Search images by metadata)
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Search for images using various metadata criteria including
  *       text search, category, tags, and date ranges.
  *       
@@ -760,6 +845,11 @@ router.put('/:shopId/images/batch-update',
  *           type: string
  *           format: uuid
  *         description: Shop ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     requestBody:
  *       required: true
@@ -784,6 +874,11 @@ router.put('/:shopId/images/batch-update',
  *                   type: string
  *                 maxItems: 10
  *                 description: Filter by tags
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *                 example: ["모던", "깔끔"]
  *               hasAltText:
  *                 type: boolean
@@ -838,8 +933,13 @@ router.put('/:shopId/images/batch-update',
  * @swagger
  * /:shopId/images/search:
  *   post:
- *     summary: POST /:shopId/images/search
+ *     summary: POST /:shopId/images/search (POST /:shopId/images/search)
  *     description: POST endpoint for /:shopId/images/search
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -884,8 +984,13 @@ router.post('/:shopId/images/search',
  * @swagger
  * /api/shop/{shopId}/images/stats:
  *   get:
- *     summary: Get image statistics
+ *     summary: image statistics 조회
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Retrieve comprehensive statistics about images for a shop
  *       including counts, sizes, and category breakdowns.
  *       
@@ -907,6 +1012,11 @@ router.post('/:shopId/images/search',
  *           type: string
  *           format: uuid
  *         description: Shop ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     responses:
  *       200:
@@ -947,8 +1057,13 @@ router.post('/:shopId/images/search',
  * @swagger
  * /:shopId/images/stats:
  *   get:
- *     summary: GET /:shopId/images/stats
+ *     summary: /:shopId/images/stats 조회
  *     description: GET endpoint for /:shopId/images/stats
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []
@@ -991,8 +1106,13 @@ router.get('/:shopId/images/stats',
  * @swagger
  * /api/shop/{shopId}/images/archive:
  *   put:
- *     summary: Archive/unarchive images
+ *     summary: Archive/unarchive images (Archive/unarchive images)
  *     description: |
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *       Archive or unarchive multiple images for a shop.
  *       Archived images are hidden from normal views but can be restored.
  *       
@@ -1013,6 +1133,11 @@ router.get('/:shopId/images/stats',
  *           type: string
  *           format: uuid
  *         description: Shop ID
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *         example: "123e4567-e89b-12d3-a456-426614174000"
  *     requestBody:
  *       required: true
@@ -1065,8 +1190,13 @@ router.get('/:shopId/images/stats',
  * @swagger
  * /:shopId/images/archive:
  *   put:
- *     summary: PUT /:shopId/images/archive
+ *     summary: PUT /:shopId/images/archive (PUT /:shopId/images/archive)
  *     description: PUT endpoint for /:shopId/images/archive
+ *       
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *       
+ *       ---
+ *       
  *     tags: [System]
  *     security:
  *       - bearerAuth: []

@@ -3566,6 +3566,357 @@ export class NotificationService {
       throw error;
     }
   }
+
+  /**
+   * Simple notification sender that returns success/error format
+   * This is a wrapper around the existing notification system
+   */
+  private async sendSimpleNotification(
+    userId: string,
+    notification: {
+      title: string;
+      body: string;
+      data?: Record<string, string>;
+    }
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Store in notification history
+      const { error } = await this.supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          type: notification.data?.action || 'general',
+          title: notification.title,
+          message: notification.body,
+          metadata: notification.data || {}
+        });
+
+      if (error) {
+        logger.error('Failed to store notification', { error, userId });
+        return { success: false, error: 'Failed to store notification' };
+      }
+
+      // Here you would typically send push notification via FCM
+      // For now, we'll just log and return success
+      logger.info('Notification sent', {
+        userId,
+        title: notification.title,
+        type: notification.data?.action || 'general'
+      });
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Failed to send notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId
+      });
+      return { success: false, error: 'Failed to send notification' };
+    }
+  }
+
+  /**
+   * Send content moderation notification to user
+   */
+  async sendModerationNotification(
+    userId: string,
+    action: 'flagged' | 'hidden' | 'removed' | 'approved' | 'warned',
+    contentType: 'post' | 'comment',
+    contentId: string,
+    reason?: string,
+    adminNote?: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const templates = {
+        flagged: {
+          title: `Your ${contentType} has been flagged`,
+          body: `Your ${contentType} has been flagged for review. ${reason ? `Reason: ${reason}` : 'Our team will review it shortly.'}`,
+          data: { action: 'flagged', contentType, contentId, severity: 'medium' }
+        },
+        hidden: {
+          title: `Your ${contentType} has been hidden`,
+          body: `Your ${contentType} has been temporarily hidden. ${reason ? `Reason: ${reason}` : 'Please review our community guidelines.'}`,
+          data: { action: 'hidden', contentType, contentId, severity: 'high' }
+        },
+        removed: {
+          title: `Your ${contentType} has been removed`,
+          body: `Your ${contentType} has been removed for violating our guidelines. ${reason ? `Reason: ${reason}` : 'Please review our community standards.'}`,
+          data: { action: 'removed', contentType, contentId, severity: 'critical' }
+        },
+        approved: {
+          title: `Your ${contentType} has been approved`,
+          body: `Your ${contentType} has been reviewed and approved. Thank you for following our community guidelines.`,
+          data: { action: 'approved', contentType, contentId, severity: 'low' }
+        },
+        warned: {
+          title: 'Community Guidelines Warning',
+          body: `Your ${contentType} violates our community guidelines. ${reason ? `Reason: ${reason}` : 'Please review our policies to avoid future violations.'}`,
+          data: { action: 'warned', contentType, contentId, severity: 'medium' }
+        }
+      };
+
+      const template = templates[action];
+      if (adminNote) {
+        template.body += ` Admin note: ${adminNote}`;
+      }
+
+      // Send push notification
+      const pushResult = await this.sendSimpleNotification(userId, template);
+
+      // Store in notification history
+      await this.supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          type: 'content_moderation',
+          title: template.title,
+          message: template.body,
+          metadata: {
+            ...template.data,
+            reason,
+            adminNote,
+            timestamp: new Date().toISOString()
+          }
+        });
+
+      logger.info('Moderation notification sent', {
+        userId,
+        action,
+        contentType,
+        contentId,
+        success: pushResult.success
+      });
+
+      return pushResult;
+
+    } catch (error) {
+      logger.error('Failed to send moderation notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        action,
+        contentType,
+        contentId
+      });
+      return { success: false, error: 'Failed to send notification' };
+    }
+  }
+
+  /**
+   * Send bulk moderation notifications for mass actions
+   */
+  async sendBulkModerationNotifications(
+    notifications: Array<{
+      userId: string;
+      action: 'flagged' | 'hidden' | 'removed' | 'approved' | 'warned';
+      contentType: 'post' | 'comment';
+      contentId: string;
+      reason?: string;
+      adminNote?: string;
+    }>
+  ): Promise<{ success: boolean; results: Array<{ userId: string; success: boolean; error?: string }> }> {
+    try {
+      const results = await Promise.allSettled(
+        notifications.map(notification =>
+          this.sendModerationNotification(
+            notification.userId,
+            notification.action,
+            notification.contentType,
+            notification.contentId,
+            notification.reason,
+            notification.adminNote
+          ).then(result => ({ userId: notification.userId, ...result }))
+        )
+      );
+
+      const processedResults = results.map((result, index) => {
+        if (result.status === 'fulfilled') {
+          return result.value;
+        } else {
+          return {
+            userId: notifications[index].userId,
+            success: false,
+            error: result.reason instanceof Error ? result.reason.message : 'Unknown error'
+          };
+        }
+      });
+
+      const successCount = processedResults.filter(r => r.success).length;
+      const totalCount = processedResults.length;
+
+      logger.info('Bulk moderation notifications processed', {
+        total: totalCount,
+        successful: successCount,
+        failed: totalCount - successCount
+      });
+
+      return {
+        success: successCount > 0,
+        results: processedResults
+      };
+
+    } catch (error) {
+      logger.error('Failed to send bulk moderation notifications', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        count: notifications.length
+      });
+      return {
+        success: false,
+        results: notifications.map(n => ({
+          userId: n.userId,
+          success: false,
+          error: 'Bulk operation failed'
+        }))
+      };
+    }
+  }
+
+  /**
+   * Send report acknowledgment notification to reporter
+   */
+  async sendReportAcknowledgment(
+    reporterId: string,
+    contentType: 'post' | 'comment',
+    contentId: string,
+    reportReason: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      const notification = {
+        title: 'Report Received',
+        body: `Thank you for reporting ${contentType === 'post' ? 'a post' : 'a comment'}. We've received your report and will review it according to our community guidelines.`,
+        data: {
+          action: 'report_acknowledged',
+          contentType,
+          contentId,
+          reportReason,
+          severity: 'low'
+        }
+      };
+
+      const result = await this.sendSimpleNotification(reporterId, notification);
+
+      // Store in notification history
+      await this.supabase
+        .from('notifications')
+        .insert({
+          user_id: reporterId,
+          type: 'report_acknowledgment',
+          title: notification.title,
+          message: notification.body,
+          metadata: {
+            ...notification.data,
+            timestamp: new Date().toISOString()
+          }
+        });
+
+      logger.info('Report acknowledgment sent', {
+        reporterId,
+        contentType,
+        contentId,
+        success: result.success
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error('Failed to send report acknowledgment', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reporterId,
+        contentType,
+        contentId
+      });
+      return { success: false, error: 'Failed to send notification' };
+    }
+  }
+
+  /**
+   * Send admin alert for high-priority content that needs immediate attention
+   */
+  async sendAdminModerationAlert(
+    contentType: 'post' | 'comment',
+    contentId: string,
+    priority: 'high' | 'critical',
+    reason: string,
+    reportCount: number,
+    authorId: string
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Get admin users (you may need to adjust this query based on your admin role system)
+      const { data: admins, error: adminError } = await this.supabase
+        .from('users')
+        .select('id')
+        .eq('role', 'admin')
+        .eq('is_active', true);
+
+      if (adminError || !admins || admins.length === 0) {
+        logger.warn('No admin users found for moderation alert');
+        return { success: false, error: 'No admin users available' };
+      }
+
+      const notification = {
+        title: `${priority.toUpperCase()}: Content Moderation Alert`,
+        body: `A ${contentType} requires immediate attention. ${reportCount} reports received. Reason: ${reason}`,
+        data: {
+          action: 'admin_alert',
+          contentType,
+          contentId,
+          priority,
+          reportCount: reportCount.toString(),
+          authorId,
+          severity: priority === 'critical' ? 'critical' : 'high'
+        }
+      };
+
+      // Send to all admins
+      const results = await Promise.allSettled(
+        admins.map(admin =>
+          this.sendSimpleNotification(admin.id, notification)
+        )
+      );
+
+      const successCount = results.filter(r => r.status === 'fulfilled' && r.value.success).length;
+
+      // Store admin alert in notifications
+      await Promise.all(
+        admins.map(admin =>
+          this.supabase
+            .from('notifications')
+            .insert({
+              user_id: admin.id,
+              type: 'admin_moderation_alert',
+              title: notification.title,
+              message: notification.body,
+              metadata: {
+                ...notification.data,
+                timestamp: new Date().toISOString()
+              }
+            })
+        )
+      );
+
+      logger.info('Admin moderation alert sent', {
+        contentType,
+        contentId,
+        priority,
+        reportCount,
+        adminCount: admins.length,
+        successCount
+      });
+
+      return {
+        success: successCount > 0,
+        error: successCount === 0 ? 'Failed to notify any admins' : undefined
+      };
+
+    } catch (error) {
+      logger.error('Failed to send admin moderation alert', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        contentType,
+        contentId,
+        priority
+      });
+      return { success: false, error: 'Failed to send admin alert' };
+    }
+  }
 }
 
 // Export singleton instance

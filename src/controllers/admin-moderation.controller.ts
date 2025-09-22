@@ -852,6 +852,371 @@ class AdminModerationController {
       });
     }
   }
+
+  /**
+   * Get reported feed posts for admin review
+   * GET /api/admin/content/reported
+   */
+  async getReportedContent(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: { message: 'Admin authentication required' }
+        });
+        return;
+      }
+
+      const {
+        status,
+        reason,
+        page = '1',
+        limit = '20'
+      } = req.query;
+
+      const pageNum = Math.max(parseInt(page as string) || 1, 1);
+      const limitNum = Math.min(parseInt(limit as string) || 20, 100);
+      const offset = (pageNum - 1) * limitNum;
+
+      // Build query for reported posts
+      let query = getSupabaseClient()
+        .from('post_reports')
+        .select(`
+          id,
+          post_id,
+          reporter_id,
+          reason,
+          description,
+          status,
+          created_at,
+          updated_at,
+          posts:post_id (
+            id,
+            content,
+            author_id,
+            created_at,
+            is_hidden,
+            users:author_id (
+              id,
+              email,
+              full_name
+            )
+          ),
+          reporter:reporter_id (
+            id,
+            email,
+            full_name
+          )
+        `)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limitNum - 1);
+
+      // Apply filters
+      if (status) {
+        query = query.eq('status', status);
+      }
+      if (reason) {
+        query = query.eq('reason', reason);
+      }
+
+      const { data: reports, error, count } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch reported content', { error, userId });
+        res.status(500).json({
+          success: false,
+          error: { message: 'Failed to fetch reported content' }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reports: reports || [],
+          pagination: {
+            currentPage: pageNum,
+            totalPages: Math.ceil((count || 0) / limitNum),
+            totalCount: count || 0,
+            hasMore: offset + limitNum < (count || 0)
+          }
+        }
+      });
+
+      logger.info('Admin fetched reported content', {
+        userId,
+        filters: { status, reason },
+        resultCount: reports?.length || 0
+      });
+
+    } catch (error) {
+      logger.error('Error fetching reported content', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: { message: 'Failed to fetch reported content' }
+      });
+    }
+  }
+
+  /**
+   * Moderate a reported feed post
+   * PUT /api/admin/content/:contentId/moderate
+   */
+  async moderateContent(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+      const { contentId } = req.params;
+      const { action, reason, notify_user = true } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: { message: 'Admin authentication required' }
+        });
+        return;
+      }
+
+      // Get the post to moderate
+      const { data: post, error: postError } = await getSupabaseClient()
+        .from('posts')
+        .select('id, author_id, content, is_hidden')
+        .eq('id', contentId)
+        .single();
+
+      if (postError || !post) {
+        res.status(404).json({
+          success: false,
+          error: { message: 'Content not found' }
+        });
+        return;
+      }
+
+      // Apply moderation action
+      let updateData: any = {};
+      let notificationMessage = '';
+
+      switch (action) {
+        case 'approve':
+          updateData = { is_hidden: false, moderation_status: 'approved' };
+          notificationMessage = 'Your post has been approved after review.';
+          break;
+        case 'hide':
+          updateData = { is_hidden: true, moderation_status: 'hidden' };
+          notificationMessage = reason ? `Your post has been hidden: ${reason}` : 'Your post has been hidden for policy violations.';
+          break;
+        case 'remove':
+          updateData = { is_hidden: true, moderation_status: 'removed' };
+          notificationMessage = reason ? `Your post has been removed: ${reason}` : 'Your post has been removed for policy violations.';
+          break;
+        case 'warn_user':
+          updateData = { moderation_status: 'warned' };
+          notificationMessage = reason ? `Warning: ${reason}` : 'Your post violates our community guidelines. Please review our policies.';
+          break;
+        case 'ban_user':
+          // This would require additional user management logic
+          updateData = { is_hidden: true, moderation_status: 'banned' };
+          notificationMessage = 'Your account has been suspended due to policy violations.';
+          break;
+      }
+
+      // Update the post
+      const { error: updateError } = await getSupabaseClient()
+        .from('posts')
+        .update(updateData)
+        .eq('id', contentId);
+
+      if (updateError) {
+        logger.error('Failed to update post moderation status', { error: updateError, contentId, userId });
+        res.status(500).json({
+          success: false,
+          error: { message: 'Failed to apply moderation action' }
+        });
+        return;
+      }
+
+      // Update related reports
+      const { error: reportsError } = await getSupabaseClient()
+        .from('post_reports')
+        .update({ 
+          status: 'resolved',
+          admin_action: action,
+          admin_reason: reason,
+          resolved_by: userId,
+          resolved_at: new Date().toISOString()
+        })
+        .eq('post_id', contentId);
+
+      if (reportsError) {
+        logger.warn('Failed to update report status', { error: reportsError, contentId });
+      }
+
+      // Send notification to user if requested
+      if (notify_user && notificationMessage) {
+        try {
+          await getSupabaseClient()
+            .from('notifications')
+            .insert({
+              user_id: post.author_id,
+              type: 'moderation_action',
+              title: 'Content Moderation Action',
+              message: notificationMessage,
+              metadata: {
+                post_id: contentId,
+                action,
+                admin_reason: reason
+              }
+            });
+        } catch (notificationError) {
+          logger.warn('Failed to send moderation notification', { error: notificationError, userId: post.author_id });
+        }
+      }
+
+      res.status(200).json({
+        success: true,
+        message: 'Moderation action applied successfully',
+        data: {
+          content_id: contentId,
+          action,
+          reason
+        }
+      });
+
+      logger.info('Admin moderated content', {
+        adminId: userId,
+        contentId,
+        action,
+        reason,
+        authorId: post.author_id
+      });
+
+    } catch (error) {
+      logger.error('Error moderating content', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        contentId: req.params.contentId,
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: { message: 'Failed to moderate content' }
+      });
+    }
+  }
+
+  /**
+   * Get content moderation queue
+   * GET /api/admin/content/moderation-queue
+   */
+  async getModerationQueue(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: { message: 'Admin authentication required' }
+        });
+        return;
+      }
+
+      const {
+        priority,
+        page = '1',
+        limit = '20'
+      } = req.query;
+
+      const pageNum = Math.max(parseInt(page as string) || 1, 1);
+      const limitNum = Math.min(parseInt(limit as string) || 20, 50);
+      const offset = (pageNum - 1) * limitNum;
+
+      // Get posts that need immediate attention
+      let query = getSupabaseClient()
+        .from('posts')
+        .select(`
+          id,
+          content,
+          author_id,
+          created_at,
+          is_hidden,
+          moderation_status,
+          report_count,
+          users:author_id (
+            id,
+            email,
+            full_name
+          ),
+          post_reports!inner (
+            count
+          )
+        `)
+        .or('report_count.gte.3,moderation_status.eq.flagged')
+        .order('report_count', { ascending: false })
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limitNum - 1);
+
+      // Apply priority filter
+      if (priority === 'high') {
+        query = query.gte('report_count', 5);
+      } else if (priority === 'medium') {
+        query = query.gte('report_count', 3).lt('report_count', 5);
+      } else if (priority === 'low') {
+        query = query.lt('report_count', 3);
+      }
+
+      const { data: posts, error, count } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch moderation queue', { error, userId });
+        res.status(500).json({
+          success: false,
+          error: { message: 'Failed to fetch moderation queue' }
+        });
+        return;
+      }
+
+      // Add priority levels to posts
+      const postsWithPriority = (posts || []).map(post => ({
+        ...post,
+        priority: post.report_count >= 5 ? 'high' : post.report_count >= 3 ? 'medium' : 'low'
+      }));
+
+      res.status(200).json({
+        success: true,
+        data: {
+          posts: postsWithPriority,
+          pagination: {
+            currentPage: pageNum,
+            totalPages: Math.ceil((count || 0) / limitNum),
+            totalCount: count || 0,
+            hasMore: offset + limitNum < (count || 0)
+          }
+        }
+      });
+
+      logger.info('Admin fetched moderation queue', {
+        userId,
+        priority,
+        resultCount: posts?.length || 0
+      });
+
+    } catch (error) {
+      logger.error('Error fetching moderation queue', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: { message: 'Failed to fetch moderation queue' }
+      });
+    }
+  }
 }
 
 export const adminModerationController = new AdminModerationController();

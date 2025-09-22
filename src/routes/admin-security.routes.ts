@@ -40,8 +40,13 @@ const getSecurityEventsSchema = Joi.object({
  * @swagger
  * /users/:userId/invalidate-sessions:
  *   post:
- *     summary: POST /users/:userId/invalidate-sessions
+ *     summary: POST /users/:userId/invalidate-sessions (POST /users/:userId/invalidate-sessions)
  *     description: POST endpoint for /users/:userId/invalidate-sessions
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
@@ -68,6 +73,31 @@ router.post('/users/:userId/invalidate-sessions',
  * @desc Get user session information for admin review
  * @access Admin
  */
+/**
+ * @swagger
+ * /users/:userId/sessions:
+ *   get:
+ *     summary: /users/:userId/sessions 조회
+ *     description: GET endpoint for /users/:userId/sessions
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.get('/users/:userId/sessions',
   authenticateToken,
   requireAdminRole,
@@ -80,6 +110,31 @@ router.get('/users/:userId/sessions',
  * @desc Bulk invalidate sessions for multiple users
  * @access Admin
  */
+/**
+ * @swagger
+ * /bulk-invalidate-sessions:
+ *   post:
+ *     summary: POST /bulk-invalidate-sessions (POST /bulk-invalidate-sessions)
+ *     description: POST endpoint for /bulk-invalidate-sessions
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
+ *     tags: [Admin Security]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
 router.post('/bulk-invalidate-sessions',
   authenticateToken,
   requireAdminRole,
@@ -98,8 +153,13 @@ router.post('/bulk-invalidate-sessions',
  * @swagger
  * /events:
  *   get:
- *     summary: GET /events
+ *     summary: /events 조회
  *     description: GET endpoint for /events
+ *       
+ *       관리자용 보안 관리 API입니다. 보안 이벤트와 위협을 모니터링합니다.
+ *       
+ *       ---
+ *       
  *     tags: [Admin - Users]
  *     security:
  *       - bearerAuth: []
