@@ -39,6 +39,26 @@ const dashboardQuerySchema = Joi.object({
  * @desc Get comprehensive authentication analytics
  * @access Admin
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/',
   authenticateToken,
   requireAdminRole,
@@ -77,6 +97,26 @@ router.get('/insights',
  * @route GET /api/analytics/auth/users/:userId/profile
  * @desc Get user authentication profile
  * @access Admin
+ */
+
+/**
+ * @swagger
+ * /users/:userId/profile:
+ *   get:
+ *     summary: GET /users/:userId/profile
+ *     description: GET endpoint for /users/:userId/profile
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/users/:userId/profile',
   authenticateToken,

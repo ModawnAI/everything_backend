@@ -326,6 +326,26 @@ router.get('/:imageId/metadata',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /:imageId/metadata:
+ *   put:
+ *     summary: PUT /:imageId/metadata
+ *     description: PUT endpoint for /:imageId/metadata
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/:imageId/metadata',
   ...enhancedImageUpdateSecurity(),
   validateRequestBody(updateMetadataSchema),
@@ -410,6 +430,26 @@ router.put('/:imageId/metadata',
  *         $ref: '#/components/responses/ImageNotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /:imageId/alt-text-suggestions:
+ *   get:
+ *     summary: GET /:imageId/alt-text-suggestions
+ *     description: GET endpoint for /:imageId/alt-text-suggestions
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/:imageId/alt-text-suggestions',
   ...enhancedImageAccessSecurity(),
@@ -513,6 +553,26 @@ router.get('/:imageId/alt-text-suggestions',
  *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /:shopId/images/reorder:
+ *   put:
+ *     summary: PUT /:shopId/images/reorder
+ *     description: PUT endpoint for /:shopId/images/reorder
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:shopId/images/reorder',
   ...enhancedImageUpdateSecurity(),
@@ -625,6 +685,26 @@ router.put('/:shopId/images/reorder',
  *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /:shopId/images/batch-update:
+ *   put:
+ *     summary: PUT /:shopId/images/batch-update
+ *     description: PUT endpoint for /:shopId/images/batch-update
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:shopId/images/batch-update',
   ...enhancedImageUpdateSecurity(),
@@ -753,6 +833,26 @@ router.put('/:shopId/images/batch-update',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /:shopId/images/search:
+ *   post:
+ *     summary: POST /:shopId/images/search
+ *     description: POST endpoint for /:shopId/images/search
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/:shopId/images/search',
   ...enhancedImageAccessSecurity(),
   validateRequestBody(searchImagesSchema),
@@ -841,6 +941,26 @@ router.post('/:shopId/images/search',
  *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /:shopId/images/stats:
+ *   get:
+ *     summary: GET /:shopId/images/stats
+ *     description: GET endpoint for /:shopId/images/stats
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/:shopId/images/stats',
   ...enhancedImageAccessSecurity(),
@@ -939,6 +1059,26 @@ router.get('/:shopId/images/stats',
  *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /:shopId/images/archive:
+ *   put:
+ *     summary: PUT /:shopId/images/archive
+ *     description: PUT endpoint for /:shopId/images/archive
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:shopId/images/archive',
   ...enhancedImageUpdateSecurity(),

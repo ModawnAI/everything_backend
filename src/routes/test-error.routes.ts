@@ -16,6 +16,22 @@ const router = Router();
 /**
  * Test endpoint for authentication error
  */
+
+/**
+ * @swagger
+ * /auth-error:
+ *   get:
+ *     summary: GET /auth-error
+ *     description: GET endpoint for /auth-error
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
 router.get('/auth-error', (_req, _res) => {
   throw new AuthenticationError('테스트 인증 오류');
 });
@@ -57,6 +73,22 @@ router.get('/database-error', (_req, _res) => {
 
 /**
  * Test endpoint for external service error
+ */
+
+/**
+ * @swagger
+ * /external-error:
+ *   get:
+ *     summary: GET /external-error
+ *     description: GET endpoint for /external-error
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
  */
 router.get('/external-error', (_req, _res) => {
   throw new ExternalServiceError('테스트 외부 서비스 오류');

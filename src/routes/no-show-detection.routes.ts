@@ -18,6 +18,26 @@ const router = Router();
 // Apply authentication middleware to all routes
 router.use(authenticateJWT());
 
+
+/**
+ * @swagger
+ * /override:
+ *   post:
+ *     summary: POST /override
+ *     description: POST endpoint for /override
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Manual override for no-show detection
 // POST /api/admin/no-show/override
 router.post('/override', 
@@ -53,6 +73,26 @@ router.post('/trigger',
   noShowDetectionController.triggerDetection.bind(noShowDetectionController)
 );
 
+
+/**
+ * @swagger
+ * /reservation/:reservationId:
+ *   get:
+ *     summary: GET /reservation/:reservationId
+ *     description: GET endpoint for /reservation/:reservationId
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Get no-show detection status for a specific reservation
 // GET /api/admin/no-show/reservation/:reservationId
 router.get('/reservation/:reservationId',

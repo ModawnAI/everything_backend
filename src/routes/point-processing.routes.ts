@@ -17,6 +17,26 @@ const pointProcessingController = new PointProcessingController();
 // All routes require authentication and admin privileges
 router.use(authenticateJWT);
 
+
+/**
+ * @swagger
+ * /trigger/all:
+ *   post:
+ *     summary: POST /trigger/all
+ *     description: POST endpoint for /trigger/all
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Manual trigger endpoints
 router.post('/trigger/all', pointProcessingController.triggerAllProcessing.bind(pointProcessingController));
 router.post('/trigger/pending', pointProcessingController.triggerPendingProcessing.bind(pointProcessingController));

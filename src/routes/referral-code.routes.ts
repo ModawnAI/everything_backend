@@ -36,6 +36,26 @@ const validateReferralCodeSchema = Joi.object({
  * @desc Generate a new referral code for the authenticated user
  * @access Private
  */
+
+/**
+ * @swagger
+ * /generate:
+ *   post:
+ *     summary: POST /generate
+ *     description: POST endpoint for /generate
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/generate',
   authenticateJWT(),
   referralCodeController.referralCodeRateLimit,
@@ -71,6 +91,26 @@ router.post('/batch-generate',
  * @route GET /api/referral-codes/stats
  * @desc Get referral code statistics (admin only)
  * @access Admin
+ */
+
+/**
+ * @swagger
+ * /stats:
+ *   get:
+ *     summary: GET /stats
+ *     description: GET endpoint for /stats
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/stats',
   authenticateJWT(),

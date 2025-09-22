@@ -17,6 +17,26 @@ const tokens = new Tokens({
  * 
  * Generates a CSRF token for the client
  */
+
+/**
+ * @swagger
+ * /csrf-token:
+ *   get:
+ *     summary: GET /csrf-token
+ *     description: GET endpoint for /csrf-token
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/csrf-token', (req, res) => {
   try {
     const secret = tokens.secretSync();
@@ -54,6 +74,26 @@ router.post('/csp-report', cspViolationHandler());
  * 
  * Returns current security headers configuration for testing
  */
+
+/**
+ * @swagger
+ * /test-headers:
+ *   get:
+ *     summary: GET /test-headers
+ *     description: GET endpoint for /test-headers
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/test-headers', (req, res) => {
   try {
     const securityHeaders = {
@@ -88,6 +128,26 @@ router.get('/test-headers', (req, res) => {
  * GET /api/security/config
  * 
  * Returns current security configuration (non-sensitive parts)
+ */
+
+/**
+ * @swagger
+ * /config:
+ *   get:
+ *     summary: GET /config
+ *     description: GET endpoint for /config
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/config', (req, res) => {
   try {
@@ -135,6 +195,22 @@ router.get('/config', (req, res) => {
  * GET /api/security/health
  * 
  * Returns security system health status
+ */
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: GET /health
+ *     description: GET endpoint for /health
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
  */
 router.get('/health', (req, res) => {
   try {

@@ -144,6 +144,26 @@ const otpVerificationRateLimit = rateLimit({
  * Registration Flow Routes
  */
 
+
+/**
+ * @swagger
+ * /social-login:
+ *   post:
+ *     summary: POST /social-login
+ *     description: POST endpoint for /social-login
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Step 1: Social Login
 router.post('/social-login',
   registrationRateLimit,
@@ -177,6 +197,26 @@ router.post('/terms-acceptance',
   registrationController.acceptTerms.bind(registrationController)
 );
 
+
+/**
+ * @swagger
+ * /activate:
+ *   post:
+ *     summary: POST /activate
+ *     description: POST endpoint for /activate
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Step 5: Account Activation
 router.post('/activate',
   validateRequestBody(accountActivationSchema),

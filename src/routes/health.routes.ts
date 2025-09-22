@@ -104,6 +104,26 @@ const router = Router();
  * GET /health
  * Basic health check endpoint
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/', async (req: Request, res: Response) => {
   try {
     const health = await healthCheckService.getBasicHealth();
@@ -138,6 +158,26 @@ router.get('/', async (req: Request, res: Response) => {
 /**
  * GET /health/detailed
  * Comprehensive health check with all system components
+ */
+
+/**
+ * @swagger
+ * /detailed:
+ *   get:
+ *     summary: GET /detailed
+ *     description: GET endpoint for /detailed
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/detailed', async (req: Request, res: Response) => {
   try {
@@ -178,6 +218,26 @@ router.get('/detailed', async (req: Request, res: Response) => {
 /**
  * GET /health/ready
  * Readiness probe for Kubernetes
+ */
+
+/**
+ * @swagger
+ * /ready:
+ *   get:
+ *     summary: GET /ready
+ *     description: GET endpoint for /ready
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/ready', async (req: Request, res: Response) => {
   try {
@@ -229,6 +289,26 @@ router.get('/ready', async (req: Request, res: Response) => {
  * GET /health/live
  * Liveness probe for Kubernetes
  */
+
+/**
+ * @swagger
+ * /live:
+ *   get:
+ *     summary: GET /live
+ *     description: GET endpoint for /live
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/live', async (req: Request, res: Response) => {
   try {
     // Liveness probe is always successful if the server is running
@@ -263,6 +343,26 @@ router.get('/live', async (req: Request, res: Response) => {
 /**
  * POST /health/cache/clear
  * Clear health check cache (admin only)
+ */
+
+/**
+ * @swagger
+ * /cache/clear:
+ *   post:
+ *     summary: POST /cache/clear
+ *     description: POST endpoint for /cache/clear
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/cache/clear', async (req: Request, res: Response) => {
   try {

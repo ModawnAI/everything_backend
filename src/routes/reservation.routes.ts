@@ -1,8 +1,8 @@
 /**
  * @swagger
  * tags:
- *   - name: Reservations
- *     description: Reservation management and booking endpoints
+ *   - name: 예약
+ *     description: 예약 생성, 수정, 취소 API
  */
 
 /**
@@ -188,6 +188,7 @@ const reservationIdSchema = Joi.object({
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
+
 router.get('/shops/:shopId/available-slots',
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
   async (req, res) => {
@@ -212,24 +213,90 @@ router.get('/shops/:shopId/available-slots',
 );
 
 /**
- * POST /api/reservations
- * Create a new reservation
- * 
- * Request Body:
- * {
- *   "shopId": "uuid",
- *   "services": [
- *     {
- *       "serviceId": "uuid",
- *       "quantity": 1
- *     }
- *   ],
- *   "reservationDate": "2024-03-15",
- *   "reservationTime": "14:00",
- *   "specialRequests": "특별 요청사항",
- *   "pointsToUse": 5000
- * }
+ * @swagger
+ * /api/reservations:
+ *   post:
+ *     summary: Create a new reservation
+ *     description: Create a new reservation with services, date, and time
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - shopId
+ *               - services
+ *               - reservationDate
+ *               - reservationTime
+ *             properties:
+ *               shopId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Shop UUID
+ *               services:
+ *                 type: array
+ *                 items:
+ *                   type: object
+ *                   properties:
+ *                     serviceId:
+ *                       type: string
+ *                       format: uuid
+ *                     quantity:
+ *                       type: integer
+ *                       minimum: 1
+ *                       maximum: 10
+ *               reservationDate:
+ *                 type: string
+ *                 format: date
+ *                 description: Reservation date (YYYY-MM-DD)
+ *               reservationTime:
+ *                 type: string
+ *                 format: time
+ *                 description: Reservation time (HH:MM)
+ *               specialRequests:
+ *                 type: string
+ *                 description: Special requests or notes
+ *               pointsToUse:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: Points to use for discount
+ *     responses:
+ *       201:
+ *         description: Reservation created successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reservationId:
+ *                       type: string
+ *                       format: uuid
+ *                     status:
+ *                       type: string
+ *                       enum: [requested, confirmed]
+ *                     totalAmount:
+ *                       type: integer
+ *                     depositAmount:
+ *                       type: integer
+ *       400:
+ *         description: Invalid request parameters
+ *       401:
+ *         description: Authentication required
+ *       409:
+ *         description: Time slot conflict
+ *       500:
+ *         description: Internal server error
  */
+
 router.post('/',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // 20 requests per 15 minutes
@@ -256,17 +323,81 @@ router.post('/',
 );
 
 /**
- * GET /api/reservations
- * Get user's reservations with filtering
- * 
- * Query Parameters:
- * - status: Filter by reservation status
- * - startDate: Filter from date
- * - endDate: Filter to date
- * - shopId: Filter by shop
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 20)
+ * @swagger
+ * /api/reservations:
+ *   get:
+ *     summary: Get user's reservations
+ *     description: Retrieve user's reservations with filtering options
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [requested, confirmed, completed, cancelled_by_user, cancelled_by_shop, no_show]
+ *         description: Filter by reservation status
+ *       - in: query
+ *         name: startDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter from date (YYYY-MM-DD)
+ *       - in: query
+ *         name: endDate
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Filter to date (YYYY-MM-DD)
+ *       - in: query
+ *         name: shopId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by shop UUID
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Items per page
+ *     responses:
+ *       200:
+ *         description: Reservations retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reservations:
+ *                       type: array
+ *                       items:
+ *                         $ref: '#/components/schemas/Reservation'
+ *                     totalCount:
+ *                       type: integer
+ *                     hasMore:
+ *                       type: boolean
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: Internal server error
  */
+
 router.get('/',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
@@ -291,11 +422,42 @@ router.get('/',
 );
 
 /**
- * GET /api/reservations/:id
- * Get specific reservation details
- * 
- * Path Parameters:
- * - id: Reservation UUID
+ * @swagger
+ * /api/reservations/{id}:
+ *   get:
+ *     summary: Get reservation details
+ *     description: Retrieve detailed information about a specific reservation
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Reservation UUID
+ *     responses:
+ *       200:
+ *         description: Reservation details retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   $ref: '#/components/schemas/Reservation'
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Access denied
+ *       404:
+ *         description: Reservation not found
+ *       500:
+ *         description: Internal server error
  */
 router.get('/:id',
   authenticateJWT,
@@ -340,40 +502,83 @@ const cancelReservationSchema = Joi.object({
 });
 
 /**
- * PUT /api/reservations/:id/cancel
- * Cancel a reservation with comprehensive v3.2 cancellation system
- * 
- * Path Parameters:
- * - id: Reservation UUID
- * 
- * Request Body:
- * - reason: Optional cancellation reason (max 500 characters)
- * - cancellationType: Optional cancellation type (user_request, shop_request, no_show, admin_force)
- * - refundPreference: Optional refund preference (full_refund, partial_refund, no_refund)
- * - notifyShop: Optional flag to notify shop owner (default: true)
- * - notifyCustomer: Optional flag to notify customer (default: true)
- * 
- * Returns:
- * - Cancelled reservation information
- * - Refund processing details
- * - Cancellation audit trail
- * 
- * Business Rules:
- * - User can only cancel their own reservations
- * - 24-hour refund policy applies based on cancellation timing
- * - Automatic refund processing based on payment status
- * - Comprehensive audit trail for all cancellations
- * 
- * Example:
- * PUT /api/reservations/123e4567-e89b-12d3-a456-426614174000/cancel
- * Body: {
- *   "reason": "개인 사정으로 인한 취소",
- *   "cancellationType": "user_request",
- *   "refundPreference": "full_refund",
- *   "notifyShop": true,
- *   "notifyCustomer": false
- * }
+ * @swagger
+ * /api/reservations/{id}/cancel:
+ *   put:
+ *     summary: Cancel a reservation
+ *     description: Cancel a reservation with comprehensive cancellation system and refund processing
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Reservation UUID
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reason:
+ *                 type: string
+ *                 maxLength: 500
+ *                 description: Cancellation reason
+ *               cancellationType:
+ *                 type: string
+ *                 enum: [user_request, shop_request, no_show, admin_force]
+ *                 description: Type of cancellation
+ *               refundPreference:
+ *                 type: string
+ *                 enum: [full_refund, partial_refund, no_refund]
+ *                 description: Refund preference
+ *               notifyShop:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Whether to notify shop owner
+ *               notifyCustomer:
+ *                 type: boolean
+ *                 default: true
+ *                 description: Whether to notify customer
+ *     responses:
+ *       200:
+ *         description: Reservation cancelled successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reservationId:
+ *                       type: string
+ *                       format: uuid
+ *                     status:
+ *                       type: string
+ *                     cancelledAt:
+ *                       type: string
+ *                       format: date-time
+ *                     refundAmount:
+ *                       type: integer
+ *                     refundStatus:
+ *                       type: string
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Cannot cancel this reservation
+ *       404:
+ *         description: Reservation not found
+ *       500:
+ *         description: Internal server error
  */
+
 router.put('/:id/cancel',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // 10 requests per 15 minutes

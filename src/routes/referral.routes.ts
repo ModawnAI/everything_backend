@@ -96,6 +96,26 @@ const referralHistoryQuerySchema = Joi.object({
  * Requires: Authentication
  * Returns: User's referral statistics and recent referrals
  */
+
+/**
+ * @swagger
+ * /stats:
+ *   get:
+ *     summary: GET /stats
+ *     description: GET endpoint for /stats
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/stats',
   rateLimit(),
   authenticateJWT(),
@@ -142,6 +162,26 @@ router.put('/:referralId/status',
  * Requires: Authentication + Admin role
  * Body: { payoutMethod: string, payoutDetails?: object }
  * Returns: Payout transaction details
+ */
+
+/**
+ * @swagger
+ * /:referralId/payout:
+ *   post:
+ *     summary: POST /:referralId/payout
+ *     description: POST endpoint for /:referralId/payout
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/:referralId/payout',
   rateLimit(),

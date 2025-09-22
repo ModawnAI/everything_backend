@@ -81,6 +81,26 @@ const upload = multer({
  * GET /api/users/profile
  * Get current user's profile
  */
+
+/**
+ * @swagger
+ * /profile:
+ *   get:
+ *     summary: GET /profile
+ *     description: GET endpoint for /profile
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/profile',
   rateLimit(),
   authenticateJWT(),
@@ -125,6 +145,26 @@ router.get('/profile/completion',
  * POST /api/users/profile/image
  * Upload profile image
  */
+
+/**
+ * @swagger
+ * /profile/image:
+ *   post:
+ *     summary: POST /profile/image
+ *     description: POST endpoint for /profile/image
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/profile/image',
   rateLimit(),
   authenticateJWT(),
@@ -160,6 +200,26 @@ router.get('/settings',
 /**
  * PUT /api/users/settings
  * Update current user's comprehensive settings
+ */
+
+/**
+ * @swagger
+ * /settings:
+ *   put:
+ *     summary: PUT /settings
+ *     description: PUT endpoint for /settings
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/settings',
   rateLimit(),
@@ -200,6 +260,26 @@ router.put('/settings/bulk',
 /**
  * POST /api/users/settings/reset
  * Reset user settings to defaults
+ */
+
+/**
+ * @swagger
+ * /settings/reset:
+ *   post:
+ *     summary: POST /settings/reset
+ *     description: POST endpoint for /settings/reset
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/settings/reset',
   rateLimit(),
@@ -244,6 +324,26 @@ router.post('/terms/accept',
 /**
  * POST /api/users/privacy/accept
  * Accept privacy policy
+ */
+
+/**
+ * @swagger
+ * /privacy/accept:
+ *   post:
+ *     summary: POST /privacy/accept
+ *     description: POST endpoint for /privacy/accept
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/privacy/accept',
   rateLimit(),

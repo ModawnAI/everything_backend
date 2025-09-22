@@ -58,6 +58,26 @@ router.use(strictRateLimit(20, 60000)); // 20 requests per minute for audit oper
  * GET /api/admin/audit-trail
  * Get audit trail entries with filtering and pagination
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/', async (req, res) => {
   try {
     await auditTrailController.getAuditTrail(req, res);
@@ -103,6 +123,26 @@ router.get('/compliance-report', async (req, res) => {
 /**
  * GET /api/admin/audit-trail/trends
  * Analyze trends and patterns in audit data
+ */
+
+/**
+ * @swagger
+ * /trends:
+ *   get:
+ *     summary: GET /trends
+ *     description: GET endpoint for /trends
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/trends', async (req, res) => {
   try {
@@ -153,6 +193,26 @@ router.post('/export',
  * GET /api/admin/audit-trail/reservation/:reservationId
  * Get complete audit trail for a specific reservation
  */
+
+/**
+ * @swagger
+ * /reservation/:reservationId:
+ *   get:
+ *     summary: GET /reservation/:reservationId
+ *     description: GET endpoint for /reservation/:reservationId
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/reservation/:reservationId', async (req, res) => {
   try {
     await auditTrailController.getReservationAuditTrail(req, res);
@@ -201,6 +261,26 @@ router.post('/cleanup',
 /**
  * GET /api/admin/audit-trail/stats
  * Get audit trail statistics and health metrics
+ */
+
+/**
+ * @swagger
+ * /stats:
+ *   get:
+ *     summary: GET /stats
+ *     description: GET endpoint for /stats
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/stats', async (req, res) => {
   try {

@@ -20,7 +20,7 @@ initializeDatabase();
 // Import routes
 import authRoutes from './routes/auth.routes';
 import registrationRoutes from './routes/registration.routes';
-import userProfileRoutes from './routes/user-profile.routes';
+// import userProfileRoutes from './routes/user-profile.routes'; // Archived - conflicts with user-settings.routes.ts
 import userStatusRoutes from './routes/user-status.routes';
 import shopRoutes from './routes/shop.routes';
 import shopImageRoutes from './routes/shop-image.routes';
@@ -49,7 +49,7 @@ import notificationRoutes from './routes/notification.routes';
 import websocketRoutes from './routes/websocket.routes';
 import testErrorRoutes from './routes/test-error.routes';
 import healthRoutes from './routes/health.routes';
-import adminAuthRoutes from './routes/admin-auth.routes';
+// import adminAuthRoutes from './routes/admin-auth.routes'; // Archived - conflicts with auth.routes.ts
 import adminUserManagementRoutes from './routes/admin-user-management.routes';
 import cacheRoutes from './routes/cache.routes';
 import monitoringRoutes from './routes/monitoring.routes';
@@ -182,12 +182,12 @@ app.get('/swagger.json', (_req, res) => {
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);
-app.use('/api/users', userProfileRoutes);
+// app.use('/api/users', userProfileRoutes); // Archived - conflicts with user-settings.routes.ts
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/admin/shops', adminShopRoutes);
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
-app.use('/api/admin/auth', adminAuthRoutes);
+// app.use('/api/admin/auth', adminAuthRoutes); // Archived - conflicts with auth.routes.ts
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
 app.use('/api/storage', storageRoutes);
@@ -195,7 +195,7 @@ app.use('/api/shops/categories', shopCategoriesRoutes);
 app.use('/api/service-catalog', serviceCatalogRoutes);
 app.use('/api/shops/search', shopSearchRoutes);
 app.use('/api/shops', shopRoutes);
-app.use('/api/shops', shopImageRoutes);
+app.use('/api/shops/images', shopImageRoutes);
 app.use('/api/shop/register', shopRegistrationRoutes);
 app.use('/api/shop/profile', shopProfileRoutes);
 app.use('/api/shop/services', shopServiceRoutes);

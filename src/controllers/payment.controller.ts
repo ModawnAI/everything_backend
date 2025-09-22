@@ -14,6 +14,7 @@ import { paymentConfirmationService, EnhancedPaymentConfirmationRequest } from '
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
+import { SecureWebhookRequest } from '../middleware/webhook-security.middleware';
 
 export class PaymentController {
   private supabase = getSupabaseClient();
@@ -570,10 +571,11 @@ export class PaymentController {
 
   /**
    * POST /api/webhooks/toss-payments
-   * Handle webhooks from TossPayments
+   * Handle webhooks from TossPayments with enhanced security
+   * Note: Security validation is handled by webhook security middleware
    */
-  async handleWebhook(req: Request, res: Response): Promise<void> {
-    const webhookId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async handleWebhook(req: SecureWebhookRequest, res: Response): Promise<void> {
+    const webhookId = req.webhookId || `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const startTime = Date.now();
 
     try {
@@ -581,73 +583,50 @@ export class PaymentController {
       const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
       const userAgent = req.get('User-Agent') || 'unknown';
 
-      logger.info('TossPayments webhook received', {
+      logger.info('TossPayments webhook received (security validated)', {
         webhookId,
         paymentKey: payload.paymentKey,
         orderId: payload.orderId,
         status: payload.status,
         ipAddress,
         userAgent,
+        securityValidated: req.securityValidated,
         timestamp: new Date().toISOString()
       });
 
-      // Validate webhook payload
-      if (!payload.paymentKey || !payload.orderId || !payload.status) {
-        logger.warn('Invalid webhook payload received', { 
-          webhookId,
-          payload,
-          ipAddress 
-        });
-        res.status(400).json({
-          success: false,
-          error: {
-            code: 'INVALID_WEBHOOK_PAYLOAD',
-            message: '유효하지 않은 웹훅 데이터입니다.',
-            details: '필수 필드가 누락되었습니다.'
-          }
-        });
-        return;
-      }
-
-      // Validate webhook source (optional IP whitelist)
-      if (!this.isValidWebhookSource(ipAddress)) {
-        logger.warn('Webhook from unauthorized source', {
-          webhookId,
-          ipAddress,
-          userAgent
-        });
-        res.status(403).json({
-          success: false,
-          error: {
-            code: 'UNAUTHORIZED_WEBHOOK_SOURCE',
-            message: '인증되지 않은 웹훅 소스입니다.'
-          }
-        });
-        return;
-      }
-
+      // Security validation is already handled by middleware
       // Process webhook asynchronously with enhanced error handling
       setImmediate(async () => {
+        const processingStartTime = Date.now();
         try {
           await tossPaymentsService.processWebhook(payload);
           
-          const duration = Date.now() - startTime;
+          const processingDuration = Date.now() - processingStartTime;
           logger.info('Webhook processed successfully', {
             webhookId,
             paymentKey: payload.paymentKey,
             orderId: payload.orderId,
             status: payload.status,
-            duration
+            processingDuration
           });
 
+          // Update webhook log with successful processing
+          const { webhookSecurityService } = require('../services/webhook-security.service');
+          await webhookSecurityService.markAsProcessed(
+            payload.paymentKey,
+            payload.status,
+            webhookId,
+            processingDuration
+          );
+
         } catch (error) {
-          const duration = Date.now() - startTime;
+          const processingDuration = Date.now() - processingStartTime;
           logger.error('Error processing webhook:', {
             webhookId,
             error: error instanceof Error ? error.message : 'Unknown error',
             stack: error instanceof Error ? error.stack : undefined,
             payload,
-            duration
+            processingDuration
           });
 
           // Log failed webhook for retry analysis
@@ -666,7 +645,8 @@ export class PaymentController {
       res.status(200).json({ 
         success: true,
         webhookId,
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        securityValidated: true
       });
 
     } catch (error) {

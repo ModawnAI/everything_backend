@@ -91,6 +91,26 @@ const router = Router();
  * - Comprehensive audit logging
  * - Rate limiting protection
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/', adminUserManagementController.getUsers);
 
 /**
@@ -164,6 +184,26 @@ router.get('/', adminUserManagementController.getUsers);
  * - Comprehensive filtering options
  * - Audit logging of activity views
  */
+
+/**
+ * @swagger
+ * /activity:
+ *   get:
+ *     summary: GET /activity
+ *     description: GET endpoint for /activity
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/activity', adminUserManagementController.getUserActivity);
 
 /**
@@ -219,6 +259,26 @@ router.get('/activity', adminUserManagementController.getUserActivity);
  * - Requires valid admin session
  * - Real-time data aggregation
  * - Performance optimized queries
+ */
+
+/**
+ * @swagger
+ * /statistics:
+ *   get:
+ *     summary: GET /statistics
+ *     description: GET endpoint for /statistics
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/statistics', adminUserManagementController.getUserStatistics);
 
@@ -278,6 +338,26 @@ router.get('/statistics', adminUserManagementController.getUserStatistics);
  * - Comprehensive user data with related statistics
  * - Performance optimized with joins
  */
+
+/**
+ * @swagger
+ * /:id:
+ *   get:
+ *     summary: GET /:id
+ *     description: GET endpoint for /:id
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/:id', adminUserManagementController.getUserDetails);
 
 /**
@@ -326,6 +406,26 @@ router.get('/:id', adminUserManagementController.getUserDetails);
  * - Comprehensive audit logging
  * - Optional user notification
  * - Status history tracking
+ */
+
+/**
+ * @swagger
+ * /:id/status:
+ *   put:
+ *     summary: PUT /:id/status
+ *     description: PUT endpoint for /:id/status
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:id/status', adminUserManagementController.updateUserStatus);
 
@@ -381,6 +481,26 @@ router.put('/:id/status', adminUserManagementController.updateUserStatus);
  * - Role change validation
  * - Comprehensive audit logging
  * - Role history tracking
+ */
+
+/**
+ * @swagger
+ * /:id/role:
+ *   put:
+ *     summary: PUT /:id/role
+ *     description: PUT endpoint for /:id/role
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:id/role', adminUserManagementController.updateUserRole);
 
@@ -471,6 +591,26 @@ router.put('/:id/role', adminUserManagementController.updateUserRole);
  * - Real-time activity broadcasting
  * - Rate limiting for bulk operations
  */
+
+/**
+ * @swagger
+ * /bulk-action:
+ *   post:
+ *     summary: POST /bulk-action
+ *     description: POST endpoint for /bulk-action
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/bulk-action', adminUserManagementController.performBulkAction);
 
 /**
@@ -538,6 +678,26 @@ router.post('/bulk-action', adminUserManagementController.performBulkAction);
  * - Comprehensive audit trail logging
  * - IP address and session tracking
  * - Rate limiting for audit access
+ */
+
+/**
+ * @swagger
+ * /audit/search:
+ *   get:
+ *     summary: GET /audit/search
+ *     description: GET endpoint for /audit/search
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/audit/search', adminUserManagementController.searchAuditLogs);
 
@@ -618,6 +778,26 @@ router.get('/:userId/audit', adminUserManagementController.getUserAuditLogs);
  * - File expiration for security
  * - Maximum record limits (10,000 per export)
  */
+
+/**
+ * @swagger
+ * /audit/export:
+ *   post:
+ *     summary: POST /audit/export
+ *     description: POST endpoint for /audit/export
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/audit/export', adminUserManagementController.exportAuditLogs);
 
 /**
@@ -692,6 +872,26 @@ router.post('/audit/export', adminUserManagementController.exportAuditLogs);
  * - Analytics access logging
  * - IP address and session tracking
  * - Rate limiting for analytics access
+ */
+
+/**
+ * @swagger
+ * /analytics:
+ *   get:
+ *     summary: GET /analytics
+ *     description: GET endpoint for /analytics
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/analytics', adminUserManagementController.getUserAnalytics);
 
@@ -773,6 +973,26 @@ router.get('/analytics', adminUserManagementController.getUserAnalytics);
  * - Advanced search logging
  * - Comprehensive audit trail
  * - Rate limiting for search operations
+ */
+
+/**
+ * @swagger
+ * /search/advanced:
+ *   get:
+ *     summary: GET /search/advanced
+ *     description: GET endpoint for /search/advanced
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/search/advanced', adminUserManagementController.advancedUserSearch);
 

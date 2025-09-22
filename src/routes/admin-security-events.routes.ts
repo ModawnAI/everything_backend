@@ -21,6 +21,26 @@ router.use(requireAdmin());
  * GET /api/admin/security-events/statistics
  * Get comprehensive security statistics
  */
+
+/**
+ * @swagger
+ * /statistics:
+ *   get:
+ *     summary: GET /statistics
+ *     description: GET endpoint for /statistics
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/statistics', async (req: Request, res: Response) => {
   try {
     const timeWindow = parseInt(req.query.timeWindow as string) || 24 * 60 * 60 * 1000; // Default 24 hours
@@ -55,6 +75,26 @@ router.get('/statistics', async (req: Request, res: Response) => {
 /**
  * GET /api/admin/security-events/recent
  * Get recent security events
+ */
+
+/**
+ * @swagger
+ * /recent:
+ *   get:
+ *     summary: GET /recent
+ *     description: GET endpoint for /recent
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/recent', async (req: Request, res: Response) => {
   try {
@@ -119,6 +159,26 @@ router.get('/recent', async (req: Request, res: Response) => {
  * GET /api/admin/security-events/alerts
  * Get active security alerts
  */
+
+/**
+ * @swagger
+ * /alerts:
+ *   get:
+ *     summary: GET /alerts
+ *     description: GET endpoint for /alerts
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/alerts', async (req: Request, res: Response) => {
   try {
     const severity = req.query.severity as string;
@@ -152,6 +212,26 @@ router.get('/alerts', async (req: Request, res: Response) => {
 /**
  * POST /api/admin/security-events/alerts/:alertId/resolve
  * Resolve a security alert
+ */
+
+/**
+ * @swagger
+ * /alerts/:alertId/resolve:
+ *   post:
+ *     summary: POST /alerts/:alertId/resolve
+ *     description: POST endpoint for /alerts/:alertId/resolve
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/alerts/:alertId/resolve', async (req: Request, res: Response) => {
   try {
@@ -197,6 +277,26 @@ router.post('/alerts/:alertId/resolve', async (req: Request, res: Response) => {
 /**
  * GET /api/admin/security-events/compliance-report
  * Generate compliance report
+ */
+
+/**
+ * @swagger
+ * /compliance-report:
+ *   get:
+ *     summary: GET /compliance-report
+ *     description: GET endpoint for /compliance-report
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/compliance-report', async (req: Request, res: Response) => {
   try {
@@ -268,6 +368,26 @@ router.get('/middleware-stats', async (req: Request, res: Response) => {
  * GET /api/admin/security-events/threat-analysis
  * Get threat analysis
  */
+
+/**
+ * @swagger
+ * /threat-analysis:
+ *   get:
+ *     summary: GET /threat-analysis
+ *     description: GET endpoint for /threat-analysis
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/threat-analysis', async (req: Request, res: Response) => {
   try {
     const timeWindow = parseInt(req.query.timeWindow as string) || 24 * 60 * 60 * 1000;
@@ -311,6 +431,26 @@ router.get('/threat-analysis', async (req: Request, res: Response) => {
 /**
  * POST /api/admin/security-events/export
  * Export security events
+ */
+
+/**
+ * @swagger
+ * /export:
+ *   post:
+ *     summary: POST /export
+ *     description: POST endpoint for /export
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/export', async (req: Request, res: Response) => {
   try {

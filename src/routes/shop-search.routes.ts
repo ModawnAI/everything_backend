@@ -463,6 +463,26 @@ const suggestionsRateLimit = rateLimit({
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/',
   searchRateLimit,
   validateRequestWithSchema(enhancedShopSearchSchema, 'query'),
@@ -564,6 +584,26 @@ router.get('/',
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+
+/**
+ * @swagger
+ * /suggestions:
+ *   get:
+ *     summary: GET /suggestions
+ *     description: GET endpoint for /suggestions
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/suggestions',
   suggestionsRateLimit,
   validateRequestBody(enhancedSearchSuggestionsSchema),
@@ -643,6 +683,26 @@ router.get('/suggestions',
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /popular:
+ *   get:
+ *     summary: GET /popular
+ *     description: GET endpoint for /popular
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/popular',
   validateRequestBody(popularSearchesSchema),

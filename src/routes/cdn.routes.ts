@@ -199,6 +199,26 @@ const queryParamsSchema = Joi.object({
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /images/:imageId/urls:
+ *   get:
+ *     summary: GET /images/:imageId/urls
+ *     description: GET endpoint for /images/:imageId/urls
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/images/:imageId/urls',
   authenticateJWT,
   cdnUrlRateLimit,
@@ -259,6 +279,26 @@ router.get('/images/:imageId/urls',
  *         $ref: '#/components/responses/ImageNotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /images/:imageId/optimized:
+ *   get:
+ *     summary: GET /images/:imageId/optimized
+ *     description: GET endpoint for /images/:imageId/optimized
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/images/:imageId/optimized',
   authenticateJWT,
@@ -324,6 +364,26 @@ router.get('/images/:imageId/optimized',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /images/:imageId/responsive:
+ *   post:
+ *     summary: POST /images/:imageId/responsive
+ *     description: POST endpoint for /images/:imageId/responsive
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/images/:imageId/responsive',
   authenticateJWT,
   cdnUrlRateLimit,
@@ -386,6 +446,26 @@ router.post('/images/:imageId/responsive',
  *         $ref: '#/components/responses/ImageNotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /images/:imageId/webp:
+ *   get:
+ *     summary: GET /images/:imageId/webp
+ *     description: GET endpoint for /images/:imageId/webp
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/images/:imageId/webp',
   authenticateJWT,
@@ -522,6 +602,26 @@ router.post('/test',
  *         $ref: '#/components/responses/UnauthorizedError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /transform:
+ *   post:
+ *     summary: POST /transform
+ *     description: POST endpoint for /transform
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/transform',
   authenticateJWT,

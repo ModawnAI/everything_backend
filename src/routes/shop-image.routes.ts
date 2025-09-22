@@ -128,6 +128,26 @@ const primaryRateLimit = rateLimit({
  * POST /api/shops/:shopId/images
  * Upload shop image with optimization
  */
+
+/**
+ * @swagger
+ * /:shopId/images:
+ *   post:
+ *     summary: POST /:shopId/images
+ *     description: POST endpoint for /:shopId/images
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/:shopId/images',
   ...enhancedImageUploadSecurity(),
   upload.single('image'),
@@ -178,6 +198,26 @@ router.post('/:shopId/images',
 /**
  * GET /api/shops/:shopId/images
  * Get shop images
+ */
+
+/**
+ * @swagger
+ * /:shopId/images:
+ *   get:
+ *     summary: GET /:shopId/images
+ *     description: GET endpoint for /:shopId/images
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/:shopId/images',
   ...enhancedImageDownloadSecurity(),

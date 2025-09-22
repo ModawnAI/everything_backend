@@ -20,6 +20,26 @@ const revokeAllOtherSessionsSchema = Joi.object({
  * @desc Get all active sessions for the authenticated user
  * @access Private
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/',
   authenticateToken,
   userSessionsController.sessionManagementRateLimit,
@@ -53,6 +73,26 @@ router.delete('/:sessionId',
  * @route POST /api/user/sessions/revoke-all-others
  * @desc Revoke all other sessions (keep current session active)
  * @access Private
+ */
+
+/**
+ * @swagger
+ * /revoke-all-others:
+ *   post:
+ *     summary: POST /revoke-all-others
+ *     description: POST endpoint for /revoke-all-others
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/revoke-all-others',
   authenticateToken,

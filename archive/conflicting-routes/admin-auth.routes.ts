@@ -57,6 +57,26 @@ const router = Router();
  * - Session creation with device tracking
  * - Comprehensive audit logging
  */
+
+/**
+ * @swagger
+ * /login:
+ *   post:
+ *     summary: POST /login
+ *     description: POST endpoint for /login
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/login', adminAuthController.adminLogin);
 
 /**
@@ -108,6 +128,26 @@ router.post('/refresh', adminAuthController.refreshSession);
  * - Logs logout action
  * - Clears session data
  */
+
+/**
+ * @swagger
+ * /logout:
+ *   post:
+ *     summary: POST /logout
+ *     description: POST endpoint for /logout
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/logout', adminAuthController.adminLogout);
 
 /**
@@ -141,6 +181,26 @@ router.post('/logout', adminAuthController.adminLogout);
  * - Validates admin user status
  * - Updates session activity timestamp
  * - IP address validation (logs mismatches)
+ */
+
+/**
+ * @swagger
+ * /validate:
+ *   get:
+ *     summary: GET /validate
+ *     description: GET endpoint for /validate
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/validate', adminAuthController.validateSession);
 
@@ -199,6 +259,26 @@ router.get('/profile', adminAuthController.getAdminProfile);
  * - Logs password change action
  * - Updates password hash securely
  * - Requires valid admin session
+ */
+
+/**
+ * @swagger
+ * /change-password:
+ *   post:
+ *     summary: POST /change-password
+ *     description: POST endpoint for /change-password
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/change-password', adminAuthController.changePassword);
 

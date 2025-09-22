@@ -96,6 +96,26 @@ const router = Router();
  * - Rate limiting protection
  * - Document completeness analysis
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/', adminShopApprovalController.getShopsForApproval);
 
 /**
@@ -159,6 +179,26 @@ router.get('/', adminShopApprovalController.getShopsForApproval);
  * - Performance optimized queries
  * - Approval time tracking
  */
+
+/**
+ * @swagger
+ * /statistics:
+ *   get:
+ *     summary: GET /statistics
+ *     description: GET endpoint for /statistics
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/statistics', adminShopApprovalController.getShopVerificationStatistics);
 
 /**
@@ -212,6 +252,26 @@ router.get('/statistics', adminShopApprovalController.getShopVerificationStatist
  * - Optional owner notification
  * - Verification history tracking
  * - Auto-activation option
+ */
+
+/**
+ * @swagger
+ * /:id:
+ *   put:
+ *     summary: PUT /:id
+ *     description: PUT endpoint for /:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:id', adminShopApprovalController.processShopApproval);
 
@@ -316,6 +376,26 @@ router.put('/:id', adminShopApprovalController.processShopApproval);
  * - Approval recommendation engine
  * - Performance optimized with joins
  */
+
+/**
+ * @swagger
+ * /:id/details:
+ *   get:
+ *     summary: GET /:id/details
+ *     description: GET endpoint for /:id/details
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/:id/details', adminShopApprovalController.getShopApprovalDetails);
 
 /**
@@ -368,6 +448,26 @@ router.get('/:id/details', adminShopApprovalController.getShopApprovalDetails);
  * - Comprehensive audit logging
  * - Rate limiting for bulk operations
  * - Auto-activation option
+ */
+
+/**
+ * @swagger
+ * /bulk-approval:
+ *   post:
+ *     summary: POST /bulk-approval
+ *     description: POST endpoint for /bulk-approval
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/bulk-approval', adminShopApprovalController.performBulkApproval);
 

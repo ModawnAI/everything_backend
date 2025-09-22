@@ -14,6 +14,26 @@ const router = Router();
 // Apply authentication to all routes
 router.use(authenticateJWT());
 
+
+/**
+ * @swagger
+ * /reservations/:reservationId/reschedule/validate:
+ *   post:
+ *     summary: POST /reservations/:reservationId/reschedule/validate
+ *     description: POST endpoint for /reservations/:reservationId/reschedule/validate
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Validate reschedule request
 router.post('/reservations/:reservationId/reschedule/validate', 
   reservationReschedulingController.validateReschedule.bind(reservationReschedulingController)
@@ -46,6 +66,26 @@ router.get('/admin/reschedule/config',
   reservationReschedulingController.getRescheduleConfig.bind(reservationReschedulingController)
 );
 
+
+/**
+ * @swagger
+ * /admin/reschedule/config:
+ *   put:
+ *     summary: PUT /admin/reschedule/config
+ *     description: PUT endpoint for /admin/reschedule/config
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Update reschedule configuration (admin only)
 router.put('/admin/reschedule/config', 
   requirePermission({ resource: 'system_settings', action: 'update' }),

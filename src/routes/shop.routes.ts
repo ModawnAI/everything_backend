@@ -323,6 +323,26 @@ router.use(publicRateLimit);
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
+
+/**
+ * @swagger
+ * /:
+ *   post:
+ *     summary: POST /
+ *     description: POST endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/',
   authenticateJWT,
   validateRequestBody(createShopSchema),
@@ -359,6 +379,26 @@ router.post('/',
  * - offset: Pagination offset (optional, default: 0)
  * 
  * Example: GET /api/shops?status=active&category=nail&limit=20
+ */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/',
   async (req, res) => {
@@ -397,6 +437,26 @@ router.get('/',
  * 
  * Example: GET /api/shops/nearby?latitude=37.5665&longitude=126.9780&radius=5&category=nail&limit=20
  */
+
+/**
+ * @swagger
+ * /nearby:
+ *   get:
+ *     summary: GET /nearby
+ *     description: GET endpoint for /nearby
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/nearby',
   searchRateLimit,
   validateRequestBody(nearbyShopsSchema),
@@ -434,6 +494,26 @@ router.get('/nearby',
  * - onlyFeatured: Show only featured shops (optional)
  * 
  * Example: GET /api/shops/bounds?neLat=37.6&neLng=127.0&swLat=37.5&swLng=126.9&category=nail
+ */
+
+/**
+ * @swagger
+ * /bounds:
+ *   get:
+ *     summary: GET /bounds
+ *     description: GET endpoint for /bounds
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/bounds',
   searchRateLimit,
@@ -484,6 +564,26 @@ router.get('/bounds',
  * 
  * Example: PUT /api/shops/123e4567-e89b-12d3-a456-426614174000
  */
+
+/**
+ * @swagger
+ * /:id:
+ *   put:
+ *     summary: PUT /:id
+ *     description: PUT endpoint for /:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/:id',
   authenticateJWT,
   validateRequestBody(shopIdSchema),
@@ -517,6 +617,26 @@ router.put('/:id',
  * - id: Shop UUID (required)
  * 
  * Example: DELETE /api/shops/123e4567-e89b-12d3-a456-426614174000
+ */
+
+/**
+ * @swagger
+ * /:id:
+ *   delete:
+ *     summary: DELETE /:id
+ *     description: DELETE endpoint for /:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.delete('/:id',
   authenticateJWT,
@@ -627,6 +747,26 @@ router.get('/:id',
  *         description: Rate limit exceeded
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /:id/contact-info:
+ *   get:
+ *     summary: GET /:id/contact-info
+ *     description: GET endpoint for /:id/contact-info
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/:id/contact-info',
   rateLimit({

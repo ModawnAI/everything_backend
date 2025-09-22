@@ -116,6 +116,26 @@ const influencerBonusAnalyticsQuerySchema = Joi.object({
  * Requires: Authentication + Admin role
  * Returns: Overall influencer bonus statistics and metrics
  */
+
+/**
+ * @swagger
+ * /admin/influencer-bonus/stats:
+ *   get:
+ *     summary: GET /admin/influencer-bonus/stats
+ *     description: GET endpoint for /admin/influencer-bonus/stats
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/admin/influencer-bonus/stats',
   rateLimit(),
   authenticateJWT(),
@@ -160,6 +180,26 @@ router.post('/admin/influencer-bonus/validate/:transactionId',
  * Rate limited: Standard rate limiting
  * Requires: Authentication + Admin role
  * Returns: Qualification check results with recommendations
+ */
+
+/**
+ * @swagger
+ * /admin/influencer-bonus/check-qualification:
+ *   post:
+ *     summary: POST /admin/influencer-bonus/check-qualification
+ *     description: POST endpoint for /admin/influencer-bonus/check-qualification
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/admin/influencer-bonus/check-qualification',
   rateLimit(),

@@ -8,6 +8,22 @@ import { authenticateToken } from '../middleware/auth.middleware';
 
 const router = Router();
 
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: GET /health
+ *     description: GET endpoint for /health
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
 // Health check endpoint (public)
 router.get('/health', monitoringController.healthCheck.bind(monitoringController));
 

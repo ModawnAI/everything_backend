@@ -106,6 +106,26 @@ const logoutSchema = Joi.object({
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
+
+/**
+ * @swagger
+ * /social-login:
+ *   post:
+ *     summary: POST /social-login
+ *     description: POST endpoint for /social-login
+ *     tags: [인증]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/social-login',
   socialAuthController.socialLoginRateLimit, // Use enhanced rate limiting with progressive penalties
   validateRequestBody(socialLoginSchema),
@@ -187,6 +207,26 @@ router.post('/social-login',
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
+
+/**
+ * @swagger
+ * /register:
+ *   post:
+ *     summary: POST /register
+ *     description: POST endpoint for /register
+ *     tags: [인증]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/register',
   loginRateLimit(), // Use strict rate limiting for registration attempts
   validateRequestBody(userRegistrationSchema),
@@ -248,6 +288,26 @@ router.post('/register',
  *       429:
  *         $ref: '#/components/responses/TooManyRequests'
  */
+
+/**
+ * @swagger
+ * /send-verification-code:
+ *   post:
+ *     summary: POST /send-verification-code
+ *     description: POST endpoint for /send-verification-code
+ *     tags: [인증]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/send-verification-code',
   loginRateLimit(), // Use strict rate limiting for verification attempts
   validateRequestBody(phoneVerificationInitiateSchema),
@@ -288,6 +348,26 @@ router.post('/pass/callback',
  * 
  * Rate limited: Standard rate limiting
  * Returns: Configuration status for each provider
+ */
+
+/**
+ * @swagger
+ * /providers:
+ *   get:
+ *     summary: GET /providers
+ *     description: GET endpoint for /providers
+ *     tags: [인증]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/providers',
   rateLimit(),
@@ -352,6 +432,26 @@ router.post('/refresh',
  * Requires: Authentication (optional - graceful if token is invalid)
  * Body: { refreshToken: string }
  */
+
+/**
+ * @swagger
+ * /logout:
+ *   post:
+ *     summary: POST /logout
+ *     description: POST endpoint for /logout
+ *     tags: [인증]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/logout',
   rateLimit(),
   optionalAuth(), // Optional auth - allow logout even with invalid token
@@ -392,6 +492,26 @@ router.get('/sessions',
  * 
  * Rate limited: Standard rate limiting
  * Body: { refreshToken: string }
+ */
+
+/**
+ * @swagger
+ * /refresh-supabase:
+ *   post:
+ *     summary: POST /refresh-supabase
+ *     description: POST endpoint for /refresh-supabase
+ *     tags: [인증]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/refresh-supabase',
   rateLimit(),

@@ -168,6 +168,26 @@ router.use(authenticateJWT);
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/',
   ...requireShopOwnerWithShop(),
   serviceRateLimit,
@@ -406,6 +426,26 @@ router.get('/',
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+
+/**
+ * @swagger
+ * /:
+ *   post:
+ *     summary: POST /
+ *     description: POST endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/',
   ...requireShopOwnerWithShop(),
   serviceUpdateRateLimit,
@@ -497,6 +537,26 @@ router.post('/',
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /:id:
+ *   get:
+ *     summary: GET /:id
+ *     description: GET endpoint for /:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/:id',
   ...requireShopOwnerWithService(),
@@ -685,6 +745,26 @@ router.get('/:id',
  *             schema:
  *               $ref: '#/components/schemas/Error'
  */
+
+/**
+ * @swagger
+ * /:id:
+ *   put:
+ *     summary: PUT /:id
+ *     description: PUT endpoint for /:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/:id',
   ...requireShopOwnerWithService(),
   serviceUpdateRateLimit,
@@ -798,6 +878,26 @@ router.put('/:id',
  *           application/json:
  *             schema:
  *               $ref: '#/components/schemas/Error'
+ */
+
+/**
+ * @swagger
+ * /:id:
+ *   delete:
+ *     summary: DELETE /:id
+ *     description: DELETE endpoint for /:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.delete('/:id',
   ...requireShopOwnerWithService(),

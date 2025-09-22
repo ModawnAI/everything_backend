@@ -199,6 +199,26 @@ const imageUploadSchema = Joi.object({
  *       429:
  *         description: Rate limit exceeded
  */
+
+/**
+ * @swagger
+ * /:
+ *   post:
+ *     summary: POST /
+ *     description: POST endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/',
   registrationRateLimit,
   authenticateJWT,
@@ -305,6 +325,26 @@ router.post('/',
  *       404:
  *         description: Shop not found or access denied
  */
+
+/**
+ * @swagger
+ * /images:
+ *   post:
+ *     summary: POST /images
+ *     description: POST endpoint for /images
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/images',
   registrationRateLimit,
   authenticateJWT,
@@ -398,6 +438,26 @@ router.post('/images',
  *       404:
  *         description: Registration not found
  */
+
+/**
+ * @swagger
+ * /status/:registrationId:
+ *   get:
+ *     summary: GET /status/:registrationId
+ *     description: GET endpoint for /status/:registrationId
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/status/:registrationId',
   authenticateJWT,
   requireAdmin(),
@@ -476,6 +536,26 @@ router.get('/status/:registrationId',
  *                         is_valid:
  *                           type: boolean
  *                           example: false
+ */
+
+/**
+ * @swagger
+ * /validate/business-license/:licenseNumber:
+ *   get:
+ *     summary: GET /validate/business-license/:licenseNumber
+ *     description: GET endpoint for /validate/business-license/:licenseNumber
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/validate/business-license/:licenseNumber',
   validationRateLimit,

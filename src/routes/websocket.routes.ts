@@ -339,6 +339,26 @@ router.get('/rooms/:roomId',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /admin/notification:
+ *   post:
+ *     summary: POST /admin/notification
+ *     description: POST endpoint for /admin/notification
+ *     tags: [WebSocket]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/admin/notification',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
@@ -414,6 +434,26 @@ router.post('/admin/notification',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /reservation/update:
+ *   post:
+ *     summary: POST /reservation/update
+ *     description: POST endpoint for /reservation/update
+ *     tags: [WebSocket]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/reservation/update',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
@@ -482,6 +522,26 @@ router.post('/reservation/update',
  *         description: Forbidden - Cannot send message to other users
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /user/message:
+ *   post:
+ *     summary: POST /user/message
+ *     description: POST endpoint for /user/message
+ *     tags: [WebSocket]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/user/message',
   authenticateJWT,
@@ -554,6 +614,26 @@ router.post('/user/message',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /room/message:
+ *   post:
+ *     summary: POST /room/message
+ *     description: POST endpoint for /room/message
+ *     tags: [WebSocket]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/room/message',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 30 } }),
@@ -616,6 +696,26 @@ router.post('/room/message',
  *         description: Forbidden - Admin access required
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /broadcast:
+ *   post:
+ *     summary: POST /broadcast
+ *     description: POST endpoint for /broadcast
+ *     tags: [WebSocket]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/broadcast',
   authenticateJWT,

@@ -30,6 +30,26 @@ router.use(authenticateToken);
 // Apply rate limiting to all routes
 router.use(rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }));
 
+
+/**
+ * @swagger
+ * /settings:
+ *   get:
+ *     summary: GET /settings
+ *     description: GET endpoint for /settings
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Basic settings operations
 router.get('/settings', userSettingsController.getSettings);
 router.put('/settings', validateUserSettingsUpdate, userSettingsController.updateSettings);
@@ -49,6 +69,26 @@ router.get('/settings/categories', validateSettingsCategoryQuery, userSettingsCo
 
 // Settings validation
 router.get('/settings/validation-rules', validateSettingsValidationRuleQuery, userSettingsController.getValidationRules);
+
+/**
+ * @swagger
+ * /settings/metadata:
+ *   get:
+ *     summary: GET /settings/metadata
+ *     description: GET endpoint for /settings/metadata
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // router.get('/settings/validation-rules/:field', userSettingsController.getValidationRule); // Method not implemented
 // router.post('/settings/validate', validateUserSettingsUpdate, userSettingsController.validateSettings); // Method not implemented
 // router.post('/settings/validate-field', validateSettingsField, userSettingsController.validateField); // Method not implemented
@@ -65,6 +105,246 @@ router.get('/settings/validation-rules', validateSettingsValidationRuleQuery, us
 // Settings metadata
 // router.get('/settings/metadata', userSettingsController.getSettingsMetadata); // Method not implemented
 router.get('/settings/defaults', userSettingsController.getDefaultSettings);
+
+/**
+ * @swagger
+ * /settings/appearance:
+ *   get:
+ *     summary: GET /settings/appearance
+ *     description: GET endpoint for /settings/appearance
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/restore/:backupId:
+ *   post:
+ *     summary: POST /settings/restore/:backupId
+ *     description: POST endpoint for /settings/restore/:backupId
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/backups/:backupId:
+ *   delete:
+ *     summary: DELETE /settings/backups/:backupId
+ *     description: DELETE endpoint for /settings/backups/:backupId
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/sync:
+ *   post:
+ *     summary: POST /settings/sync
+ *     description: POST endpoint for /settings/sync
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/sync/status:
+ *   get:
+ *     summary: GET /settings/sync/status
+ *     description: GET endpoint for /settings/sync/status
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/webhooks:
+ *   post:
+ *     summary: POST /settings/webhooks
+ *     description: POST endpoint for /settings/webhooks
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
+
+/**
+ * @swagger
+ * /settings/webhooks:
+ *   get:
+ *     summary: GET /settings/webhooks
+ *     description: GET endpoint for /settings/webhooks
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
+
+/**
+ * @swagger
+ * /settings/webhooks/:webhookId:
+ *   put:
+ *     summary: PUT /settings/webhooks/:webhookId
+ *     description: PUT endpoint for /settings/webhooks/:webhookId
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
+
+/**
+ * @swagger
+ * /settings/webhooks/:webhookId:
+ *   delete:
+ *     summary: DELETE /settings/webhooks/:webhookId
+ *     description: DELETE endpoint for /settings/webhooks/:webhookId
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
+
+/**
+ * @swagger
+ * /settings/analytics:
+ *   get:
+ *     summary: GET /settings/analytics
+ *     description: GET endpoint for /settings/analytics
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/analytics/usage:
+ *   get:
+ *     summary: GET /settings/analytics/usage
+ *     description: GET endpoint for /settings/analytics/usage
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/analytics/trends:
+ *   get:
+ *     summary: GET /settings/analytics/trends
+ *     description: GET endpoint for /settings/analytics/trends
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+
+/**
+ * @swagger
+ * /settings/health:
+ *   get:
+ *     summary: GET /settings/health
+ *     description: GET endpoint for /settings/health
+ *     tags: [Users]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
 // router.get('/settings/schema', userSettingsController.getSettingsSchema); // Method not implemented
 
 // Settings statistics

@@ -234,6 +234,26 @@ const adminAnalyticsController = new AdminAnalyticsController();
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /dashboard:
+ *   get:
+ *     summary: GET /dashboard
+ *     description: GET endpoint for /dashboard
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/dashboard',
   authenticateJWT,
   requireRole('admin'),
@@ -340,6 +360,26 @@ router.get('/realtime',
  *         description: Unauthorized - Admin authentication required
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /export:
+ *   get:
+ *     summary: GET /export
+ *     description: GET endpoint for /export
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/export',
   authenticateJWT,
@@ -493,6 +533,22 @@ router.post('/cache/clear',
  *         description: Unauthorized - Admin authentication required
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: GET /health
+ *     description: GET endpoint for /health
+ *     tags: [Admin - Users]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
  */
 router.get('/health',
   authenticateJWT,
@@ -830,6 +886,26 @@ router.get('/health',
  *                     timestamp:
  *                       type: string
  *                       format: date-time
+ */
+
+/**
+ * @swagger
+ * /shops/:shopId/analytics:
+ *   get:
+ *     summary: GET /shops/:shopId/analytics
+ *     description: GET endpoint for /shops/:shopId/analytics
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/shops/:shopId/analytics',
   authenticateJWT,

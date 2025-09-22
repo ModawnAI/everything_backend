@@ -438,6 +438,26 @@ const router = Router();
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/', 
   authenticateJWT, 
   requireRole('admin'), 
@@ -658,6 +678,26 @@ router.get('/analytics',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /export:
+ *   get:
+ *     summary: GET /export
+ *     description: GET endpoint for /export
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/export',
   authenticateJWT,
   requireRole('admin'),
@@ -787,6 +827,26 @@ router.get('/:paymentId',
  *         description: Payment not found
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /:paymentId/refund:
+ *   post:
+ *     summary: POST /:paymentId/refund
+ *     description: POST endpoint for /:paymentId/refund
+ *     tags: [Payments]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/:paymentId/refund',
   authenticateJWT,

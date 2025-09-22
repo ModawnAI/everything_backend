@@ -71,6 +71,26 @@ router.get('/status', async (req: Request, res: Response) => {
  * POST /shutdown/initiate
  * Manually initiate graceful shutdown (admin only)
  */
+
+/**
+ * @swagger
+ * /initiate:
+ *   post:
+ *     summary: POST /initiate
+ *     description: POST endpoint for /initiate
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/initiate', async (req: Request, res: Response) => {
   try {
     const status = shutdownService.getShutdownStatus();
@@ -121,6 +141,26 @@ router.post('/initiate', async (req: Request, res: Response) => {
 /**
  * POST /shutdown/test
  * Test shutdown process without actually shutting down
+ */
+
+/**
+ * @swagger
+ * /test:
+ *   post:
+ *     summary: POST /test
+ *     description: POST endpoint for /test
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/test', async (req: Request, res: Response) => {
   try {
@@ -175,6 +215,22 @@ router.post('/test', async (req: Request, res: Response) => {
 /**
  * GET /shutdown/health
  * Health check endpoint that indicates shutdown status
+ */
+
+/**
+ * @swagger
+ * /health:
+ *   get:
+ *     summary: GET /health
+ *     description: GET endpoint for /health
+ *     tags: [System]
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
  */
 router.get('/health', async (req: Request, res: Response) => {
   try {

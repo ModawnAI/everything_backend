@@ -328,6 +328,26 @@ router.get('/shops/:shopId/favorite/status',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /user/favorites:
+ *   get:
+ *     summary: GET /user/favorites
+ *     description: GET endpoint for /user/favorites
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/user/favorites',
   authenticateJWT,
   favoritesRateLimit,
@@ -436,6 +456,26 @@ router.get('/user/favorites/stats',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /user/favorites/bulk:
+ *   post:
+ *     summary: POST /user/favorites/bulk
+ *     description: POST endpoint for /user/favorites/bulk
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/user/favorites/bulk',
   authenticateJWT,
   bulkFavoritesRateLimit,
@@ -500,6 +540,26 @@ router.post('/user/favorites/bulk',
  *         $ref: '#/components/responses/RateLimitError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /user/favorites/check:
+ *   post:
+ *     summary: POST /user/favorites/check
+ *     description: POST endpoint for /user/favorites/check
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/user/favorites/check',
   authenticateJWT,

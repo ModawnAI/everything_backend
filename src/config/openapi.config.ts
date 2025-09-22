@@ -29,21 +29,16 @@ export const API_INFO: OpenAPIInfo = {
   description: `
 # 에뷰리띵 Beauty Service Platform API
 
-뷰티 서비스 예약 플랫폼을 위한 종합적인 REST API입니다. 고객과 뷰티 전문가를 연결하는 플랫폼입니다.
+A comprehensive REST API for the beauty service booking platform connecting customers with beauty professionals.
 
-## 주요 기능
+## Core Features
 
-- **사용자 관리**: 회원가입, 인증, 프로필 관리
-- **샵 관리**: 뷰티샵 목록, 서비스, 예약 관리
-- **예약 시스템**: 실시간 가용성을 통한 예약 관리
-- **결제 처리**: 토스페이먼츠 연동을 통한 안전한 결제
-- **위치 서비스**: PostGIS 기반 위치 검색 및 매핑
-- **알림**: FCM을 통한 푸시 알림
-- **리뷰 및 평점**: 고객 피드백 및 평점 시스템
-- **관리자 패널**: 완전한 관리자 제어 기능
-- **실시간 모니터링**: 시스템 상태 및 성능 모니터링
-- **캐싱 시스템**: Redis 기반 고성능 캐싱
-- **그레이스풀 셧다운**: 안전한 서버 종료 처리
+- **User Management**: Registration, authentication, and profile management
+- **Shop Discovery**: Location-based search and shop information
+- **Booking System**: Real-time availability and reservation management  
+- **Payment Processing**: Secure payments via TossPayments integration
+- **Notifications**: Push notifications and real-time updates
+- **Admin Panel**: Complete administrative control and analytics
 
 ## 인증
 
@@ -134,6 +129,7 @@ export const API_SERVERS: OpenAPIServer[] = [
  * API Tags
  */
 export const API_TAGS: OpenAPITag[] = [
+  // Core User-Facing APIs
   {
     name: '인증',
     description: '사용자 인증 및 권한 관리 API'
@@ -147,7 +143,7 @@ export const API_TAGS: OpenAPITag[] = [
     description: '뷰티샵 정보 및 서비스 관리 API'
   },
   {
-    name: '예약',
+    name: '예약', 
     description: '예약 생성, 수정, 취소 API'
   },
   {
@@ -162,10 +158,14 @@ export const API_TAGS: OpenAPITag[] = [
     name: '알림',
     description: '푸시 알림 및 실시간 알림 API'
   },
+  
+  // Admin APIs
   {
     name: '관리자',
     description: '관리자 전용 API'
   },
+  
+  // System APIs
   {
     name: '웹소켓',
     description: '실시간 통신을 위한 WebSocket API'
@@ -182,6 +182,8 @@ export const API_TAGS: OpenAPITag[] = [
     name: '캐시',
     description: 'Redis 캐시 관리 API'
   },
+  
+  // Additional categories that appear in routes
   {
     name: 'CDN',
     description: 'CDN 이미지 URL 생성 및 최적화 API'
@@ -213,6 +215,70 @@ export const API_TAGS: OpenAPITag[] = [
   {
     name: 'Service Catalog',
     description: '서비스 카탈로그 및 메타데이터 관리 API'
+  },
+  {
+    name: 'Reservations',
+    description: 'Reservation management and booking endpoints'
+  },
+  {
+    name: 'Shop Operating Hours',
+    description: 'Shop operating hours management operations for shop owners'
+  },
+  {
+    name: 'Shop Profile',
+    description: 'Shop profile management operations for shop owners'
+  },
+  {
+    name: 'Shop Search',
+    description: 'Advanced shop search and filtering operations'
+  },
+  {
+    name: 'Shop Services',
+    description: 'Shop service catalog management operations for shop owners'
+  },
+  {
+    name: 'Shops',
+    description: 'Shop management and discovery endpoints'
+  },
+  {
+    name: 'Admin Analytics',
+    description: 'Admin analytics and reporting APIs'
+  },
+  {
+    name: 'Admin Moderation',
+    description: 'Admin moderation and content management APIs'
+  },
+  {
+    name: 'Admin Payments',
+    description: 'Admin payment management and oversight APIs'
+  },
+  {
+    name: 'Authentication',
+    description: 'Authentication and authorization endpoints'
+  },
+  {
+    name: 'Image Metadata',
+    description: 'Image metadata management APIs'
+  },
+  {
+    name: 'Notifications',
+    description: 'Push notification and messaging APIs'
+  },
+  {
+    name: 'Shop Dashboard',
+    description: 'Shop owner dashboard and management APIs'
+  },
+  {
+    name: 'Shop Registration',
+    description: 'Shop registration and onboarding APIs'
+  },
+  {
+    name: 'Shop Reporting',
+    description: 'Shop reporting and moderation APIs'
+  },
+  {
+    name: 'WebSocket',
+    description: 'Real-time WebSocket communication APIs'
   }
 ];
 

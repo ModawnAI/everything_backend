@@ -141,6 +141,26 @@ router.use(authenticateJWT);
  * 
  * Example: GET /api/shop-owner/dashboard
  */
+
+/**
+ * @swagger
+ * /dashboard:
+ *   get:
+ *     summary: GET /dashboard
+ *     description: GET endpoint for /dashboard
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/dashboard',
   shopOwnerRateLimit,
   async (req, res) => {
@@ -178,6 +198,26 @@ router.get('/dashboard',
  * 
  * Example: GET /api/shop-owner/analytics?period=month
  * Example: GET /api/shop-owner/analytics?startDate=2024-01-01&endDate=2024-01-31
+ */
+
+/**
+ * @swagger
+ * /analytics:
+ *   get:
+ *     summary: GET /analytics
+ *     description: GET endpoint for /analytics
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/analytics',
   analyticsRateLimit,
@@ -221,6 +261,26 @@ router.get('/analytics',
  * Example: GET /api/shop-owner/reservations?status=requested&page=1&limit=20
  * Example: GET /api/shop-owner/reservations?startDate=2024-01-01&endDate=2024-01-31
  */
+
+/**
+ * @swagger
+ * /reservations:
+ *   get:
+ *     summary: GET /reservations
+ *     description: GET endpoint for /reservations
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/reservations',
   shopOwnerRateLimit,
   validateRequestBody(reservationListQuerySchema),
@@ -261,6 +321,26 @@ router.get('/reservations',
  * 
  * Example: GET /api/shop-owner/reservations/pending?page=1&limit=20
  * Example: GET /api/shop-owner/reservations/pending?search=김고객
+ */
+
+/**
+ * @swagger
+ * /reservations/pending:
+ *   get:
+ *     summary: GET /reservations/pending
+ *     description: GET endpoint for /reservations/pending
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/reservations/pending',
   ...requireShopOwnerWithShop(),
@@ -308,6 +388,26 @@ router.get('/reservations/pending',
  * 
  * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/confirm
  * Body: { "notes": "예약 확정되었습니다. 즐거운 시간 되세요!" }
+ */
+
+/**
+ * @swagger
+ * /reservations/:reservationId/confirm:
+ *   put:
+ *     summary: PUT /reservations/:reservationId/confirm
+ *     description: PUT endpoint for /reservations/:reservationId/confirm
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/reservations/:reservationId/confirm',
   ...requireShopOwnerWithShop(),
@@ -357,6 +457,26 @@ router.put('/reservations/:reservationId/confirm',
  * 
  * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/reject
  * Body: { "notes": "예약 가능한 시간이 없어서 거절합니다. 죄송합니다." }
+ */
+
+/**
+ * @swagger
+ * /reservations/:reservationId/reject:
+ *   put:
+ *     summary: PUT /reservations/:reservationId/reject
+ *     description: PUT endpoint for /reservations/:reservationId/reject
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/reservations/:reservationId/reject',
   ...requireShopOwnerWithShop(),
@@ -410,6 +530,26 @@ router.put('/reservations/:reservationId/reject',
  * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/complete
  * Body: { "finalAmount": 50000, "completionNotes": "서비스 완료되었습니다" }
  */
+
+/**
+ * @swagger
+ * /reservations/:reservationId/complete:
+ *   put:
+ *     summary: PUT /reservations/:reservationId/complete
+ *     description: PUT endpoint for /reservations/:reservationId/complete
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/reservations/:reservationId/complete',
   ...requireShopOwnerWithShop(),
   sensitiveRateLimit,
@@ -454,6 +594,26 @@ router.put('/reservations/:reservationId/complete',
  * Example: PUT /api/shop-owner/reservations/123e4567-e89b-12d3-a456-426614174000/status
  * Body: { "status": "confirmed", "notes": "예약 확정되었습니다" }
  */
+
+/**
+ * @swagger
+ * /reservations/:reservationId/status:
+ *   put:
+ *     summary: PUT /reservations/:reservationId/status
+ *     description: PUT endpoint for /reservations/:reservationId/status
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/reservations/:reservationId/status',
   sensitiveRateLimit,
   validateRequestBody(reservationIdSchema),
@@ -488,6 +648,26 @@ router.put('/reservations/:reservationId/status',
  * - List of user's shops with details
  * 
  * Example: GET /api/shop-owner/profile
+ */
+
+/**
+ * @swagger
+ * /profile:
+ *   get:
+ *     summary: GET /profile
+ *     description: GET endpoint for /profile
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/profile',
   shopOwnerRateLimit,

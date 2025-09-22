@@ -583,6 +583,7 @@ export class TossPaymentsService {
    */
   async processWebhook(payload: TossWebhookPayload): Promise<void> {
     const webhookId = `webhook_${payload.paymentKey}_${Date.now()}`;
+    const startTime = Date.now();
     const maxRetries = 3;
     const retryDelay = 1000; // 1 second
 
@@ -600,7 +601,7 @@ export class TossPaymentsService {
       }
 
       // Check for idempotency - prevent duplicate processing
-      const isDuplicate = await this.checkWebhookIdempotency(payload.paymentKey, payload.status);
+      const isDuplicate = await this.checkWebhookIdempotency(payload.paymentKey, payload.status, webhookId);
       if (isDuplicate) {
         logger.info('Webhook already processed, skipping duplicate', {
           webhookId,
@@ -740,41 +741,32 @@ export class TossPaymentsService {
   }
 
   /**
-   * Check for webhook idempotency
+   * Check for webhook idempotency using enhanced security service
    */
-  private async checkWebhookIdempotency(paymentKey: string, status: string): Promise<boolean> {
+  private async checkWebhookIdempotency(paymentKey: string, status: string, webhookId?: string): Promise<boolean> {
     try {
-      const { data: existingWebhook } = await this.supabase
-        .from('webhook_logs')
-        .select('id')
-        .eq('payment_key', paymentKey)
-        .eq('status', status)
-        .eq('processed', true)
-        .single();
-
-      return !!existingWebhook;
+      const { webhookSecurityService } = require('./webhook-security.service');
+      return await webhookSecurityService.checkIdempotency(paymentKey, status, webhookId || 'unknown');
     } catch (error) {
-      // If table doesn't exist or other error, assume not duplicate
+      logger.error('Error checking webhook idempotency', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        paymentKey,
+        status
+      });
+      // If error, assume not duplicate to allow processing
       return false;
     }
   }
 
   /**
-   * Mark webhook as processed
+   * Mark webhook as processed using enhanced security service
    */
-  private async markWebhookAsProcessed(paymentKey: string, status: string, webhookId: string): Promise<void> {
+  private async markWebhookAsProcessed(paymentKey: string, status: string, webhookId: string, processingDuration?: number): Promise<void> {
     try {
-      await this.supabase
-        .from('webhook_logs')
-        .insert({
-          payment_key: paymentKey,
-          status,
-          webhook_id: webhookId,
-          processed: true,
-          processed_at: new Date().toISOString()
-        });
+      const { webhookSecurityService } = require('./webhook-security.service');
+      await webhookSecurityService.markAsProcessed(paymentKey, status, webhookId, processingDuration || 0);
     } catch (error) {
-      logger.warn('Failed to log webhook processing', {
+      logger.warn('Failed to mark webhook as processed', {
         webhookId,
         error: error instanceof Error ? error.message : 'Unknown error'
       });

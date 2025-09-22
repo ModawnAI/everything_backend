@@ -22,6 +22,26 @@ router.use(authenticateJWT);
  * Query Parameters: None
  * Response: PointBalance object with available, pending, total, expired, used, projectedAvailable
  */
+
+/**
+ * @swagger
+ * /users/:userId/points/balance:
+ *   get:
+ *     summary: GET /users/:userId/points/balance
+ *     description: GET endpoint for /users/:userId/points/balance
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/users/:userId/points/balance', pointBalanceController.getPointBalance);
 
 /**
@@ -59,6 +79,26 @@ router.get('/users/:userId/points/analytics', pointBalanceController.getPointAna
  * - days (optional): Number of days to project (default: 90, max: 365)
  * 
  * Response: PointProjection with future point availability
+ */
+
+/**
+ * @swagger
+ * /users/:userId/points/projection:
+ *   get:
+ *     summary: GET /users/:userId/points/projection
+ *     description: GET endpoint for /users/:userId/points/projection
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/users/:userId/points/projection', pointBalanceController.getPointProjection);
 

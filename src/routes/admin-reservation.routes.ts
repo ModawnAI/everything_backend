@@ -112,6 +112,26 @@ const router = Router();
  * - Rate limiting protection
  * - Advanced filtering and search capabilities
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/', adminReservationController.getReservations);
 
 /**
@@ -188,6 +208,26 @@ router.get('/', adminReservationController.getReservations);
  * - Performance optimized queries
  * - Trend analysis and insights
  */
+
+/**
+ * @swagger
+ * /analytics:
+ *   get:
+ *     summary: GET /analytics
+ *     description: GET endpoint for /analytics
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/analytics', adminReservationController.getReservationAnalytics);
 
 /**
@@ -236,6 +276,26 @@ router.get('/analytics', adminReservationController.getReservationAnalytics);
  * - Comprehensive audit logging
  * - Optional customer/shop notifications
  * - Auto-payment processing option
+ */
+
+/**
+ * @swagger
+ * /:id/status:
+ *   put:
+ *     summary: PUT /:id/status
+ *     description: PUT endpoint for /:id/status
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:id/status', adminReservationController.updateReservationStatus);
 
@@ -348,6 +408,26 @@ router.put('/:id/status', adminReservationController.updateReservationStatus);
  * - Attention indicators and urgency flags
  * - Performance optimized with joins
  */
+
+/**
+ * @swagger
+ * /:id/details:
+ *   get:
+ *     summary: GET /:id/details
+ *     description: GET endpoint for /:id/details
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/:id/details', adminReservationController.getReservationDetails);
 
 /**
@@ -411,6 +491,26 @@ router.get('/:id/details', adminReservationController.getReservationDetails);
  * - Evidence file support
  * - Comprehensive audit logging
  */
+
+/**
+ * @swagger
+ * /:id/dispute:
+ *   post:
+ *     summary: POST /:id/dispute
+ *     description: POST endpoint for /:id/dispute
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/:id/dispute', adminReservationController.createReservationDispute);
 
 /**
@@ -459,6 +559,26 @@ router.post('/:id/dispute', adminReservationController.createReservationDispute)
  * - Customer and shop notifications
  * - Comprehensive audit logging
  * - Dispute resolution tracking
+ */
+
+/**
+ * @swagger
+ * /:id/force-complete:
+ *   post:
+ *     summary: POST /:id/force-complete
+ *     description: POST endpoint for /:id/force-complete
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/:id/force-complete', adminReservationController.forceCompleteReservation);
 
@@ -517,6 +637,26 @@ router.post('/:id/force-complete', adminReservationController.forceCompleteReser
  * - Comprehensive audit logging
  * - Rate limiting for bulk operations
  * - Optional customer/shop notifications
+ */
+
+/**
+ * @swagger
+ * /bulk-status-update:
+ *   post:
+ *     summary: POST /bulk-status-update
+ *     description: POST endpoint for /bulk-status-update
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/bulk-status-update', adminReservationController.bulkStatusUpdate);
 

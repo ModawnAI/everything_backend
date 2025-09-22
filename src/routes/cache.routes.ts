@@ -67,6 +67,26 @@ router.get('/stats', async (req: Request, res: Response) => {
  * POST /cache/set
  * Set cache entry
  */
+
+/**
+ * @swagger
+ * /set:
+ *   post:
+ *     summary: POST /set
+ *     description: POST endpoint for /set
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/set', async (req: Request, res: Response) => {
   try {
     const { key, data, ttl = 3600, prefix, tags = [] } = req.body;
@@ -116,6 +136,26 @@ router.post('/set', async (req: Request, res: Response) => {
 /**
  * GET /cache/get/:key
  * Get cache entry
+ */
+
+/**
+ * @swagger
+ * /get/:key:
+ *   get:
+ *     summary: GET /get/:key
+ *     description: GET endpoint for /get/:key
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/get/:key', async (req: Request, res: Response) => {
   try {
@@ -167,6 +207,26 @@ router.get('/get/:key', async (req: Request, res: Response) => {
  * DELETE /cache/delete/:key
  * Delete cache entry
  */
+
+/**
+ * @swagger
+ * /delete/:key:
+ *   delete:
+ *     summary: DELETE /delete/:key
+ *     description: DELETE endpoint for /delete/:key
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.delete('/delete/:key', async (req: Request, res: Response) => {
   try {
     const { key } = req.params;
@@ -205,6 +265,26 @@ router.delete('/delete/:key', async (req: Request, res: Response) => {
 /**
  * POST /cache/invalidate
  * Invalidate cache by tags
+ */
+
+/**
+ * @swagger
+ * /invalidate:
+ *   post:
+ *     summary: POST /invalidate
+ *     description: POST endpoint for /invalidate
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/invalidate', async (req: Request, res: Response) => {
   try {
@@ -254,6 +334,26 @@ router.post('/invalidate', async (req: Request, res: Response) => {
  * POST /cache/clear
  * Clear all cache
  */
+
+/**
+ * @swagger
+ * /clear:
+ *   post:
+ *     summary: POST /clear
+ *     description: POST endpoint for /clear
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/clear', async (req: Request, res: Response) => {
   try {
     await cacheService.clear();
@@ -287,6 +387,26 @@ router.post('/clear', async (req: Request, res: Response) => {
 /**
  * POST /cache/warm
  * Warm cache with test data
+ */
+
+/**
+ * @swagger
+ * /warm:
+ *   post:
+ *     summary: POST /warm
+ *     description: POST endpoint for /warm
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/warm', async (req: Request, res: Response) => {
   try {

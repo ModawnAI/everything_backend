@@ -4,14 +4,14 @@
 // Authentication Routes
 export { default as authRoutes } from './auth.routes';
 
-// Admin Authentication Routes
-export { default as adminAuthRoutes } from './admin-auth.routes';
+// Admin Authentication Routes - ARCHIVED (conflicts with auth.routes.ts)
+// export { default as adminAuthRoutes } from './admin-auth.routes';
 
 // Admin User Management Routes
 export { default as adminUserManagementRoutes } from './admin-user-management.routes';
 
-// User Profile Routes
-export { default as userProfileRoutes } from './user-profile.routes';
+// User Profile Routes - ARCHIVED (conflicts with user-settings.routes.ts)
+// export { default as userProfileRoutes } from './user-profile.routes';
 
 // Shop Routes
 export { default as shopRoutes } from './shop.routes';

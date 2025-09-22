@@ -207,6 +207,26 @@ const notificationController = new NotificationController();
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /register:
+ *   post:
+ *     summary: POST /register
+ *     description: POST endpoint for /register
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/register',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // Low rate limit for token registration
@@ -332,6 +352,26 @@ router.post('/unregister',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /send:
+ *   post:
+ *     summary: POST /send
+ *     description: POST endpoint for /send
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/send',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 5 } }), // Very low rate limit for sending notifications
@@ -397,6 +437,26 @@ router.post('/send',
  *         description: Unauthorized - Authentication required
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /template:
+ *   post:
+ *     summary: POST /template
+ *     description: POST endpoint for /template
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/template',
   authenticateJWT,
@@ -594,6 +654,26 @@ router.put('/settings',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /history:
+ *   get:
+ *     summary: GET /history
+ *     description: GET endpoint for /history
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/history',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
@@ -743,6 +823,26 @@ router.get('/tokens',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /shop/reservations:
+ *   get:
+ *     summary: GET /shop/reservations
+ *     description: GET endpoint for /shop/reservations
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/shop/reservations',
   authenticateJWT,
   ...requireShopOwnerWithShop(),
@@ -847,6 +947,26 @@ router.get('/shop/reservations',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /shop/send:
+ *   post:
+ *     summary: POST /shop/send
+ *     description: POST endpoint for /shop/send
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/shop/send',
   authenticateJWT,
   ...requireShopOwnerWithShop(),
@@ -946,6 +1066,26 @@ router.post('/shop/send',
  *         description: Unauthorized - Shop owner authentication required
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /shop/preferences:
+ *   get:
+ *     summary: GET /shop/preferences
+ *     description: GET endpoint for /shop/preferences
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/shop/preferences',
   authenticateJWT,
@@ -1058,6 +1198,26 @@ router.get('/shop/preferences',
  *       500:
  *         description: Internal server error
  */
+
+/**
+ * @swagger
+ * /shop/preferences:
+ *   put:
+ *     summary: PUT /shop/preferences
+ *     description: PUT endpoint for /shop/preferences
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/shop/preferences',
   authenticateJWT,
   ...requireShopOwnerWithShop(),
@@ -1158,6 +1318,26 @@ router.put('/shop/preferences',
  *         description: Unauthorized - Shop owner authentication required
  *       500:
  *         description: Internal server error
+ */
+
+/**
+ * @swagger
+ * /shop/analytics:
+ *   get:
+ *     summary: GET /shop/analytics
+ *     description: GET endpoint for /shop/analytics
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/shop/analytics',
   authenticateJWT,

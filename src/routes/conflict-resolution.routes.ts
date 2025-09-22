@@ -14,6 +14,26 @@ const router = Router();
 // Apply authentication to all routes
 router.use(authenticateJWT());
 
+
+/**
+ * @swagger
+ * /shops/:shopId/conflicts/detect:
+ *   get:
+ *     summary: GET /shops/:shopId/conflicts/detect
+ *     description: GET endpoint for /shops/:shopId/conflicts/detect
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Detect conflicts for a shop
 router.get('/shops/:shopId/conflicts/detect', 
   requirePermission({ resource: 'reservations', action: 'read' }),
@@ -50,6 +70,26 @@ router.get('/shops/:shopId/conflicts/manual-interface',
   conflictResolutionController.getManualInterfaceData.bind(conflictResolutionController)
 );
 
+
+/**
+ * @swagger
+ * /shops/:shopId/conflicts/prevent:
+ *   post:
+ *     summary: POST /shops/:shopId/conflicts/prevent
+ *     description: POST endpoint for /shops/:shopId/conflicts/prevent
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 // Apply automatic conflict prevention
 router.post('/shops/:shopId/conflicts/prevent', 
   requirePermission({ resource: 'reservations', action: 'update' }),

@@ -27,6 +27,26 @@ const router = Router();
 /**
  * Get comprehensive security statistics
  */
+
+/**
+ * @swagger
+ * /stats:
+ *   get:
+ *     summary: GET /stats
+ *     description: GET endpoint for /stats
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/stats', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const stats = {
@@ -66,6 +86,26 @@ router.get('/stats', requireAdminAuth, async (req: Request, res: Response) => {
 
 /**
  * Get XSS protection statistics
+ */
+
+/**
+ * @swagger
+ * /xss/stats:
+ *   get:
+ *     summary: GET /xss/stats
+ *     description: GET endpoint for /xss/stats
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/xss/stats', requireAdminAuth, async (req: Request, res: Response) => {
   try {
@@ -115,6 +155,26 @@ router.get('/csrf/stats', requireAdminAuth, async (req: Request, res: Response) 
 /**
  * Get SQL injection prevention statistics
  */
+
+/**
+ * @swagger
+ * /sql-injection/stats:
+ *   get:
+ *     summary: GET /sql-injection/stats
+ *     description: GET endpoint for /sql-injection/stats
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/sql-injection/stats', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const stats = getSQLInjectionStats();
@@ -162,6 +222,26 @@ router.get('/rpc/stats', requireAdminAuth, async (req: Request, res: Response) =
 
 /**
  * Reset XSS protection history
+ */
+
+/**
+ * @swagger
+ * /xss/reset:
+ *   post:
+ *     summary: POST /xss/reset
+ *     description: POST endpoint for /xss/reset
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/xss/reset', requireAdminAuth, async (req: Request, res: Response) => {
   try {
@@ -219,6 +299,26 @@ router.post('/csrf/reset', requireAdminAuth, async (req: Request, res: Response)
 /**
  * Reset SQL injection prevention history
  */
+
+/**
+ * @swagger
+ * /sql-injection/reset:
+ *   post:
+ *     summary: POST /sql-injection/reset
+ *     description: POST endpoint for /sql-injection/reset
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/sql-injection/reset', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     resetSQLInjectionHistory();
@@ -274,6 +374,26 @@ router.post('/rpc/reset', requireAdminAuth, async (req: Request, res: Response) 
 
 /**
  * Reset all security histories
+ */
+
+/**
+ * @swagger
+ * /reset-all:
+ *   post:
+ *     summary: POST /reset-all
+ *     description: POST endpoint for /reset-all
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/reset-all', requireAdminAuth, async (req: Request, res: Response) => {
   try {

@@ -27,6 +27,26 @@ const checkCircularReferenceSchema = Joi.object({
  * @desc Create a new referral relationship
  * @access Private
  */
+
+/**
+ * @swagger
+ * /:
+ *   post:
+ *     summary: POST /
+ *     description: POST endpoint for /
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/',
   authenticateJWT(),
   referralRelationshipController.referralRelationshipRateLimit,
@@ -61,6 +81,26 @@ router.get('/chain/:userId?',
  * @route POST /api/referral-relationships/check-circular
  * @desc Check for circular references between two users
  * @access Private
+ */
+
+/**
+ * @swagger
+ * /check-circular:
+ *   post:
+ *     summary: POST /check-circular
+ *     description: POST endpoint for /check-circular
+ *     tags: [Points & Rewards]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/check-circular',
   authenticateJWT(),

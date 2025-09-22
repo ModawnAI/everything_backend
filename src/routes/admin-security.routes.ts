@@ -35,6 +35,26 @@ const getSecurityEventsSchema = Joi.object({
  * @desc Force invalidate all sessions for a specific user
  * @access Admin
  */
+
+/**
+ * @swagger
+ * /users/:userId/invalidate-sessions:
+ *   post:
+ *     summary: POST /users/:userId/invalidate-sessions
+ *     description: POST endpoint for /users/:userId/invalidate-sessions
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.post('/users/:userId/invalidate-sessions',
   authenticateToken,
   requireAdminRole,
@@ -72,6 +92,26 @@ router.post('/bulk-invalidate-sessions',
  * @route GET /api/admin/security/events
  * @desc Get security events related to session invalidation
  * @access Admin
+ */
+
+/**
+ * @swagger
+ * /events:
+ *   get:
+ *     summary: GET /events
+ *     description: GET endpoint for /events
+ *     tags: [Admin - Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/events',
   authenticateToken,

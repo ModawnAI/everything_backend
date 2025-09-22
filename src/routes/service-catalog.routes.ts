@@ -72,6 +72,26 @@ router.use(serviceCatalogRateLimit);
  * @desc Get all service catalog entries with optional filtering
  * @access Public
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/', 
   validateRequestWithSchema(serviceCatalogSearchSchema, 'query'),
   serviceCatalogController.getServiceCatalogEntries.bind(serviceCatalogController)
@@ -111,6 +131,26 @@ router.get('/metadata',
  * @desc Get popular services
  * @access Public
  */
+
+/**
+ * @swagger
+ * /popular:
+ *   get:
+ *     summary: GET /popular
+ *     description: GET endpoint for /popular
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/popular',
   serviceCatalogController.getPopularServices.bind(serviceCatalogController)
 );
@@ -146,6 +186,26 @@ router.get('/:serviceId',
  * @route PUT /api/service-catalog/:serviceId/popularity
  * @desc Update service popularity (internal use)
  * @access Internal
+ */
+
+/**
+ * @swagger
+ * /:serviceId/popularity:
+ *   put:
+ *     summary: PUT /:serviceId/popularity
+ *     description: PUT endpoint for /:serviceId/popularity
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/:serviceId/popularity',
   validateRequestWithSchema(updatePopularitySchema, 'body'),

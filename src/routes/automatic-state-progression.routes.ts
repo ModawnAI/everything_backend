@@ -56,6 +56,26 @@ router.use(strictRateLimit(10, 60000)); // 10 requests per minute for admin oper
  * GET /api/admin/state-progression/status
  * Get current status and metrics of automatic state progression
  */
+
+/**
+ * @swagger
+ * /status:
+ *   get:
+ *     summary: GET /status
+ *     description: GET endpoint for /status
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/status', async (req, res) => {
   try {
     await automaticStateProgressionController.getStatus(req, res);
@@ -99,6 +119,26 @@ router.post('/run', async (req, res) => {
 /**
  * GET /api/admin/state-progression/metrics
  * Get detailed metrics and performance data
+ */
+
+/**
+ * @swagger
+ * /metrics:
+ *   get:
+ *     summary: GET /metrics
+ *     description: GET endpoint for /metrics
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/metrics', async (req, res) => {
   try {
@@ -146,6 +186,26 @@ router.put('/config',
 /**
  * POST /api/admin/state-progression/reset-metrics
  * Reset daily metrics (admin only)
+ */
+
+/**
+ * @swagger
+ * /reset-metrics:
+ *   post:
+ *     summary: POST /reset-metrics
+ *     description: POST endpoint for /reset-metrics
+ *     tags: [System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/reset-metrics', async (req, res) => {
   try {

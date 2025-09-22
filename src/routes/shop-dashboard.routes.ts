@@ -168,6 +168,26 @@ const analyticsQuerySchema = Joi.object({
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: GET /
+ *     description: GET endpoint for /
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/',
   ...requireShopOwnerWithShop(),
   dashboardRateLimit,
@@ -279,6 +299,26 @@ router.get('/',
  *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /analytics:
+ *   get:
+ *     summary: GET /analytics
+ *     description: GET endpoint for /analytics
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.get('/analytics',
   ...requireShopOwnerWithShop(),
@@ -510,6 +550,26 @@ router.get('/profile',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /profile:
+ *   put:
+ *     summary: PUT /profile
+ *     description: PUT endpoint for /profile
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/profile',
   ...requireShopOwnerWithShop(),
   profileRateLimit,
@@ -698,6 +758,26 @@ router.get('/profile/status',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /services:
+ *   get:
+ *     summary: GET /services
+ *     description: GET endpoint for /services
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/services',
   ...requireShopOwnerWithShop(),
   serviceRateLimit,
@@ -841,6 +921,26 @@ router.get('/services',
  *         $ref: '#/components/responses/ForbiddenError'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /services:
+ *   post:
+ *     summary: POST /services
+ *     description: POST endpoint for /services
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.post('/services',
   ...requireShopOwnerWithShop(),
@@ -1046,6 +1146,26 @@ router.get('/services/:id',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /services/:id:
+ *   put:
+ *     summary: PUT /services/:id
+ *     description: PUT endpoint for /services/:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/services/:id',
   ...requireShopOwnerWithService(),
   serviceUpdateRateLimit,
@@ -1137,6 +1257,26 @@ router.put('/services/:id',
  *                     details: { type: 'string', example: '먼저 모든 예약을 취소하거나 완료해주세요.' }
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /services/:id:
+ *   delete:
+ *     summary: DELETE /services/:id
+ *     description: DELETE endpoint for /services/:id
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.delete('/services/:id',
   ...requireShopOwnerWithService(),
@@ -1309,6 +1449,26 @@ router.get('/operating-hours',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /operating-hours:
+ *   put:
+ *     summary: PUT /operating-hours
+ *     description: PUT endpoint for /operating-hours
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.put('/operating-hours',
   ...requireShopOwnerWithShop(),
   operatingHoursUpdateRateLimit,
@@ -1356,7 +1516,7 @@ router.put('/operating-hours',
  *       - Pagination support for large reservation lists
  *       
  *       **Authorization:** Requires valid JWT token and shop owner role.
- *     tags: [Shop Dashboard - Reservations]
+ *     tags: [예약]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1431,6 +1591,26 @@ router.put('/operating-hours',
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
  */
+
+/**
+ * @swagger
+ * /reservations:
+ *   get:
+ *     summary: GET /reservations
+ *     description: GET endpoint for /reservations
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
 router.get('/reservations',
   ...requireShopOwnerWithShop(),
   reservationRateLimit,
@@ -1473,7 +1653,7 @@ router.get('/reservations',
  *       - Audit logging for status changes
  *       
  *       **Authorization:** Requires valid JWT token and shop owner role.
- *     tags: [Shop Dashboard - Reservations]
+ *     tags: [예약]
  *     security:
  *       - bearerAuth: []
  *     parameters:
@@ -1525,6 +1705,26 @@ router.get('/reservations',
  *         $ref: '#/components/responses/ReservationNotFound'
  *       500:
  *         $ref: '#/components/responses/InternalServerError'
+ */
+
+/**
+ * @swagger
+ * /reservations/:reservationId/status:
+ *   put:
+ *     summary: PUT /reservations/:reservationId/status
+ *     description: PUT endpoint for /reservations/:reservationId/status
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
  */
 router.put('/reservations/:reservationId/status',
   ...requireShopOwnerWithShop(),
