@@ -558,7 +558,7 @@ export const SERVICE_OPENAPI_UI_CONFIG: any = {
       border-radius: 0.25rem;
     }
   `,
-  customSiteTitle: '🛍️ 에뷰리띵 Service API Documentation',
+  customSiteTitle: '🛍️ Service API Documentation',
   customfavIcon: '/favicon.ico',
   swaggerOptions: {
     persistAuthorization: true,

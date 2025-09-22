@@ -33,7 +33,7 @@ import {
  * Admin API Information
  */
 export const ADMIN_API_INFO: OpenAPIInfo = {
-  title: '에뷰리띵 Admin API',
+  title: 'Admin API',
   description: `
 # 에뷰리띵 Admin API
 
@@ -336,7 +336,7 @@ export const ADMIN_OPENAPI_UI_CONFIG: any = {
       }
     }
   `,
-  customSiteTitle: '🔒 에뷰리띵 Admin API Documentation',
+  customSiteTitle: '🔒 Admin API Documentation',
   customfavIcon: '/favicon.ico',
   swaggerOptions: {
     persistAuthorization: true,

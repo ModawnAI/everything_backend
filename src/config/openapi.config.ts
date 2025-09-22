@@ -25,9 +25,9 @@ import {
  * API Information
  */
 export const API_INFO: OpenAPIInfo = {
-  title: '에뷰리띵 Beauty Service Platform API',
+  title: 'Beauty Service Platform API',
   description: `
-# 에뷰리띵 Beauty Service Platform API
+# Beauty Service Platform API
 
 A comprehensive REST API for the beauty service booking platform connecting customers with beauty professionals.
 
@@ -40,9 +40,9 @@ A comprehensive REST API for the beauty service booking platform connecting cust
 - **Notifications**: Push notifications and real-time updates
 - **Admin Panel**: Complete administrative control and analytics
 
-## 인증
+## Authentication
 
-이 API는 인증을 위해 JWT(JSON Web Tokens)를 사용합니다. Authorization 헤더에 토큰을 포함하세요:
+This API uses JWT (JSON Web Tokens) for authentication. Include the token in the Authorization header:
 
 \`\`\`
 Authorization: Bearer <your-jwt-token>
