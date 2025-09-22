@@ -152,6 +152,16 @@ app.get('/', (_req, res) => {
   });
 });
 
+// Handle service worker requests (prevent 404 errors)
+app.get('/sw.js', (_req, res) => {
+  res.status(204).end(); // No Content - service worker not implemented
+});
+
+// Handle manifest.json requests
+app.get('/manifest.json', (_req, res) => {
+  res.status(204).end(); // No Content - manifest not implemented
+});
+
 // Swagger UI setup
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
   explorer: true,
