@@ -1,0 +1,791 @@
+{
+  "center": {
+    "lat": 37.571888200000004,
+    "lng": 126.97841414999999
+  },
+  "zoom": 13,
+  "bounds": {
+    "north": 37.6680571,
+    "south": 37.4757193,
+    "east": 127.0991356,
+    "west": 126.8576927
+  },
+  "markers": [
+    {
+      "id": "shop-0",
+      "position": {
+        "lat": 37.5720688,
+        "lng": 127.0015128
+      },
+      "title": "더예쁜머리",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            더예쁜머리\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 종로33길 12, 2층 2호 (효제동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-743-9700\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-743-9700</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 7석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-743-9700')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-1",
+      "position": {
+        "lat": 37.5708508,
+        "lng": 126.9798822
+      },
+      "title": "토리왁싱",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            토리왁싱\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 종로 19, 지하1층 117-2호 (종로1가)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-6032-3111\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-6032-3111</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-6032-3111')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-2",
+      "position": {
+        "lat": 37.569046,
+        "lng": 126.9857474
+      },
+      "title": "웰킨종로점",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            웰킨종로점\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 종로12길 23, 9층 (관철동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-723-7710\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-723-7710</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 9석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-723-7710')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-3",
+      "position": {
+        "lat": 37.5821886,
+        "lng": 127.0473925
+      },
+      "title": "레아뷰티",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            레아뷰티\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 동대문구 왕산로 225, 1층 25호 (청량리동, 미주상가A동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 6석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-4",
+      "position": {
+        "lat": 37.5951386,
+        "lng": 127.0606079
+      },
+      "title": "플라워네일(Flower nail)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            플라워네일(Flower nail)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 동대문구 휘경로2길 5-16, 지상1층 (이문동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-7075650440\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-7075650440</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-7075650440')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-5",
+      "position": {
+        "lat": 37.5848281,
+        "lng": 127.0864208
+      },
+      "title": "디자인페이스 카라",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            디자인페이스 카라\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중랑구 면목로57길 21, 1층 (면목동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-262028812\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-262028812</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-262028812')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-6",
+      "position": {
+        "lat": 37.5898247,
+        "lng": 127.0782021
+      },
+      "title": "JY헤어",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            JY헤어\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중랑구 봉우재로14길 9 (면목동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-7",
+      "position": {
+        "lat": 37.5899959,
+        "lng": 127.0991356
+      },
+      "title": "기분좋은날",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            기분좋은날\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중랑구 용마산로96길 32 (면목동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-24329433\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-24329433</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-24329433')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-8",
+      "position": {
+        "lat": 37.650109,
+        "lng": 127.0340696
+      },
+      "title": "오땡큐쌍문점",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            오땡큐쌍문점\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 도봉구 노해로48길 90, 지상1층 (쌍문동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-9",
+      "position": {
+        "lat": 37.6680571,
+        "lng": 127.0471123
+      },
+      "title": "옻안타는 천연염색 도봉월드점",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            옻안타는 천연염색 도봉월드점\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 도봉구 마들로 650, 지상1층 118-1호 (방학동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-10",
+      "position": {
+        "lat": 37.6011049,
+        "lng": 126.9264727
+      },
+      "title": "얼짱몸짱",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            얼짱몸짱\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 은평구 은평로 170, 지상1층 (응암동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-303-0556\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-303-0556</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-303-0556')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-11",
+      "position": {
+        "lat": 37.5988325,
+        "lng": 126.9251321
+      },
+      "title": "재임헤어모드",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            재임헤어모드\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 은평구 은평로10길 7-21, 지상1층 (응암동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-12",
+      "position": {
+        "lat": 37.4913554,
+        "lng": 126.8576927
+      },
+      "title": "ANNAEYELASH(안나아이래쉬)",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            ANNAEYELASH(안나아이래쉬)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 구로구 개봉로18길 10 (개봉동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-220604450\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-220604450</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-220604450')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-13",
+      "position": {
+        "lat": 37.5169531,
+        "lng": 126.9072507
+      },
+      "title": "라보떼래쉬",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            라보떼래쉬\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 영등포구 영중로2길 1, 6층 (영등포동3가)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-2671-7716\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-2671-7716</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-2671-7716')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-14",
+      "position": {
+        "lat": 37.5047664,
+        "lng": 127.0139593
+      },
+      "title": "투 세븐 네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            투 세븐 네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 사평대로 지하 285, 지하 1층 7호 (반포동, 사평역)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-15",
+      "position": {
+        "lat": 37.5082025,
+        "lng": 127.0181477
+      },
+      "title": "MARON(마론)",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            MARON(마론)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 주흥13길 13-1, 1층 (반포동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 6석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-16",
+      "position": {
+        "lat": 37.4927679,
+        "lng": 127.0163458
+      },
+      "title": "양에스테틱",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            양에스테틱\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 서초대로54길 33, 302호 (서초동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-593-3543\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-593-3543</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-593-3543')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-17",
+      "position": {
+        "lat": 37.4848445,
+        "lng": 127.0178303
+      },
+      "title": "샤론스킨앤바디",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            샤론스킨앤바디\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 효령로 304, 11층 36호,37호 (서초동, 국제전자센터)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-2115-6321\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-2115-6321</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-2115-6321')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-18",
+      "position": {
+        "lat": 37.4901579,
+        "lng": 127.0185865
+      },
+      "title": "엘리스",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            엘리스\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 사임당로17길 68, 1층 1호 (서초동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-19",
+      "position": {
+        "lat": 37.4757193,
+        "lng": 127.0453384
+      },
+      "title": "MOONSTAR NAIL(문스타 네일)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            MOONSTAR NAIL(문스타 네일)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 언남17길 7, 1층 (양재동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-20",
+      "position": {
+        "lat": 37.4827925,
+        "lng": 127.0125953
+      },
+      "title": "로쉬",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            로쉬\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 반포대로 22, 지하 2층 (서초동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-2055-1113\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-2055-1113</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-2055-1113')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-21",
+      "position": {
+        "lat": 37.4789599,
+        "lng": 127.0390006
+      },
+      "title": "까뜨린느 미용실",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            까뜨린느 미용실\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 서초구 강남대로 160-2, 2층 2호 (양재동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-34732440\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-34732440</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-34732440')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-22",
+      "position": {
+        "lat": 37.4901955,
+        "lng": 127.0336365
+      },
+      "title": "컷트세상",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            컷트세상\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 도곡로 175 (역삼동,.지상1층)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-561-6011\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-561-6011</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-561-6011')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-23",
+      "position": {
+        "lat": 37.4991729,
+        "lng": 127.0629734
+      },
+      "title": "휴나헤어",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            휴나헤어\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 도곡로 516 (대치동,지상1층106호)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-24",
+      "position": {
+        "lat": 37.5182264,
+        "lng": 127.0420378
+      },
+      "title": "소민 헤어뷰티",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            소민 헤어뷰티\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 학동로55길 12, 지하1층 (청담동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-516-6617\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-516-6617</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 7석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-516-6617')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-25",
+      "position": {
+        "lat": 37.49391,
+        "lng": 127.0627563
+      },
+      "title": "마르지아 뷰티센터",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            마르지아 뷰티센터\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 삼성로 155 (대치동,대치퍼스트상가 지하1층119호)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-26",
+      "position": {
+        "lat": 37.5086427,
+        "lng": 127.062784
+      },
+      "title": "아지트포유",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            아지트포유\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 테헤란로 313, 1층 109호 (역삼동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-27",
+      "position": {
+        "lat": 37.5081368,
+        "lng": 127.0418602
+      },
+      "title": "헤어살롱 시월",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            헤어살롱 시월\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 봉은사로48길 44-13, 지하1층 B101호 (역삼동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-28",
+      "position": {
+        "lat": 37.5086427,
+        "lng": 127.062784
+      },
+      "title": "헤어뷰2",
+      "category": "hair",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            헤어뷰2\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 테헤란로 428 (대치동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-5582985\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-5582985</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 hair \n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-5582985')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-29",
+      "position": {
+        "lat": 37.4828524,
+        "lng": 127.0623798
+      },
+      "title": "헤어살롱 봄",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            헤어살롱 봄\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 선릉로4길 17, 지상2층 201호 (개포동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-6338-6080\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-6338-6080</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-6338-6080')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-30",
+      "position": {
+        "lat": 37.4758722,
+        "lng": 127.0503056
+      },
+      "title": "헤어닥터제이(J)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            헤어닥터제이(J)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 개포로22길 11, 1층 (개포동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-31",
+      "position": {
+        "lat": 37.5050186,
+        "lng": 127.0394663
+      },
+      "title": "블룸네일(BLOOM NAIL)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            블룸네일(BLOOM NAIL)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 강남구 언주로97길 28, 1층 102호 (역삼동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-565-4141\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-565-4141</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-565-4141')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-32",
+      "position": {
+        "lat": 37.584368,
+        "lng": 127.0010746
+      },
+      "title": "해피네일데이(HAPPY NAILDAY)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            해피네일데이(HAPPY NAILDAY)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 창경궁로34길 18-4, 3층 (명륜2가)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-33",
+      "position": {
+        "lat": 37.5705485,
+        "lng": 127.0122274
+      },
+      "title": "네일해요",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            네일해요\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 종로44길 9, 2층 (창신동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-34",
+      "position": {
+        "lat": 37.5802818,
+        "lng": 127.0150758
+      },
+      "title": "폭시네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            폭시네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 동망산길 13, 2층 (창신동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-35",
+      "position": {
+        "lat": 37.5713277,
+        "lng": 126.9743705
+      },
+      "title": "꾸밈",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            꾸밈\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 새문안로5길 13, 지하1층 36호 (당주동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-733-7942\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-733-7942</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-733-7942')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-36",
+      "position": {
+        "lat": 37.5788216,
+        "lng": 127.0005181
+      },
+      "title": "이다(i-da,꽃소니네일)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            이다(i-da,꽃소니네일)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 대학로5길 8, 2층 (연건동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-37",
+      "position": {
+        "lat": 37.6078404,
+        "lng": 126.9724117
+      },
+      "title": "별에서온 네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            별에서온 네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 평창문화로 94, 1층 (평창동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-379-9486\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-379-9486</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-379-9486')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-38",
+      "position": {
+        "lat": 37.5719508,
+        "lng": 126.9976945
+      },
+      "title": "와이키키",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            와이키키\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 창경궁로 248-4, 2층 (명륜2가)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-762-0727\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-762-0727</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 1석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-762-0727')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-39",
+      "position": {
+        "lat": 37.5699587,
+        "lng": 127.0096658
+      },
+      "title": "네일그리미",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            네일그리미\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 종로구 청계천로 57, 3층 (관철동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 10석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-40",
+      "position": {
+        "lat": 37.5674071,
+        "lng": 126.9827191
+      },
+      "title": "드로잉 쇼",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            드로잉 쇼\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 남대문로 58-1, 2층 (명동2가)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-777-1090\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-777-1090</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-777-1090')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-41",
+      "position": {
+        "lat": 37.5611376,
+        "lng": 126.9812159
+      },
+      "title": "티파니",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            티파니\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 소공로 지하 58 (충무로1가, 회현지하상가 나열 14호)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 6석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-42",
+      "position": {
+        "lat": 37.5666378,
+        "lng": 127.0148015
+      },
+      "title": "치즈네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            치즈네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 다산로47길 26, 401호 (흥인동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-43",
+      "position": {
+        "lat": 37.5613502,
+        "lng": 127.0107717
+      },
+      "title": "빈네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            빈네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 청구로 65, 1층 (신당동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-44",
+      "position": {
+        "lat": 37.5629312,
+        "lng": 127.0222405
+      },
+      "title": "포니네일(PONYs Nail)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            포니네일(PONYs Nail)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 퇴계로90길 36, 1층 (신당동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-45",
+      "position": {
+        "lat": 37.5598235,
+        "lng": 126.980961
+      },
+      "title": "개인의취향",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            개인의취향\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 퇴계로 333-1, 1층 (광희동2가)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-46",
+      "position": {
+        "lat": 37.568623,
+        "lng": 127.0087204
+      },
+      "title": "크리스탈 손톱",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            크리스탈 손톱\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 장충단로 275 (을지로6가, 4층 1호)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-47",
+      "position": {
+        "lat": 37.5709537,
+        "lng": 127.0201762
+      },
+      "title": "센스네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            센스네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 청계천로 400 (황학동, 롯데캐슬베네치아 1007호)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-48",
+      "position": {
+        "lat": 37.5619346,
+        "lng": 126.9844213
+      },
+      "title": "네일 싸롱",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            네일 싸롱\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 명동8길 48, 2층 (충무로1가)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-755-1526\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-755-1526</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-755-1526')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-49",
+      "position": {
+        "lat": 37.5591995,
+        "lng": 126.963581
+      },
+      "title": "오니",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            오니\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 중림로 9, 1층 (중림동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 8석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-50",
+      "position": {
+        "lat": 37.5621137,
+        "lng": 126.9826851
+      },
+      "title": "네사",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            네사\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 명동2길 57, 8층 (충무로1가)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-51",
+      "position": {
+        "lat": 37.5667161,
+        "lng": 127.0075377
+      },
+      "title": "나라네일(Nara nail)",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            나라네일(Nara nail)\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 장충단로 247, B2004호 (을지로6가, 굿모닝시티 )\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-52",
+      "position": {
+        "lat": 37.5641062,
+        "lng": 126.9761638
+      },
+      "title": "삼층네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            삼층네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 중구 서소문로 139, 302호 (서소문동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-53",
+      "position": {
+        "lat": 37.5382585,
+        "lng": 126.9558355
+      },
+      "title": "리네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            리네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 용산구 새창로 70, 1층 110호 (도원동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-701-7877\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-701-7877</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-701-7877')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-54",
+      "position": {
+        "lat": 37.5290373,
+        "lng": 126.9669424
+      },
+      "title": "쵸코네일&스킨",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            쵸코네일&스킨\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 용산구 한강대로 95, 지하2층 234호 (한강로2가)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-749-7795\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-749-7795</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 2석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-749-7795')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-55",
+      "position": {
+        "lat": 37.5347547,
+        "lng": 127.0075563
+      },
+      "title": "오렌지나무",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            오렌지나무\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 용산구 한남대로20길 13, 1층 (한남동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 3석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-56",
+      "position": {
+        "lat": 37.5488531,
+        "lng": 126.977395
+      },
+      "title": "뷰리뉼레",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            뷰리뉼레\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 용산구 후암로 28, 1층 (후암동)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-3789-5557\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-3789-5557</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 4석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-3789-5557')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-57",
+      "position": {
+        "lat": 37.5324704,
+        "lng": 127.0070864
+      },
+      "title": "다교네일",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            다교네일\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 용산구 독서당로 46, 2층 204호 (한남동)\n            </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 10석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n          </div>\n        </div>\n      "
+      }
+    },
+    {
+      "id": "shop-58",
+      "position": {
+        "lat": 37.5444382,
+        "lng": 126.9692433
+      },
+      "title": "러블리핑크네일샵",
+      "category": "nail",
+      "accuracy": "medium",
+      "infoWindow": {
+        "content": "\n        <div style=\"padding: 15px; min-width: 280px; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;\">\n          <h3 style=\"margin: 0 0 10px 0; font-size: 16px; font-weight: bold; color: #333;\">\n            러블리핑크네일샵\n          </h3>\n          <div style=\"margin: 8px 0; font-size: 13px; color: #666; line-height: 1.5;\">\n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              📍 서울특별시 용산구 청파로45길 27, 2층 (청파동3가)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                📞 <a href=\"tel:+82-2-704-8470\" style=\"color: #007bff; text-decoration: none; margin-left: 4px;\">+82-2-704-8470</a>\n              </div>\n            \n            <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n              🏪 nail (+1 more)\n            </div>\n            \n              <div style=\"margin: 4px 0; display: flex; align-items: center;\">\n                💺 5석\n              </div>\n            \n            <div style=\"margin: 4px 0; font-size: 11px; color: #999;\">\n              📍 Accuracy: medium\n            </div>\n          </div>\n          <div style=\"margin-top: 12px; display: flex; gap: 8px;\">\n            <button \n              onclick=\"window.open('/admin/shops/new', '_blank')\"\n              style=\"\n                background: #007bff; \n                color: white; \n                border: none; \n                padding: 8px 12px; \n                border-radius: 4px; \n                font-size: 12px; \n                cursor: pointer;\n                flex: 1;\n              \"\n            >\n              Manage Shop\n            </button>\n            \n              <button \n                onclick=\"window.open('tel:+82-2-704-8470')\"\n                style=\"\n                  background: #28a745; \n                  color: white; \n                  border: none; \n                  padding: 8px 12px; \n                  border-radius: 4px; \n                  font-size: 12px; \n                  cursor: pointer;\n                \"\n              >\n                📞\n              </button>\n            \n          </div>\n        </div>\n      "
+      }
+    }
+  ],
+  "statistics": {
+    "total": 101,
+    "geocoded": 59,
+    "categories": {
+      "nail": 36,
+      "hair": 23
+    },
+    "geocodingSuccessRate": "58.4"
+  }
+}

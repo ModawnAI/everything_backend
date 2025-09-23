@@ -1,0 +1,14 @@
+{
+  "center": {
+    "lat": 37.5665,
+    "lng": 126.978
+  },
+  "zoom": 10,
+  "markers": [],
+  "bounds": null,
+  "statistics": {
+    "total": 101,
+    "geocoded": 0,
+    "categories": {}
+  }
+}
