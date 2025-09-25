@@ -194,15 +194,9 @@ async function processSecurityTrigger(trigger: SecurityTrigger, context: Securit
       const result = await refreshTokenService.invalidateSessionsOnSecurityEvent(
         context.userId,
         trigger.eventType,
-        true, // Keep current session for most cases
-        context.sessionId,
-        {
-          ...trigger.metadata,
-          severity: trigger.severity,
-          autoTriggered: trigger.autoTriggered,
-          ipAddress: context.ipAddress,
-          userAgent: context.userAgent
-        }
+        `Auto-triggered: ${trigger.eventType}`,
+        true, // notifyUser
+        trigger.severity as string // priority
       );
 
       logger.warn('Sessions invalidated due to security trigger', {

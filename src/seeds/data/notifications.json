@@ -1,0 +1,107 @@
+{
+  "table": "notifications",
+  "environment": ["development", "test"],
+  "dependencies": ["users", "reservations"],
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000701",
+      "user_id": "00000000-0000-0000-0000-000000000004",
+      "notification_type": "reservation_confirmed",
+      "title": "예약이 확정되었습니다",
+      "message": "강남 프리미엄 네일샵에서 9월 28일 14:00 예약이 확정되었습니다.",
+      "data": {
+        "reservation_id": "00000000-0000-0000-0000-000000000301",
+        "shop_name": "강남 프리미엄 네일샵",
+        "reservation_date": "2024-09-28",
+        "reservation_time": "14:00"
+      },
+      "is_read": false,
+      "is_pushed": true,
+      "push_sent_at": "2024-09-24T10:30:00Z",
+      "created_at": "2024-09-24T10:30:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000702",
+      "user_id": "00000000-0000-0000-0000-000000000005",
+      "notification_type": "payment_required",
+      "title": "잔금 결제가 필요합니다",
+      "message": "홍대 아이래시 스튜디오 예약 건의 잔금 55,000원을 결제해주세요.",
+      "data": {
+        "reservation_id": "00000000-0000-0000-0000-000000000302",
+        "shop_name": "홍대 아이래시 스튜디오",
+        "remaining_amount": 55000
+      },
+      "is_read": false,
+      "is_pushed": true,
+      "push_sent_at": "2024-09-24T14:15:00Z",
+      "created_at": "2024-09-24T14:15:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000703",
+      "user_id": "00000000-0000-0000-0000-000000000004",
+      "notification_type": "service_completed",
+      "title": "서비스가 완료되었습니다",
+      "message": "신촌 왁싱&케어에서 서비스가 완료되었습니다. 리뷰를 남겨주세요!",
+      "data": {
+        "reservation_id": "00000000-0000-0000-0000-000000000303",
+        "shop_name": "신촌 왁싱&케어",
+        "points_earned": 350
+      },
+      "is_read": true,
+      "is_pushed": true,
+      "push_sent_at": "2024-09-26T12:00:00Z",
+      "read_at": "2024-09-26T15:30:00Z",
+      "created_at": "2024-09-26T12:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000704",
+      "user_id": "00000000-0000-0000-0000-000000000003",
+      "notification_type": "point_earned",
+      "title": "포인트가 적립되었습니다",
+      "message": "추천인 보너스로 1,000포인트가 적립되었습니다.",
+      "data": {
+        "points_earned": 1000,
+        "total_points": 25000,
+        "source": "referral_bonus"
+      },
+      "is_read": true,
+      "is_pushed": true,
+      "push_sent_at": "2024-03-15T00:00:00Z",
+      "read_at": "2024-03-15T08:30:00Z",
+      "created_at": "2024-03-15T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000705",
+      "user_id": "00000000-0000-0000-0000-000000000004",
+      "notification_type": "upcoming_reservation",
+      "title": "예약 일정 알림",
+      "message": "내일(9월 28일) 14:00에 강남 프리미엄 네일샵 예약이 있습니다.",
+      "data": {
+        "reservation_id": "00000000-0000-0000-0000-000000000301",
+        "shop_name": "강남 프리미엄 네일샵",
+        "reservation_date": "2024-09-28",
+        "reservation_time": "14:00"
+      },
+      "is_read": false,
+      "is_pushed": true,
+      "push_sent_at": "2024-09-27T09:00:00Z",
+      "created_at": "2024-09-27T09:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000706",
+      "user_id": "00000000-0000-0000-0000-000000000005",
+      "notification_type": "welcome",
+      "title": "에뷰리띵에 오신 것을 환영합니다!",
+      "message": "회원가입을 축하드립니다. 500포인트가 적립되었어요!",
+      "data": {
+        "points_earned": 500,
+        "referral_code": "USER0002"
+      },
+      "is_read": true,
+      "is_pushed": true,
+      "push_sent_at": "2024-03-15T00:00:00Z",
+      "read_at": "2024-03-15T00:10:00Z",
+      "created_at": "2024-03-15T00:00:00Z"
+    }
+  ]
+}

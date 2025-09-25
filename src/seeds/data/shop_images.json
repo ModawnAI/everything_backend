@@ -1,0 +1,77 @@
+{
+  "table": "shop_images",
+  "environment": ["development", "test"],
+  "dependencies": ["shops"],
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000601",
+      "shop_id": "00000000-0000-0000-0000-000000000101",
+      "file_name": "gangnam-nails-main.jpg",
+      "file_path": "shops/gangnam-nails/main.jpg",
+      "file_size": 2048000,
+      "mime_type": "image/jpeg",
+      "image_type": "main",
+      "display_order": 1,
+      "alt_text": "강남 프리미엄 네일샵 메인 이미지",
+      "is_active": true,
+      "storage_provider": "supabase",
+      "created_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000602",
+      "shop_id": "00000000-0000-0000-0000-000000000101",
+      "file_name": "gangnam-nails-gallery-1.jpg",
+      "file_path": "shops/gangnam-nails/gallery-1.jpg",
+      "file_size": 1536000,
+      "mime_type": "image/jpeg",
+      "image_type": "gallery",
+      "display_order": 2,
+      "alt_text": "강남 프리미엄 네일샵 갤러리 이미지 1",
+      "is_active": true,
+      "storage_provider": "supabase",
+      "created_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000603",
+      "shop_id": "00000000-0000-0000-0000-000000000102",
+      "file_name": "hongdae-lashes-main.jpg",
+      "file_path": "shops/hongdae-lashes/main.jpg",
+      "file_size": 1843200,
+      "mime_type": "image/jpeg",
+      "image_type": "main",
+      "display_order": 1,
+      "alt_text": "홍대 아이래시 스튜디오 메인 이미지",
+      "is_active": true,
+      "storage_provider": "supabase",
+      "created_at": "2024-02-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000604",
+      "shop_id": "00000000-0000-0000-0000-000000000102",
+      "file_name": "hongdae-lashes-interior.jpg",
+      "file_path": "shops/hongdae-lashes/interior.jpg",
+      "file_size": 1920000,
+      "mime_type": "image/jpeg",
+      "image_type": "interior",
+      "display_order": 2,
+      "alt_text": "홍대 아이래시 스튜디오 인테리어",
+      "is_active": true,
+      "storage_provider": "supabase",
+      "created_at": "2024-02-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000605",
+      "shop_id": "00000000-0000-0000-0000-000000000103",
+      "file_name": "sinchon-waxing-main.jpg",
+      "file_path": "shops/sinchon-waxing/main.jpg",
+      "file_size": 1654000,
+      "mime_type": "image/jpeg",
+      "image_type": "main",
+      "display_order": 1,
+      "alt_text": "신촌 왁싱&케어 메인 이미지",
+      "is_active": true,
+      "storage_provider": "supabase",
+      "created_at": "2024-02-15T00:00:00Z"
+    }
+  ]
+}

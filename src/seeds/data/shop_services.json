@@ -1,0 +1,72 @@
+{
+  "table": "shop_services",
+  "environment": ["development", "test"],
+  "dependencies": ["shops"],
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000201",
+      "shop_id": "00000000-0000-0000-0000-000000000101",
+      "name": "젤 네일아트",
+      "description": "트렌드를 반영한 젤 네일아트 서비스입니다. 다양한 디자인과 컬러 옵션을 제공합니다.",
+      "category": "nail",
+      "subcategory": "gel_nail",
+      "duration": 90,
+      "base_price": 50000,
+      "service_status": "active",
+      "tags": ["젤네일", "네일아트", "디자인"],
+      "created_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000202",
+      "shop_id": "00000000-0000-0000-0000-000000000101",
+      "name": "매니큐어",
+      "description": "기본 매니큐어 서비스로 손톱 정리와 기본 폴리쉬 서비스를 포함합니다.",
+      "category": "nail",
+      "subcategory": "manicure",
+      "duration": 60,
+      "base_price": 25000,
+      "service_status": "active",
+      "tags": ["매니큐어", "손톱관리", "기본"],
+      "created_at": "2024-01-15T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000203",
+      "shop_id": "00000000-0000-0000-0000-000000000102",
+      "name": "속눈썹 연장",
+      "description": "자연스럽고 볼륨감 있는 속눈썹 연장 서비스입니다. 개인 눈모양에 맞춰 시술합니다.",
+      "category": "eyelash",
+      "subcategory": "extension",
+      "duration": 120,
+      "base_price": 80000,
+      "service_status": "active",
+      "tags": ["속눈썹연장", "볼륨", "자연스러움"],
+      "created_at": "2024-02-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000204",
+      "shop_id": "00000000-0000-0000-0000-000000000102",
+      "name": "속눈썹 리터치",
+      "description": "기존 속눈썹 연장의 리터치 서비스입니다. 2-3주 후 받으시길 권장합니다.",
+      "category": "eyelash",
+      "subcategory": "retouch",
+      "duration": 60,
+      "base_price": 40000,
+      "service_status": "active",
+      "tags": ["리터치", "보수", "유지관리"],
+      "created_at": "2024-02-01T00:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000205",
+      "shop_id": "00000000-0000-0000-0000-000000000103",
+      "name": "다리 왁싱",
+      "description": "다리 전체 왁싱 서비스입니다. 깔끔하고 오래 지속되는 제모 효과를 제공합니다.",
+      "category": "waxing",
+      "subcategory": "leg_waxing",
+      "duration": 45,
+      "base_price": 35000,
+      "service_status": "active",
+      "tags": ["다리왁싱", "제모", "왁싱"],
+      "created_at": "2024-02-15T00:00:00Z"
+    }
+  ]
+}

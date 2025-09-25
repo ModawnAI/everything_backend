@@ -63,16 +63,9 @@ export class AdminSecurityController {
       const result = await refreshTokenService.invalidateSessionsOnSecurityEvent(
         userId,
         eventType,
-        keepCurrentSession,
-        undefined, // No current session to preserve for admin actions
-        {
-          adminId,
-          reason: reason || 'Admin-initiated session invalidation',
-          severity: 'high',
-          autoTriggered: false,
-          ipAddress: req.ip,
-          userAgent: req.headers['user-agent'] || 'unknown'
-        }
+        reason || 'Admin-initiated session invalidation',
+        true, // notifyUser
+        'high' // priority
       );
 
       // Log admin action
@@ -251,16 +244,9 @@ export class AdminSecurityController {
           const result = await refreshTokenService.invalidateSessionsOnSecurityEvent(
             userId,
             eventType,
-            false, // Don't keep any sessions for bulk admin actions
-            undefined,
-            {
-              adminId,
-              reason: reason || 'Bulk admin-initiated session invalidation',
-              severity: 'high',
-              autoTriggered: false,
-              ipAddress: req.ip,
-              userAgent: req.headers['user-agent'] || 'unknown'
-            }
+            reason || 'Bulk admin-initiated session invalidation',
+            true, // notifyUser
+            'high' // priority
           );
 
           results.push({

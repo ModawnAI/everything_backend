@@ -1,0 +1,91 @@
+{
+  "table": "payments",
+  "environment": ["development", "test"],
+  "dependencies": ["reservations"],
+  "data": [
+    {
+      "id": "00000000-0000-0000-0000-000000000401",
+      "reservation_id": "00000000-0000-0000-0000-000000000301",
+      "user_id": "00000000-0000-0000-0000-000000000004",
+      "payment_key": "payment_test_key_001",
+      "order_id": "ORDER_20240924_001",
+      "amount": 50000,
+      "payment_method": "카드",
+      "payment_provider": "tosspayments",
+      "payment_status": "completed",
+      "payment_type": "full_payment",
+      "approved_at": "2024-09-24T10:35:00Z",
+      "created_at": "2024-09-24T10:30:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000402",
+      "reservation_id": "00000000-0000-0000-0000-000000000302",
+      "user_id": "00000000-0000-0000-0000-000000000005",
+      "payment_key": "payment_test_key_002",
+      "order_id": "ORDER_20240924_002",
+      "amount": 20000,
+      "payment_method": "카드",
+      "payment_provider": "tosspayments",
+      "payment_status": "completed",
+      "payment_type": "deposit",
+      "approved_at": "2024-09-24T14:20:00Z",
+      "created_at": "2024-09-24T14:15:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000403",
+      "reservation_id": "00000000-0000-0000-0000-000000000303",
+      "user_id": "00000000-0000-0000-0000-000000000004",
+      "payment_key": "payment_test_key_003",
+      "order_id": "ORDER_20240926_001",
+      "amount": 35000,
+      "payment_method": "계좌이체",
+      "payment_provider": "tosspayments",
+      "payment_status": "completed",
+      "payment_type": "full_payment",
+      "approved_at": "2024-09-26T11:05:00Z",
+      "created_at": "2024-09-20T09:00:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000404",
+      "reservation_id": "00000000-0000-0000-0000-000000000304",
+      "user_id": "00000000-0000-0000-0000-000000000003",
+      "payment_key": "payment_test_key_004",
+      "order_id": "ORDER_20240924_003",
+      "amount": 5000,
+      "payment_method": "카드",
+      "payment_provider": "tosspayments",
+      "payment_status": "completed",
+      "payment_type": "deposit",
+      "approved_at": "2024-09-24T16:25:00Z",
+      "created_at": "2024-09-24T16:20:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000405",
+      "reservation_id": "00000000-0000-0000-0000-000000000305",
+      "user_id": "00000000-0000-0000-0000-000000000004",
+      "payment_key": "payment_test_key_005",
+      "order_id": "ORDER_20240922_001",
+      "amount": 10000,
+      "payment_method": "카카오페이",
+      "payment_provider": "tosspayments",
+      "payment_status": "completed",
+      "payment_type": "deposit",
+      "approved_at": "2024-09-22T11:50:00Z",
+      "created_at": "2024-09-22T11:45:00Z"
+    },
+    {
+      "id": "00000000-0000-0000-0000-000000000406",
+      "reservation_id": "00000000-0000-0000-0000-000000000305",
+      "user_id": "00000000-0000-0000-0000-000000000004",
+      "payment_key": "payment_test_key_006",
+      "order_id": "ORDER_20240925_001",
+      "amount": 28000,
+      "payment_method": "카카오페이",
+      "payment_provider": "tosspayments",
+      "payment_status": "completed",
+      "payment_type": "remaining_payment",
+      "approved_at": "2024-09-25T14:30:00Z",
+      "created_at": "2024-09-25T14:25:00Z"
+    }
+  ]
+}
