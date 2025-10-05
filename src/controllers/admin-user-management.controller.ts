@@ -540,16 +540,17 @@ export class AdminUserManagementController {
       // Get user with detailed information
       const { data: user, error } = await adminUserManagementService['supabase']
         .from('users')
-        .select(`
-          *,
-          reservations:reservations(id, status, created_at),
-          point_transactions:point_transactions(id, amount, transaction_type, status, created_at),
-          referrals:referrals(id, status, created_at)
-        `)
+        .select('*')
         .eq('id', userId)
         .single();
 
       if (error || !user) {
+        logger.error('Failed to fetch user details', {
+          userId,
+          error: error?.message,
+          errorCode: error?.code,
+          details: error?.details
+        });
         res.status(404).json({
           success: false,
           error: 'User not found'
@@ -557,11 +558,27 @@ export class AdminUserManagementController {
         return;
       }
 
+      // Fetch related data separately to avoid Supabase relationship issues
+      const { data: reservations } = await adminUserManagementService['supabase']
+        .from('reservations')
+        .select('id, status, created_at')
+        .eq('user_id', userId);
+
+      const { data: referrals } = await adminUserManagementService['supabase']
+        .from('referrals')
+        .select('id, status, created_at')
+        .eq('referrer_id', userId);
+
+      // Attach related data to user object
+      user.reservations = reservations || [];
+      user.referrals = referrals || [];
+
       // Calculate additional statistics
       const totalReservations = user.reservations?.length || 0;
       const completedReservations = user.reservations?.filter((r: any) => r.status === 'completed').length || 0;
-      const totalPointsEarned = user.point_transactions?.filter((t: any) => t.transaction_type === 'earned_service').reduce((sum: number, t: any) => sum + t.amount, 0) || 0;
-      const totalPointsUsed = user.point_transactions?.filter((t: any) => t.transaction_type === 'used_service').reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0) || 0;
+      // Note: point_transactions table doesn't exist yet, using user's total_points fields instead
+      const totalPointsEarned = user.total_points || 0;
+      const totalPointsUsed = (user.total_points || 0) - (user.available_points || 0);
       const successfulReferrals = user.referrals?.filter((r: any) => r.status === 'completed').length || 0;
 
       const userDetails = {

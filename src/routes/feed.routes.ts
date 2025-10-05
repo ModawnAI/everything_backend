@@ -126,7 +126,7 @@ const feedInteractionRateLimit = rateLimit({
 router.use(xssProtection());
 
 // Apply authentication to all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 
 /**
  * @swagger

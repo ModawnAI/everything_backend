@@ -29,6 +29,7 @@ import userStatusRoutes from './routes/user-status.routes';
 import shopRoutes from './routes/shop.routes';
 import shopImageRoutes from './routes/shop-image.routes';
 import { adminShopRoutes } from './routes/admin-shop.routes';
+import adminShopServiceRoutes from './routes/admin-shop-service.routes';
 import adminShopApprovalRoutes from './routes/admin-shop-approval.routes';
 import adminReservationRoutes from './routes/admin-reservation.routes';
 import shopOwnerRoutes from './routes/shop-owner.routes';
@@ -64,6 +65,9 @@ import adminSecurityRoutes from './routes/admin-security.routes';
 import adminSecurityEnhancedRoutes from './routes/admin-security-enhanced.routes';
 import adminSecurityEventsRoutes from './routes/admin-security-events.routes';
 import authAnalyticsRoutes from './routes/auth-analytics.routes';
+import referralRoutes from './routes/referral.routes';
+import auditTrailRoutes from './routes/audit-trail.routes';
+import automaticStateProgressionRoutes from './routes/automatic-state-progression.routes';
 import referralCodeRoutes from './routes/referral-code.routes';
 import referralRelationshipRoutes from './routes/referral-relationship.routes';
 import influencerQualificationRoutes from './routes/influencer-qualification.routes';
@@ -333,6 +337,7 @@ app.use('/api/registration', registrationRoutes);
 // Place /api/admin/* specific routes before /api/admin
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
+app.use('/api/admin/shops/:shopId/services', adminShopServiceRoutes); // Shop service management (specific path to avoid conflicts)
 app.use('/api/admin/shops', adminShopRoutes);
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);
@@ -353,23 +358,32 @@ app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
 app.use('/api/shop/dashboard', shopDashboardRoutes);
 app.use('/api/shop/images', imageMetadataRoutes);
 app.use('/api/cdn', cdnRoutes);
-app.use('/api', favoritesRoutes);
-app.use('/api/shop', shopContactMethodsRoutes);
-app.use('/api/shops', shopReportingRoutes);
-app.use('/api/admin', adminModerationRoutes);
-app.use('/api', reservationRoutes);
-app.use('/api/admin/no-show', noShowDetectionRoutes);
-app.use('/api', reservationReschedulingRoutes);
-app.use('/api', conflictResolutionRoutes);
+
+// IMPORTANT: Routes ordered from MOST SPECIFIC to MOST GENERAL
+// This prevents route conflicts when multiple routers share base paths
+
+// Payment routes
 app.use('/api/payments', paymentRoutes);
 app.use('/api/webhooks', paymentRoutes);
 app.use('/api/split-payments', splitPaymentRoutes);
-app.use('/api/points', pointRoutes);
-app.use('/api', pointBalanceRoutes);
-app.use('/api/admin/point-processing', pointProcessingRoutes);
 app.use('/api/payment-security', paymentSecurityRoutes);
-app.use('/api', influencerBonusRoutes);
-app.use('/api', adminAdjustmentRoutes);
+app.use('/api/points', pointRoutes);
+
+// Admin routes (specific paths first)
+app.use('/api/admin/no-show', noShowDetectionRoutes);
+app.use('/api/admin/point-processing', pointProcessingRoutes);
+app.use('/api/admin/adjustments', adminAdjustmentRoutes);
+app.use('/api/admin/influencer-bonus', influencerBonusRoutes);
+app.use('/api/admin', adminModerationRoutes);
+
+// General /api routes (order matters less since paths are unique)
+app.use('/api', favoritesRoutes);
+app.use('/api', reservationRoutes);
+app.use('/api', reservationReschedulingRoutes);
+app.use('/api', conflictResolutionRoutes);
+app.use('/api', pointBalanceRoutes);
+app.use('/api/shop', shopContactMethodsRoutes);
+app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
 app.use('/api/admin/financial', adminFinancialRoutes);
@@ -393,6 +407,9 @@ app.use('/api/referral-relationships', referralRelationshipRoutes);
 app.use('/api/influencer-qualification', influencerQualificationRoutes);
 app.use('/api/referral-earnings', referralEarningsRoutes);
 app.use('/api/referral-analytics', referralAnalyticsRoutes);
+app.use('/api/referrals', referralRoutes);
+app.use('/api/admin/audit', auditTrailRoutes);
+app.use('/api/admin/automation', automaticStateProgressionRoutes);
 app.use('/api/users', userSettingsRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/csrf', csrfRoutes);

@@ -463,6 +463,220 @@ export const COMMON_RESPONSES = {
         }
       }
     }
+  },
+  // Named responses for $ref usage
+  BadRequest: {
+    description: '잘못된 요청입니다. 요청 데이터를 확인해주세요.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string' },
+                message: { type: 'string' },
+                details: { type: 'array', items: { type: 'object' } }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  Unauthorized: {
+    description: '인증이 필요합니다. 유효한 JWT 토큰을 제공해주세요.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'AUTH_1001' },
+                message: { type: 'string', example: '인증이 필요합니다' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  Forbidden: {
+    description: '접근이 거부되었습니다. 필요한 권한이 없습니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'AUTH_2001' },
+                message: { type: 'string', example: '접근 권한이 없습니다' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  NotFound: {
+    description: '요청한 리소스를 찾을 수 없습니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'NOT_FOUND' },
+                message: { type: 'string', example: '리소스를 찾을 수 없습니다' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  TooManyRequests: {
+    description: '요청이 너무 많습니다. 속도 제한을 초과했습니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'RATE_LIMIT_EXCEEDED' },
+                message: { type: 'string', example: '요청이 너무 많습니다' },
+                retryAfter: { type: 'number' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  InternalServerError: {
+    description: '서버 내부 오류가 발생했습니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'INTERNAL_SERVER_ERROR' },
+                message: { type: 'string', example: '서버 내부 오류가 발생했습니다' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  ValidationError: {
+    description: '요청 데이터 검증에 실패했습니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'VALIDATION_ERROR' },
+                message: { type: 'string', example: '입력 데이터가 올바르지 않습니다' },
+                details: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      field: { type: 'string' },
+                      message: { type: 'string' }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  UnauthorizedError: {
+    description: '인증이 필요합니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'UNAUTHORIZED' },
+                message: { type: 'string', example: '인증이 필요합니다' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  ImageNotFound: {
+    description: '이미지를 찾을 수 없습니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'IMAGE_NOT_FOUND' },
+                message: { type: 'string', example: '요청한 이미지를 찾을 수 없습니다' }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  RateLimitError: {
+    description: '요청 제한을 초과했습니다.',
+    content: {
+      'application/json': {
+        schema: {
+          type: 'object',
+          properties: {
+            success: { type: 'boolean', example: false },
+            error: {
+              type: 'object',
+              properties: {
+                code: { type: 'string', example: 'RATE_LIMIT_EXCEEDED' },
+                message: { type: 'string', example: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
+                retryAfter: { type: 'number', description: '재시도 가능 시간 (초)' }
+              }
+            }
+          }
+        }
+      }
+    }
   }
 };
 
@@ -2107,6 +2321,125 @@ export const DATABASE_SCHEMAS = {
       }
     },
     required: ['success', 'data']
+  },
+  TokenPair: {
+    type: 'object',
+    properties: {
+      accessToken: {
+        type: 'string',
+        description: 'JWT access token',
+        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+      },
+      refreshToken: {
+        type: 'string',
+        description: 'JWT refresh token',
+        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+      }
+    },
+    required: ['accessToken', 'refreshToken']
+  },
+  CreateShopReportRequest: {
+    type: 'object',
+    properties: {
+      reportType: {
+        type: 'string',
+        enum: ['INAPPROPRIATE_CONTENT', 'FRAUD', 'VIOLATION', 'OTHER'],
+        description: '신고 유형'
+      },
+      description: {
+        type: 'string',
+        description: '신고 내용',
+        minLength: 10,
+        maxLength: 1000
+      },
+      evidenceUrls: {
+        type: 'array',
+        items: { type: 'string', format: 'uri' },
+        description: '증거 자료 URL 목록 (선택사항)'
+      }
+    },
+    required: ['reportType', 'description']
+  },
+  ShopReportResponse: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          reportId: { type: 'string', format: 'uuid' },
+          shopId: { type: 'string', format: 'uuid' },
+          reportType: { type: 'string' },
+          status: {
+            type: 'string',
+            enum: ['PENDING', 'REVIEWING', 'RESOLVED', 'REJECTED'],
+            description: '신고 처리 상태'
+          },
+          createdAt: { type: 'string', format: 'date-time' }
+        }
+      }
+    },
+    required: ['success', 'data']
+  },
+  ShopReportsListResponse: {
+    type: 'object',
+    properties: {
+      success: { type: 'boolean', example: true },
+      data: {
+        type: 'object',
+        properties: {
+          reports: {
+            type: 'array',
+            items: { $ref: '#/components/schemas/ShopReportResponse/properties/data' }
+          },
+          total: { type: 'integer' },
+          page: { type: 'integer' },
+          limit: { type: 'integer' }
+        }
+      }
+    },
+    required: ['success', 'data']
+  },
+  NotificationTemplate: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      name: { type: 'string' },
+      title: { type: 'string' },
+      body: { type: 'string' },
+      type: { type: 'string' },
+      createdAt: { type: 'string', format: 'date-time' }
+    }
+  },
+  NotificationHistory: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      userId: { type: 'string', format: 'uuid' },
+      title: { type: 'string' },
+      body: { type: 'string' },
+      status: { type: 'string', enum: ['sent', 'failed', 'pending'] },
+      sentAt: { type: 'string', format: 'date-time' }
+    }
+  },
+  DeviceToken: {
+    type: 'object',
+    properties: {
+      id: { type: 'string', format: 'uuid' },
+      userId: { type: 'string', format: 'uuid' },
+      token: { type: 'string' },
+      platform: { type: 'string', enum: ['ios', 'android', 'web'] },
+      createdAt: { type: 'string', format: 'date-time' }
+    }
+  },
+  WebSocketRoom: {
+    type: 'object',
+    properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      participants: { type: 'integer' },
+      createdAt: { type: 'string', format: 'date-time' }
+    }
   }
 };
 

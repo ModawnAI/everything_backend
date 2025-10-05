@@ -143,7 +143,7 @@ const sensitiveRateLimit = rateLimit({
 });
 
 // Middleware for all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 router.use(requireAdmin());
 router.use(adminRateLimit);
 

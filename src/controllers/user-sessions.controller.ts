@@ -41,46 +41,36 @@ export class UserSessionsController {
         });
       }
 
-      const sessionData = await refreshTokenService.getActiveUserSessions(userId);
+      const sessions = await refreshTokenService.getActiveUserSessions(userId);
 
       // Mark current session if provided
-      if (currentSessionId) {
-        sessionData.sessions = sessionData.sessions.map(session => ({
-          ...session,
-          isCurrentDevice: session.id === currentSessionId
-        }));
-      }
+      const sessionsWithCurrent = currentSessionId
+        ? sessions.map(session => ({
+            ...session,
+            isCurrentDevice: session.id === currentSessionId
+          }))
+        : sessions;
 
       logger.info('Active sessions retrieved', {
         userId,
-        sessionCount: sessionData.totalCount,
-        sessionLimitReached: sessionData.sessionLimitReached
+        sessionCount: sessions.length
       });
 
       res.json({
         success: true,
         data: {
-          sessions: sessionData.sessions.map(session => ({
+          sessions: sessionsWithCurrent.map(session => ({
             id: session.id,
-            deviceId: session.deviceId,
-            deviceInfo: {
-              type: session.deviceInfo?.deviceType || 'unknown',
-              browser: session.deviceInfo?.browser?.name || 'unknown',
-              os: session.deviceInfo?.os?.name || 'unknown',
-              userAgent: session.deviceInfo?.userAgent || 'unknown'
-            },
-            location: session.locationInfo ? {
-              country: session.locationInfo.country,
-              city: session.locationInfo.city,
-              region: session.locationInfo.region
-            } : null,
-            lastActivity: session.lastActivity,
-            createdAt: session.createdAt,
-            expiresAt: session.expiresAt,
+            deviceId: session.device_id,
+            platform: session.platform || 'unknown',
+            appVersion: session.app_version || 'unknown',
+            lastActivity: session.last_activity,
+            createdAt: session.created_at,
+            expiresAt: session.expires_at,
             isCurrentDevice: session.isCurrentDevice || false
           })),
-          totalCount: sessionData.totalCount,
-          sessionLimitReached: sessionData.sessionLimitReached,
+          totalCount: sessions.length,
+          sessionLimitReached: sessions.length >= 5,
           maxDevices: 5 // From refresh token service
         }
       });
@@ -121,14 +111,7 @@ export class UserSessionsController {
         });
       }
 
-      const success = await refreshTokenService.revokeUserSession(userId, sessionId, reason);
-
-      if (!success) {
-        return res.status(404).json({
-          error: 'Session not found or already revoked',
-          code: 'SESSION_NOT_FOUND'
-        });
-      }
+      await refreshTokenService.revokeUserSession(userId, sessionId);
 
       logger.info('Session revoked by user', {
         userId,
@@ -171,23 +154,17 @@ export class UserSessionsController {
         });
       }
 
-      const result = await refreshTokenService.revokeAllOtherSessions(userId, currentSessionId, reason);
+      await refreshTokenService.revokeAllOtherSessions(userId, currentSessionId);
 
       logger.info('All other sessions revoked by user', {
         userId,
         currentSessionId,
-        revokedCount: result.revokedCount,
-        failedCount: result.failedCount,
         reason
       });
 
       res.json({
         success: true,
-        message: 'All other sessions revoked successfully',
-        data: {
-          revokedCount: result.revokedCount,
-          failedCount: result.failedCount
-        }
+        message: 'All other sessions revoked successfully'
       });
 
     } catch (error) {
@@ -222,21 +199,14 @@ export class UserSessionsController {
 
       logger.debug('Session analytics retrieved', {
         userId,
-        totalSessions: analytics.totalSessions,
-        activeSessions: analytics.activeSessions
+        totalSessions: analytics.totalSessions
       });
 
       res.json({
         success: true,
         data: {
           ...analytics,
-          suspiciousActivity: {
-            hasExcessiveSessions: suspiciousActivity.hasExcessiveSessions,
-            hasHighDeviceDiversity: suspiciousActivity.hasHighDeviceDiversity,
-            hasMultipleLocations: suspiciousActivity.hasMultipleLocations,
-            riskScore: suspiciousActivity.riskScore,
-            recommendations: suspiciousActivity.recommendations
-          }
+          suspiciousActivity: suspiciousActivity
         }
       });
 

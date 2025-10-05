@@ -85,7 +85,7 @@ const adminRateLimit = rateLimit({
 });
 
 // Middleware for all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 
 /**
  * POST /api/storage/upload

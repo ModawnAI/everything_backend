@@ -497,7 +497,7 @@ export class ShopSearchService {
           category,
           price_min,
           price_max,
-          duration,
+          duration_minutes,
           is_available
         )
       `, { count: 'exact' });
@@ -558,7 +558,7 @@ export class ShopSearchService {
           category,
           price_min,
           price_max,
-          duration,
+          duration_minutes,
           is_available
         )
       `, { count: 'exact' });
@@ -632,7 +632,7 @@ export class ShopSearchService {
           category,
           price_min,
           price_max,
-          duration,
+          duration_minutes,
           is_available
         )
       `, { count: 'exact' });
@@ -905,7 +905,7 @@ export class ShopSearchService {
           category: service.category,
           priceMin: service.price_min,
           priceMax: service.price_max,
-          duration: service.duration,
+          duration: service.duration_minutes,
           isAvailable: service.is_available
         }));
 
