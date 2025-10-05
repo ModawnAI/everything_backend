@@ -593,8 +593,18 @@ export function authenticateJWT() {
         throw new AuthenticationError('Missing authorization token', 401, 'MISSING_TOKEN');
       }
 
-      // Verify the JWT token
-      const tokenPayload = await verifySupabaseToken(token);
+      // Verify the JWT token with fallback mechanism
+      let tokenPayload: SupabaseJWTPayload;
+      try {
+        // First try Supabase verification (for regular users)
+        tokenPayload = await verifySupabaseToken(token);
+      } catch (supabaseError) {
+        // If Supabase verification fails, try local JWT verification (for admin tokens)
+        logger.debug('Supabase token verification failed, attempting local verification', {
+          error: supabaseError instanceof Error ? supabaseError.message : 'Unknown error'
+        });
+        tokenPayload = await verifySupabaseTokenLocal(token);
+      }
 
       // Enhanced token validation with expiration checks
       await validateTokenExpiration(tokenPayload);

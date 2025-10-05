@@ -355,23 +355,29 @@ export class AdminAuthService {
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours for admin
     const refreshExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    // Generate tokens
+    // Generate tokens with proper JWT claims
     const token = jwt.sign(
-      { 
-        adminId, 
+      {
+        sub: adminId,  // Standard JWT subject claim
+        adminId,
         type: 'admin_access',
         ipAddress: request.ipAddress,
-        deviceId: request.deviceId
+        deviceId: request.deviceId,
+        aud: 'authenticated',  // Required audience claim
+        iss: config.auth.issuer  // Required issuer claim
       },
       config.auth.jwtSecret,
       { expiresIn: '24h' }
     );
 
     const refreshToken = jwt.sign(
-      { 
-        adminId, 
+      {
+        sub: adminId,  // Standard JWT subject claim
+        adminId,
         type: 'admin_refresh',
-        sessionId: createHash('sha256').update(token).digest('hex')
+        sessionId: createHash('sha256').update(token).digest('hex'),
+        aud: 'authenticated',  // Required audience claim
+        iss: config.auth.issuer  // Required issuer claim
       },
       config.auth.jwtSecret,
       { expiresIn: '7d' }

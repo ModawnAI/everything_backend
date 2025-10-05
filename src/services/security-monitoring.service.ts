@@ -100,9 +100,13 @@ class SecurityMonitoringService {
         .single();
 
       if (error) {
-        logger.error('Failed to store security event', { 
+        logger.error('Failed to store security event', {
           error: error.message,
-          event_type: securityEvent.event_type 
+          code: error.code,
+          event_type: securityEvent.event_type,
+          hint: error.code === 'PGRST204' ?
+            'PostgREST schema cache issue. Reload schema in Supabase Dashboard: Settings → API → Reload Schema' :
+            undefined
         });
         return;
       }

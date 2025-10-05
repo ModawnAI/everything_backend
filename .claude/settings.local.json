@@ -49,7 +49,10 @@
       "Bash(for i in 1 2 3 4 5)",
       "Bash(do echo \"=== Login Test #$i ===\")",
       "Bash(for i in {1..5})",
-      "Bash(do curl -s http://localhost:3001/health)"
+      "Bash(do curl -s http://localhost:3001/health)",
+      "Bash(tasklist)",
+      "Bash(Get-Content -Path \"logs/combined.log\" -Tail 50 -Wait)",
+      "Bash(docker stop:*)"
     ],
     "deny": [],
     "ask": []
