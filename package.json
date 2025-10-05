@@ -9,6 +9,8 @@
   },
   "scripts": {
     "dev": "nodemon",
+    "dev:clean": "node scripts/kill-port.js 3001 && nodemon",
+    "kill-port": "node scripts/kill-port.js",
     "build": "tsc",
     "dev-build": "tsc --skipLibCheck --noEmitOnError false",
     "start": "node dist/app.js",

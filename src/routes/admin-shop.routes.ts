@@ -80,7 +80,7 @@ const sensitiveRateLimit = rateLimit({
 });
 
 // Middleware for all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 router.use(requireAdmin());
 
 /**
@@ -135,9 +135,29 @@ router.get(
 );
 
 /**
+ * GET /api/admin/shops/search
+ * Search all shops (Admin only)
+ *
+ * Query parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ * - search: Search term for shop name, description, or address
+ * - category: Filter by service category
+ * - verificationStatus: Filter by verification status (pending, verified, rejected)
+ * - shopStatus: Filter by shop status (active, inactive, suspended)
+ * - sortBy: Sort field (created_at, name, main_category)
+ * - sortOrder: Sort order (asc, desc)
+ */
+router.post(
+  '/search',
+  adminRateLimit,
+  adminShopController.searchShops
+);
+
+/**
  * GET /api/admin/shops/verification-stats
  * Get shop verification statistics (Admin only)
- * 
+ *
  * Returns:
  * - Overall verification status counts
  * - Recent verification activity (last 30 days)

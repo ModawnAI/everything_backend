@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from 'express';
 import morgan from 'morgan';
 import { logger } from '../utils/logger';
+import { config } from '../config/environment';
 
 // =============================================
 // CORRELATION ID MIDDLEWARE
@@ -51,7 +52,12 @@ export const morganFormat = morgan((tokens, req: Request, res: Response) => {
   const responseTime = tokens['response-time']?.(req, res) || '0';
   const contentLength = tokens.res?.(req, res, 'content-length') || '0';
   const remoteAddr = tokens['remote-addr']?.(req, res) || 'unknown';
-  
+
+  // Skip logging for health check endpoint
+  if (url === '/health') {
+    return null;
+  }
+
   // Create structured log entry
   const logEntry = {
     timestamp: new Date().toISOString(),
@@ -97,43 +103,89 @@ function getLogLevel(statusCode: number): string {
 
 /**
  * Log request details
+ * In development mode, logs verbose request/response information for debugging
  */
 export function requestLoggingMiddleware(req: Request, res: Response, next: NextFunction): void {
   const correlationId = (req as any).correlationId || generateCorrelationId();
   const requestLogger = logger.child({ correlationId });
+  const isDevelopment = config.server.isDevelopment;
+
+  // Skip logging for health check endpoint
+  const isHealthCheck = req.originalUrl === '/health';
 
   // Log request start
-  requestLogger.info('Request started', {
+  const requestLogData: any = {
     method: req.method,
     url: req.originalUrl,
     ip: req.ip,
     userAgent: req.get('User-Agent'),
     userId: (req as any).user?.id || 'anonymous',
-    body: sanitizeRequestBody(req.body),
-    query: req.query,
-    headers: sanitizeHeaders(req.headers),
-  });
+  };
+
+  // In development mode, log more details (except health checks)
+  if (!isHealthCheck) {
+    if (isDevelopment) {
+      requestLogData.body = sanitizeRequestBody(req.body);
+      requestLogData.query = req.query;
+      requestLogData.params = req.params;
+      requestLogData.headers = sanitizeHeaders(req.headers);
+
+      requestLogger.info('🚀 [DEV] Request started', requestLogData);
+    } else {
+      requestLogger.info('Request started', requestLogData);
+    }
+  }
+
+  // Capture response body in development mode
+  let responseBody: any = null;
+  if (isDevelopment) {
+    const originalJson = res.json.bind(res);
+    res.json = function(body: any) {
+      responseBody = body;
+      return originalJson(body);
+    };
+  }
 
   // Override res.end to log response
   const originalEnd = res.end.bind(res);
   res.end = function(chunk?: any, encoding?: any, cb?: any) {
     const responseTime = Date.now() - (req as any).startTime;
-    
-    requestLogger.info('Request completed', {
+
+    const responseLogData: any = {
       method: req.method,
       url: req.originalUrl,
       statusCode: res.statusCode,
       responseTime,
       contentLength: res.get('content-length'),
       userId: (req as any).user?.id || 'anonymous',
-    });
+    };
+
+    // Skip logging for health check endpoint
+    if (!isHealthCheck) {
+      // In development mode, log response body and additional details
+      if (isDevelopment) {
+        if (responseBody) {
+          responseLogData.responseBody = responseBody;
+        }
+
+        // Add color-coded emoji based on status
+        let statusEmoji = '✅';
+        if (res.statusCode >= 500) statusEmoji = '💥';
+        else if (res.statusCode >= 400) statusEmoji = '⚠️';
+        else if (res.statusCode >= 300) statusEmoji = '↪️';
+
+        requestLogger.info(`${statusEmoji} [DEV] Request completed`, responseLogData);
+      } else {
+        requestLogger.info('Request completed', responseLogData);
+      }
+    }
 
     return originalEnd(chunk, encoding, cb);
   };
 
   // Add start time
   (req as any).startTime = Date.now();
-  
+
   next();
 }
 
@@ -177,23 +229,34 @@ function sanitizeHeaders(headers: any): any {
 
 /**
  * Enhanced error logging middleware
+ * In development mode, logs full error details including stack trace
  */
 export function errorLoggingMiddleware(err: Error, req: Request, res: Response, next: NextFunction): void {
   const correlationId = (req as any).correlationId || generateCorrelationId();
   const errorLogger = logger.child({ correlationId });
+  const isDevelopment = config.server.isDevelopment;
 
-  errorLogger.error('Request error', {
+  const errorLogData: any = {
     error: err.message,
-    stack: err.stack,
     method: req.method,
     url: req.originalUrl,
     ip: req.ip,
     userAgent: req.get('User-Agent'),
     userId: (req as any).user?.id || 'anonymous',
-    body: sanitizeRequestBody(req.body),
-    query: req.query,
-    headers: sanitizeHeaders(req.headers),
-  });
+  };
+
+  // In development mode, include full stack trace and request details
+  if (isDevelopment) {
+    errorLogData.stack = err.stack;
+    errorLogData.body = sanitizeRequestBody(req.body);
+    errorLogData.query = req.query;
+    errorLogData.params = req.params;
+    errorLogData.headers = sanitizeHeaders(req.headers);
+
+    errorLogger.error('💥 [DEV] Request error', errorLogData);
+  } else {
+    errorLogger.error('Request error', errorLogData);
+  }
 
   next(err);
 }
@@ -204,24 +267,46 @@ export function errorLoggingMiddleware(err: Error, req: Request, res: Response, 
 
 /**
  * Log slow requests
+ * In development mode, logs all request timings for performance analysis
  */
 export function performanceLoggingMiddleware(req: Request, res: Response, next: NextFunction): void {
   const startTime = Date.now();
   const correlationId = (req as any).correlationId || generateCorrelationId();
   const perfLogger = logger.child({ correlationId });
+  const isDevelopment = config.server.isDevelopment;
+  const isHealthCheck = req.originalUrl === '/health';
 
   res.on('finish', () => {
+    // Skip performance logging for health check endpoint
+    if (isHealthCheck) {
+      return;
+    }
+
     const duration = Date.now() - startTime;
     const slowRequestThreshold = 1000; // 1 second
 
-    if (duration > slowRequestThreshold) {
-      perfLogger.warn('Slow request detected', {
-        method: req.method,
-        url: req.originalUrl,
-        duration,
-        statusCode: res.statusCode,
-        userId: (req as any).user?.id || 'anonymous',
-      });
+    const perfLogData = {
+      method: req.method,
+      url: req.originalUrl,
+      duration,
+      statusCode: res.statusCode,
+      userId: (req as any).user?.id || 'anonymous',
+    };
+
+    // In development mode, log all request timings
+    if (isDevelopment) {
+      if (duration > slowRequestThreshold) {
+        perfLogger.warn('🐌 [DEV] Slow request detected', perfLogData);
+      } else if (duration > 500) {
+        perfLogger.info('⏱️ [DEV] Moderately slow request', perfLogData);
+      } else {
+        perfLogger.debug('⚡ [DEV] Fast request', perfLogData);
+      }
+    } else {
+      // In production, only log slow requests
+      if (duration > slowRequestThreshold) {
+        perfLogger.warn('Slow request detected', perfLogData);
+      }
     }
   });
 

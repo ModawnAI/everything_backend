@@ -21,7 +21,7 @@
 
 import { Router } from 'express';
 import { ShopController } from '../controllers/shop.controller';
-import { validateRequestBody } from '../middleware/validation.middleware';
+import { validateRequestBody, validateRequestWithSchema } from '../middleware/validation.middleware';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { logger } from '../utils/logger';
@@ -741,7 +741,7 @@ router.delete('/:id',
  */
 
 router.get('/:id',
-  validateRequestBody(shopIdSchema),
+  validateRequestWithSchema(shopIdSchema, 'params'),
   async (req, res) => {
     try {
       await shopController.getShopById(req, res);

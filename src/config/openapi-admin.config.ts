@@ -96,8 +96,12 @@ Authorization: Bearer <admin-jwt-token>
  */
 export const ADMIN_API_TAGS: OpenAPITag[] = [
   {
-    name: '관리자 인증',
+    name: 'Admin Authentication',
     description: '관리자 인증 및 권한 관리'
+  },
+  {
+    name: '관리자 인증',
+    description: '관리자 인증 및 권한 관리 (Legacy)'
   },
   {
     name: '사용자 관리',

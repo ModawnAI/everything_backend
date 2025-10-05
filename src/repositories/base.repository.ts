@@ -6,7 +6,7 @@
  */
 
 import { SupabaseClient } from '@supabase/supabase-js';
-import { getSupabaseClient } from '../config/supabase';
+import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 
 export interface QueryOptions {
@@ -56,7 +56,7 @@ export abstract class BaseRepository<T = any> {
         throw new Error(`Failed to find ${this.tableName}: ${error.message}`);
       }
 
-      return data;
+      return data as T;
     } catch (error) {
       logger.error(`Error in findById for ${this.tableName}`, {
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -113,7 +113,7 @@ export abstract class BaseRepository<T = any> {
       const currentPage = Math.floor(offset / limit) + 1;
 
       return {
-        data: data || [],
+        data: (data || []) as T[],
         totalCount,
         hasMore: offset + limit < totalCount,
         currentPage,

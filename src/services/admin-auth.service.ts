@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../config/database';
+import { createClient } from '@supabase/supabase-js';
 import { logger } from '../utils/logger';
 import jwt from 'jsonwebtoken';
 import { config } from '../config/environment';
@@ -81,60 +82,148 @@ export class AdminAuthService {
    */
   async adminLogin(request: AdminAuthRequest): Promise<AdminAuthResponse> {
     try {
-      logger.info('Admin login attempt', { email: request.email, ipAddress: request.ipAddress });
+      logger.info('🔐 [LOGIN-START] Admin login attempt', {
+        email: request.email,
+        ipAddress: request.ipAddress,
+        userAgent: request.userAgent
+      });
 
-      // Check IP whitelist
-      const isIPAllowed = await this.checkIPWhitelist(request.ipAddress);
-      if (!isIPAllowed) {
-        throw new Error('Access denied: IP address not whitelisted for admin access');
+      // Check IP whitelist (skip for localhost/Docker IPs)
+      const isLocalhost = ['127.0.0.1', '::1', '::ffff:127.0.0.1', 'localhost', 'unknown'].includes(request.ipAddress)
+        || request.ipAddress.startsWith('172.17.') // Docker bridge network (default)
+        || request.ipAddress.startsWith('172.18.') // Docker bridge network (custom)
+        || request.ipAddress.startsWith('::ffff:172.17.') // Docker IPv6 (default)
+        || request.ipAddress.startsWith('::ffff:172.18.'); // Docker IPv6 (custom)
+
+      logger.info('🌐 [IP-CHECK] IP validation', {
+        ipAddress: request.ipAddress,
+        isLocalhost,
+        willCheckWhitelist: !isLocalhost
+      });
+
+      if (!isLocalhost) {
+        logger.info('⚠️ [IP-WHITELIST] Checking IP whitelist for non-localhost IP');
+        const isIPAllowed = await this.checkIPWhitelist(request.ipAddress);
+        if (!isIPAllowed) {
+          logger.error('❌ [IP-BLOCKED] IP not in whitelist', { ipAddress: request.ipAddress });
+          throw new Error('Access denied: IP address not whitelisted for admin access');
+        }
+        logger.info('✅ [IP-ALLOWED] IP found in whitelist');
+      } else {
+        logger.info('✅ [IP-LOCALHOST] Localhost IP detected, skipping whitelist check');
       }
 
-      // Get admin user
+      // Get admin user FIRST (using service role, no RLS issues)
+      logger.info('🔍 [DB-QUERY] Searching for admin user', { email: request.email });
       const { data: admin, error: adminError } = await this.supabase
         .from('users')
         .select('*')
         .eq('email', request.email)
         .eq('user_role', 'admin')
         .eq('user_status', 'active')
-        .single();
+        .maybeSingle();
 
       if (adminError || !admin) {
+        logger.error('❌ [USER-NOT-FOUND] Admin user not found or query error', {
+          email: request.email,
+          error: adminError?.message,
+          errorCode: adminError?.code,
+          errorDetails: adminError?.details,
+          errorHint: adminError?.hint,
+          adminData: admin,
+          hasError: !!adminError,
+          hasAdmin: !!admin
+        });
+        await this.logFailedLoginAttempt(request.email, request.ipAddress, 'User not found');
         throw new Error('Invalid admin credentials');
       }
 
-      // Verify password
-      const isValidPassword = await bcrypt.compare(request.password, admin.password_hash);
-      if (!isValidPassword) {
+      logger.info('✅ [USER-FOUND] Admin user found', {
+        userId: admin.id,
+        email: admin.email,
+        role: admin.user_role
+      });
+
+      // Verify password using a separate temporary client to avoid session pollution
+      logger.info('🔑 [PASSWORD-CHECK] Verifying password via Supabase Auth');
+      const tempAuthClient = createClient(
+        config.database.supabaseUrl,
+        config.database.supabaseAnonKey,  // Use anon key for auth operations
+        {
+          auth: {
+            autoRefreshToken: false,
+            persistSession: false  // Don't persist session
+          }
+        }
+      );
+
+      const { data: authData, error: authError } = await tempAuthClient.auth.signInWithPassword({
+        email: request.email,
+        password: request.password
+      });
+
+      if (authError || !authData.user) {
+        logger.error('❌ [PASSWORD-INVALID] Supabase Auth verification failed', {
+          email: request.email,
+          error: authError?.message
+        });
         await this.logFailedLoginAttempt(request.email, request.ipAddress, 'Invalid password');
         throw new Error('Invalid admin credentials');
       }
 
+      logger.info('✅ [PASSWORD-VALID] Password verified successfully via Supabase Auth', {
+        authUserId: authData.user.id
+      });
+
       // Check if admin account is locked
+      logger.info('🔒 [LOCK-CHECK] Checking if account is locked');
       if (admin.is_locked) {
+        logger.error('❌ [ACCOUNT-LOCKED] Account is locked', { userId: admin.id });
         throw new Error('Admin account is locked. Please contact system administrator.');
       }
+      logger.info('✅ [LOCK-CHECK] Account is not locked');
 
       // Check failed login attempts
+      logger.info('🔢 [ATTEMPTS-CHECK] Checking failed login attempts');
       const failedAttempts = await this.getFailedLoginAttempts(request.email);
+      logger.info('📊 [ATTEMPTS-COUNT] Failed attempts count', { failedAttempts });
+
       if (failedAttempts >= 5) {
+        logger.error('❌ [TOO-MANY-ATTEMPTS] Too many failed attempts, locking account', {
+          email: request.email,
+          failedAttempts
+        });
         await this.lockAdminAccount(admin.id);
         throw new Error('Account locked due to multiple failed login attempts');
       }
 
       // Generate admin session with longer expiry
+      logger.info('🎫 [SESSION-CREATE] Creating admin session');
       const session = await this.createAdminSession(admin.id, request);
+      logger.info('✅ [SESSION-CREATED] Session created successfully', {
+        sessionId: session.id,
+        expiresAt: session.expiresAt
+      });
 
       // Update last login
+      logger.info('📝 [UPDATE-LOGIN] Updating last login timestamp');
       await this.updateLastLogin(admin.id, request.ipAddress);
 
       // Clear failed login attempts
+      logger.info('🧹 [CLEAR-ATTEMPTS] Clearing failed login attempts');
       await this.clearFailedLoginAttempts(request.email);
 
       // Log successful login
+      logger.info('📋 [LOG-ACTION] Logging admin action');
       await this.logAdminAction(admin.id, 'admin_login', {
         ipAddress: request.ipAddress,
         userAgent: request.userAgent,
         deviceId: request.deviceId
+      });
+
+      logger.info('🎉 [LOGIN-SUCCESS] Admin login completed successfully', {
+        userId: admin.id,
+        email: admin.email
       });
 
       const response: AdminAuthResponse = {
@@ -162,10 +251,12 @@ export class AdminAuthService {
 
       return response;
     } catch (error) {
-      logger.error('Admin login failed', {
+      logger.error('💥 [LOGIN-FAILED] Admin login failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         email: request.email,
-        ipAddress: request.ipAddress
+        ipAddress: request.ipAddress,
+        userAgent: request.userAgent
       });
       throw error;
     }
@@ -305,7 +396,13 @@ export class AdminAuthService {
       .single();
 
     if (error || !session) {
-      throw new Error('Failed to create admin session');
+      logger.error('❌ [SESSION-CREATE-ERROR] Failed to create admin session', {
+        error: error?.message,
+        details: error?.details,
+        hint: error?.hint,
+        code: error?.code
+      });
+      throw new Error(`Failed to create admin session: ${error?.message || 'Unknown error'}`);
     }
 
     return {

@@ -4,7 +4,7 @@
 # =============================================
 # Build Stage
 # =============================================
-FROM node:18-alpine AS builder
+FROM node:20-alpine AS builder
 
 # Set working directory
 WORKDIR /app
@@ -28,13 +28,14 @@ COPY . .
 # Build the application
 RUN npm run build
 
-# Remove dev dependencies
-RUN npm prune --production
+# Note: Keep dev dependencies for now due to jsdom runtime dependencies
+# TODO: Investigate jsdom usage and remove if possible
+# RUN npm prune --production
 
 # =============================================
 # Production Stage
 # =============================================
-FROM node:18-alpine AS production
+FROM node:20-alpine AS production
 
 # Create non-root user for security
 RUN addgroup -g 1001 -S nodejs && \
@@ -60,15 +61,15 @@ RUN mkdir -p logs temp uploads && \
 
 # Set environment variables
 ENV NODE_ENV=production
-ENV PORT=3000
+ENV PORT=3001
 ENV TZ=Asia/Seoul
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
 # Add health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:3001/health || exit 1
 
 # Switch to non-root user
 USER backend
@@ -82,7 +83,7 @@ CMD ["node", "dist/app.js"]
 # =============================================
 # Development Stage (optional)
 # =============================================
-FROM node:18-alpine AS development
+FROM node:20-alpine AS development
 
 WORKDIR /app
 
@@ -107,11 +108,11 @@ COPY . .
 RUN mkdir -p logs temp uploads
 
 # Expose port
-EXPOSE 3000
+EXPOSE 3001
 
 # Health check for development
 HEALTHCHECK --interval=30s --timeout=10s --start-period=30s --retries=3 \
-    CMD curl -f http://localhost:3000/health || exit 1
+    CMD curl -f http://localhost:3001/health || exit 1
 
 # Start in development mode
 CMD ["npm", "run", "dev"]

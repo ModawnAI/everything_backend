@@ -37,6 +37,14 @@ export class RateLimiterFlexibleService {
    * Initialize Redis connection
    */
   private async initializeRedis(): Promise<void> {
+    // Check if Redis is enabled
+    if (!config.redis.enabled) {
+      logger.info("Redis rate limiter is disabled, using in-memory fallback");
+      this.redisClient = null;
+      this.fallbackMode = true;
+      return;
+    }
+
     try {
       this.redisClient = new Redis({
         host: REDIS_RATE_LIMIT_CONFIG.host,

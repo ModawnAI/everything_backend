@@ -8,13 +8,28 @@ export class AdminAuthController {
    * Admin login with enhanced security
    */
   async adminLogin(req: Request, res: Response): Promise<void> {
-    try {
-      const { email, password, deviceId } = req.body;
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
-      const userAgent = req.get('User-Agent') || 'unknown';
+    const { email, password, deviceInfo } = req.body;
+    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+    const userAgent = req.get('User-Agent') || deviceInfo?.userAgent || 'unknown';
+    const deviceId = deviceInfo?.deviceId || `device-${Date.now()}-${Math.random().toString(36).substring(7)}`;
 
+    // Log all admin login attempts
+    logger.info('🔐 Admin login attempt', {
+      email,
+      ipAddress,
+      userAgent,
+      deviceId,
+      timestamp: new Date().toISOString()
+    });
+
+    try {
       // Validate required fields
       if (!email || !password) {
+        logger.warn('⚠️ Admin login failed: Missing credentials', {
+          email,
+          ipAddress,
+          missingFields: { email: !email, password: !password }
+        });
         res.status(400).json({
           success: false,
           error: 'Email and password are required'
@@ -25,6 +40,10 @@ export class AdminAuthController {
       // Validate email format
       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
       if (!emailRegex.test(email)) {
+        logger.warn('⚠️ Admin login failed: Invalid email format', {
+          email,
+          ipAddress
+        });
         res.status(400).json({
           success: false,
           error: 'Invalid email format'
@@ -40,23 +59,39 @@ export class AdminAuthController {
         deviceId
       };
 
+      logger.debug('🔍 Processing admin login request', {
+        email,
+        ipAddress,
+        userAgent
+      });
+
       const result = await adminAuthService.adminLogin(authRequest);
+
+      logger.info('✅ Admin login successful', {
+        adminId: result.admin.id,
+        email: result.admin.email,
+        role: result.admin.role,
+        ipAddress,
+        sessionExpiresAt: result.session?.expiresAt
+      });
 
       res.json({
         success: true,
         data: result
       });
     } catch (error) {
-      logger.error('Admin login failed', {
+      logger.error('❌ Admin login failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
-        ipAddress: req.ip,
-        userAgent: req.get('User-Agent')
+        stack: error instanceof Error ? error.stack : undefined,
+        email,
+        ipAddress,
+        userAgent
       });
 
       const errorMessage = error instanceof Error ? error.message : 'Login failed';
-      
+
       // Don't expose internal errors to client
-      const clientMessage = errorMessage.includes('Invalid admin credentials') 
+      const clientMessage = errorMessage.includes('Invalid admin credentials')
         ? 'Invalid email or password'
         : errorMessage.includes('IP address not whitelisted')
         ? 'Access denied: IP not authorized for admin access'

@@ -54,6 +54,13 @@ export class CacheService {
    * Initialize Redis connection
    */
   private async initializeRedis(): Promise<void> {
+    // Check if Redis is enabled
+    if (!config.redis.enabled) {
+      logger.info("Redis cache service is disabled");
+      this.client = null;
+      return;
+    }
+
     try {
       const redisUrl = config.redis.url;
       const redisConfig: any = {

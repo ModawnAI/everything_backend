@@ -62,6 +62,14 @@ export class RedisRateLimitStore implements RateLimitStore {
    * Establish Redis connection with retry logic
    */
   private async establishConnection(): Promise<void> {
+    // Check if Redis is enabled
+    if (!config.redis.enabled) {
+      logger.info("Redis rate limit store is disabled, using in-memory fallback");
+      this.client = null;
+      this.isConnected = false;
+      return;
+    }
+
     try {
       const clientConfig: any = {
         host: this.config.host,

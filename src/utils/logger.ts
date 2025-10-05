@@ -1,50 +1,65 @@
 import winston from 'winston';
 import { config } from '../config/environment';
 
+// Custom replacer to handle circular references
+const seen = new WeakSet();
+const replacer = (key: string, value: any) => {
+  if (typeof value === 'object' && value !== null) {
+    if (seen.has(value)) {
+      return '[Circular]';
+    }
+    seen.add(value);
+  }
+  return value;
+};
+
+// Enhanced development format - more readable and detailed
+const devFormat = winston.format.printf(({ timestamp, level, message, correlationId, ...meta }) => {
+  const metaStr = Object.keys(meta).length > 0
+    ? '\n' + JSON.stringify(meta, replacer, 2)
+    : '';
+
+  const corrId = correlationId ? ` [${correlationId}]` : '';
+  return `${timestamp} [${level}]${corrId} ${message}${metaStr}`;
+});
+
+// JSON format for production
+const jsonFormat = winston.format.printf(({ timestamp, level, message, ...meta }) => {
+  return JSON.stringify({
+    timestamp,
+    level,
+    message,
+    ...meta,
+  }, replacer);
+});
+
 // Define log format
 const logFormat = winston.format.combine(
-  winston.format.timestamp(),
+  winston.format.timestamp({ format: 'YYYY-MM-DD HH:mm:ss.SSS' }),
   winston.format.errors({ stack: true }),
-  winston.format.json(),
-  winston.format.printf(({ timestamp, level, message, ...meta }) => {
-    // Custom replacer to handle circular references
-    const seen = new WeakSet();
-    const replacer = (key: string, value: any) => {
-      if (typeof value === 'object' && value !== null) {
-        if (seen.has(value)) {
-          return '[Circular]';
-        }
-        seen.add(value);
-      }
-      return value;
-    };
-    
-    return JSON.stringify({
-      timestamp,
-      level,
-      message,
-      ...meta,
-    }, replacer);
-  })
+  config.server.isDevelopment
+    ? winston.format.combine(
+        winston.format.colorize(),
+        devFormat
+      )
+    : winston.format.combine(
+        winston.format.json(),
+        jsonFormat
+      )
 );
 
 // Create logger instance
 export const logger = winston.createLogger({
-  level: config.logging.level,
+  level: config.server.isDevelopment ? 'debug' : config.logging.level,
   format: logFormat,
   defaultMeta: {
     service: 'ebeautything-backend',
     environment: config.server.env,
   },
   transports: [
-    // Console transport for development
+    // Console transport - always enabled
     new winston.transports.Console({
-      format: config.server.isDevelopment
-        ? winston.format.combine(
-            winston.format.colorize(),
-            winston.format.simple()
-          )
-        : logFormat,
+      format: logFormat,
     }),
     // File transport for production
     ...(config.server.isProduction

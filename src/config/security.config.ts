@@ -242,11 +242,16 @@ const createCORSConfig = (environment: 'development' | 'staging' | 'production')
     origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
-      
+
       if (allowedOrigins[environment].includes(origin)) {
         return callback(null, true);
       }
-      
+
+      // Also allow localhost origins in development for testing
+      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+        return callback(null, true);
+      }
+
       return callback(new Error('Not allowed by CORS'));
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],

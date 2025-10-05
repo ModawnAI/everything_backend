@@ -23,6 +23,7 @@ const envSchema = Joi.object({
   BCRYPT_SALT_ROUNDS: Joi.number().default(12),
 
   // Redis Configuration
+  REDIS_ENABLED: Joi.boolean().default(false), // Default to disabled in development
   REDIS_URL: Joi.string().default('redis://localhost:6379'),
   REDIS_PASSWORD: Joi.string().allow('').optional(),
   REDIS_DB: Joi.number().default(0),
@@ -154,6 +155,7 @@ export const config = {
   },
 
   redis: {
+    enabled: envVars.REDIS_ENABLED as boolean,
     url: envVars.REDIS_URL as string,
     password: envVars.REDIS_PASSWORD as string,
     db: envVars.REDIS_DB as number,

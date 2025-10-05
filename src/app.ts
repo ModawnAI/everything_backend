@@ -1,7 +1,11 @@
+// Load environment configuration first
+import { config } from './config/environment';
+
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import morgan from 'morgan';
+import { logger } from './utils/logger';
 import { 
   correlationIdMiddleware, 
   morganFormat, 
@@ -49,7 +53,7 @@ import notificationRoutes from './routes/notification.routes';
 import websocketRoutes from './routes/websocket.routes';
 import testErrorRoutes from './routes/test-error.routes';
 import healthRoutes from './routes/health.routes';
-// import adminAuthRoutes from './routes/admin-auth.routes'; // Archived - conflicts with auth.routes.ts
+import adminAuthRoutes from './routes/admin-auth.routes';
 import adminUserManagementRoutes from './routes/admin-user-management.routes';
 import cacheRoutes from './routes/cache.routes';
 import monitoringRoutes from './routes/monitoring.routes';
@@ -99,13 +103,68 @@ import { initializeWebSocketService } from './services/websocket.service';
 import { influencerSchedulerService } from './services/influencer-scheduler.service';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = config.server.port;
+
+// CORS Configuration - Must be before other middleware
+const corsOrigins = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+
+app.use(cors({
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, Postman, curl)
+    if (!origin) {
+      return callback(null, true);
+    }
+
+    // Check if origin is in allowed list
+    if (corsOrigins.includes(origin) || corsOrigins.includes('*')) {
+      callback(null, true);
+    } else {
+      logger.warn('CORS request blocked', {
+        origin,
+        allowedOrigins: corsOrigins,
+        timestamp: new Date().toISOString()
+      });
+      callback(null, true); // Allow anyway but log it
+    }
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-CSRF-Token', 'X-CSRF-Secret', 'X-Request-ID', 'X-Requested-With'],
+  exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
+  maxAge: 86400 // 24 hours
+}));
+
+// Log all incoming requests including OPTIONS (preflight), except health checks
+app.use((req, res, next) => {
+  // Skip logging for health check endpoint
+  if (req.path !== '/health') {
+    logger.info('Incoming request', {
+      method: req.method,
+      path: req.path,
+      origin: req.get('origin') || 'no-origin',
+      userAgent: req.get('user-agent'),
+      ip: req.ip,
+      headers: {
+        authorization: req.get('authorization') ? 'present' : 'missing',
+        contentType: req.get('content-type') || 'none'
+      }
+    });
+  }
+  next();
+});
 
 // Enhanced logging middleware setup
 app.use(correlationIdMiddleware);
 app.use(performanceLoggingMiddleware);
 app.use(requestLoggingMiddleware);
 app.use(morganFormat);
+
+// Body parsers MUST come first, before any middleware that reads req.body
+app.use(compression());
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true }));
 
 // Comprehensive security middleware setup
 import { securityHeaders } from './middleware/security.middleware';
@@ -123,11 +182,6 @@ app.use(rpcSecurityMiddleware());
 app.use(xssProtection());
 app.use(csrfProtection());
 app.use(securityEventLoggingMiddleware());
-// Apply response standardization middleware
-app.use(applyResponseStandardization());
-app.use(compression());
-app.use(express.json({ limit: '10mb' }));
-app.use(express.urlencoded({ extended: true }));
 
 // Import comprehensive OpenAPI configurations
 import { OPENAPI_GENERATION_CONFIG } from './config/openapi.config';
@@ -214,8 +268,8 @@ app.get('/manifest.json', (_req, res) => {
   res.status(204).end(); // No Content - manifest not implemented
 });
 
-// Swagger UI setup - Multiple documentation endpoints
-// Main API documentation (backward compatibility)
+// Swagger UI setup - Each endpoint needs both app.use() for static files and app.get() for setup
+// Main API documentation
 app.use('/api-docs', swaggerUi.serve);
 app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
   explorer: true,
@@ -233,11 +287,12 @@ app.get('/api-docs', swaggerUi.setup(swaggerSpec, {
 app.use('/admin-docs', swaggerUi.serve);
 app.get('/admin-docs', swaggerUi.setup(adminSwaggerSpec, ADMIN_OPENAPI_UI_CONFIG));
 
-// Service API documentation  
+// Service API documentation
 app.use('/service-docs', swaggerUi.serve);
 app.get('/service-docs', swaggerUi.setup(serviceSwaggerSpec, SERVICE_OPENAPI_UI_CONFIG));
 
 // OpenAPI spec endpoints - provides JSON version of the API documentation
+// IMPORTANT: These must be registered BEFORE response standardization middleware
 // Main API spec (backward compatibility)
 app.get('/api/openapi.json', (_req, res) => {
   res.json(swaggerSpec);
@@ -266,16 +321,24 @@ app.get('/service-swagger.json', (_req, res) => {
   res.json(serviceSwaggerSpec);
 });
 
+// Apply response standardization middleware AFTER OpenAPI endpoints
+app.use(applyResponseStandardization());
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);
 // app.use('/api/users', userProfileRoutes); // Archived - conflicts with user-settings.routes.ts
-app.use('/api/admin', userStatusRoutes);
-app.use('/api/admin/shops', adminShopRoutes);
+
+// IMPORTANT: More specific routes MUST come BEFORE general routes
+// Place /api/admin/* specific routes before /api/admin
+app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
+app.use('/api/admin/shops', adminShopRoutes);
+// Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
+app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
-// app.use('/api/admin/auth', adminAuthRoutes); // Archived - conflicts with auth.routes.ts
 app.use('/api/admin/users', adminUserManagementRoutes);
+app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
 app.use('/api/storage', storageRoutes);
 app.use('/api/shops/categories', shopCategoriesRoutes);
@@ -355,25 +418,99 @@ app.use(errorLoggingMiddleware);
 // Comprehensive error handling middleware
 app.use(errorHandler);
 
-// Start server
+// Start server with improved error handling
 if (require.main === module) {
-  const server = app.listen(PORT, () => {
-    console.log(`🚀 에뷰리띵 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
-    console.log(`📍 Health Check: http://localhost:${PORT}/health`);
-    console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
-    console.log(`📚 API Documentation:`);
-    console.log(`   📖 Complete API: http://localhost:${PORT}/api-docs`);
-    console.log(`   🔒 Admin API: http://localhost:${PORT}/admin-docs`);
-    console.log(`   🛍️ Service API: http://localhost:${PORT}/service-docs`);
-    
-    // Initialize WebSocket service
-    initializeWebSocketService(server);
-    console.log(`🔌 WebSocket 서비스가 초기화되었습니다.`);
-    
-    // Start influencer qualification scheduler
-    influencerSchedulerService.startScheduler();
-    console.log(`⭐ 인플루언서 자격 관리 스케줄러가 시작되었습니다.`);
+  let server: any = null;
+  let isShuttingDown = false;
+
+  const startServer = () => {
+    // Check if already shutting down
+    if (isShuttingDown) {
+      console.log('⏳ Server is shutting down, skipping restart...');
+      return;
+    }
+
+    try {
+      server = app.listen(PORT, () => {
+        console.log(`🚀 에뷰리띵 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
+        console.log(`📍 Health Check: http://localhost:${PORT}/health`);
+        console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
+        console.log(`📚 API Documentation:`);
+        console.log(`   📖 Complete API: http://localhost:${PORT}/api-docs`);
+        console.log(`   🔒 Admin API: http://localhost:${PORT}/admin-docs`);
+        console.log(`   🛍️ Service API: http://localhost:${PORT}/service-docs`);
+
+        // Initialize WebSocket service
+        initializeWebSocketService(server);
+        console.log(`🔌 WebSocket 서비스가 초기화되었습니다.`);
+
+        // Start influencer qualification scheduler
+        influencerSchedulerService.startScheduler();
+        console.log(`⭐ 인플루언서 자격 관리 스케줄러가 시작되었습니다.`);
+      });
+
+      // Handle server errors
+      server.on('error', (error: any) => {
+        if (error.code === 'EADDRINUSE') {
+          console.error(`❌ Port ${PORT} is already in use. Please check for running processes.`);
+          console.log('💡 Try: netstat -ano | findstr :3001');
+          process.exit(1);
+        } else {
+          console.error('❌ Server error:', error);
+          process.exit(1);
+        }
+      });
+    } catch (error) {
+      console.error('❌ Failed to start server:', error);
+      process.exit(1);
+    }
+  };
+
+  // Graceful shutdown handler
+  const gracefulShutdown = (signal: string) => {
+    if (isShuttingDown) {
+      console.log('⏳ Shutdown already in progress...');
+      return;
+    }
+
+    console.log(`\n📡 ${signal} received. Starting graceful shutdown...`);
+    isShuttingDown = true;
+
+    // Stop accepting new connections
+    if (server) {
+      server.close(() => {
+        console.log('✅ Server closed successfully');
+
+        // Stop scheduler
+        influencerSchedulerService.stopScheduler();
+        console.log('✅ Scheduler stopped');
+
+        // Exit process
+        process.exit(0);
+      });
+
+      // Force shutdown after 10 seconds
+      setTimeout(() => {
+        console.error('❌ Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+      }, 10000);
+    } else {
+      process.exit(0);
+    }
+  };
+
+  // Register shutdown handlers
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
+
+  // Handle nodemon restart
+  process.once('SIGUSR2', () => {
+    gracefulShutdown('SIGUSR2');
   });
+
+  // Start the server
+  startServer();
 }
 
 export default app; 

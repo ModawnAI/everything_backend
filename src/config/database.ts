@@ -101,10 +101,11 @@ function createSupabaseClient(): SupabaseClient {
     return mockClient as any;
   }
 
-  if (!config.database.supabaseUrl || !config.database.supabaseServiceRoleKey) {
-    logger.warn('Missing Supabase configuration, using mock database service');
-    return mockDatabaseService as any;
-  }
+  // Use real database in development (comment out to use mock)
+  // if (config.server.env === 'development') {
+  //   logger.warn('Using mock database service for development');
+  //   return mockDatabaseService as any;
+  // }
 
   const supabaseClient = createClient<any, 'public'>(
     config.database.supabaseUrl,
@@ -175,7 +176,7 @@ async function performHealthCheck(client: SupabaseClient): Promise<boolean> {
       return true;
     };
     await retryWithBackoff(healthCheckOperation, 'database-health-check');
-    logger.info('Database health check passed');
+    // Don't log successful health checks to reduce noise
     return true;
   } catch (error) {
     logger.error('Database health check failed', {
@@ -200,19 +201,20 @@ class DatabaseMonitor {
   start(intervalMs = 60000): void {
     this.healthCheckInterval = setInterval(async () => {
       const isHealthy = await performHealthCheck(this.client);
+      // Only log when health status changes (important state change)
       if (this.isHealthy !== isHealthy) {
         this.isHealthy = isHealthy;
-        logger.info(`Database health status changed: ${isHealthy ? 'healthy' : 'unhealthy'}`);
+        logger.warn(`Database health status changed: ${isHealthy ? 'healthy' : 'unhealthy'}`);
       }
     }, intervalMs);
-    logger.info('Database monitoring started', { intervalMs });
+    // Don't log monitoring start to reduce noise
   }
 
   stop(): void {
     if (this.healthCheckInterval) {
       clearInterval(this.healthCheckInterval);
       this.healthCheckInterval = null;
-      logger.info('Database monitoring stopped');
+      // Don't log monitoring stop to reduce noise
     }
   }
 
@@ -274,17 +276,17 @@ export function getDatabase(): DatabaseConfig {
 
 /**
  * Get Supabase client directly
- * Returns mock service if Supabase is not available
+ * Returns real Supabase client
  */
 export function getSupabaseClient(): SupabaseClient {
   try {
     return getDatabase().client;
   } catch (error) {
-    // If database is not available, use mock service
-    logger.warn('Supabase not available, using mock database service', {
+    // Initialize database if not already initialized
+    logger.info('Initializing database connection', {
       error: error instanceof Error ? error.message : 'Unknown error'
     });
-    return mockDatabaseService as any;
+    return initializeDatabase().client;
   }
 }
 

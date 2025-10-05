@@ -943,18 +943,15 @@ export class ShopController {
 
       const client = getSupabaseClient();
 
-      // Get shop with aggregated data
+      // Get shop with aggregated data (using left joins to allow missing related data)
       const { data: shop, error } = await client
         .from('shops')
         .select(`
           *,
-          shop_images!inner(image_url, alt_text, is_primary, display_order),
-          shop_services!inner(
+          shop_images(image_url, alt_text, is_primary, display_order),
+          shop_services(
             id, name, description, category, price_min, price_max,
             duration_minutes, is_available, display_order
-          ),
-          shop_contact_methods!inner(
-            id, method_type, value, description, is_primary, display_order, is_active
           )
         `)
         .eq('id', id)

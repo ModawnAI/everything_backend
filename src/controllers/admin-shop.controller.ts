@@ -49,6 +49,138 @@ interface GetShopVerificationHistoryRequest extends Request {
 
 export class AdminShopController {
   /**
+   * POST /api/admin/shops/search
+   * Search all shops (Admin only)
+   */
+  async searchShops(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        page = '1',
+        limit = '20',
+        search,
+        category,
+        verificationStatus,
+        shopStatus,
+        sortBy = 'created_at',
+        sortOrder = 'desc'
+      } = req.body;
+
+      const pageNum = parseInt(page);
+      const limitNum = Math.min(parseInt(limit), 100); // Max 100 per page
+      const offset = (pageNum - 1) * limitNum;
+
+      const client = getSupabaseClient();
+
+      // Build query
+      let query = client
+        .from('shops')
+        .select(`
+          id,
+          name,
+          description,
+          address,
+          phone_number,
+          email,
+          main_category,
+          sub_categories,
+          business_license_number,
+          business_license_image_url,
+          verification_status,
+          shop_status,
+          shop_type,
+          commission_rate,
+          created_at,
+          updated_at,
+          owner:users!shops_owner_id_fkey(
+            id,
+            name,
+            email,
+            phone_number
+          )
+        `, { count: 'exact' });
+
+      // Add search filter
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,address.ilike.%${search}%`);
+      }
+
+      // Add category filter
+      if (category) {
+        query = query.eq('main_category', category);
+      }
+
+      // Add verification status filter
+      if (verificationStatus) {
+        query = query.eq('verification_status', verificationStatus);
+      }
+
+      // Add shop status filter
+      if (shopStatus) {
+        query = query.eq('shop_status', shopStatus);
+      }
+
+      // Add sorting
+      const validSortFields = ['created_at', 'name', 'main_category', 'verification_status', 'shop_status'];
+      const validSortOrders = ['asc', 'desc'];
+
+      const sortField = validSortFields.includes(sortBy) ? sortBy : 'created_at';
+      const sortDirection = validSortOrders.includes(sortOrder) ? sortOrder : 'desc';
+
+      query = query.order(sortField, { ascending: sortDirection === 'asc' });
+
+      // Add pagination
+      query = query.range(offset, offset + limitNum - 1);
+
+      const { data: shops, error, count } = await query;
+
+      if (error) {
+        logger.error('Failed to search shops', {
+          error: error.message,
+          search,
+          category,
+          verificationStatus,
+          shopStatus
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'SEARCH_SHOPS_FAILED',
+            message: '샵 검색에 실패했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          shops,
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total: count || 0,
+            totalPages: Math.ceil((count || 0) / limitNum)
+          }
+        },
+        message: '샵 검색을 성공적으로 완료했습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.searchShops error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
    * GET /api/admin/shops/pending
    * Get list of shops pending verification (Admin only)
    */

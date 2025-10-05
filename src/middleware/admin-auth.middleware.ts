@@ -25,10 +25,10 @@ export const requireAdminAuth = (req: AuthenticatedRequest, res: Response, next:
       });
     }
 
-    const userRole = req.user.role as UserRole;
-    
-    // Check if user is admin or super admin
-    if (userRole !== UserRole.ADMIN && userRole !== UserRole.SUPER_ADMIN) {
+    const userRole = req.user.role;
+
+    // Check if user is admin (DB only has 'admin' role, no super_admin/moderator distinction)
+    if (userRole !== 'admin') {
       logger.warn('Admin access denied', {
         userId: req.user.id,
         userRole,
@@ -79,10 +79,11 @@ export const requireSuperAdminAuth = (req: AuthenticatedRequest, res: Response, 
       });
     }
 
-    const userRole = req.user.role as UserRole;
-    
-    // Check if user is super admin
-    if (userRole !== UserRole.SUPER_ADMIN) {
+    const userRole = req.user.role;
+
+    // DB only has 'admin' role - treat all admins as having full access
+    // Note: super_admin/moderator distinction not implemented in DB yet
+    if (userRole !== 'admin') {
       logger.warn('Super admin access denied', {
         userId: req.user.id,
         userRole,

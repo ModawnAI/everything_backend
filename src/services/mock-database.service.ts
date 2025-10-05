@@ -10,6 +10,78 @@ import { logger } from '../utils/logger';
 // Mock shop data
 const MOCK_SHOPS = [
   {
+    id: 'ffa1478d-ae03-4034-bf19-5ded5d3e8867',
+    name: 'Everything Beauty',
+    description: '모든 뷰티 서비스를 한곳에서 - 네일, 속눈썹, 왁싱, 헤어까지',
+    address: '서울시 강남구 논현로 123',
+    latitude: 37.5172,
+    longitude: 127.0473,
+    phone_number: '02-1111-2222',
+    email: 'info@everythingbeauty.com',
+    main_category: 'beauty',
+    sub_categories: ['nail', 'eyelash', 'waxing', 'hair'],
+    shop_type: 'partnered',
+    shop_status: 'active',
+    is_featured: true,
+    featured_until: new Date(Date.now() + 60 * 24 * 60 * 60 * 1000).toISOString(),
+    rating: 4.9,
+    total_reviews: 523,
+    total_bookings: 3450,
+    commission_rate: 12.0,
+    payment_methods: ['card', 'mobile_pay', 'cash'],
+    business_license_number: 'BL-2024-000',
+    created_at: '2024-01-01T00:00:00Z',
+    updated_at: '2024-09-22T10:00:00Z',
+    owner_id: '550e8400-e29b-41d4-a716-446655440010',
+    shop_images: [
+      {
+        id: 'img-000',
+        image_url: 'https://example.com/everything-beauty-1.jpg',
+        alt_text: 'Everything Beauty 전경',
+        is_primary: true,
+        display_order: 1
+      }
+    ],
+    shop_services: [
+      {
+        id: 'svc-000-1',
+        name: '젤네일',
+        category: 'nail',
+        price_min: 30000,
+        price_max: 50000,
+        duration: 90,
+        is_available: true
+      },
+      {
+        id: 'svc-000-2',
+        name: '속눈썹 연장',
+        category: 'eyelash',
+        price_min: 80000,
+        price_max: 120000,
+        duration: 150,
+        is_available: true
+      },
+      {
+        id: 'svc-000-3',
+        name: '전신 왁싱',
+        category: 'waxing',
+        price_min: 150000,
+        price_max: 200000,
+        duration: 180,
+        is_available: true
+      },
+      {
+        id: 'svc-000-4',
+        name: '헤어컷 & 스타일링',
+        category: 'hair',
+        price_min: 35000,
+        price_max: 65000,
+        duration: 90,
+        is_available: true
+      }
+    ]
+  },
+  {
     id: '550e8400-e29b-41d4-a716-446655440001',
     name: '네일아트 스튜디오',
     description: '전문 네일아트 서비스를 제공하는 프리미엄 네일샵입니다.',
@@ -426,6 +498,58 @@ class MockQueryBuilder {
     this.rangeStart = start;
     this.rangeEnd = end;
     return this;
+  }
+
+  /**
+   * Single result method - returns first item or error if not found
+   */
+  single() {
+    const self = this;
+    return {
+      async then(resolve?: (value: any) => any, reject?: (reason: any) => any) {
+        try {
+          let filteredData = [...self.data];
+
+          // Apply filters
+          for (const filter of self.filters) {
+            filteredData = self.applyFilter(filteredData, filter);
+          }
+
+          if (filteredData.length > 0) {
+            const result = {
+              data: filteredData[0],
+              error: null
+            };
+
+            logger.info('Mock database single query executed', {
+              table: self.table,
+              filters: self.filters.length,
+              found: true
+            });
+
+            return resolve ? resolve(result) : result;
+          } else {
+            const errorResult = {
+              data: null,
+              error: { message: 'No rows found' }
+            };
+
+            logger.warn('Mock database single query - no results', {
+              table: self.table,
+              filters: self.filters
+            });
+
+            return reject ? reject(errorResult) : errorResult;
+          }
+        } catch (error) {
+          const errorResult = {
+            data: null,
+            error: { message: error instanceof Error ? error.message : 'Unknown error' }
+          };
+          return reject ? reject(errorResult) : errorResult;
+        }
+      }
+    };
   }
 
   /**
