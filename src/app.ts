@@ -29,6 +29,7 @@ import userStatusRoutes from './routes/user-status.routes';
 import shopRoutes from './routes/shop.routes';
 import shopImageRoutes from './routes/shop-image.routes';
 import { adminShopRoutes } from './routes/admin-shop.routes';
+import adminShopServiceRoutes from './routes/admin-shop-service.routes';
 import adminShopApprovalRoutes from './routes/admin-shop-approval.routes';
 import adminReservationRoutes from './routes/admin-reservation.routes';
 import shopOwnerRoutes from './routes/shop-owner.routes';
@@ -333,6 +334,7 @@ app.use('/api/registration', registrationRoutes);
 // Place /api/admin/* specific routes before /api/admin
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
+app.use('/api/admin/shops', adminShopServiceRoutes); // Shop service management routes (must be before general shop routes)
 app.use('/api/admin/shops', adminShopRoutes);
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);

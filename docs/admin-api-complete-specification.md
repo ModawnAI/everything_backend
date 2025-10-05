@@ -16,6 +16,7 @@
 2. [대시보드 및 분석](#2-대시보드-및-분석)
 3. [사용자 관리](#3-사용자-관리)
 4. [샵 관리](#4-샵-관리)
+   - 4.14 [샵 서비스 관리](#414-샵-서비스-관리)
 5. [예약 관리](#5-예약-관리)
 6. [결제 및 정산 관리](#6-결제-및-정산-관리)
 7. [보안 및 모니터링](#7-보안-및-모니터링)
@@ -764,7 +765,506 @@ Authorization: Bearer <admin-jwt-token>
 
 ## 4. 샵 관리
 
-### 4.1 샵 승인 대기 목록
+### 4.1 전체 샵 목록 조회
+**GET** `/api/admin/shops`
+
+관리자가 전체 샵 목록을 조회합니다. 다양한 필터링 및 정렬 옵션을 제공합니다.
+
+#### Query Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| page | number | No | 페이지 번호 (기본값: 1) |
+| limit | number | No | 페이지당 항목 수 (기본값: 20, 최대: 100) |
+| status | string | No | 샵 상태 필터 (active, inactive, suspended, deleted) |
+| category | string | No | 서비스 카테고리 필터 (nail, eyelash, waxing, eyebrow_tattoo) |
+| shopType | string | No | 샵 타입 필터 (partnered, non_partnered) |
+| verificationStatus | string | No | 인증 상태 필터 (pending, verified, rejected) |
+| sortBy | string | No | 정렬 기준 (created_at, name, main_category, shop_status, verification_status) - 기본값: created_at |
+| sortOrder | string | No | 정렬 순서 (asc, desc) - 기본값: desc |
+
+#### Available Filter Values
+**status**:
+- `active`: 활성
+- `inactive`: 비활성
+- `suspended`: 정지
+- `deleted`: 삭제됨
+
+**shopType**:
+- `partnered`: 파트너샵
+- `non_partnered`: 비파트너샵
+
+**verificationStatus**:
+- `pending`: 대기중
+- `verified`: 인증완료
+- `rejected`: 거부됨
+
+#### Response
+```json
+{
+  "success": true,
+  "data": {
+    "shops": [
+      {
+        "id": "shop-uuid",
+        "name": "Beauty Salon Seoul",
+        "description": "프리미엄 네일 & 속눈썹 살롱",
+        "address": "서울시 강남구 테헤란로 123",
+        "detailedAddress": "456호",
+        "phoneNumber": "+82-10-1234-5678",
+        "email": "salon@example.com",
+        "mainCategory": "nail",
+        "subCategories": ["eyelash", "waxing"],
+        "shopType": "partnered",
+        "shopStatus": "active",
+        "verificationStatus": "verified",
+        "commissionRate": 15.0,
+        "isFeatured": true,
+        "createdAt": "2024-01-01T00:00:00Z",
+        "updatedAt": "2024-01-15T12:00:00Z",
+        "owner": {
+          "id": "owner-uuid",
+          "name": "김지수",
+          "email": "owner@example.com",
+          "phoneNumber": "+82-10-9876-5432"
+        }
+      }
+    ],
+    "pagination": {
+      "page": 1,
+      "limit": 20,
+      "total": 150,
+      "totalPages": 8
+    }
+  },
+  "message": "샵 목록을 성공적으로 조회했습니다."
+}
+```
+
+#### Error Responses
+```json
+{
+  "success": false,
+  "error": {
+    "code": "FETCH_SHOPS_FAILED",
+    "message": "샵 목록을 가져오는데 실패했습니다.",
+    "details": "잠시 후 다시 시도해주세요."
+  }
+}
+```
+
+#### 사용 예시
+```bash
+# 기본 조회
+GET /api/admin/shops?page=1&limit=20
+
+# 파트너샵만 조회
+GET /api/admin/shops?shopType=partnered
+
+# 인증 대기 중인 샵 조회
+GET /api/admin/shops?verificationStatus=pending
+
+# 네일 카테고리 + 활성 상태 조회
+GET /api/admin/shops?category=nail&status=active
+
+# 이름 오름차순 정렬
+GET /api/admin/shops?sortBy=name&sortOrder=asc
+
+# 복합 필터 + 정렬
+GET /api/admin/shops?shopType=partnered&verificationStatus=verified&sortBy=created_at&sortOrder=desc&page=1&limit=50
+```
+
+---
+
+### 4.2 샵 생성
+**POST** `/api/admin/shops`
+
+관리자가 새로운 샵을 직접 생성합니다. 일반 사용자와 달리 관리자는 샵 상태, 검증 상태, 샵 타입 등을 직접 지정할 수 있습니다.
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+Content-Type: application/json
+```
+
+#### Request Body
+```json
+{
+  "name": "뷰티 살롱 강남",
+  "description": "프리미엄 네일 & 속눈썹 전문 살롱입니다.",
+  "address": "서울시 강남구 테헤란로 123",
+  "detailedAddress": "456호",
+  "postalCode": "06234",
+  "phoneNumber": "+82-10-1234-5678",
+  "email": "salon@example.com",
+  "mainCategory": "nail",
+  "subCategories": ["eyelash", "waxing"],
+  "operatingHours": {
+    "monday": { "open": "09:00", "close": "20:00" },
+    "tuesday": { "open": "09:00", "close": "20:00" },
+    "wednesday": { "open": "09:00", "close": "20:00" },
+    "thursday": { "open": "09:00", "close": "20:00" },
+    "friday": { "open": "09:00", "close": "20:00" },
+    "saturday": { "open": "10:00", "close": "18:00" },
+    "sunday": { "closed": true }
+  },
+  "paymentMethods": ["card", "cash", "transfer"],
+  "kakaoChannelUrl": "https://pf.kakao.com/example",
+  "businessLicenseNumber": "123-45-67890",
+  "businessLicenseImageUrl": "https://storage.example.com/licenses/123.jpg",
+  "latitude": 37.5012345,
+  "longitude": 127.0345678,
+  "ownerId": "owner-uuid-optional",
+  "shopStatus": "active",
+  "verificationStatus": "verified",
+  "shopType": "partnered",
+  "commissionRate": 15.0,
+  "isFeatured": true
+}
+```
+
+#### 필드 설명
+**기본 정보** (필수):
+- `name`: 샵명 (1-255자)
+- `address`: 주소
+- `mainCategory`: 주 서비스 카테고리 (nail, eyelash, waxing, eyebrow_tattoo)
+
+**선택 정보**:
+- `description`: 샵 설명
+- `detailedAddress`: 상세 주소
+- `postalCode`: 우편번호
+- `phoneNumber`: 전화번호
+- `email`: 이메일
+- `subCategories`: 추가 서비스 카테고리 배열
+- `operatingHours`: 영업시간 객체
+- `paymentMethods`: 결제 수단 배열
+- `kakaoChannelUrl`: 카카오톡 채널 URL
+- `businessLicenseNumber`: 사업자 등록번호
+- `businessLicenseImageUrl`: 사업자 등록증 이미지 URL
+- `latitude`, `longitude`: 위도/경도 좌표
+
+**관리자 전용 필드** (선택):
+- `ownerId`: 샵 소유자 ID (미지정 시 관리자 본인)
+- `shopStatus`: 샵 상태 (active, inactive, pending_approval, suspended, deleted) - 기본값: active
+- `verificationStatus`: 검증 상태 (pending, verified, rejected) - 기본값: verified
+- `shopType`: 샵 타입 (partnered, non_partnered) - 기본값: partnered
+- `commissionRate`: 수수료율 (0-100) - 기본값: 0
+- `isFeatured`: 추천 샵 여부 - 기본값: false
+
+#### Response (201 Created)
+```json
+{
+  "success": true,
+  "data": {
+    "id": "shop-uuid",
+    "name": "뷰티 살롱 강남",
+    "description": "프리미엄 네일 & 속눈썹 전문 살롱입니다.",
+    "address": "서울시 강남구 테헤란로 123",
+    "detailedAddress": "456호",
+    "postalCode": "06234",
+    "phoneNumber": "+82-10-1234-5678",
+    "email": "salon@example.com",
+    "mainCategory": "nail",
+    "subCategories": ["eyelash", "waxing"],
+    "operatingHours": { /* ... */ },
+    "paymentMethods": ["card", "cash", "transfer"],
+    "kakaoChannelUrl": "https://pf.kakao.com/example",
+    "businessLicenseNumber": "123-45-67890",
+    "businessLicenseImageUrl": "https://storage.example.com/licenses/123.jpg",
+    "location": "POINT(127.0345678 37.5012345)",
+    "ownerId": "owner-uuid",
+    "shopStatus": "active",
+    "verificationStatus": "verified",
+    "shopType": "partnered",
+    "commissionRate": 15.0,
+    "isFeatured": true,
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-15T10:30:00Z"
+  },
+  "message": "샵이 성공적으로 생성되었습니다."
+}
+```
+
+#### Error Responses
+```json
+// 필수 필드 누락
+{
+  "success": false,
+  "error": {
+    "code": "MISSING_REQUIRED_FIELDS",
+    "message": "필수 필드가 누락되었습니다.",
+    "details": "샵명, 주소, 주 서비스 카테고리는 필수입니다."
+  }
+}
+
+// 샵 생성 실패
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_CREATION_FAILED",
+    "message": "샵 생성에 실패했습니다.",
+    "details": "데이터베이스 오류"
+  }
+}
+```
+
+#### 사용 예시
+```bash
+# 기본 샵 생성 (관리자가 소유자)
+curl -X POST https://api.example.com/api/admin/shops \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "뷰티 살롱 강남",
+    "address": "서울시 강남구 테헤란로 123",
+    "mainCategory": "nail"
+  }'
+
+# 특정 사용자를 소유자로 지정하여 샵 생성
+curl -X POST https://api.example.com/api/admin/shops \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "뷰티 살롱 강남",
+    "address": "서울시 강남구 테헤란로 123",
+    "mainCategory": "nail",
+    "ownerId": "user-uuid-123",
+    "shopStatus": "active",
+    "verificationStatus": "verified",
+    "shopType": "partnered",
+    "commissionRate": 15.0
+  }'
+```
+
+#### Rate Limiting
+- **제한**: 20 requests / 15분 (sensitiveRateLimit)
+- 제한 초과 시 429 Too Many Requests 응답
+
+---
+
+### 4.3 샵 수정
+**PUT** `/api/admin/shops/:shopId`
+
+관리자가 기존 샵 정보를 수정합니다. 일반 사용자와 달리 관리자는 샵 상태, 검증 상태, 샵 타입 등의 관리 필드도 수정할 수 있습니다.
+
+#### Path Parameters
+- `shopId`: 수정할 샵의 UUID
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+Content-Type: application/json
+```
+
+#### Request Body
+모든 필드는 선택사항입니다. 제공된 필드만 업데이트됩니다.
+
+```json
+{
+  "name": "뷰티 살롱 강남 (수정됨)",
+  "description": "업데이트된 설명",
+  "address": "서울시 강남구 테헤란로 456",
+  "detailedAddress": "789호",
+  "phoneNumber": "+82-10-9999-8888",
+  "email": "updated@example.com",
+  "mainCategory": "eyelash",
+  "subCategories": ["nail", "eyebrow_tattoo"],
+  "operatingHours": { /* ... */ },
+  "paymentMethods": ["card", "transfer"],
+  "shopStatus": "inactive",
+  "verificationStatus": "verified",
+  "shopType": "non_partnered",
+  "commissionRate": 20.0,
+  "isFeatured": false,
+  "latitude": 37.5098765,
+  "longitude": 127.0456789
+}
+```
+
+#### 수정 가능한 관리자 전용 필드
+- `shopStatus`: active, inactive, pending_approval, suspended, deleted
+- `verificationStatus`: pending, verified, rejected
+- `shopType`: partnered, non_partnered
+- `commissionRate`: 0-100 범위의 수수료율
+- `isFeatured`: 추천 샵 지정 여부
+- `ownerId`: 샵 소유자 변경 (주의: 소유권 이전)
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "data": {
+    "id": "shop-uuid",
+    "name": "뷰티 살롱 강남 (수정됨)",
+    "description": "업데이트된 설명",
+    "address": "서울시 강남구 테헤란로 456",
+    "detailedAddress": "789호",
+    "phoneNumber": "+82-10-9999-8888",
+    "email": "updated@example.com",
+    "mainCategory": "eyelash",
+    "subCategories": ["nail", "eyebrow_tattoo"],
+    "operatingHours": { /* ... */ },
+    "paymentMethods": ["card", "transfer"],
+    "shopStatus": "inactive",
+    "verificationStatus": "verified",
+    "shopType": "non_partnered",
+    "commissionRate": 20.0,
+    "isFeatured": false,
+    "location": "POINT(127.0456789 37.5098765)",
+    "createdAt": "2024-01-15T10:30:00Z",
+    "updatedAt": "2024-01-16T14:20:00Z"
+  },
+  "message": "샵 정보가 성공적으로 업데이트되었습니다."
+}
+```
+
+#### Error Responses
+```json
+// 샵을 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_NOT_FOUND",
+    "message": "해당 샵을 찾을 수 없습니다.",
+    "details": "샵이 존재하지 않습니다."
+  }
+}
+
+// 업데이트 실패
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_UPDATE_FAILED",
+    "message": "샵 정보 업데이트에 실패했습니다.",
+    "details": "데이터베이스 오류"
+  }
+}
+```
+
+#### 사용 예시
+```bash
+# 기본 정보만 수정
+curl -X PUT https://api.example.com/api/admin/shops/shop-uuid-123 \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "뷰티 살롱 강남 (수정됨)",
+    "phoneNumber": "+82-10-9999-8888"
+  }'
+
+# 샵 상태 및 검증 상태 변경
+curl -X PUT https://api.example.com/api/admin/shops/shop-uuid-123 \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "shopStatus": "suspended",
+    "verificationStatus": "rejected"
+  }'
+
+# 수수료율 및 추천 샵 설정
+curl -X PUT https://api.example.com/api/admin/shops/shop-uuid-123 \
+  -H "Authorization: Bearer <admin-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "commissionRate": 25.0,
+    "isFeatured": true,
+    "shopType": "partnered"
+  }'
+```
+
+#### Rate Limiting
+- **제한**: 20 requests / 15분 (sensitiveRateLimit)
+- 제한 초과 시 429 Too Many Requests 응답
+
+---
+
+### 4.4 샵 삭제
+**DELETE** `/api/admin/shops/:shopId`
+
+관리자가 샵을 삭제합니다. 기본적으로 소프트 삭제(상태를 'deleted'로 변경)를 수행하며, `permanent=true` 쿼리 파라미터를 사용하면 완전 삭제를 수행합니다.
+
+#### Path Parameters
+- `shopId`: 삭제할 샵의 UUID
+
+#### Query Parameters
+- `permanent`: (선택) `true`로 설정 시 데이터베이스에서 완전히 삭제. 기본값: `false` (소프트 삭제)
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+```
+
+#### Response (200 OK)
+
+**소프트 삭제 성공**:
+```json
+{
+  "success": true,
+  "message": "샵이 성공적으로 삭제되었습니다."
+}
+```
+
+**영구 삭제 성공**:
+```json
+{
+  "success": true,
+  "message": "샵이 영구적으로 삭제되었습니다."
+}
+```
+
+#### Error Responses
+```json
+// 샵을 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_NOT_FOUND",
+    "message": "해당 샵을 찾을 수 없습니다.",
+    "details": "샵이 존재하지 않거나 이미 삭제되었습니다."
+  }
+}
+
+// 삭제 실패
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_DELETION_FAILED",
+    "message": "샵 삭제에 실패했습니다.",
+    "details": "데이터베이스 오류"
+  }
+}
+```
+
+#### 사용 예시
+```bash
+# 소프트 삭제 (기본값 - 상태만 'deleted'로 변경)
+curl -X DELETE https://api.example.com/api/admin/shops/shop-uuid-123 \
+  -H "Authorization: Bearer <admin-token>"
+
+# 영구 삭제 (데이터베이스에서 완전히 제거)
+curl -X DELETE "https://api.example.com/api/admin/shops/shop-uuid-123?permanent=true" \
+  -H "Authorization: Bearer <admin-token>"
+```
+
+#### 삭제 방식 비교
+
+| 방식 | 쿼리 파라미터 | 동작 | 복구 가능 | 사용 시나리오 |
+|------|--------------|------|-----------|--------------|
+| 소프트 삭제 | `permanent=false` (기본) | shop_status를 'deleted'로 변경 | ✅ 가능 | 일반적인 샵 삭제, 임시 비활성화 |
+| 영구 삭제 | `permanent=true` | 데이터베이스에서 완전 제거 | ❌ 불가능 | 스팸, 불법 콘텐츠, GDPR 요청 등 |
+
+#### 주의사항
+⚠️ **영구 삭제는 복구할 수 없습니다.** 다음 사항을 확인하세요:
+- 연관된 예약, 리뷰, 결제 정보가 적절히 처리되었는지 확인
+- 법적 보관 의무 기간이 지났는지 확인
+- 데이터 백업이 필요한 경우 삭제 전 백업 수행
+
+#### Rate Limiting
+- **제한**: 20 requests / 15분 (sensitiveRateLimit)
+- 제한 초과 시 429 Too Many Requests 응답
+
+---
+
+### 4.5 샵 승인 대기 목록
 **GET** `/shops/approval`
 
 승인 대기 중인 샵 목록을 조회합니다.
@@ -820,7 +1320,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.2 샵 승인/거부
+### 4.6 샵 승인/거부
 **PUT** `/shops/:id/approval`
 
 샵을 승인하거나 거부합니다.
@@ -866,7 +1366,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.3 샵 승인 상세 정보
+### 4.7 샵 승인 상세 정보
 **GET** `/shops/:id/approval/details`
 
 샵의 승인 관련 상세 정보를 조회합니다.
@@ -917,7 +1417,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.4 샵 검증 통계
+### 4.8 샵 검증 통계
 **GET** `/shops/approval/statistics`
 
 샵 검증 통계를 조회합니다.
@@ -946,7 +1446,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.5 샵 일괄 승인
+### 4.9 샵 일괄 승인
 **POST** `/shops/bulk-approval`
 
 여러 샵을 일괄로 승인/거부합니다.
@@ -964,7 +1464,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.6 샵 검증 요구사항 확인
+### 4.10 샵 검증 요구사항 확인
 **GET** `/shops/:shopId/verification-requirements`
 
 샵이 검증 요구사항을 충족하는지 확인합니다.
@@ -989,7 +1489,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.7 샵 검증 이력
+### 4.11 샵 검증 이력
 **GET** `/shops/:shopId/verification-history`
 
 샵의 검증 이력을 조회합니다.
@@ -1000,7 +1500,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.8 대기 중인 샵 목록
+### 4.12 대기 중인 샵 목록
 **GET** `/shops/pending`
 
 검증 대기 중인 샵 목록을 조회합니다.
@@ -1015,7 +1515,7 @@ Authorization: Bearer <admin-jwt-token>
 
 ---
 
-### 4.9 샵 승인 처리
+### 4.13 샵 승인 처리
 **PUT** `/shops/:shopId/approve`
 
 샵을 승인하거나 거부합니다 (간소화된 버전).
@@ -1028,6 +1528,600 @@ Authorization: Bearer <admin-jwt-token>
   "commissionRate": 10.0,
   "notes": "승인 완료"
 }
+```
+
+---
+
+### 4.14 샵 서비스 관리
+
+관리자가 모든 샵의 서비스를 관리할 수 있는 CRUD API입니다.
+
+#### 4.14.1 특정 샵의 서비스 목록 조회
+**GET** `/api/admin/shops/:shopId/services`
+
+특정 샵의 모든 서비스를 조회합니다. 카테고리별 필터링, 정렬, 페이지네이션을 지원합니다.
+
+#### URL Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| shopId | UUID | Yes | 조회할 샵의 ID |
+
+#### Query Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| page | number | No | 페이지 번호 (기본값: 1) |
+| limit | number | No | 페이지당 항목 수 (기본값: 20, 최대: 100) |
+| category | string | No | 서비스 카테고리 필터 (nail, eyelash, waxing, eyebrow_tattoo, hair) |
+| isActive | boolean | No | 활성화 상태 필터 (true/false) |
+| isAvailable | boolean | No | 예약 가능 여부 필터 (true/false) |
+| sortBy | string | No | 정렬 기준 (created_at, name, price_min, duration_minutes) - 기본값: created_at |
+| sortOrder | string | No | 정렬 순서 (asc, desc) - 기본값: desc |
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+```
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "data": {
+    "services": [
+      {
+        "id": "service-uuid",
+        "shopId": "shop-uuid",
+        "name": "젤 네일 아트",
+        "description": "고급 젤 네일 아트 서비스",
+        "category": "nail",
+        "priceMin": 30000,
+        "priceMax": 50000,
+        "durationMinutes": 60,
+        "depositAmount": null,
+        "depositPercentage": 30.00,
+        "isActive": true,
+        "isAvailable": true,
+        "maxAdvanceBookingDays": 30,
+        "minAdvanceBookingHours": 24,
+        "cancellationPolicy": "24시간 전까지 무료 취소",
+        "createdAt": "2024-01-15T10:00:00Z",
+        "updatedAt": "2024-01-15T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "total": 15,
+      "page": 1,
+      "limit": 20,
+      "totalPages": 1
+    },
+    "shopInfo": {
+      "id": "shop-uuid",
+      "name": "Beauty Salon Seoul"
+    }
+  }
+}
+```
+
+#### Error Responses
+```json
+// 샵을 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_NOT_FOUND",
+    "message": "샵을 찾을 수 없습니다.",
+    "details": "존재하지 않는 샵 ID입니다."
+  }
+}
+
+// 잘못된 카테고리
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "유효하지 않은 카테고리입니다.",
+    "details": "nail, eyelash, waxing, eyebrow_tattoo, hair 중 하나를 선택하세요."
+  }
+}
+```
+
+#### Rate Limiting
+- 200 requests per 15 minutes
+
+#### cURL Example
+```bash
+curl -X GET "http://localhost:3001/api/admin/shops/550e8400-e29b-41d4-a716-446655440000/services?category=nail&page=1&limit=20" \
+  -H "Authorization: Bearer <admin-jwt-token>"
+```
+
+---
+
+#### 4.14.2 샵 서비스 생성
+**POST** `/api/admin/shops/:shopId/services`
+
+특정 샵에 새로운 서비스를 생성합니다.
+
+#### URL Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| shopId | UUID | Yes | 서비스를 추가할 샵의 ID |
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+Content-Type: application/json
+```
+
+#### Request Body
+```json
+{
+  "name": "젤 네일 아트",
+  "description": "고급 젤 네일 아트 서비스입니다. 다양한 디자인 가능합니다.",
+  "category": "nail",
+  "priceMin": 30000,
+  "priceMax": 50000,
+  "durationMinutes": 60,
+  "depositPercentage": 30.00,
+  "isActive": true,
+  "isAvailable": true,
+  "maxAdvanceBookingDays": 30,
+  "minAdvanceBookingHours": 24,
+  "cancellationPolicy": "24시간 전까지 무료 취소, 이후 예약금 환불 불가"
+}
+```
+
+#### 필드 설명
+**필수 필드**:
+- `name` (string, 1-255자): 서비스명
+- `category` (string): 서비스 카테고리
+  - 가능한 값: `nail`, `eyelash`, `waxing`, `eyebrow_tattoo`, `hair`
+
+**선택 필드**:
+- `description` (string): 서비스 설명
+- `priceMin` (number, 0-10,000,000): 최소 가격 (원)
+- `priceMax` (number, 0-10,000,000): 최대 가격 (원)
+  - 주의: `priceMin`은 `priceMax`보다 작거나 같아야 함
+- `durationMinutes` (number, 1-480): 소요 시간 (분)
+- `depositAmount` (number, 0-1,000,000): 고정 예약금 (원)
+- `depositPercentage` (number, 0-100): 비율 예약금 (%)
+  - 주의: `depositAmount`와 `depositPercentage` 중 하나만 설정 가능
+- `isActive` (boolean): 활성화 여부 (기본값: true)
+- `isAvailable` (boolean): 예약 가능 여부 (기본값: true)
+- `maxAdvanceBookingDays` (number, 0-365): 최대 사전 예약 가능 일수
+- `minAdvanceBookingHours` (number, 0-720): 최소 사전 예약 필요 시간
+- `cancellationPolicy` (string): 취소 정책 설명
+
+#### Response (201 Created)
+```json
+{
+  "success": true,
+  "data": {
+    "id": "service-uuid",
+    "shopId": "shop-uuid",
+    "name": "젤 네일 아트",
+    "description": "고급 젤 네일 아트 서비스입니다. 다양한 디자인 가능합니다.",
+    "category": "nail",
+    "priceMin": 30000,
+    "priceMax": 50000,
+    "durationMinutes": 60,
+    "depositAmount": null,
+    "depositPercentage": 30.00,
+    "isActive": true,
+    "isAvailable": true,
+    "maxAdvanceBookingDays": 30,
+    "minAdvanceBookingHours": 24,
+    "cancellationPolicy": "24시간 전까지 무료 취소, 이후 예약금 환불 불가",
+    "createdAt": "2024-01-15T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z"
+  },
+  "message": "서비스가 성공적으로 생성되었습니다."
+}
+```
+
+#### Error Responses
+```json
+// 샵을 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_NOT_FOUND",
+    "message": "샵을 찾을 수 없습니다.",
+    "details": "존재하지 않는 샵 ID입니다."
+  }
+}
+
+// 필수 필드 누락
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "필수 필드가 누락되었습니다.",
+    "details": [
+      {
+        "field": "name",
+        "message": "서비스명은 필수입니다."
+      },
+      {
+        "field": "category",
+        "message": "서비스 카테고리는 필수입니다."
+      }
+    ]
+  }
+}
+
+// 잘못된 가격 범위
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_PRICE_RANGE",
+    "message": "가격 범위가 올바르지 않습니다.",
+    "details": "최소 가격은 최대 가격보다 작거나 같아야 합니다."
+  }
+}
+
+// 예약금 설정 중복
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_DEPOSIT_SETTINGS",
+    "message": "예약금 설정이 올바르지 않습니다.",
+    "details": "고정 금액과 비율 중 하나만 설정할 수 있습니다."
+  }
+}
+```
+
+#### Rate Limiting
+- 50 requests per 5 minutes
+
+#### cURL Example
+```bash
+curl -X POST "http://localhost:3001/api/admin/shops/550e8400-e29b-41d4-a716-446655440000/services" \
+  -H "Authorization: Bearer <admin-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "젤 네일 아트",
+    "category": "nail",
+    "priceMin": 30000,
+    "priceMax": 50000,
+    "durationMinutes": 60,
+    "depositPercentage": 30.00
+  }'
+```
+
+---
+
+#### 4.14.3 샵 서비스 상세 조회
+**GET** `/api/admin/shops/:shopId/services/:serviceId`
+
+특정 샵의 특정 서비스 상세 정보를 조회합니다.
+
+#### URL Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| shopId | UUID | Yes | 샵 ID |
+| serviceId | UUID | Yes | 서비스 ID |
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+```
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "data": {
+    "id": "service-uuid",
+    "shopId": "shop-uuid",
+    "name": "젤 네일 아트",
+    "description": "고급 젤 네일 아트 서비스입니다. 다양한 디자인 가능합니다.",
+    "category": "nail",
+    "priceMin": 30000,
+    "priceMax": 50000,
+    "durationMinutes": 60,
+    "depositAmount": null,
+    "depositPercentage": 30.00,
+    "isActive": true,
+    "isAvailable": true,
+    "maxAdvanceBookingDays": 30,
+    "minAdvanceBookingHours": 24,
+    "cancellationPolicy": "24시간 전까지 무료 취소, 이후 예약금 환불 불가",
+    "createdAt": "2024-01-15T10:00:00Z",
+    "updatedAt": "2024-01-15T10:00:00Z",
+    "shop": {
+      "id": "shop-uuid",
+      "name": "Beauty Salon Seoul",
+      "mainCategory": "nail"
+    }
+  }
+}
+```
+
+#### Error Responses
+```json
+// 샵을 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_NOT_FOUND",
+    "message": "샵을 찾을 수 없습니다.",
+    "details": "존재하지 않는 샵 ID입니다."
+  }
+}
+
+// 서비스를 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SERVICE_NOT_FOUND",
+    "message": "서비스를 찾을 수 없습니다.",
+    "details": "존재하지 않는 서비스 ID입니다."
+  }
+}
+
+// 샵-서비스 불일치
+{
+  "success": false,
+  "error": {
+    "code": "SERVICE_SHOP_MISMATCH",
+    "message": "서비스가 해당 샵에 속하지 않습니다.",
+    "details": "지정된 샵의 서비스가 아닙니다."
+  }
+}
+```
+
+#### Rate Limiting
+- 200 requests per 15 minutes
+
+#### cURL Example
+```bash
+curl -X GET "http://localhost:3001/api/admin/shops/550e8400-e29b-41d4-a716-446655440000/services/660e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer <admin-jwt-token>"
+```
+
+---
+
+#### 4.14.4 샵 서비스 수정
+**PUT** `/api/admin/shops/:shopId/services/:serviceId`
+
+특정 샵의 서비스 정보를 수정합니다.
+
+#### URL Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| shopId | UUID | Yes | 샵 ID |
+| serviceId | UUID | Yes | 서비스 ID |
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+Content-Type: application/json
+```
+
+#### Request Body
+모든 필드는 선택사항이며, 최소 1개 이상의 필드를 포함해야 합니다.
+
+```json
+{
+  "name": "프리미엄 젤 네일 아트",
+  "description": "최고급 젤 네일 아트 서비스. 다양한 디자인과 색상 선택 가능.",
+  "priceMin": 35000,
+  "priceMax": 60000,
+  "durationMinutes": 90,
+  "depositPercentage": 50.00,
+  "isActive": true,
+  "isAvailable": true,
+  "maxAdvanceBookingDays": 60,
+  "minAdvanceBookingHours": 48
+}
+```
+
+#### 필드 설명
+모든 필드는 선택사항이지만, 최소 1개는 제공되어야 합니다:
+- `name` (string, 1-255자): 서비스명
+- `description` (string): 서비스 설명
+- `category` (string): 서비스 카테고리 (nail, eyelash, waxing, eyebrow_tattoo, hair)
+- `priceMin` (number): 최소 가격
+- `priceMax` (number): 최대 가격
+- `durationMinutes` (number): 소요 시간
+- `depositAmount` (number): 고정 예약금
+- `depositPercentage` (number): 비율 예약금
+- `isActive` (boolean): 활성화 여부
+- `isAvailable` (boolean): 예약 가능 여부
+- `maxAdvanceBookingDays` (number): 최대 사전 예약 일수
+- `minAdvanceBookingHours` (number): 최소 사전 예약 시간
+- `cancellationPolicy` (string): 취소 정책
+
+**주의사항**:
+- `priceMin`은 `priceMax`보다 작거나 같아야 함
+- `depositAmount`와 `depositPercentage`는 동시에 설정할 수 없음
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "data": {
+    "id": "service-uuid",
+    "shopId": "shop-uuid",
+    "name": "프리미엄 젤 네일 아트",
+    "description": "최고급 젤 네일 아트 서비스. 다양한 디자인과 색상 선택 가능.",
+    "category": "nail",
+    "priceMin": 35000,
+    "priceMax": 60000,
+    "durationMinutes": 90,
+    "depositAmount": null,
+    "depositPercentage": 50.00,
+    "isActive": true,
+    "isAvailable": true,
+    "maxAdvanceBookingDays": 60,
+    "minAdvanceBookingHours": 48,
+    "cancellationPolicy": "24시간 전까지 무료 취소, 이후 예약금 환불 불가",
+    "createdAt": "2024-01-15T10:00:00Z",
+    "updatedAt": "2024-01-15T11:30:00Z"
+  },
+  "message": "서비스가 성공적으로 업데이트되었습니다."
+}
+```
+
+#### Error Responses
+```json
+// 업데이트할 필드가 없음
+{
+  "success": false,
+  "error": {
+    "code": "NO_UPDATE_FIELDS",
+    "message": "업데이트할 필드가 없습니다.",
+    "details": "최소 1개 이상의 필드를 제공해야 합니다."
+  }
+}
+
+// 샵을 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_NOT_FOUND",
+    "message": "샵을 찾을 수 없습니다.",
+    "details": "존재하지 않는 샵 ID입니다."
+  }
+}
+
+// 서비스를 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SERVICE_NOT_FOUND",
+    "message": "서비스를 찾을 수 없습니다.",
+    "details": "존재하지 않는 서비스 ID입니다."
+  }
+}
+
+// 샵-서비스 불일치
+{
+  "success": false,
+  "error": {
+    "code": "SERVICE_SHOP_MISMATCH",
+    "message": "서비스가 해당 샵에 속하지 않습니다.",
+    "details": "지정된 샵의 서비스가 아닙니다."
+  }
+}
+
+// 잘못된 가격 범위
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_PRICE_RANGE",
+    "message": "가격 범위가 올바르지 않습니다.",
+    "details": "최소 가격은 최대 가격보다 작거나 같아야 합니다."
+  }
+}
+
+// 예약금 설정 중복
+{
+  "success": false,
+  "error": {
+    "code": "INVALID_DEPOSIT_SETTINGS",
+    "message": "예약금 설정이 올바르지 않습니다.",
+    "details": "고정 금액과 비율 중 하나만 설정할 수 있습니다."
+  }
+}
+```
+
+#### Rate Limiting
+- 50 requests per 5 minutes
+
+#### cURL Example
+```bash
+curl -X PUT "http://localhost:3001/api/admin/shops/550e8400-e29b-41d4-a716-446655440000/services/660e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer <admin-jwt-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "프리미엄 젤 네일 아트",
+    "priceMin": 35000,
+    "priceMax": 60000,
+    "durationMinutes": 90
+  }'
+```
+
+---
+
+#### 4.14.5 샵 서비스 삭제
+**DELETE** `/api/admin/shops/:shopId/services/:serviceId`
+
+특정 샵의 서비스를 삭제합니다 (소프트 삭제).
+
+#### URL Parameters
+| Parameter | Type | Required | Description |
+|-----------|------|----------|-------------|
+| shopId | UUID | Yes | 샵 ID |
+| serviceId | UUID | Yes | 삭제할 서비스 ID |
+
+#### Request Headers
+```
+Authorization: Bearer <admin-jwt-token>
+```
+
+#### Response (200 OK)
+```json
+{
+  "success": true,
+  "message": "서비스가 성공적으로 삭제되었습니다.",
+  "data": {
+    "deletedServiceId": "service-uuid",
+    "deletedAt": "2024-01-15T12:00:00Z"
+  }
+}
+```
+
+#### Error Responses
+```json
+// 샵을 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SHOP_NOT_FOUND",
+    "message": "샵을 찾을 수 없습니다.",
+    "details": "존재하지 않는 샵 ID입니다."
+  }
+}
+
+// 서비스를 찾을 수 없음
+{
+  "success": false,
+  "error": {
+    "code": "SERVICE_NOT_FOUND",
+    "message": "서비스를 찾을 수 없습니다.",
+    "details": "존재하지 않는 서비스 ID입니다."
+  }
+}
+
+// 샵-서비스 불일치
+{
+  "success": false,
+  "error": {
+    "code": "SERVICE_SHOP_MISMATCH",
+    "message": "서비스가 해당 샵에 속하지 않습니다.",
+    "details": "지정된 샵의 서비스가 아닙니다."
+  }
+}
+
+// 활성 예약 존재
+{
+  "success": false,
+  "error": {
+    "code": "ACTIVE_RESERVATIONS_EXIST",
+    "message": "활성 예약이 존재하여 삭제할 수 없습니다.",
+    "details": "모든 예약을 취소하거나 완료한 후 삭제해주세요."
+  }
+}
+```
+
+#### Rate Limiting
+- 50 requests per 5 minutes
+
+#### cURL Example
+```bash
+curl -X DELETE "http://localhost:3001/api/admin/shops/550e8400-e29b-41d4-a716-446655440000/services/660e8400-e29b-41d4-a716-446655440000" \
+  -H "Authorization: Bearer <admin-jwt-token>"
 ```
 
 ---

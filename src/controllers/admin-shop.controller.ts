@@ -49,6 +49,129 @@ interface GetShopVerificationHistoryRequest extends Request {
 
 export class AdminShopController {
   /**
+   * GET /api/admin/shops
+   * Get all shops with filtering and pagination (Admin only)
+   */
+  async getAllShops(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        page = '1',
+        limit = '20',
+        status,
+        category,
+        shopType,
+        verificationStatus,
+        sortBy = 'created_at',
+        sortOrder = 'desc'
+      } = req.query;
+
+      const pageNum = parseInt(page as string);
+      const limitNum = Math.min(parseInt(limit as string), 100); // Max 100 per page
+      const offset = (pageNum - 1) * limitNum;
+
+      const client = getSupabaseClient();
+
+      // Build query
+      let query = client
+        .from('shops')
+        .select(`
+          id,
+          name,
+          description,
+          address,
+          detailed_address,
+          phone_number,
+          email,
+          main_category,
+          sub_categories,
+          shop_type,
+          shop_status,
+          verification_status,
+          commission_rate,
+          is_featured,
+          created_at,
+          updated_at,
+          owner:users!shops_owner_id_fkey(
+            id,
+            name,
+            email,
+            phone_number
+          )
+        `, { count: 'exact' });
+
+      // Apply filters
+      if (status) {
+        query = query.eq('shop_status', status);
+      }
+      if (category) {
+        query = query.eq('main_category', category);
+      }
+      if (shopType) {
+        query = query.eq('shop_type', shopType);
+      }
+      if (verificationStatus) {
+        query = query.eq('verification_status', verificationStatus);
+      }
+
+      // Add sorting
+      const validSortFields = ['created_at', 'name', 'main_category', 'shop_status', 'verification_status'];
+      const validSortOrders = ['asc', 'desc'];
+
+      const sortField = validSortFields.includes(sortBy as string) ? sortBy : 'created_at';
+      const sortDirection = validSortOrders.includes(sortOrder as string) ? sortOrder : 'desc';
+
+      query = query.order(sortField as string, { ascending: sortDirection === 'asc' });
+
+      // Add pagination
+      query = query.range(offset, offset + limitNum - 1);
+
+      const { data: shops, error, count } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch shops', {
+          error: error.message,
+          filters: { status, category, shopType, verificationStatus }
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'FETCH_SHOPS_FAILED',
+            message: '샵 목록을 가져오는데 실패했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          shops: shops || [],
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total: count || 0,
+            totalPages: Math.ceil((count || 0) / limitNum)
+          }
+        },
+        message: '샵 목록을 성공적으로 조회했습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.getAllShops error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
    * POST /api/admin/shops/search
    * Search all shops (Admin only)
    */
@@ -466,6 +589,385 @@ export class AdminShopController {
     } catch (error) {
       logger.error('AdminShopController.checkVerificationRequirements error:', { error });
       res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/shops
+   * Create a new shop (Admin only)
+   */
+  async createShop(req: Request, res: Response): Promise<void> {
+    try {
+      const shopData = req.body;
+      const adminId = (req as any).user?.id;
+
+      if (!adminId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '관리자 인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Validate required fields
+      if (!shopData.name || !shopData.address || !shopData.main_category) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REQUIRED_FIELDS',
+            message: '필수 필드가 누락되었습니다.',
+            details: '샵명, 주소, 주 서비스 카테고리는 필수입니다.'
+          }
+        });
+        return;
+      }
+
+      const client = getSupabaseClient();
+
+      // Prepare shop data with admin-specific fields
+      const newShop: any = {
+        name: shopData.name,
+        description: shopData.description || null,
+        address: shopData.address,
+        detailed_address: shopData.detailed_address || null,
+        postal_code: shopData.postal_code || null,
+        phone_number: shopData.phone_number || null,
+        email: shopData.email || null,
+        main_category: shopData.main_category,
+        sub_categories: shopData.sub_categories || [],
+        operating_hours: shopData.operating_hours || null,
+        payment_methods: shopData.payment_methods || [],
+        kakao_channel_url: shopData.kakao_channel_url || null,
+        business_license_number: shopData.business_license_number || null,
+        business_license_image_url: shopData.business_license_image_url || null,
+
+        // Admin can specify these fields directly
+        owner_id: shopData.owner_id || adminId,
+        shop_status: shopData.shop_status || 'active',
+        verification_status: shopData.verification_status || 'verified',
+        shop_type: shopData.shop_type || 'partnered',
+        commission_rate: shopData.commission_rate || 0,
+        is_featured: shopData.is_featured || false,
+
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString()
+      };
+
+      // Create shop location if coordinates provided
+      if (shopData.latitude && shopData.longitude) {
+        newShop.location = `POINT(${shopData.longitude} ${shopData.latitude})`;
+      }
+
+      const { data: shop, error } = await client
+        .from('shops')
+        .insert(newShop)
+        .select()
+        .single();
+
+      if (error) {
+        logger.error('Admin failed to create shop', {
+          error: error.message,
+          shopData,
+          adminId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'SHOP_CREATION_FAILED',
+            message: '샵 생성에 실패했습니다.',
+            details: error.message
+          }
+        });
+        return;
+      }
+
+      logger.info('Admin created shop successfully', {
+        shopId: shop.id,
+        adminId,
+        shopName: shop.name
+      });
+
+      res.status(201).json({
+        success: true,
+        data: shop,
+        message: '샵이 성공적으로 생성되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.createShop error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * PUT /api/admin/shops/:shopId
+   * Update shop information (Admin only)
+   */
+  async updateShop(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const updateData = req.body;
+      const adminId = (req as any).user?.id;
+
+      if (!adminId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '관리자 인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const client = getSupabaseClient();
+
+      // Check if shop exists
+      const { data: existingShop, error: fetchError } = await client
+        .from('shops')
+        .select('id, name, shop_status')
+        .eq('id', shopId)
+        .single();
+
+      if (fetchError || !existingShop) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '해당 샵을 찾을 수 없습니다.',
+            details: '샵이 존재하지 않습니다.'
+          }
+        });
+        return;
+      }
+
+      // Prepare update data
+      const shopUpdateData: any = { ...updateData };
+
+      // Update location if coordinates provided
+      if (updateData.latitude && updateData.longitude) {
+        shopUpdateData.location = `POINT(${updateData.longitude} ${updateData.latitude})`;
+      }
+
+      // Add updated timestamp
+      shopUpdateData.updated_at = new Date().toISOString();
+
+      const { data: updatedShop, error } = await client
+        .from('shops')
+        .update(shopUpdateData)
+        .eq('id', shopId)
+        .select()
+        .single();
+
+      if (error) {
+        logger.error('Admin failed to update shop', {
+          error: error.message,
+          shopId,
+          updateData,
+          adminId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'SHOP_UPDATE_FAILED',
+            message: '샵 정보 업데이트에 실패했습니다.',
+            details: error.message
+          }
+        });
+        return;
+      }
+
+      logger.info('Admin updated shop successfully', {
+        shopId,
+        adminId,
+        shopName: updatedShop.name
+      });
+
+      res.status(200).json({
+        success: true,
+        data: updatedShop,
+        message: '샵 정보가 성공적으로 업데이트되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.updateShop error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * DELETE /api/admin/shops/:shopId
+   * Delete shop (Admin only, supports soft and hard delete)
+   */
+  async deleteShop(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const { permanent = 'false' } = req.query;
+      const adminId = (req as any).user?.id;
+
+      if (!adminId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '관리자 인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const client = getSupabaseClient();
+
+      // Check if shop exists
+      const { data: existingShop, error: fetchError } = await client
+        .from('shops')
+        .select('id, name, shop_status')
+        .eq('id', shopId)
+        .single();
+
+      if (fetchError || !existingShop) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '해당 샵을 찾을 수 없습니다.',
+            details: '샵이 존재하지 않거나 이미 삭제되었습니다.'
+          }
+        });
+        return;
+      }
+
+      const isPermanent = permanent === 'true';
+
+      if (isPermanent) {
+        // Hard delete - permanently remove from database
+        const { error } = await client
+          .from('shops')
+          .delete()
+          .eq('id', shopId);
+
+        if (error) {
+          logger.error('Admin failed to permanently delete shop', {
+            error: error.message,
+            shopId,
+            adminId
+          });
+
+          res.status(500).json({
+            success: false,
+            error: {
+              code: 'SHOP_DELETION_FAILED',
+              message: '샵 영구 삭제에 실패했습니다.',
+              details: error.message
+            }
+          });
+          return;
+        }
+
+        logger.warn('Admin permanently deleted shop', {
+          shopId,
+          shopName: existingShop.name,
+          adminId
+        });
+
+        res.status(200).json({
+          success: true,
+          message: '샵이 영구적으로 삭제되었습니다.'
+        });
+      } else {
+        // Soft delete - update status to deleted
+        const { error } = await client
+          .from('shops')
+          .update({
+            shop_status: 'deleted',
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', shopId);
+
+        if (error) {
+          logger.error('Admin failed to soft delete shop', {
+            error: error.message,
+            shopId,
+            adminId
+          });
+
+          res.status(500).json({
+            success: false,
+            error: {
+              code: 'SHOP_DELETION_FAILED',
+              message: '샵 삭제에 실패했습니다.',
+              details: error.message
+            }
+          });
+          return;
+        }
+
+        logger.info('Admin soft deleted shop', {
+          shopId,
+          shopName: existingShop.name,
+          adminId
+        });
+
+        res.status(200).json({
+          success: true,
+          message: '샵이 성공적으로 삭제되었습니다.'
+        });
+      }
+
+    } catch (error) {
+      logger.error('AdminShopController.deleteShop error:', { error });
+      res.status(500).json({
+        success: false,
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '서버 오류가 발생했습니다.',

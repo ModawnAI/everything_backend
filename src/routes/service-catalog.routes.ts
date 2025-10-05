@@ -68,68 +68,273 @@ const markTrendingSchema = Joi.object({
 router.use(serviceCatalogRateLimit);
 
 /**
- * @route GET /api/service-catalog
- * @desc Get all service catalog entries with optional filtering
- * @access Public
- */
-
-/**
  * @swagger
- * /:
+ * /api/service-catalog:
  *   get:
- *     summary: / 조회
- *     description: GET endpoint for /
- *       
+ *     summary: 서비스 카탈로그 조회
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
- *     tags: [System]
- *     security:
- *       - bearerAuth: []
+ *
+ *       Get all service catalog entries with optional filtering and pagination.
+ *
+ *       **Features:**
+ *       - Advanced search with multiple filter criteria
+ *       - Category, price range, and duration filtering
+ *       - Service level and difficulty level filtering
+ *       - Featured and trending services
+ *       - Rating-based filtering
+ *       - Tag-based search
+ *       - Sorting and pagination support
+ *
+ *       **Access:** Public - No authentication required
+ *     tags: [Service Catalog]
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: Search query string
+ *         example: "젤 네일"
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair]
+ *         description: Filter by service category
+ *         example: "nail"
+ *       - in: query
+ *         name: price_min
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *         description: Minimum price filter
+ *         example: 10000
+ *       - in: query
+ *         name: price_max
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *         description: Maximum price filter
+ *         example: 100000
+ *       - in: query
+ *         name: duration_min
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *         description: Minimum duration in minutes
+ *         example: 30
+ *       - in: query
+ *         name: duration_max
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *         description: Maximum duration in minutes
+ *         example: 120
+ *       - in: query
+ *         name: service_level
+ *         schema:
+ *           type: string
+ *           enum: [basic, premium, luxury]
+ *         description: Filter by service level
+ *         example: "premium"
+ *       - in: query
+ *         name: difficulty_level
+ *         schema:
+ *           type: string
+ *           enum: [beginner, intermediate, advanced]
+ *         description: Filter by difficulty level
+ *         example: "intermediate"
+ *       - in: query
+ *         name: featured_only
+ *         schema:
+ *           type: boolean
+ *         description: Show only featured services
+ *         example: false
+ *       - in: query
+ *         name: trending_only
+ *         schema:
+ *           type: boolean
+ *         description: Show only trending services
+ *         example: false
+ *       - in: query
+ *         name: min_rating
+ *         schema:
+ *           type: number
+ *           minimum: 0
+ *           maximum: 5
+ *         description: Minimum rating filter
+ *         example: 4.0
+ *       - in: query
+ *         name: tags
+ *         schema:
+ *           type: string
+ *         description: Comma-separated tags
+ *         example: "아트,프렌치"
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: number
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *         example: 1
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 20
+ *         description: Items per page
+ *         example: 20
+ *       - in: query
+ *         name: sort_by
+ *         schema:
+ *           type: string
+ *           enum: [price, duration, rating, popularity, distance, newest]
+ *         description: Sort field
+ *         example: "popularity"
+ *       - in: query
+ *         name: sort_order
+ *         schema:
+ *           type: string
+ *           enum: [asc, desc]
+ *         description: Sort order
+ *         example: "desc"
+ *       - in: query
+ *         name: include_unavailable
+ *         schema:
+ *           type: boolean
+ *         description: Include unavailable services
+ *         example: false
  *     responses:
  *       200:
- *         description: Success
+ *         description: Service catalog entries retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     services:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     totalCount:
+ *                       type: integer
+ *                       example: 150
+ *                     hasMore:
+ *                       type: boolean
+ *                       example: true
+ *                 message:
+ *                   type: string
+ *                   example: "서비스 카탈로그를 성공적으로 조회했습니다."
  *       400:
- *         description: Bad Request
+ *         description: Bad Request - Invalid query parameters
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
-router.get('/', 
+router.get('/',
   validateRequestWithSchema(serviceCatalogSearchSchema, 'query'),
   serviceCatalogController.getServiceCatalogEntries.bind(serviceCatalogController)
 );
 
 /**
- * @route GET /api/service-catalog/search
- * @desc Search service catalog entries with advanced filtering
- * @access Public
- */
-/**
  * @swagger
- * /search:
+ * /api/service-catalog/search:
  *   get:
- *     summary: /search 조회
- *     description: GET endpoint for /search
- *       
+ *     summary: 서비스 카탈로그 고급 검색
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
+ *
+ *       Search service catalog entries with advanced filtering options.
+ *       Same filtering capabilities as the main endpoint but with enhanced search relevance.
+ *
+ *       **Access:** Public - No authentication required
  *     tags: [Service Catalog]
- *     security:
- *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         schema:
+ *           type: string
+ *         description: Search query string
+ *         example: "젤 네일"
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair]
+ *         description: Filter by service category
+ *       - in: query
+ *         name: price_min
+ *         schema:
+ *           type: number
+ *         description: Minimum price
+ *       - in: query
+ *         name: price_max
+ *         schema:
+ *           type: number
+ *         description: Maximum price
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: number
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           default: 20
+ *           maximum: 100
+ *         description: Items per page
  *     responses:
  *       200:
- *         description: Success
+ *         description: Search results retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     results:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     totalCount:
+ *                       type: integer
+ *                     hasMore:
+ *                       type: boolean
  *       400:
  *         description: Bad Request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 
 router.get('/search',
@@ -139,33 +344,49 @@ router.get('/search',
 );
 
 /**
- * @route GET /api/service-catalog/stats
- * @desc Get service catalog statistics
- * @access Public
- */
-/**
  * @swagger
- * /stats:
+ * /api/service-catalog/stats:
  *   get:
- *     summary: /stats 조회
- *     description: GET endpoint for /stats
- *       
+ *     summary: 서비스 카탈로그 통계
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
+ *
+ *       Get service catalog statistics including total services, categories, and popularity metrics.
+ *
+ *       **Access:** Public - No authentication required
  *     tags: [Service Catalog]
- *     security:
- *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
+ *         description: Statistics retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     totalServices:
+ *                       type: integer
+ *                       example: 1500
+ *                     categoryCounts:
+ *                       type: object
+ *                       example: { "nail": 500, "eyelash": 300, "hair": 700 }
+ *                     averagePrice:
+ *                       type: number
+ *                       example: 45000
+ *                     averageRating:
+ *                       type: number
+ *                       example: 4.5
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 
 router.get('/stats',
@@ -173,33 +394,52 @@ router.get('/stats',
 );
 
 /**
- * @route GET /api/service-catalog/metadata
- * @desc Get service type metadata
- * @access Public
- */
-/**
  * @swagger
- * /metadata:
+ * /api/service-catalog/metadata:
  *   get:
- *     summary: /metadata 조회
- *     description: GET endpoint for /metadata
- *       
+ *     summary: 서비스 타입 메타데이터
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
+ *
+ *       Get service type metadata including available categories, service levels, and tags.
+ *
+ *       **Access:** Public - No authentication required
  *     tags: [Service Catalog]
- *     security:
- *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
+ *         description: Metadata retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     categories:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["nail", "eyelash", "waxing", "eyebrow_tattoo", "hair"]
+ *                     serviceLevels:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["basic", "premium", "luxury"]
+ *                     difficultyLevels:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["beginner", "intermediate", "advanced"]
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 
 router.get('/metadata',
@@ -207,67 +447,100 @@ router.get('/metadata',
 );
 
 /**
- * @route GET /api/service-catalog/popular
- * @desc Get popular services
- * @access Public
- */
-
-/**
  * @swagger
- * /popular:
+ * /api/service-catalog/popular:
  *   get:
- *     summary: /popular 조회
- *     description: GET endpoint for /popular
- *       
+ *     summary: 인기 서비스 조회
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
- *     tags: [System]
- *     security:
- *       - bearerAuth: []
+ *
+ *       Get popular services based on booking count and ratings.
+ *
+ *       **Access:** Public - No authentication required
+ *     tags: [Service Catalog]
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           default: 10
+ *           maximum: 50
+ *         description: Number of popular services to return
+ *         example: 10
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair]
+ *         description: Filter by category
  *     responses:
  *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
+ *         description: Popular services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 router.get('/popular',
   serviceCatalogController.getPopularServices.bind(serviceCatalogController)
 );
 
 /**
- * @route GET /api/service-catalog/trending
- * @desc Get trending services
- * @access Public
- */
-/**
  * @swagger
- * /trending:
+ * /api/service-catalog/trending:
  *   get:
- *     summary: /trending 조회
- *     description: GET endpoint for /trending
- *       
+ *     summary: 트렌딩 서비스 조회
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
+ *
+ *       Get currently trending services marked by administrators.
+ *
+ *       **Access:** Public - No authentication required
  *     tags: [Service Catalog]
- *     security:
- *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: number
+ *           default: 10
+ *           maximum: 50
+ *         description: Number of trending services to return
+ *         example: 10
  *     responses:
  *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
+ *         description: Trending services retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 
 router.get('/trending',
@@ -275,33 +548,52 @@ router.get('/trending',
 );
 
 /**
- * @route GET /api/service-catalog/config
- * @desc Get service catalog configuration
- * @access Public
- */
-/**
  * @swagger
- * /config:
+ * /api/service-catalog/config:
  *   get:
- *     summary: /config 조회
- *     description: GET endpoint for /config
- *       
+ *     summary: 서비스 카탈로그 설정 조회
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
+ *
+ *       Get service catalog configuration including filter options and display settings.
+ *
+ *       **Access:** Public - No authentication required
  *     tags: [Service Catalog]
- *     security:
- *       - bearerAuth: []
  *     responses:
  *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
+ *         description: Configuration retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     categories:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     serviceLevels:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                     priceRange:
+ *                       type: object
+ *                       properties:
+ *                         min:
+ *                           type: number
+ *                         max:
+ *                           type: number
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 
 router.get('/config',
@@ -309,33 +601,52 @@ router.get('/config',
 );
 
 /**
- * @route GET /api/service-catalog/:serviceId
- * @desc Get a specific service catalog entry by ID
- * @access Public
- */
-/**
  * @swagger
- * /:serviceId:
+ * /api/service-catalog/{serviceId}:
  *   get:
- *     summary: /:serviceId 조회
- *     description: GET endpoint for /:serviceId
- *       
+ *     summary: 서비스 카탈로그 상세 조회
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
+ *
+ *       Get a specific service catalog entry by ID with full details.
+ *
+ *       **Access:** Public - No authentication required
  *     tags: [Service Catalog]
- *     security:
- *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: serviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Service catalog entry ID
+ *         example: "550e8400-e29b-41d4-a716-446655440000"
  *     responses:
  *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
+ *         description: Service catalog entry retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   description: Service catalog entry details
+ *       404:
+ *         description: Service not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/NotFound'
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 
 router.get('/:serviceId',
@@ -343,34 +654,80 @@ router.get('/:serviceId',
 );
 
 /**
- * @route PUT /api/service-catalog/:serviceId/popularity
- * @desc Update service popularity (internal use)
- * @access Internal
- */
-
-/**
  * @swagger
- * /:serviceId/popularity:
+ * /api/service-catalog/{serviceId}/popularity:
  *   put:
- *     summary: PUT /:serviceId/popularity (PUT /:serviceId/popularity)
- *     description: PUT endpoint for /:serviceId/popularity
- *       
+ *     summary: 서비스 인기도 업데이트 (내부용)
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
- *     tags: [System]
- *     security:
- *       - bearerAuth: []
+ *
+ *       Update service popularity metrics based on booking count and rating average.
+ *       This endpoint is for internal system use only.
+ *
+ *       **Access:** Internal - System use only
+ *     tags: [Service Catalog]
+ *     parameters:
+ *       - in: path
+ *         name: serviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Service catalog entry ID
+ *         example: "550e8400-e29b-41d4-a716-446655440000"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - bookingCount
+ *               - ratingAverage
+ *             properties:
+ *               bookingCount:
+ *                 type: number
+ *                 minimum: 0
+ *                 description: Total booking count
+ *                 example: 150
+ *               ratingAverage:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 5
+ *                 description: Average rating
+ *                 example: 4.5
  *     responses:
  *       200:
- *         description: Success
+ *         description: Popularity updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "서비스 인기도가 업데이트되었습니다."
  *       400:
  *         description: Bad Request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         description: Service not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/NotFound'
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 router.put('/:serviceId/popularity',
   validateRequestWithSchema(updatePopularitySchema, 'body'),
@@ -378,33 +735,70 @@ router.put('/:serviceId/popularity',
 );
 
 /**
- * @route PUT /api/service-catalog/:serviceId/trending
- * @desc Mark service as trending (internal use)
- * @access Internal
- */
-/**
  * @swagger
- * /:serviceId/trending:
+ * /api/service-catalog/{serviceId}/trending:
  *   put:
- *     summary: PUT /:serviceId/trending (PUT /:serviceId/trending)
- *     description: PUT endpoint for /:serviceId/trending
- *       
+ *     summary: 서비스 트렌딩 설정 (내부용)
+ *     description: |
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
- *       ---
- *       
+ *
+ *       Mark or unmark a service as trending.
+ *       This endpoint is for internal system use only.
+ *
+ *       **Access:** Internal - System use only
  *     tags: [Service Catalog]
- *     security:
- *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: serviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Service catalog entry ID
+ *         example: "550e8400-e29b-41d4-a716-446655440000"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               isTrending:
+ *                 type: boolean
+ *                 description: Set trending status
+ *                 example: true
  *     responses:
  *       200:
- *         description: Success
+ *         description: Trending status updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                   example: "서비스 트렌딩 상태가 업데이트되었습니다."
  *       400:
  *         description: Bad Request
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/BadRequest'
+ *       404:
+ *         description: Service not found
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/NotFound'
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/responses/InternalServerError'
  */
 
 router.put('/:serviceId/trending',
