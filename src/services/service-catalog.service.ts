@@ -71,8 +71,6 @@ class ServiceCatalogService {
         .select(`
           *,
           service_images:service_images(*),
-          service_videos:service_videos(*),
-          before_after_images:before_after_images(*),
           service_type_metadata:service_type_metadata(*)
         `)
         .range(offset, offset + limit - 1);
@@ -132,8 +130,6 @@ class ServiceCatalogService {
         .select(`
           *,
           service_images:service_images(*),
-          service_videos:service_videos(*),
-          before_after_images:before_after_images(*),
           service_type_metadata:service_type_metadata(*)
         `)
         .eq('id', serviceId)
@@ -177,8 +173,6 @@ class ServiceCatalogService {
         .select(`
           *,
           service_images:service_images(*),
-          service_videos:service_videos(*),
-          before_after_images:before_after_images(*),
           service_type_metadata:service_type_metadata(*)
         `);
 
@@ -445,21 +439,14 @@ class ServiceCatalogService {
           price_min,
           price_max,
           duration_minutes,
-          service_level,
-          difficulty_level,
           is_available,
-          popularity_score,
-          rating_average,
-          rating_count,
-          featured,
-          trending,
-          tags,
-          images:service_images(id, service_id, image_url, alt_text, display_order, image_type, is_primary, created_at),
+          display_order,
+          images:service_images(id, service_id, image_url, alt_text, display_order, created_at),
           created_at,
           updated_at
         `)
         .eq('is_available', true)
-        .order('popularity_score', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -472,7 +459,7 @@ class ServiceCatalogService {
         limit
       });
 
-      return (data || []) as ServiceCatalogEntrySummary[];
+      return (data || []) as any;
     } catch (error) {
       logger.error('Error in getPopularServices', { error, limit });
       throw error;
@@ -495,22 +482,14 @@ class ServiceCatalogService {
           price_min,
           price_max,
           duration_minutes,
-          service_level,
-          difficulty_level,
           is_available,
-          popularity_score,
-          rating_average,
-          rating_count,
-          featured,
-          trending,
-          tags,
-          images:service_images(id, service_id, image_url, alt_text, display_order, image_type, is_primary, created_at),
+          display_order,
+          images:service_images(id, service_id, image_url, alt_text, display_order, created_at),
           created_at,
           updated_at
         `)
         .eq('is_available', true)
-        .eq('trending', true)
-        .order('popularity_score', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(limit);
 
       if (error) {
@@ -523,7 +502,7 @@ class ServiceCatalogService {
         limit
       });
 
-      return (data || []) as ServiceCatalogEntrySummary[];
+      return (data || []) as any;
     } catch (error) {
       logger.error('Error in getTrendingServices', { error, limit });
       throw error;

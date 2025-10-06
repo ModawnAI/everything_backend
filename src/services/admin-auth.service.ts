@@ -302,9 +302,61 @@ export class AdminAuthService {
    */
   async validateAdminSession(token: string, ipAddress: string): Promise<AdminSessionValidation> {
     try {
-      // Verify JWT token
+      // Try to verify as Supabase token first
+      const { data: { user: supabaseUser }, error: supabaseError } = await this.supabase.auth.getUser(token);
+
+      if (!supabaseError && supabaseUser) {
+        logger.info('✅ Token verified as Supabase token', { userId: supabaseUser.id });
+
+        // Get admin user from database using Supabase user ID
+        const { data: admin, error: adminError } = await this.supabase
+          .from('users')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .eq('user_role', 'admin')
+          .eq('user_status', 'active')
+          .single();
+
+        if (adminError || !admin) {
+          logger.error('Supabase token verification failed', {
+            error: adminError?.message || 'Admin not found',
+            userId: supabaseUser.id
+          });
+          return { isValid: false, error: 'Admin user not found or inactive' };
+        }
+
+        // Return valid session without needing admin_sessions table
+        return {
+          isValid: true,
+          admin: {
+            id: admin.id,
+            email: admin.email,
+            role: admin.user_role,
+            permissions: await this.getAdminPermissions(admin.id)
+          },
+          session: {
+            id: supabaseUser.id, // Use Supabase user ID as session ID
+            adminId: admin.id,
+            token: token,
+            refreshToken: '',
+            ipAddress: ipAddress,
+            userAgent: '',
+            deviceId: '',
+            isActive: true,
+            lastActivityAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            createdAt: admin.created_at || new Date().toISOString()
+          }
+        };
+      }
+
+      // If Supabase verification failed, try local JWT verification
+      logger.debug('Supabase token verification failed, attempting local JWT verification', {
+        error: supabaseError?.message
+      });
+
       const decoded = jwt.verify(token, config.auth.jwtSecret) as any;
-      
+
       // Get session from database
       const { data: session, error: sessionError } = await this.supabase
         .from('admin_sessions')

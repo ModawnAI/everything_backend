@@ -91,6 +91,8 @@ import serviceCatalogRoutes from './routes/service-catalog.routes';
 import feedRoutes from './routes/feed.routes';
 import csrfRoutes from './routes/csrf.routes';
 import adminFinancialRoutes from './routes/admin-financial.routes';
+import adminProductRoutes from './routes/admin-product.routes';
+import adminTicketRoutes from './routes/admin-ticket.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -178,6 +180,8 @@ import { rpcSecurityMiddleware } from './middleware/rpc-security.middleware';
 import { xssProtection, csrfProtection } from './middleware/xss-csrf-protection.middleware';
 import { securityEventLoggingMiddleware } from './middleware/security-event-logging.middleware';
 import { applyResponseStandardization } from './middleware/response-standardization.middleware';
+import { authenticateJWT } from './middleware/auth.middleware';
+import { requireAdmin } from './middleware/rbac.middleware';
 app.use(securityHeaders());
 app.use(securityEventDetection());
 app.use(securityEventResponseHandler());
@@ -335,13 +339,23 @@ app.use('/api/registration', registrationRoutes);
 
 // IMPORTANT: More specific routes MUST come BEFORE general routes
 // Place /api/admin/* specific routes before /api/admin
+
+// Admin authentication - Auth routes don't need authentication middleware
 app.use('/api/admin/auth', adminAuthRoutes);
+
+// Apply authentication to all other admin routes (supports both Supabase and JWT tokens)
+app.use('/api/admin/*', authenticateJWT(), requireAdmin());
+
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
 app.use('/api/admin/shops/:shopId/services', adminShopServiceRoutes); // Shop service management (specific path to avoid conflicts)
 app.use('/api/admin/shops', adminShopRoutes);
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
+// Alias for backwards compatibility: /admin/bookings -> /api/admin/reservations
+app.use('/admin/bookings', adminReservationRoutes);
+// Alias for frontend: /shops -> /api/admin/shops
+app.use('/shops', adminShopRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
@@ -387,6 +401,7 @@ app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
 app.use('/api/admin/financial', adminFinancialRoutes);
+app.use('/api/admin/tickets', adminTicketRoutes);
 app.use('/api/admin', ipBlockingRoutes);
 app.use('/api/security', securityRoutes);
 app.use('/api/notifications', notificationRoutes);

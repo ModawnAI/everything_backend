@@ -140,6 +140,37 @@ const router = Router();
 router.get('/', adminReservationController.getReservations);
 
 /**
+ * GET /api/admin/reservations/:id
+ * Get reservation by ID (alias to /:id/details for backwards compatibility)
+ *
+ * @swagger
+ * /:id:
+ *   get:
+ *     summary: Get reservation by ID
+ *     description: GET endpoint for /:id - Returns detailed reservation information
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Reservation ID
+ *     responses:
+ *       200:
+ *         description: Success
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: Reservation not found
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/:id', adminReservationController.getReservationDetails);
+
+/**
  * GET /api/admin/reservations/analytics
  * Get reservation analytics for admin dashboard
  * 
