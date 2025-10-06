@@ -334,8 +334,10 @@ app.use('/api/registration', registrationRoutes);
 // Place /api/admin/* specific routes before /api/admin
 app.use('/api/admin/auth', adminAuthRoutes);
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
-app.use('/api/admin/shops', adminShopServiceRoutes); // Shop service management routes (must be before general shop routes)
+// Mount admin shop routes FIRST (handles GET /api/admin/shops)
 app.use('/api/admin/shops', adminShopRoutes);
+// Then mount service sub-routes (handles /:shopId/services)
+app.use('/api/admin/shops', adminShopServiceRoutes);
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
@@ -468,10 +470,9 @@ if (require.main === module) {
     }
   };
 
-  // Graceful shutdown handler
+  // Graceful shutdown handler - optimized for Windows + Nodemon
   const gracefulShutdown = (signal: string) => {
     if (isShuttingDown) {
-      console.log('⏳ Shutdown already in progress...');
       return;
     }
 
@@ -480,35 +481,39 @@ if (require.main === module) {
 
     // Stop accepting new connections
     if (server) {
-      server.close(() => {
-        console.log('✅ Server closed successfully');
-
-        // Stop scheduler
+      // Stop scheduler first
+      try {
         influencerSchedulerService.stopScheduler();
         console.log('✅ Scheduler stopped');
+      } catch (error) {
+        console.error('⚠️  Error stopping scheduler:', error);
+      }
 
-        // Exit process
+      server.close(() => {
+        console.log('✅ Server closed successfully');
         process.exit(0);
       });
 
-      // Force shutdown after 10 seconds
+      // Reduced timeout for faster restarts (Windows + Nodemon)
       setTimeout(() => {
-        console.error('❌ Could not close connections in time, forcefully shutting down');
+        console.error('⚠️  Force shutdown - connections did not close in time');
         process.exit(1);
-      }, 10000);
+      }, 3000); // Reduced from 10s to 3s
     } else {
       process.exit(0);
     }
   };
 
-  // Register shutdown handlers
-  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  // Register shutdown handlers - Windows compatible
+  // SIGINT is the primary signal used by Nodemon on Windows
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
-  process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
 
-  // Handle nodemon restart
-  process.once('SIGUSR2', () => {
-    gracefulShutdown('SIGUSR2');
+  // Handle nodemon restart - SIGUSR2 not reliable on Windows, use SIGINT
+  // Nodemon will send SIGINT before restart
+  process.once('beforeExit', () => {
+    if (!isShuttingDown) {
+      gracefulShutdown('beforeExit');
+    }
   });
 
   // Start the server
