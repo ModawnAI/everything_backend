@@ -134,9 +134,87 @@ router.get(
   adminFinancialController.getPaymentOverview.bind(adminFinancialController)
 );
 
+// GET /api/admin/financial/payments - List all payments with pagination
+router.get(
+  '/payments',
+  [
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+    query('status').optional().isIn(['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED']).withMessage('Invalid payment status'),
+    query('paymentMethod').optional().isString(),
+    query('search').optional().isString()
+  ],
+  validateRequest,
+  async (req, res) => {
+    try {
+      // This is a placeholder - will be implemented in controller
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      res.json({
+        success: true,
+        data: {
+          payments: [],
+          pagination: {
+            total: 0,
+            page,
+            limit,
+            totalPages: 0
+          },
+          summary: {
+            totalAmount: 0,
+            completedAmount: 0,
+            pendingAmount: 0
+          }
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch payments' } });
+    }
+  }
+);
+
 /**
  * Point System Management Routes
  */
+
+// GET /api/admin/financial/points - List all point transactions
+router.get(
+  '/points',
+  [
+    query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
+    query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
+    query('type').optional().isIn(['EARNED', 'USED', 'EXPIRED', 'REFUNDED', 'ADMIN_ADJUSTMENT']).withMessage('Invalid point transaction type'),
+    query('search').optional().isString()
+  ],
+  validateRequest,
+  async (req, res) => {
+    try {
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      res.json({
+        success: true,
+        data: {
+          transactions: [],
+          pagination: {
+            total: 0,
+            page,
+            limit,
+            totalPages: 0
+          },
+          summary: {
+            totalEarned: 0,
+            totalUsed: 0,
+            totalExpired: 0
+          }
+        }
+      });
+    } catch (error) {
+      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch point transactions' } });
+    }
+  }
+);
 
 /**
  * @swagger
