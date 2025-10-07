@@ -13,13 +13,23 @@ interface DatabaseConfig {
 // Connection pool settings for production optimization
 const CONNECTION_POOL_CONFIG = {
   auth: {
-    autoRefreshToken: true,
-    persistSession: true,
+    autoRefreshToken: false,  // Server-side: no need to refresh tokens
+    persistSession: false,     // CRITICAL: Server-side must NOT persist sessions
     detectSessionInUrl: false,
   },
   global: {
     headers: {
       'X-Client-Info': 'ebeautything-backend',
+    },
+    fetch: (url: RequestInfo | URL, options?: RequestInit) => {
+      // Add timeout to all requests
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+
+      return fetch(url, {
+        ...options,
+        signal: controller.signal,
+      }).finally(() => clearTimeout(timeout));
     },
   },
   db: {
