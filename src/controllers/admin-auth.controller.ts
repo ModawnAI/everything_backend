@@ -75,12 +75,16 @@ export class AdminAuthController {
         sessionExpiresAt: result.session?.expiresAt
       });
 
-      // Frontend expects token and refreshToken at root level
+      // Frontend expects token and refreshToken inside data object
       res.json({
         success: true,
-        token: result.session.token,
-        refreshToken: result.session.refreshToken,
-        data: result
+        data: {
+          token: result.session.token,
+          refreshToken: result.session.refreshToken,
+          admin: result.admin,
+          security: result.security,
+          expiresAt: result.session.expiresAt
+        }
       });
     } catch (error) {
       logger.error('❌ Admin login failed', {

@@ -66,13 +66,10 @@ class ServiceCatalogService {
         sort_order = 'desc'
       } = options;
 
+      // For list views, fetch images separately to avoid slow joins
       let query = this.supabase
         .from('shop_services')
-        .select(`
-          *,
-          service_images:service_images(*),
-          service_type_metadata:service_type_metadata(*)
-        `)
+        .select('*')
         .range(offset, offset + limit - 1);
 
       // Apply filters
@@ -104,18 +101,66 @@ class ServiceCatalogService {
       const { data, error } = await query;
 
       if (error) {
-        logger.error('Error fetching service catalog entries', { error, options });
-        throw new Error('Failed to fetch service catalog entries');
+        logger.error('Error fetching service catalog entries', {
+          errorMessage: error.message,
+          errorCode: error.code,
+          errorDetails: error.details,
+          errorHint: error.hint,
+          filters: {
+            shop_id,
+            category,
+            service_level,
+            difficulty_level,
+            is_available,
+            featured_only,
+            trending_only,
+            limit,
+            offset,
+            sort_by,
+            sort_order
+          }
+        });
+        throw new Error(`Failed to fetch service catalog entries: ${error.message}`);
       }
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Fetch images separately for better performance
+      const serviceIds = data.map(s => s.id);
+      const { data: images } = await this.supabase
+        .from('service_images')
+        .select('*')
+        .in('service_id', serviceIds)
+        .order('display_order', { ascending: true });
+
+      // Group images by service_id
+      const imagesByService = (images || []).reduce((acc, img) => {
+        if (!acc[img.service_id]) {
+          acc[img.service_id] = [];
+        }
+        acc[img.service_id].push(img);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Attach images to services
+      const servicesWithImages = data.map(service => ({
+        ...service,
+        service_images: imagesByService[service.id] || []
+      }));
+
       logger.info('Service catalog entries retrieved successfully', {
-        count: data?.length || 0,
+        count: servicesWithImages.length,
         options
       });
 
-      return data || [];
+      return servicesWithImages;
     } catch (error) {
-      logger.error('Error in getServiceCatalogEntries', { error, options });
+      logger.error('Error in getServiceCatalogEntries', {
+        errorMessage: error instanceof Error ? error.message : 'Unknown error',
+        errorStack: error instanceof Error ? error.stack : undefined
+      });
       throw error;
     }
   }
@@ -129,8 +174,7 @@ class ServiceCatalogService {
         .from('shop_services')
         .select(`
           *,
-          service_images:service_images(*),
-          service_type_metadata:service_type_metadata(*)
+          service_images:service_images(*)
         `)
         .eq('id', serviceId)
         .single();
@@ -170,11 +214,7 @@ class ServiceCatalogService {
 
       let dbQuery = this.supabase
         .from('shop_services')
-        .select(`
-          *,
-          service_images:service_images(*),
-          service_type_metadata:service_type_metadata(*)
-        `);
+        .select('*');
 
       // Apply text search
       if (query) {
@@ -243,8 +283,35 @@ class ServiceCatalogService {
         throw new Error('Failed to search service catalog');
       }
 
+      let servicesWithImages = data || [];
+
+      // Fetch images separately if there are results
+      if (data && data.length > 0) {
+        const serviceIds = data.map(s => s.id);
+        const { data: images } = await this.supabase
+          .from('service_images')
+          .select('*')
+          .in('service_id', serviceIds)
+          .order('display_order', { ascending: true });
+
+        // Group images by service_id
+        const imagesByService = (images || []).reduce((acc, img) => {
+          if (!acc[img.service_id]) {
+            acc[img.service_id] = [];
+          }
+          acc[img.service_id].push(img);
+          return acc;
+        }, {} as Record<string, any[]>);
+
+        // Attach images to services
+        servicesWithImages = data.map(service => ({
+          ...service,
+          service_images: imagesByService[service.id] || []
+        }));
+      }
+
       const result: ServiceCatalogSearchResult = {
-        services: data || [],
+        services: servicesWithImages,
         total_count: count || 0,
         page,
         limit,
@@ -326,27 +393,27 @@ class ServiceCatalogService {
         return acc;
       }, {} as Record<ServiceCategory, number>);
 
-      // Get popular services
+      // Get popular services (select specific fields for performance)
       const { data: popularServices } = await this.supabase
         .from('shop_services')
-        .select('*')
+        .select('id, shop_id, name, description, category, price_min, price_max, duration_minutes, popularity_score, rating_average, is_available')
         .eq('is_available', true)
         .order('popularity_score', { ascending: false })
         .limit(10);
 
-      // Get trending services
+      // Get trending services (select specific fields for performance)
       const { data: trendingServices } = await this.supabase
         .from('shop_services')
-        .select('*')
+        .select('id, shop_id, name, description, category, price_min, price_max, duration_minutes, popularity_score, rating_average, trending, is_available')
         .eq('is_available', true)
         .eq('trending', true)
         .order('popularity_score', { ascending: false })
         .limit(10);
 
-      // Get recently added services
+      // Get recently added services (select specific fields for performance)
       const { data: recentlyAdded } = await this.supabase
         .from('shop_services')
-        .select('*')
+        .select('id, shop_id, name, description, category, price_min, price_max, duration_minutes, created_at, is_available')
         .eq('is_available', true)
         .order('created_at', { ascending: false })
         .limit(10);
@@ -370,9 +437,9 @@ class ServiceCatalogService {
         services_by_category: servicesByCategory as Record<ServiceCategory, number>,
         services_by_level: servicesByLevel,
         average_price_by_category: avgPriceByCategory,
-        most_popular_services: popularServices || [],
-        trending_services: trendingServices || [],
-        recently_added: recentlyAdded || [],
+        most_popular_services: (popularServices || []) as any,
+        trending_services: (trendingServices || []) as any,
+        recently_added: (recentlyAdded || []) as any,
         total_bookings: totalBookings,
         average_rating: averageRating,
         last_updated: new Date().toISOString()
@@ -430,21 +497,7 @@ class ServiceCatalogService {
     try {
       const { data, error } = await this.supabase
         .from('shop_services')
-        .select(`
-          id,
-          shop_id,
-          name,
-          description,
-          category,
-          price_min,
-          price_max,
-          duration_minutes,
-          is_available,
-          display_order,
-          images:service_images(id, service_id, image_url, alt_text, display_order, created_at),
-          created_at,
-          updated_at
-        `)
+        .select('id, shop_id, name, description, category, price_min, price_max, duration_minutes, is_available, display_order, created_at, updated_at')
         .eq('is_available', true)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -454,12 +507,39 @@ class ServiceCatalogService {
         throw new Error('Failed to fetch popular services');
       }
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Fetch images separately
+      const serviceIds = data.map(s => s.id);
+      const { data: images } = await this.supabase
+        .from('service_images')
+        .select('*')
+        .in('service_id', serviceIds)
+        .order('display_order', { ascending: true });
+
+      // Group images by service_id
+      const imagesByService = (images || []).reduce((acc, img) => {
+        if (!acc[img.service_id]) {
+          acc[img.service_id] = [];
+        }
+        acc[img.service_id].push(img);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Attach images
+      const servicesWithImages = data.map(service => ({
+        ...service,
+        images: imagesByService[service.id] || []
+      }));
+
       logger.info('Popular services retrieved successfully', {
-        count: data?.length || 0,
+        count: servicesWithImages.length,
         limit
       });
 
-      return (data || []) as any;
+      return servicesWithImages as any;
     } catch (error) {
       logger.error('Error in getPopularServices', { error, limit });
       throw error;
@@ -473,21 +553,7 @@ class ServiceCatalogService {
     try {
       const { data, error } = await this.supabase
         .from('shop_services')
-        .select(`
-          id,
-          shop_id,
-          name,
-          description,
-          category,
-          price_min,
-          price_max,
-          duration_minutes,
-          is_available,
-          display_order,
-          images:service_images(id, service_id, image_url, alt_text, display_order, created_at),
-          created_at,
-          updated_at
-        `)
+        .select('id, shop_id, name, description, category, price_min, price_max, duration_minutes, is_available, display_order, created_at, updated_at')
         .eq('is_available', true)
         .order('created_at', { ascending: false })
         .limit(limit);
@@ -497,12 +563,39 @@ class ServiceCatalogService {
         throw new Error('Failed to fetch trending services');
       }
 
+      if (!data || data.length === 0) {
+        return [];
+      }
+
+      // Fetch images separately
+      const serviceIds = data.map(s => s.id);
+      const { data: images } = await this.supabase
+        .from('service_images')
+        .select('*')
+        .in('service_id', serviceIds)
+        .order('display_order', { ascending: true });
+
+      // Group images by service_id
+      const imagesByService = (images || []).reduce((acc, img) => {
+        if (!acc[img.service_id]) {
+          acc[img.service_id] = [];
+        }
+        acc[img.service_id].push(img);
+        return acc;
+      }, {} as Record<string, any[]>);
+
+      // Attach images
+      const servicesWithImages = data.map(service => ({
+        ...service,
+        images: imagesByService[service.id] || []
+      }));
+
       logger.info('Trending services retrieved successfully', {
-        count: data?.length || 0,
+        count: servicesWithImages.length,
         limit
       });
 
-      return (data || []) as any;
+      return servicesWithImages as any;
     } catch (error) {
       logger.error('Error in getTrendingServices', { error, limit });
       throw error;
