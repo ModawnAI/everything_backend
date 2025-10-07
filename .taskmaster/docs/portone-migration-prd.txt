@@ -1,0 +1,654 @@
+# PortOne V2 Migration PRD: Complete Replacement of TOSS Payments & PASS Authentication
+
+## Executive Summary
+
+This PRD outlines the comprehensive migration from TOSS Payments and PASS 본인인증 to PortOne V2 for the 에뷰리띵(eBeautything) beauty reservation platform backend. The migration aims to consolidate payment processing and identity verification into a single, unified platform while maintaining all existing functionality and improving reliability.
+
+## Project Scope
+
+### In Scope
+1. **Complete replacement of TOSS Payments integration with PortOne V2 payments**
+   - All payment flows (single payment, deposit, final payment)
+   - Payment confirmation and webhook handling
+   - Payment cancellation and refunds (full and partial)
+   - Virtual account payments
+   - Payment status tracking and reconciliation
+
+2. **Complete replacement of PASS 본인인증 with PortOne V2 identity verification**
+   - Phone number verification flow
+   - Integrated authentication (통합인증) support
+   - CI/DI extraction and storage
+   - User verification status management
+
+3. **Infrastructure and configuration updates**
+   - Environment variable migration
+   - Database schema updates for PortOne-specific fields
+   - Service layer refactoring
+   - Error handling and logging updates
+
+4. **Testing and validation**
+   - Comprehensive unit, integration, and E2E tests
+   - Backward compatibility verification
+   - Data migration validation
+   - Performance testing
+
+### Out of Scope
+- Frontend Flutter app changes (backend-only migration)
+- Admin web interface changes (backend-only)
+- Business logic changes unrelated to payment/verification
+- Database migration tools (manual migration scripts only)
+
+## Current Implementation Analysis
+
+### TOSS Payments (toss-payments.service.ts)
+**Key Features:**
+- Two-stage payment support (deposit + final payment)
+- Payment initialization with order ID generation
+- Payment confirmation with amount verification
+- Webhook handling with retry mechanism and idempotency
+- Payment cancellation with refund calculation
+- Stage-specific payment processing (deposit, final, single)
+- Payment status mapping and transition
+- Reservation status integration
+
+**Technical Details:**
+- Uses TossPayments REST API with Basic Auth
+- Implements webhook signature verification
+- Stores payment metadata in JSON fields
+- Supports payment stages: deposit, final, single
+- Handles payment status: pending, deposit_paid, final_payment_paid, fully_paid, refunded, etc.
+
+### PASS Service (pass.service.ts)
+**Key Features:**
+- Phone verification initialization
+- Transaction ID generation and management
+- PASS API integration with HMAC signature
+- Verification result processing
+- CI/DI extraction and storage
+- User phone verification status updates
+- Expired verification cleanup
+
+**Technical Details:**
+- Uses PASS API with HMAC-SHA256 signatures
+- Stores verification records in phone_verifications table
+- 10-minute expiration window
+- Supports phone number normalization
+
+## PortOne V2 Integration Design
+
+### 1. Payment Integration Architecture
+
+#### 1.1 Core Payment Service
+**File:** `src/services/portone-payment.service.ts`
+
+**Responsibilities:**
+- Initialize PortOne SDK with API secret
+- Handle payment requests (single, deposit, final)
+- Process payment confirmations
+- Manage payment cancellations and refunds
+- Query payment status from PortOne
+
+**Key Methods:**
+```typescript
+class PortOnePaymentService {
+  // Payment initialization
+  async initializePayment(request: PaymentInitiationRequest): Promise<PaymentInitiationResponse>
+  async initializeDepositPayment(request: DepositPaymentRequest): Promise<PaymentInitiationResponse>
+  async initializeFinalPayment(request: FinalPaymentRequest): Promise<PaymentInitiationResponse>
+
+  // Payment confirmation
+  async confirmPayment(paymentId: string): Promise<PaymentConfirmationResponse>
+  async verifyPaymentAmount(paymentId: string, expectedAmount: number): Promise<boolean>
+
+  // Payment cancellation
+  async cancelPayment(paymentId: string, reason: string, amount?: number): Promise<CancelResponse>
+  async cancelReservationPayments(reservationId: string, reason: string): Promise<CancelSummary>
+
+  // Payment queries
+  async getPaymentById(paymentId: string): Promise<PortOnePayment>
+  async getPaymentStatus(paymentId: string): Promise<PaymentStatus>
+}
+```
+
+#### 1.2 Webhook Handler Service
+**File:** `src/services/portone-webhook.service.ts`
+
+**Responsibilities:**
+- Verify webhook signatures using PortOne SDK
+- Parse webhook payloads (2024-04-25 version)
+- Handle webhook events: Transaction.Paid, Transaction.Cancelled, etc.
+- Implement idempotency checks
+- Retry failed webhook processing
+
+**Webhook Event Handling:**
+- `Transaction.Ready`: Payment window opened
+- `Transaction.Paid`: Payment approved (all methods)
+- `Transaction.VirtualAccountIssued`: Virtual account issued
+- `Transaction.PartialCancelled`: Partial cancellation
+- `Transaction.Cancelled`: Full cancellation
+- `Transaction.Failed`: Payment failed
+
+**Key Methods:**
+```typescript
+class PortOneWebhookService {
+  async verifyWebhook(body: string, headers: Record<string, string>): Promise<WebhookData>
+  async processWebhook(webhook: WebhookData): Promise<void>
+  async handleTransactionPaid(data: TransactionPaidData): Promise<void>
+  async handleTransactionCancelled(data: TransactionCancelledData): Promise<void>
+  async checkIdempotency(paymentId: string, transactionId: string): Promise<boolean>
+  async markWebhookProcessed(paymentId: string, transactionId: string): Promise<void>
+}
+```
+
+#### 1.3 Two-Stage Payment Adapter
+**File:** `src/services/portone-two-stage-payment.service.ts`
+
+**Responsibilities:**
+- Maintain backward compatibility with existing two-stage payment logic
+- Calculate deposit amounts (20-30% of total)
+- Validate final payment conditions
+- Track payment stage progression
+- Handle stage-specific cancellations
+
+**Key Methods:**
+```typescript
+class PortOneTwoStagePaymentService {
+  async prepareDepositPayment(request: DepositPaymentRequest): Promise<PaymentResponse>
+  async prepareFinalPayment(reservationId: string): Promise<PaymentResponse>
+  async validateFinalPaymentConditions(reservationId: string): Promise<boolean>
+  async getPaymentStatusSummary(reservationId: string): Promise<PaymentStatusSummary>
+  async calculateDepositAmount(totalAmount: number): Promise<number>
+}
+```
+
+### 2. Identity Verification Integration Architecture
+
+#### 2.1 Identity Verification Service
+**File:** `src/services/portone-identity-verification.service.ts`
+
+**Responsibilities:**
+- Initialize identity verification requests
+- Process verification callbacks
+- Extract and store CI/DI information
+- Support multiple verification methods (phone, unified auth)
+- Update user verification status
+
+**Supported Verification Methods:**
+- Phone verification (Danal, KCP)
+- Unified authentication (KG Inicis) - Kakao, Naver, PASS, Toss, etc.
+
+**Key Methods:**
+```typescript
+class PortOneIdentityVerificationService {
+  async initiateVerification(request: VerificationRequest): Promise<string>
+  async verifyResult(identityVerificationId: string): Promise<VerificationResult>
+  async getVerificationRecord(identityVerificationId: string): Promise<VerificationRecord>
+  async extractCustomerInfo(identityVerificationId: string): Promise<CustomerInfo>
+  async markUserAsVerified(userId: string, ci: string, di: string): Promise<void>
+  async cleanupExpiredVerifications(): Promise<void>
+}
+```
+
+**CustomerInfo Interface:**
+```typescript
+interface CustomerInfo {
+  ci: string;              // Connecting Information
+  di?: string;             // Duplication Information
+  name: string;            // Full name
+  gender?: 'MALE' | 'FEMALE';
+  birthDate: string;       // YYYY-MM-DD
+  phoneNumber: string;     // Normalized phone number
+  operator?: string;       // Telecom operator
+  isForeigner: boolean;    // Foreign national status
+}
+```
+
+### 3. Controller Layer Updates
+
+#### 3.1 Payment Controller
+**File:** `src/controllers/portone-payment.controller.ts`
+
+**Updated Endpoints:**
+- `POST /api/payments/prepare` - Initialize single payment
+- `POST /api/payments/deposit/prepare` - Initialize deposit payment
+- `POST /api/payments/final/prepare` - Initialize final payment
+- `POST /api/payments/confirm` - Confirm payment
+- `POST /api/payments/cancel` - Cancel payment
+- `GET /api/payments/:paymentId` - Get payment details
+- `GET /api/payments/status/:reservationId` - Get reservation payment status
+- `POST /api/webhooks/portone` - PortOne webhook endpoint
+- `GET /api/payments/success` - Payment success redirect
+- `GET /api/payments/fail` - Payment failure redirect
+
+#### 3.2 Identity Verification Controller
+**File:** `src/controllers/portone-verification.controller.ts`
+
+**New Endpoints:**
+- `POST /api/verification/initiate` - Start verification
+- `POST /api/verification/complete` - Process verification result
+- `GET /api/verification/:identityVerificationId` - Get verification status
+
+### 4. Database Schema Updates
+
+#### 4.1 payments Table Modifications
+```sql
+-- Add PortOne-specific columns
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS portone_payment_id VARCHAR(255);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS portone_transaction_id VARCHAR(255);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS portone_store_id VARCHAR(255);
+ALTER TABLE payments ADD COLUMN IF NOT EXISTS portone_channel_key VARCHAR(255);
+
+-- Add indexes for performance
+CREATE INDEX IF NOT EXISTS idx_payments_portone_payment_id ON payments(portone_payment_id);
+CREATE INDEX IF NOT EXISTS idx_payments_portone_transaction_id ON payments(portone_transaction_id);
+
+-- Update payment_provider enum to include portone
+-- Note: Will maintain 'toss_payments' during migration
+```
+
+#### 4.2 phone_verifications Table Modifications
+```sql
+-- Add PortOne identity verification columns
+ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS portone_identity_verification_id VARCHAR(255);
+ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS portone_store_id VARCHAR(255);
+ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS portone_channel_key VARCHAR(255);
+ALTER TABLE phone_verifications ADD COLUMN IF NOT EXISTS verification_provider VARCHAR(50);
+
+-- Add index
+CREATE INDEX IF NOT EXISTS idx_phone_verifications_portone_id ON phone_verifications(portone_identity_verification_id);
+
+-- Update verification_method enum to include portone methods
+```
+
+#### 4.3 webhook_logs Table (New)
+```sql
+CREATE TABLE IF NOT EXISTS portone_webhook_logs (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  webhook_id VARCHAR(255) NOT NULL,
+  webhook_type VARCHAR(100) NOT NULL,
+  payment_id VARCHAR(255),
+  transaction_id VARCHAR(255),
+  billing_key VARCHAR(255),
+  store_id VARCHAR(255) NOT NULL,
+  payload JSONB NOT NULL,
+  headers JSONB NOT NULL,
+  signature_verified BOOLEAN DEFAULT FALSE,
+  processed BOOLEAN DEFAULT FALSE,
+  processing_attempts INTEGER DEFAULT 0,
+  last_processing_error TEXT,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  processed_at TIMESTAMP WITH TIME ZONE,
+  UNIQUE(webhook_id, transaction_id)
+);
+
+CREATE INDEX idx_portone_webhook_logs_payment_id ON portone_webhook_logs(payment_id);
+CREATE INDEX idx_portone_webhook_logs_processed ON portone_webhook_logs(processed);
+CREATE INDEX idx_portone_webhook_logs_created_at ON portone_webhook_logs(created_at);
+```
+
+### 5. Environment Configuration
+
+#### 5.1 New Environment Variables
+```bash
+# PortOne V2 Configuration
+PORTONE_API_SECRET=your_portone_api_secret
+PORTONE_STORE_ID=store-xxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+PORTONE_WEBHOOK_SECRET=whsec_xxxxxxxxxxxxxxxxxxxxx
+
+# PortOne Channel Keys (per payment method)
+PORTONE_CHANNEL_KEY_CARD=channel-key-xxxxx
+PORTONE_CHANNEL_KEY_VIRTUAL_ACCOUNT=channel-key-xxxxx
+PORTONE_CHANNEL_KEY_EASY_PAY=channel-key-xxxxx
+
+# PortOne Identity Verification Channel Keys
+PORTONE_VERIFICATION_CHANNEL_KEY_PHONE=channel-key-xxxxx
+PORTONE_VERIFICATION_CHANNEL_KEY_UNIFIED=channel-key-xxxxx
+
+# Migration Settings
+PORTONE_MIGRATION_MODE=dual  # dual | portone_only
+PORTONE_MIGRATION_LOG_LEVEL=debug
+```
+
+#### 5.2 Environment Schema Validation
+```typescript
+// Update src/config/environment.ts
+const envSchema = Joi.object({
+  // ... existing variables ...
+
+  // PortOne Configuration
+  PORTONE_API_SECRET: Joi.string().required(),
+  PORTONE_STORE_ID: Joi.string().required(),
+  PORTONE_WEBHOOK_SECRET: Joi.string().required(),
+  PORTONE_CHANNEL_KEY_CARD: Joi.string().required(),
+  PORTONE_CHANNEL_KEY_VIRTUAL_ACCOUNT: Joi.string().optional(),
+  PORTONE_CHANNEL_KEY_EASY_PAY: Joi.string().optional(),
+  PORTONE_VERIFICATION_CHANNEL_KEY_PHONE: Joi.string().required(),
+  PORTONE_VERIFICATION_CHANNEL_KEY_UNIFIED: Joi.string().optional(),
+  PORTONE_MIGRATION_MODE: Joi.string().valid('dual', 'portone_only').default('dual'),
+
+  // Deprecate TOSS variables (maintain during migration)
+  TOSS_PAYMENTS_SECRET_KEY: Joi.string().optional(),
+  TOSS_PAYMENTS_CLIENT_KEY: Joi.string().optional(),
+  PASS_CLIENT_ID: Joi.string().optional(),
+  PASS_CLIENT_SECRET: Joi.string().optional(),
+});
+
+export const config = {
+  // ... existing config ...
+
+  portone: {
+    apiSecret: envVars.PORTONE_API_SECRET,
+    storeId: envVars.PORTONE_STORE_ID,
+    webhookSecret: envVars.PORTONE_WEBHOOK_SECRET,
+    channels: {
+      card: envVars.PORTONE_CHANNEL_KEY_CARD,
+      virtualAccount: envVars.PORTONE_CHANNEL_KEY_VIRTUAL_ACCOUNT,
+      easyPay: envVars.PORTONE_CHANNEL_KEY_EASY_PAY,
+    },
+    verification: {
+      phone: envVars.PORTONE_VERIFICATION_CHANNEL_KEY_PHONE,
+      unified: envVars.PORTONE_VERIFICATION_CHANNEL_KEY_UNIFIED,
+    },
+    migration: {
+      mode: envVars.PORTONE_MIGRATION_MODE,
+    },
+  },
+};
+```
+
+### 6. Migration Strategy
+
+#### 6.1 Phase 1: Infrastructure Setup (Week 1)
+1. Install PortOne SDKs
+   - `npm install @portone/browser-sdk @portone/server-sdk`
+2. Set up PortOne console account
+   - Create store and channels
+   - Generate API keys and webhook secrets
+3. Configure environment variables
+4. Create database migrations
+5. Set up webhook endpoints with signature verification
+
+#### 6.2 Phase 2: Service Layer Development (Week 2-3)
+1. Implement PortOne payment service
+2. Implement PortOne webhook service
+3. Implement PortOne identity verification service
+4. Create adapter services for backward compatibility
+5. Update existing services to use new services
+6. Implement dual-mode operation (TOSS + PortOne)
+
+#### 6.3 Phase 3: Controller and Route Updates (Week 3-4)
+1. Update payment controller with PortOne integration
+2. Create identity verification controller
+3. Update route handlers
+4. Add request/response validation
+5. Update error handling and logging
+
+#### 6.4 Phase 4: Testing (Week 4-5)
+1. Unit tests for all new services
+2. Integration tests for payment flows
+3. Integration tests for verification flows
+4. E2E tests for complete user journeys
+5. Webhook testing with PortOne test environment
+6. Load testing and performance validation
+
+#### 6.5 Phase 5: Data Migration (Week 5)
+1. Create data migration scripts
+2. Map existing TOSS payment records to PortOne format
+3. Map existing PASS verification records to PortOne format
+4. Validate data integrity
+5. Create rollback procedures
+
+#### 6.6 Phase 6: Deployment and Monitoring (Week 6)
+1. Deploy in dual mode (TOSS + PortOne parallel)
+2. Monitor error rates and performance
+3. Gradual traffic shifting to PortOne
+4. Complete cutover to PortOne
+5. Deprecate TOSS and PASS services
+6. Remove old code after stability confirmation
+
+### 7. Testing Requirements
+
+#### 7.1 Unit Tests
+**Files to Test:**
+- `portone-payment.service.test.ts`
+- `portone-webhook.service.test.ts`
+- `portone-identity-verification.service.test.ts`
+- `portone-two-stage-payment.service.test.ts`
+
+**Coverage Requirements:**
+- Minimum 90% code coverage
+- All error paths tested
+- Edge cases validated
+
+#### 7.2 Integration Tests
+**Test Scenarios:**
+- Single payment flow (initialize → confirm → webhook)
+- Deposit payment flow
+- Final payment flow (after service completion)
+- Payment cancellation (full and partial)
+- Virtual account payment and refund
+- Phone verification flow
+- Unified authentication flow
+- Webhook signature verification
+- Idempotency handling
+
+#### 7.3 E2E Tests
+**User Journeys:**
+- Complete reservation with deposit → service completion → final payment
+- Single payment reservation
+- Payment failure and retry
+- Payment cancellation with refund
+- User registration with phone verification
+- Age verification using identity verification
+
+#### 7.4 Performance Tests
+**Metrics:**
+- Payment initialization: < 500ms
+- Payment confirmation: < 1s
+- Webhook processing: < 2s
+- Identity verification: < 3s
+- Concurrent payment handling: 100 req/s
+
+### 8. Error Handling and Logging
+
+#### 8.1 Error Types
+```typescript
+export class PortOnePaymentError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public details?: any
+  ) {
+    super(message);
+    this.name = 'PortOnePaymentError';
+  }
+}
+
+export class PortOneWebhookError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public webhookId?: string
+  ) {
+    super(message);
+    this.name = 'PortOneWebhookError';
+  }
+}
+
+export class PortOneVerificationError extends Error {
+  constructor(
+    message: string,
+    public code: string,
+    public identityVerificationId?: string
+  ) {
+    super(message);
+    this.name = 'PortOneVerificationError';
+  }
+}
+```
+
+#### 8.2 Logging Strategy
+- **Payment Operations:**
+  - Log all payment initialization attempts
+  - Log payment confirmation success/failure
+  - Log webhook receipt and processing
+  - Log cancellation requests and results
+
+- **Verification Operations:**
+  - Log verification initiation
+  - Log verification completion
+  - Log CI/DI extraction
+  - Log verification failures
+
+- **Sensitive Data:**
+  - Mask credit card numbers
+  - Mask resident registration numbers
+  - Mask full phone numbers (show last 4 digits)
+  - Mask API secrets in logs
+
+### 9. Rollback Plan
+
+#### 9.1 Immediate Rollback (< 1 hour)
+- Switch `PORTONE_MIGRATION_MODE` to `toss_only` via environment variable
+- Restart application
+- All traffic routes to TOSS/PASS
+- PortOne services disabled
+
+#### 9.2 Data Rollback
+- Restore database from backup
+- Revert schema migrations
+- Validate data consistency
+- Resume normal operations with TOSS/PASS
+
+#### 9.3 Rollback Triggers
+- Payment success rate < 95%
+- Webhook processing failure rate > 5%
+- Verification success rate < 95%
+- Critical security vulnerability discovered
+- Performance degradation > 50%
+
+### 10. Success Criteria
+
+#### 10.1 Technical Metrics
+- 99.9% payment success rate
+- < 1% webhook processing failures
+- 99% identity verification success rate
+- Zero data loss during migration
+- Zero security incidents
+- < 500ms average payment response time
+
+#### 10.2 Business Metrics
+- No customer payment complaints
+- No disruption to reservation flow
+- Successful processing of all payment types
+- Accurate financial reconciliation
+- Complete audit trail for all transactions
+
+### 11. Documentation Requirements
+
+#### 11.1 Technical Documentation
+- Architecture diagrams (before/after)
+- API endpoint documentation
+- Database schema changes
+- Environment configuration guide
+- Deployment procedures
+- Troubleshooting guide
+
+#### 11.2 Operational Documentation
+- Monitoring dashboard setup
+- Alert configuration
+- Incident response procedures
+- Data migration runbook
+- Rollback procedures
+- FAQ for common issues
+
+### 12. Dependencies and Integration Points
+
+#### 12.1 External Dependencies
+- PortOne V2 API availability
+- PortOne webhook infrastructure
+- Payment gateway availability (underlying PGs)
+- Identity verification providers (Danal, KCP, KG Inicis)
+
+#### 12.2 Internal Dependencies
+- Reservation service (status updates)
+- User service (verification status)
+- Notification service (payment/verification alerts)
+- Admin service (manual payment operations)
+- Financial reconciliation service
+
+### 13. Risk Assessment
+
+#### 13.1 High-Risk Items
+1. **Payment Data Loss**
+   - Mitigation: Comprehensive testing, dual-mode operation, backup procedures
+
+2. **Webhook Processing Failures**
+   - Mitigation: Idempotency checks, retry mechanisms, manual reconciliation tools
+
+3. **Identity Verification Downtime**
+   - Mitigation: Graceful degradation, fallback to manual verification, clear error messages
+
+4. **Financial Reconciliation Issues**
+   - Mitigation: Parallel reconciliation during dual mode, detailed audit logs
+
+5. **Security Vulnerabilities**
+   - Mitigation: Webhook signature verification, API secret management, penetration testing
+
+#### 13.2 Medium-Risk Items
+1. **Performance Degradation**
+   - Mitigation: Load testing, caching strategies, monitoring
+
+2. **Configuration Errors**
+   - Mitigation: Environment validation, configuration templates, testing
+
+3. **Third-Party Provider Changes**
+   - Mitigation: Version pinning, monitoring PortOne changelogs, flexible adapter pattern
+
+### 14. Timeline and Milestones
+
+**Total Duration:** 6 weeks
+
+**Week 1:** Infrastructure setup and configuration
+- Milestone: PortOne account configured, SDKs installed
+
+**Week 2-3:** Service layer development
+- Milestone: All PortOne services implemented and unit tested
+
+**Week 3-4:** Controller and route updates
+- Milestone: API endpoints updated and integration tested
+
+**Week 4-5:** Comprehensive testing
+- Milestone: All test suites passing, performance validated
+
+**Week 5:** Data migration preparation
+- Milestone: Migration scripts tested, rollback procedures validated
+
+**Week 6:** Deployment and monitoring
+- Milestone: Production deployment complete, TOSS/PASS deprecated
+
+### 15. Post-Migration Tasks
+
+#### 15.1 Immediate (Week 7-8)
+- Monitor error rates and performance metrics
+- Address any critical issues
+- Optimize performance bottlenecks
+- Update documentation based on lessons learned
+
+#### 15.2 Short-term (Month 2-3)
+- Remove TOSS Payments code and dependencies
+- Remove PASS authentication code and dependencies
+- Clean up database schemas (remove deprecated columns)
+- Archive old configuration
+- Conduct post-migration review
+
+#### 15.3 Long-term (Month 4+)
+- Leverage PortOne advanced features
+- Implement smart routing if beneficial
+- Explore additional payment methods
+- Optimize transaction costs
+- Enhance fraud detection using PortOne tools
+
+## Conclusion
+
+This migration to PortOne V2 will consolidate payment processing and identity verification into a unified platform, reducing complexity, improving maintainability, and providing better support for future payment method expansions. The phased approach with dual-mode operation ensures minimal risk and allows for thorough validation at each stage.
