@@ -689,8 +689,9 @@ export function authenticateJWT() {
           userAgent: req.get('User-Agent'),
           deviceFingerprint: generateDeviceFingerprint(req)
         });
-        
+
         res.status(error.statusCode).json({
+          success: false,
           error: {
             code: error.code,
             message: error.message,
@@ -707,6 +708,7 @@ export function authenticateJWT() {
       });
 
       res.status(500).json({
+        success: false,
         error: {
           code: 'INTERNAL_ERROR',
           message: 'Internal server error',
