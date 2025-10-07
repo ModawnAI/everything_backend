@@ -23,7 +23,7 @@ export interface AuthenticatedRequest extends Request {
   user?: {
     id: string;
     email: string;
-    user_role: string;
+    role: string;
     name?: string;
   };
 }
@@ -178,7 +178,7 @@ export class AdminFinancialController {
       const { startDate, endDate, shopId } = req.query;
       const adminId = req.user?.id;
 
-      if (!adminId || req.user?.user_role !== 'admin') {
+      if (!adminId || req.user?.role !== 'admin') {
         res.status(403).json({ error: 'Admin access required' });
         return;
       }
@@ -318,7 +318,7 @@ export class AdminFinancialController {
       const { startDate, endDate, userId } = req.query;
       const adminId = req.user?.id;
 
-      if (!adminId || req.user?.user_role !== 'admin') {
+      if (!adminId || req.user?.role !== 'admin') {
         res.status(403).json({ error: 'Admin access required' });
         return;
       }
@@ -483,7 +483,7 @@ export class AdminFinancialController {
 
       const adminId = req.user?.id;
 
-      if (!adminId || req.user?.user_role !== 'admin') {
+      if (!adminId || req.user?.role !== 'admin') {
         res.status(403).json({ error: 'Admin access required' });
         return;
       }
@@ -555,7 +555,7 @@ export class AdminFinancialController {
       const { shopId, startDate, endDate } = req.query;
       const adminId = req.user?.id;
 
-      if (!adminId || req.user?.user_role !== 'admin') {
+      if (!adminId || req.user?.role !== 'admin') {
         res.status(403).json({ error: 'Admin access required' });
         return;
       }
@@ -710,7 +710,7 @@ export class AdminFinancialController {
       const reportRequest: FinancialReportRequest = req.body;
       const adminId = req.user?.id;
 
-      if (!adminId || req.user?.user_role !== 'admin') {
+      if (!adminId || req.user?.role !== 'admin') {
         res.status(403).json({ error: 'Admin access required' });
         return;
       }
@@ -795,7 +795,7 @@ export class AdminFinancialController {
       const { status, startDate, endDate, shopId } = req.query;
       const adminId = req.user?.id;
 
-      if (!adminId || req.user?.user_role !== 'admin') {
+      if (!adminId || req.user?.role !== 'admin') {
         res.status(403).json({ error: 'Admin access required' });
         return;
       }
@@ -819,7 +819,7 @@ export class AdminFinancialController {
             id,
             shop_id,
             user_id,
-            total_price,
+            total_amount,
             shops!inner(name),
             users!inner(name, email)
           )
