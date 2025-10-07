@@ -30,11 +30,9 @@ export interface SocialLoginResponse {
   success: boolean;
   data: {
     user: UserProfile;
-    tokens: {
-      accessToken: string;
-      refreshToken: string;
-      expiresIn: number;
-    };
+    token: string;
+    refreshToken: string;
+    expiresIn: number;
     isNewUser: boolean;
     profileComplete: boolean;
     supabaseSession?: any; // Full Supabase session object

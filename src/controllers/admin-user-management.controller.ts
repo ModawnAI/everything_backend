@@ -84,6 +84,20 @@ export class AdminUserManagementController {
         return;
       }
 
+      // Map frontend camelCase sort fields to database snake_case columns
+      type ValidSortField = 'created_at' | 'name' | 'email' | 'last_login_at' | 'total_points' | 'total_referrals';
+      const sortByMap: Record<string, ValidSortField> = {
+        'createdAt': 'created_at',
+        'updatedAt': 'created_at', // Map updatedAt to created_at since it's not in the valid list
+        'lastLoginAt': 'last_login_at',
+        'totalPoints': 'total_points',
+        'totalReferrals': 'total_referrals',
+        'name': 'name',
+        'email': 'email'
+      };
+
+      const mappedSortBy = (sortBy ? (sortByMap[sortBy as string] || 'created_at') : 'created_at') as ValidSortField;
+
       const filters = {
         search: search as string,
         role: role as UserRole,
@@ -98,7 +112,7 @@ export class AdminUserManagementController {
         hasReferrals: hasReferrals === 'true' ? true : hasReferrals === 'false' ? false : undefined,
         minPoints: minPoints ? parseInt(minPoints as string, 10) : undefined,
         maxPoints: maxPoints ? parseInt(maxPoints as string, 10) : undefined,
-        sortBy: sortBy as any,
+        sortBy: mappedSortBy,
         sortOrder: sortOrder as 'asc' | 'desc',
         page: parseInt(page as string, 10),
         limit: parseInt(limit as string, 10)
@@ -119,6 +133,31 @@ export class AdminUserManagementController {
       res.status(500).json({
         success: false,
         error: 'Failed to get users'
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/roles
+   * Get list of available user roles
+   */
+  async getUserRoles(req: Request, res: Response): Promise<void> {
+    try {
+      res.json({
+        success: true,
+        data: VALID_USER_ROLES.map(role => ({
+          value: role,
+          label: role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+        }))
+      });
+    } catch (error) {
+      logger.error('Admin get user roles failed', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get user roles'
       });
     }
   }

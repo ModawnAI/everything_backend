@@ -77,6 +77,18 @@ class ServiceCatalogController {
         sort_order = 'desc'
       } = req.query;
 
+      // Map sort_by values to actual database column names
+      const sortByMap: Record<string, string> = {
+        'price': 'price_min',
+        'duration': 'duration_minutes',
+        'rating': 'created_at', // No rating column yet, fallback to created_at
+        'popularity': 'created_at', // No popularity column yet, fallback to created_at
+        'distance': 'created_at', // No distance column yet, fallback to created_at
+        'newest': 'created_at'
+      };
+
+      const mappedSortBy = sort_by ? sortByMap[sort_by] || 'created_at' : 'created_at';
+
       const options = {
         category: category as ServiceCategory,
         service_level: service_level as 'basic' | 'premium' | 'luxury' | undefined,
@@ -86,7 +98,7 @@ class ServiceCatalogController {
         trending_only: trending_only === 'true',
         limit: parseInt(limit),
         offset: 0,
-        sort_by,
+        sort_by: mappedSortBy,
         sort_order: sort_order as 'asc' | 'desc'
       };
 
@@ -99,15 +111,17 @@ class ServiceCatalogController {
         options
       });
 
+      // Disable caching to ensure fresh data
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
+
       res.status(200).json({
         success: true,
         data: {
           services,
-          total: services.length,
-          metadata: {
-            ...options,
-            has_more: services.length === options.limit
-          }
+          totalCount: services.length,
+          hasMore: services.length === options.limit
         }
       });
 
@@ -364,11 +378,7 @@ class ServiceCatalogController {
 
       res.status(200).json({
         success: true,
-        data: {
-          services,
-          total: services.length,
-          limit
-        }
+        data: services
       });
 
     } catch (error) {
@@ -402,11 +412,7 @@ class ServiceCatalogController {
 
       res.status(200).json({
         success: true,
-        data: {
-          services,
-          total: services.length,
-          limit
-        }
+        data: services
       });
 
     } catch (error) {

@@ -119,6 +119,28 @@ const router = Router();
 router.get('/', adminUserManagementController.getUsers);
 
 /**
+ * GET /api/admin/users/roles
+ * Get list of available user roles
+ *
+ * Headers:
+ * Authorization: Bearer <admin-jwt-token>
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "roles": [
+ *       { "value": "user", "label": "User" },
+ *       { "value": "shop_owner", "label": "Shop Owner" },
+ *       { "value": "admin", "label": "Admin" },
+ *       { "value": "influencer", "label": "Influencer" }
+ *     ]
+ *   }
+ * }
+ */
+router.get('/roles', adminUserManagementController.getUserRoles);
+
+/**
  * GET /api/admin/users/activity
  * Get user activity feed for admin monitoring
  * 

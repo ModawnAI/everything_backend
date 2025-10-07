@@ -93,6 +93,7 @@ import csrfRoutes from './routes/csrf.routes';
 import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
 import adminTicketRoutes from './routes/admin-ticket.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -400,6 +401,7 @@ app.use('/api/shop', shopContactMethodsRoutes);
 app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
+app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/financial', adminFinancialRoutes);
 app.use('/api/admin/tickets', adminTicketRoutes);
 app.use('/api/admin', ipBlockingRoutes);
@@ -464,21 +466,21 @@ if (require.main === module) {
 
     try {
       server = app.listen(PORT, () => {
-        console.log(`🚀 에뷰리띵 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
-        console.log(`📍 Health Check: http://localhost:${PORT}/health`);
-        console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
-        console.log(`📚 API Documentation:`);
-        console.log(`   📖 Complete API: http://localhost:${PORT}/api-docs`);
-        console.log(`   🔒 Admin API: http://localhost:${PORT}/admin-docs`);
-        console.log(`   🛍️ Service API: http://localhost:${PORT}/service-docs`);
+        // console.log(`🚀 에뷰리띵 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
+        // console.log(`📍 Health Check: http://localhost:${PORT}/health`);
+        // console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
+        // console.log(`📚 API Documentation:`);
+        // console.log(`   📖 Complete API: http://localhost:${PORT}/api-docs`);
+        // console.log(`   🔒 Admin API: http://localhost:${PORT}/admin-docs`);
+        // console.log(`   🛍️ Service API: http://localhost:${PORT}/service-docs`);
 
         // Initialize WebSocket service
         initializeWebSocketService(server);
-        console.log(`🔌 WebSocket 서비스가 초기화되었습니다.`);
+        // console.log(`🔌 WebSocket 서비스가 초기화되었습니다.`);
 
         // Start influencer qualification scheduler
         influencerSchedulerService.startScheduler();
-        console.log(`⭐ 인플루언서 자격 관리 스케줄러가 시작되었습니다.`);
+        // console.log(`⭐ 인플루언서 자격 관리 스케줄러가 시작되었습니다.`);
       });
 
       // Handle server errors
