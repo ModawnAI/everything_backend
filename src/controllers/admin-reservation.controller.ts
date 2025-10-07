@@ -434,16 +434,6 @@ export class AdminReservationController {
             amount,
             paid_at,
             created_at
-          ),
-          disputes:reservation_disputes(
-            id,
-            dispute_type,
-            description,
-            requested_action,
-            priority,
-            status,
-            created_at,
-            resolved_at
           )
         `)
         .eq('id', reservationId)
@@ -538,17 +528,6 @@ export class AdminReservationController {
           paidAt: payment.paid_at,
           createdAt: payment.created_at
         })),
-        // Disputes information
-        disputes: (reservation.disputes || []).map((dispute: any) => ({
-          id: dispute.id,
-          disputeType: dispute.dispute_type,
-          description: dispute.description,
-          requestedAction: dispute.requested_action,
-          priority: dispute.priority,
-          status: dispute.status,
-          createdAt: dispute.created_at,
-          resolvedAt: dispute.resolved_at
-        })),
         // Computed fields
         daysUntilReservation,
         isOverdue,
@@ -559,10 +538,10 @@ export class AdminReservationController {
         // Analysis
         analysis: {
           paymentCompletion: (totalPaidAmount / reservation.total_amount) * 100,
-          hasDisputes: (reservation.disputes || []).length > 0,
-          openDisputes: (reservation.disputes || []).filter((d: any) => d.status === 'open' || d.status === 'investigating').length,
-          isUrgent: isOverdue || (reservation.disputes || []).some((d: any) => d.priority === 'urgent'),
-          requiresAttention: isOverdue || outstandingAmount > 0 || (reservation.disputes || []).some((d: any) => d.status === 'open')
+          hasDisputes: false,
+          openDisputes: 0,
+          isUrgent: isOverdue,
+          requiresAttention: isOverdue || outstandingAmount > 0
         }
       };
 
