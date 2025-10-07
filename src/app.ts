@@ -353,17 +353,11 @@ app.use('/api/admin/*', authenticateJWT(), requireAdmin());
 app.use('/api/admin/*', adminNoCacheMiddleware);
 
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
-// Backward compatibility route without /api prefix (temporary - fix frontend base URL)
-app.use('/admin/shops/approval', authenticateJWT(), requireAdmin(), adminShopApprovalRoutes);
 app.use('/api/admin/shops/:shopId/services', adminShopServiceRoutes); // Shop service management (specific path to avoid conflicts)
 app.use('/api/admin/shops', adminShopRoutes);
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
-// Alias for backwards compatibility: /admin/bookings -> /api/admin/reservations
-app.use('/admin/bookings', adminReservationRoutes);
-// Alias for frontend: /shops -> /api/admin/shops
-app.use('/shops', adminShopRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);

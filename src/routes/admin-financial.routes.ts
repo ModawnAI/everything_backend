@@ -134,42 +134,143 @@ router.get(
   adminFinancialController.getPaymentOverview.bind(adminFinancialController)
 );
 
+/**
+ * @swagger
+ * /payments:
+ *   get:
+ *     summary: 결제 목록 조회 (간단한 페이지네이션)
+ *     description: |
+ *       결제 목록을 페이지네이션과 기본 필터로 조회합니다.
+ *       상세 필터링과 정렬이 필요한 경우 /api/admin/payments 엔드포인트를 사용하세요.
+ *
+ *       **참고:** 이 엔드포인트는 기본적인 조회용입니다.
+ *       상세한 필터링이 필요한 경우 `/api/admin/payments` 사용을 권장합니다.
+ *
+ *       ---
+ *
+ *       **English:** Retrieve payment list with basic pagination and filters.
+ *       For advanced filtering and sorting, use /api/admin/payments endpoint instead.
+ *     tags: [Admin Financial]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Items per page
+ *       - in: query
+ *         name: status
+ *         schema:
+ *           type: string
+ *           enum: [pending, processing, completed, failed, cancelled, refunded]
+ *         description: Filter by payment status
+ *       - in: query
+ *         name: paymentMethod
+ *         schema:
+ *           type: string
+ *           enum: [card, transfer, cash, points]
+ *         description: Filter by payment method
+ *     responses:
+ *       200:
+ *         description: Payment list retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     payments:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                     pagination:
+ *                       type: object
+ *                       properties:
+ *                         total:
+ *                           type: integer
+ *                         page:
+ *                           type: integer
+ *                         limit:
+ *                           type: integer
+ *                         totalPages:
+ *                           type: integer
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
 // GET /api/admin/financial/payments - List all payments with pagination
+// NOTE: For advanced filtering, use /api/admin/payments instead
 router.get(
   '/payments',
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
-    query('status').optional().isIn(['PENDING', 'COMPLETED', 'FAILED', 'REFUNDED']).withMessage('Invalid payment status'),
-    query('paymentMethod').optional().isString(),
-    query('search').optional().isString()
+    query('status').optional().isIn(['pending', 'processing', 'completed', 'failed', 'cancelled', 'refunded']).withMessage('Invalid payment status'),
+    query('paymentMethod').optional().isIn(['card', 'transfer', 'cash', 'points']).withMessage('Invalid payment method'),
   ],
   validateRequest,
   async (req, res) => {
     try {
-      // This is a placeholder - will be implemented in controller
+      // Import admin payment controller
+      const adminPaymentService = await import('../services/admin-payment.service').then(m => m.AdminPaymentService);
+      const service = new adminPaymentService();
+
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
+      const status = req.query.status as any;
+      const paymentMethod = req.query.paymentMethod as any;
+
+      const adminId = (req as any).user?.id || 'system';
+
+      const result = await service.getPayments(
+        {
+          status,
+          paymentMethod,
+          page,
+          limit,
+          sortBy: 'paid_at',
+          sortOrder: 'desc'
+        },
+        adminId
+      );
 
       res.json({
         success: true,
         data: {
-          payments: [],
+          payments: result.payments,
           pagination: {
-            total: 0,
-            page,
+            total: result.totalCount,
+            page: result.currentPage,
             limit,
-            totalPages: 0
-          },
-          summary: {
-            totalAmount: 0,
-            completedAmount: 0,
-            pendingAmount: 0
+            totalPages: result.totalPages
           }
         }
       });
     } catch (error) {
-      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch payments' } });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch payments',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
     }
   }
 );
@@ -178,40 +279,174 @@ router.get(
  * Point System Management Routes
  */
 
+/**
+ * @swagger
+ * /points:
+ *   get:
+ *     summary: 포인트 거래 내역 조회
+ *     description: |
+ *       포인트 거래 내역을 페이지네이션과 필터로 조회합니다.
+ *
+ *       **주요 기능:**
+ *       - 거래 유형별 필터링 (적립, 사용, 만료, 환불, 관리자 조정)
+ *       - 사용자 검색
+ *       - 페이지네이션
+ *
+ *       ---
+ *
+ *       **English:** Retrieve point transaction history with pagination and filters.
+ *     tags: [Admin Financial]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: page
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           default: 1
+ *         description: Page number
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 100
+ *           default: 10
+ *         description: Items per page
+ *       - in: query
+ *         name: type
+ *         schema:
+ *           type: string
+ *           enum: [earned, used, expired, refunded, admin_adjustment]
+ *         description: Filter by transaction type
+ *       - in: query
+ *         name: userId
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Filter by user ID
+ *     responses:
+ *       200:
+ *         description: Point transactions retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
 // GET /api/admin/financial/points - List all point transactions
 router.get(
   '/points',
   [
     query('page').optional().isInt({ min: 1 }).withMessage('Page must be a positive integer'),
     query('limit').optional().isInt({ min: 1, max: 100 }).withMessage('Limit must be between 1 and 100'),
-    query('type').optional().isIn(['EARNED', 'USED', 'EXPIRED', 'REFUNDED', 'ADMIN_ADJUSTMENT']).withMessage('Invalid point transaction type'),
-    query('search').optional().isString()
+    query('type').optional().isIn(['earned', 'used', 'expired', 'refunded', 'admin_adjustment']).withMessage('Invalid point transaction type'),
+    query('userId').optional().isUUID().withMessage('Invalid user ID format')
   ],
   validateRequest,
   async (req, res) => {
     try {
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 10;
+      const type = req.query.type as string;
+      const userId = req.query.userId as string;
+
+      const offset = (page - 1) * limit;
+
+      // Build query
+      let query = supabase
+        .from('point_transactions')
+        .select(`
+          *,
+          user:users!point_transactions_user_id_fkey(
+            id,
+            name,
+            email
+          )
+        `, { count: 'exact' });
+
+      // Apply filters
+      if (type) {
+        query = query.eq('transaction_type', type);
+      }
+
+      if (userId) {
+        query = query.eq('user_id', userId);
+      }
+
+      // Get total count
+      const { count } = await query;
+
+      // Get paginated data
+      const { data: transactions, error } = await query
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (error) {
+        throw new Error(`Failed to fetch point transactions: ${error.message}`);
+      }
+
+      // Calculate summary
+      const { data: summaryData } = await supabase
+        .from('point_transactions')
+        .select('amount, transaction_type');
+
+      const totalEarned = (summaryData || [])
+        .filter(t => t.transaction_type === 'earned')
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      const totalUsed = (summaryData || [])
+        .filter(t => t.transaction_type === 'used')
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      const totalExpired = (summaryData || [])
+        .filter(t => t.transaction_type === 'expired')
+        .reduce((sum, t) => sum + Math.abs(t.amount), 0);
+
+      const totalPages = Math.ceil((count || 0) / limit);
 
       res.json({
         success: true,
         data: {
-          transactions: [],
+          transactions: (transactions || []).map(t => ({
+            id: t.id,
+            userId: t.user_id,
+            userName: t.user?.name || 'Unknown',
+            userEmail: t.user?.email || '',
+            transactionType: t.transaction_type,
+            amount: t.amount,
+            balance: t.balance_after,
+            description: t.description,
+            status: t.status,
+            relatedReservationId: t.related_reservation_id,
+            expiresAt: t.expires_at,
+            createdAt: t.created_at
+          })),
           pagination: {
-            total: 0,
+            total: count || 0,
             page,
             limit,
-            totalPages: 0
+            totalPages
           },
           summary: {
-            totalEarned: 0,
-            totalUsed: 0,
-            totalExpired: 0
+            totalEarned,
+            totalUsed,
+            totalExpired
           }
         }
       });
     } catch (error) {
-      res.status(500).json({ success: false, error: { code: 'INTERNAL_ERROR', message: 'Failed to fetch point transactions' } });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: 'Failed to fetch point transactions',
+          details: error instanceof Error ? error.message : 'Unknown error'
+        }
+      });
     }
   }
 );
