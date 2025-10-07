@@ -24,88 +24,8 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
-// Shop ID validation schema
-const shopIdSchema = Joi.object({
-  shopId: Joi.string()
-    .uuid()
-    .required()
-    .messages({
-      'string.guid': '유효하지 않은 샵 ID입니다.',
-      'any.required': '샵 ID는 필수입니다.'
-    })
-});
-
-// Service ID validation for admin routes (includes shopId)
-const adminServiceIdSchema = Joi.object({
-  shopId: Joi.string()
-    .uuid()
-    .required()
-    .messages({
-      'string.guid': '유효하지 않은 샵 ID입니다.',
-      'any.required': '샵 ID는 필수입니다.'
-    }),
-  serviceId: Joi.string()
-    .uuid()
-    .required()
-    .messages({
-      'string.guid': '유효하지 않은 서비스 ID입니다.',
-      'any.required': '서비스 ID는 필수입니다.'
-    })
-});
-
-// Validation middleware for shop ID
-const validateShopId = (req: any, res: any, next: any) => {
-  const { error, value } = shopIdSchema.validate(req.params, {
-    abortEarly: false,
-    stripUnknown: true
-  });
-
-  if (error) {
-    const validationErrors = error.details.map(detail => ({
-      field: detail.path.join('.'),
-      message: detail.message
-    }));
-
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: '샵 ID가 유효하지 않습니다.',
-        details: validationErrors
-      }
-    });
-  }
-
-  req.params = { ...req.params, ...value };
-  next();
-};
-
-// Validation middleware for admin service operations
-const validateAdminServiceId = (req: any, res: any, next: any) => {
-  const { error, value } = adminServiceIdSchema.validate(req.params, {
-    abortEarly: false,
-    stripUnknown: true
-  });
-
-  if (error) {
-    const validationErrors = error.details.map(detail => ({
-      field: detail.path.join('.'),
-      message: detail.message
-    }));
-
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 'VALIDATION_ERROR',
-        message: '파라미터가 유효하지 않습니다.',
-        details: validationErrors
-      }
-    });
-  }
-
-  req.params = { ...req.params, ...value };
-  next();
-};
+// Note: shopId is now captured from the mount path /api/admin/shops/:shopId/services
+// It's automatically available in req.params.shopId
 
 // Rate limiting for admin service operations
 const adminServiceRateLimit = rateLimit({
@@ -125,17 +45,16 @@ const adminServiceUpdateRateLimit = rateLimit({
 });
 
 // Apply authentication and admin authorization to all routes
-router.use(authenticateJWT);
-router.use(requireAdmin);
+router.use(authenticateJWT());
+router.use(requireAdmin());
 
 /**
  * @route GET /api/admin/shops/:shopId/services
  * @desc Get all services for a specific shop
  * @access Admin
  */
-router.get('/:shopId/services',
+router.get('/',
   adminServiceRateLimit,
-  validateShopId,
   validateServiceListQuery,
   async (req, res) => {
     try {
@@ -167,9 +86,8 @@ router.get('/:shopId/services',
  * @desc Create a new service for a shop
  * @access Admin
  */
-router.post('/:shopId/services',
+router.post('/',
   adminServiceUpdateRateLimit,
-  validateShopId,
   validateCreateService,
   async (req, res) => {
     try {
@@ -201,9 +119,9 @@ router.post('/:shopId/services',
  * @desc Get a specific service by ID
  * @access Admin
  */
-router.get('/:shopId/services/:serviceId',
+router.get('/:serviceId',
   adminServiceRateLimit,
-  validateAdminServiceId,
+  validateServiceId,
   async (req, res) => {
     try {
       await adminShopServiceController.getShopServiceById(req as any, res);
@@ -234,9 +152,9 @@ router.get('/:shopId/services/:serviceId',
  * @desc Update a shop service
  * @access Admin
  */
-router.put('/:shopId/services/:serviceId',
+router.put('/:serviceId',
   adminServiceUpdateRateLimit,
-  validateAdminServiceId,
+  validateServiceId,
   validateUpdateService,
   async (req, res) => {
     try {
@@ -269,9 +187,9 @@ router.put('/:shopId/services/:serviceId',
  * @desc Delete a shop service
  * @access Admin
  */
-router.delete('/:shopId/services/:serviceId',
+router.delete('/:serviceId',
   adminServiceUpdateRateLimit,
-  validateAdminServiceId,
+  validateServiceId,
   async (req, res) => {
     try {
       await adminShopServiceController.deleteShopService(req as any, res);

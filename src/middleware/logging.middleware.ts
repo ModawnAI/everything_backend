@@ -75,13 +75,15 @@ export const morganFormat = morgan((tokens, req: Request, res: Response) => {
     requestId: correlationId,
   };
 
-  // Log based on status code
+  // Log directly to console to bypass Winston filtering
+  const logMessage = `[${logEntry.timestamp}] ${method} ${url} ${status} - ${responseTime}ms - ${remoteAddr}`;
+
   if (parseInt(status) >= 400) {
-    logger.error('HTTP Request Error', logEntry);
+    console.log(`❌ ${logMessage}`);
   } else if (parseInt(status) >= 300) {
-    logger.warn('HTTP Request Redirect', logEntry);
+    console.log(`↪️  ${logMessage}`);
   } else {
-    logger.info('HTTP Request', logEntry);
+    console.log(`✅ ${logMessage}`);
   }
 
   return null; // Don't use Morgan's default output

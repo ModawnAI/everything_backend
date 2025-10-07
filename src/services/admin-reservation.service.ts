@@ -66,10 +66,12 @@ export interface ReservationListResponse {
     // Payment information
     payments: Array<{
       id: string;
-      paymentMethod: string;
       paymentStatus: string;
+      paymentStage: string;
       amount: number;
-      paidAt?: string;
+      isDeposit: boolean;
+      dueDate?: string;
+      createdAt: string;
     }>;
     // Computed fields
     daysUntilReservation?: number;
@@ -224,10 +226,12 @@ export class AdminReservationService {
           ),
           payments:payments(
             id,
-            payment_method,
             payment_status,
+            payment_stage,
             amount,
-            paid_at
+            is_deposit,
+            due_date,
+            created_at
           )
         `, { count: 'exact' });
 
@@ -359,10 +363,12 @@ export class AdminReservationService {
           // Payment information
           payments: (reservation.payments || []).map(payment => ({
             id: payment.id,
-            paymentMethod: payment.payment_method,
             paymentStatus: payment.payment_status,
+            paymentStage: payment.payment_stage,
             amount: payment.amount,
-            paidAt: payment.paid_at
+            isDeposit: payment.is_deposit,
+            dueDate: payment.due_date,
+            createdAt: payment.created_at
           })),
           // Computed fields
           daysUntilReservation,

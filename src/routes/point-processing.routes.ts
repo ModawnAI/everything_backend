@@ -15,7 +15,7 @@ const router = Router();
 const pointProcessingController = new PointProcessingController();
 
 // All routes require authentication and admin privileges
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 
 
 /**

@@ -119,6 +119,28 @@ const router = Router();
 router.get('/', adminUserManagementController.getUsers);
 
 /**
+ * GET /api/admin/users/roles
+ * Get list of available user roles
+ *
+ * Headers:
+ * Authorization: Bearer <admin-jwt-token>
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "roles": [
+ *       { "value": "user", "label": "User" },
+ *       { "value": "shop_owner", "label": "Shop Owner" },
+ *       { "value": "admin", "label": "Admin" },
+ *       { "value": "influencer", "label": "Influencer" }
+ *     ]
+ *   }
+ * }
+ */
+router.get('/roles', adminUserManagementController.getUserRoles);
+
+/**
  * GET /api/admin/users/activity
  * Get user activity feed for admin monitoring
  * 
@@ -353,6 +375,211 @@ router.get('/statistics', adminUserManagementController.getUserStatistics);
  * - Comprehensive user data with related statistics
  * - Performance optimized with joins
  */
+/**
+ * GET /api/admin/users/analytics
+ * Get comprehensive user analytics for admin dashboard
+ *
+ * Query Parameters:
+ * - startDate: Start date for analytics period (ISO string)
+ * - endDate: End date for analytics period (ISO string)
+ * - userSegments: Comma-separated list of user segments (power_users, inactive_users, etc.)
+ * - roles: Comma-separated list of user roles to filter by
+ * - statuses: Comma-separated list of user statuses to filter by
+ * - platforms: Comma-separated list of platforms to filter by
+ * - countries: Comma-separated list of countries to filter by
+ * - includeGrowthTrends: Include growth trend analysis (default: true)
+ * - includeActivityPatterns: Include activity pattern analysis (default: true)
+ * - includeBehavioralInsights: Include behavioral insights (default: true)
+ * - includeRetentionMetrics: Include retention and lifecycle metrics (default: true)
+ * - includeGeographicData: Include geographic distribution data (default: true)
+ *
+ * Headers:
+ * Authorization: Bearer <admin-jwt-token>
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "summary": {
+ *       "totalUsers": 5000,
+ *       "activeUsers": 3500,
+ *       "newUsersToday": 25,
+ *       "newUsersThisWeek": 180,
+ *       "newUsersThisMonth": 750,
+ *       "churnRate": 2.5,
+ *       "averageLifetimeValue": 150.75,
+ *       "userGrowthRate": 15.2
+ *     },
+ *     "growthTrends": [...],
+ *     "activityPatterns": [...],
+ *     "behavioralInsights": [...],
+ *     "lifecycleMetrics": [...],
+ *     "geographicDistribution": [...],
+ *     "platformUsage": [...],
+ *     "userSegments": {
+ *       "powerUsers": 250,
+ *       "inactiveUsers": 800,
+ *       "highReferralUsers": 150,
+ *       "newUsers": 180,
+ *       "churnedUsers": 120
+ *     },
+ *     "realTimeMetrics": {
+ *       "activeNow": 45,
+ *       "sessionsToday": 1200,
+ *       "averageSessionDuration": 25,
+ *       "topActions": [...]
+ *     },
+ *     "filters": {...},
+ *     "generatedAt": "2024-01-01T10:00:00Z"
+ *   }
+ * }
+ *
+ * Analytics Features:
+ * - Comprehensive user growth and retention analysis
+ * - Real-time activity monitoring and insights
+ * - User segmentation and behavioral analysis
+ * - Geographic and platform distribution analytics
+ * - Customizable date ranges and filtering options
+ * - Performance metrics and KPI tracking
+ *
+ * Security Features:
+ * - Requires valid admin session
+ * - Analytics access logging
+ * - IP address and session tracking
+ * - Rate limiting for analytics access
+ */
+
+/**
+ * @swagger
+ * /analytics:
+ *   get:
+ *     summary: /analytics 조회
+ *     description: GET endpoint for /analytics
+ *
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *
+ *       ---
+ *
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/analytics', adminUserManagementController.getUserAnalytics);
+
+/**
+ * GET /api/admin/users/search/advanced
+ * Advanced user search with segments and analytics
+ *
+ * Query Parameters:
+ * - email: Filter by email (partial match)
+ * - name: Filter by name (partial match)
+ * - role: Comma-separated list of user roles
+ * - status: Comma-separated list of user statuses
+ * - segments: Comma-separated list of user segments (power_users, inactive_users, etc.)
+ * - activityLevel: Filter by activity level (high, medium, low, inactive)
+ * - registrationStartDate: Filter by registration start date
+ * - registrationEndDate: Filter by registration end date
+ * - lastActivityStartDate: Filter by last activity start date
+ * - lastActivityEndDate: Filter by last activity end date
+ * - referralMin: Minimum referral count
+ * - referralMax: Maximum referral count
+ * - lifetimeValueMin: Minimum lifetime value
+ * - lifetimeValueMax: Maximum lifetime value
+ * - platform: Comma-separated list of platforms
+ * - country: Comma-separated list of countries
+ * - sortBy: Sort field (created_at, last_activity, referral_count, lifetime_value, activity_score)
+ * - sortOrder: Sort order (asc, desc)
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 50, max: 100)
+ *
+ * Headers:
+ * Authorization: Bearer <admin-jwt-token>
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "users": [
+ *       {
+ *         "id": "uuid",
+ *         "email": "user@example.com",
+ *         "name": "User Name",
+ *         "user_role": "user",
+ *         "user_status": "active",
+ *         "created_at": "2024-01-01T10:00:00Z",
+ *         "last_activity_at": "2024-01-15T14:30:00Z",
+ *         "total_referrals": 5,
+ *         "phone_number": "+1234567890",
+ *         "profile_image_url": "https://...",
+ *         "activityScore": 85,
+ *         "segmentTags": ["power_user", "high_referral"]
+ *       }
+ *     ],
+ *     "totalCount": 150,
+ *     "hasMore": true,
+ *     "currentPage": 1,
+ *     "totalPages": 3,
+ *     "filters": {...}
+ *   }
+ * }
+ *
+ * Advanced Search Features:
+ * - Multi-dimensional filtering with user segments
+ * - Activity level and engagement scoring
+ * - Date range filtering for registration and activity
+ * - Referral count and lifetime value filtering
+ * - Geographic and platform filtering
+ * - Flexible sorting options
+ * - Enhanced user data with analytics
+ *
+ * User Segments:
+ * - power_users: High activity and referral users
+ * - inactive_users: Users with no recent activity
+ * - high_referral_users: Users with many referrals
+ * - new_users: Recently registered users
+ * - churned_users: Deleted or suspended users
+ *
+ * Security Features:
+ * - Requires valid admin session
+ * - Advanced search logging
+ * - Comprehensive audit trail
+ * - Rate limiting for search operations
+ */
+
+/**
+ * @swagger
+ * /search/advanced:
+ *   get:
+ *     summary: /search/advanced 조회
+ *     description: GET endpoint for /search/advanced
+ *
+ *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
+ *
+ *       ---
+ *
+ *     tags: [Users]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/search/advanced', adminUserManagementController.advancedUserSearch);
 
 /**
  * @swagger
@@ -360,11 +587,11 @@ router.get('/statistics', adminUserManagementController.getUserStatistics);
  *   get:
  *     summary: /:id 조회
  *     description: GET endpoint for /:id
- *       
+ *
  *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
- *       
+ *
  *       ---
- *       
+ *
  *     tags: [Users]
  *     security:
  *       - bearerAuth: []
@@ -869,211 +1096,5 @@ router.get('/:userId/audit', adminUserManagementController.getUserAuditLogs);
  *         description: Authentication required
  */
 router.post('/audit/export', adminUserManagementController.exportAuditLogs);
-
-/**
- * GET /api/admin/users/analytics
- * Get comprehensive user analytics for admin dashboard
- * 
- * Query Parameters:
- * - startDate: Start date for analytics period (ISO string)
- * - endDate: End date for analytics period (ISO string)
- * - userSegments: Comma-separated list of user segments (power_users, inactive_users, etc.)
- * - roles: Comma-separated list of user roles to filter by
- * - statuses: Comma-separated list of user statuses to filter by
- * - platforms: Comma-separated list of platforms to filter by
- * - countries: Comma-separated list of countries to filter by
- * - includeGrowthTrends: Include growth trend analysis (default: true)
- * - includeActivityPatterns: Include activity pattern analysis (default: true)
- * - includeBehavioralInsights: Include behavioral insights (default: true)
- * - includeRetentionMetrics: Include retention and lifecycle metrics (default: true)
- * - includeGeographicData: Include geographic distribution data (default: true)
- * 
- * Headers:
- * Authorization: Bearer <admin-jwt-token>
- * 
- * Response:
- * {
- *   "success": true,
- *   "data": {
- *     "summary": {
- *       "totalUsers": 5000,
- *       "activeUsers": 3500,
- *       "newUsersToday": 25,
- *       "newUsersThisWeek": 180,
- *       "newUsersThisMonth": 750,
- *       "churnRate": 2.5,
- *       "averageLifetimeValue": 150.75,
- *       "userGrowthRate": 15.2
- *     },
- *     "growthTrends": [...],
- *     "activityPatterns": [...],
- *     "behavioralInsights": [...],
- *     "lifecycleMetrics": [...],
- *     "geographicDistribution": [...],
- *     "platformUsage": [...],
- *     "userSegments": {
- *       "powerUsers": 250,
- *       "inactiveUsers": 800,
- *       "highReferralUsers": 150,
- *       "newUsers": 180,
- *       "churnedUsers": 120
- *     },
- *     "realTimeMetrics": {
- *       "activeNow": 45,
- *       "sessionsToday": 1200,
- *       "averageSessionDuration": 25,
- *       "topActions": [...]
- *     },
- *     "filters": {...},
- *     "generatedAt": "2024-01-01T10:00:00Z"
- *   }
- * }
- * 
- * Analytics Features:
- * - Comprehensive user growth and retention analysis
- * - Real-time activity monitoring and insights
- * - User segmentation and behavioral analysis
- * - Geographic and platform distribution analytics
- * - Customizable date ranges and filtering options
- * - Performance metrics and KPI tracking
- * 
- * Security Features:
- * - Requires valid admin session
- * - Analytics access logging
- * - IP address and session tracking
- * - Rate limiting for analytics access
- */
-
-/**
- * @swagger
- * /analytics:
- *   get:
- *     summary: /analytics 조회
- *     description: GET endpoint for /analytics
- *       
- *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
- *       
- *       ---
- *       
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
- *       500:
- *         description: Internal Server Error
- *       401:
- *         description: Authentication required
- */
-router.get('/analytics', adminUserManagementController.getUserAnalytics);
-
-/**
- * GET /api/admin/users/search/advanced
- * Advanced user search with segments and analytics
- * 
- * Query Parameters:
- * - email: Filter by email (partial match)
- * - name: Filter by name (partial match)
- * - role: Comma-separated list of user roles
- * - status: Comma-separated list of user statuses
- * - segments: Comma-separated list of user segments (power_users, inactive_users, etc.)
- * - activityLevel: Filter by activity level (high, medium, low, inactive)
- * - registrationStartDate: Filter by registration start date
- * - registrationEndDate: Filter by registration end date
- * - lastActivityStartDate: Filter by last activity start date
- * - lastActivityEndDate: Filter by last activity end date
- * - referralMin: Minimum referral count
- * - referralMax: Maximum referral count
- * - lifetimeValueMin: Minimum lifetime value
- * - lifetimeValueMax: Maximum lifetime value
- * - platform: Comma-separated list of platforms
- * - country: Comma-separated list of countries
- * - sortBy: Sort field (created_at, last_activity, referral_count, lifetime_value, activity_score)
- * - sortOrder: Sort order (asc, desc)
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 50, max: 100)
- * 
- * Headers:
- * Authorization: Bearer <admin-jwt-token>
- * 
- * Response:
- * {
- *   "success": true,
- *   "data": {
- *     "users": [
- *       {
- *         "id": "uuid",
- *         "email": "user@example.com",
- *         "name": "User Name",
- *         "user_role": "user",
- *         "user_status": "active",
- *         "created_at": "2024-01-01T10:00:00Z",
- *         "last_activity_at": "2024-01-15T14:30:00Z",
- *         "total_referrals": 5,
- *         "phone_number": "+1234567890",
- *         "profile_image_url": "https://...",
- *         "activityScore": 85,
- *         "segmentTags": ["power_user", "high_referral"]
- *       }
- *     ],
- *     "totalCount": 150,
- *     "hasMore": true,
- *     "currentPage": 1,
- *     "totalPages": 3,
- *     "filters": {...}
- *   }
- * }
- * 
- * Advanced Search Features:
- * - Multi-dimensional filtering with user segments
- * - Activity level and engagement scoring
- * - Date range filtering for registration and activity
- * - Referral count and lifetime value filtering
- * - Geographic and platform filtering
- * - Flexible sorting options
- * - Enhanced user data with analytics
- * 
- * User Segments:
- * - power_users: High activity and referral users
- * - inactive_users: Users with no recent activity
- * - high_referral_users: Users with many referrals
- * - new_users: Recently registered users
- * - churned_users: Deleted or suspended users
- * 
- * Security Features:
- * - Requires valid admin session
- * - Advanced search logging
- * - Comprehensive audit trail
- * - Rate limiting for search operations
- */
-
-/**
- * @swagger
- * /search/advanced:
- *   get:
- *     summary: /search/advanced 조회
- *     description: GET endpoint for /search/advanced
- *       
- *       관리자용 사용자 관리 API입니다. 사용자 계정과 권한을 관리합니다.
- *       
- *       ---
- *       
- *     tags: [Users]
- *     security:
- *       - bearerAuth: []
- *     responses:
- *       200:
- *         description: Success
- *       400:
- *         description: Bad Request
- *       500:
- *         description: Internal Server Error
- *       401:
- *         description: Authentication required
- */
-router.get('/search/advanced', adminUserManagementController.advancedUserSearch);
 
 export default router; 

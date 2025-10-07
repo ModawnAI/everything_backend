@@ -172,6 +172,75 @@ export class AdminShopController {
   }
 
   /**
+   * GET /api/admin/shops/:shopId
+   * Get detailed shop information by ID (Admin only)
+   */
+  async getShopById(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const client = getSupabaseClient();
+
+      // Fetch shop with all related data
+      const { data: shop, error } = await client
+        .from('shops')
+        .select(`
+          *
+        `)
+        .eq('id', shopId)
+        .maybeSingle();
+
+      if (error || !shop) {
+        logger.error('Failed to fetch shop by ID', {
+          shopId,
+          error: error?.message
+        });
+
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '샵을 찾을 수 없습니다.',
+            details: '요청하신 샵이 존재하지 않거나 삭제되었습니다.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: { shop }
+      });
+
+    } catch (error: any) {
+      logger.error('Unexpected error fetching shop by ID', {
+        error: error.message,
+        stack: error.stack
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'FETCH_SHOP_FAILED',
+          message: '샵 정보를 가져오는데 실패했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
    * POST /api/admin/shops/search
    * Search all shops (Admin only)
    */

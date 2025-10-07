@@ -126,7 +126,7 @@ const sensitiveRateLimit = rateLimit({
 });
 
 // Middleware for all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 
 /**
  * GET /api/shop-owner/dashboard

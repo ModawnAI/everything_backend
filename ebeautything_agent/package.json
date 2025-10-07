@@ -1,0 +1,62 @@
+{
+  "name": "ebeautything-agent",
+  "version": "1.0.0",
+  "description": "Claude Agent SDK for testing eBeautything platform (Backend + Admin Frontend)",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:e2e": "tsx src/scenarios/run-e2e.ts",
+    "test:user-journey": "tsx src/scenarios/user-journey.ts",
+    "test:admin-workflow": "tsx src/scenarios/admin-workflow.ts",
+    "test:comprehensive": "tsx src/scenarios/comprehensive-test.ts",
+    "test:all": "tsx src/scenarios/run-all.ts",
+    "agent": "tsx src/agent-main.ts",
+    "agent:full": "tsx src/agent-main.ts test --scenario=full",
+    "agent:health": "tsx src/agent-main.ts test --scenario=health",
+    "agent:admin": "tsx src/agent-main.ts test --scenario=admin-workflow",
+    "agent:user-management": "tsx src/scenarios/admin-user-management-test.ts",
+    "agent:interactive": "tsx src/agent-main.ts interactive",
+    "lint": "eslint src/**/*.ts",
+    "format": "prettier --write src/**/*.ts"
+  },
+  "keywords": [
+    "claude",
+    "agent-sdk",
+    "e2e-testing",
+    "playwright",
+    "jest",
+    "supabase"
+  ],
+  "author": "eBeautything Team",
+  "license": "MIT",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.1.8",
+    "@anthropic-ai/sdk": "^0.32.1",
+    "@faker-js/faker": "^9.3.0",
+    "@playwright/test": "^1.55.1",
+    "@supabase/supabase-js": "^2.57.4",
+    "axios": "^1.7.9",
+    "dotenv": "^16.6.1",
+    "jest": "^29.7.0",
+    "socket.io-client": "^4.8.1",
+    "ts-jest": "^29.1.1",
+    "tsx": "^4.19.2",
+    "winston": "^3.11.0",
+    "yargs": "^17.7.2",
+    "zod": "^3.24.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.8",
+    "@types/node": "^20.10.4",
+    "@typescript-eslint/eslint-plugin": "^6.13.1",
+    "@typescript-eslint/parser": "^6.13.1",
+    "eslint": "^8.55.0",
+    "prettier": "^3.1.0",
+    "typescript": "^5.3.3"
+  }
+}

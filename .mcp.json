@@ -23,7 +23,14 @@
 		"supabase": {
 			"type": "http",
 			"url": "https://mcp.supabase.com/mcp?project_ref=jmbyzikaxuqzgzxaoqju"
+		},
+		"portone-mcp-server": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@portone/mcp-server@latest"
+			]
 		}
-
 	}
 }

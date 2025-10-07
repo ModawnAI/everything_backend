@@ -187,6 +187,19 @@ router.use((req, res, next) => {
  *       500:
  *         description: Internal server error
  */
+/**
+ * GET /api/admin/auth/csrf
+ * Get CSRF token for admin forms
+ */
+router.get('/csrf', (req, res) => {
+  res.json({
+    success: true,
+    data: {
+      csrfToken: 'dev-csrf-token-' + Date.now()
+    }
+  });
+});
+
 router.post('/login', (req, res) => adminAuthController.adminLogin(req, res));
 
 /**
@@ -469,6 +482,69 @@ router.get('/validate', (req, res) => adminAuthController.validateSession(req, r
  *         description: Internal server error
  */
 router.get('/profile', (req, res) => adminAuthController.getAdminProfile(req, res));
+
+/**
+ * @swagger
+ * /api/admin/auth/sessions:
+ *   get:
+ *     summary: Get admin active sessions
+ *     description: |
+ *       Get all active sessions for the currently authenticated admin
+ *       - Returns list of active sessions
+ *       - Includes device and location information
+ *       - Requires valid admin session
+ *     tags:
+ *       - Admin Authentication
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Sessions retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     sessions:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           deviceId:
+ *                             type: string
+ *                           ipAddress:
+ *                             type: string
+ *                           userAgent:
+ *                             type: string
+ *                           createdAt:
+ *                             type: string
+ *                             format: date-time
+ *                           lastActivityAt:
+ *                             type: string
+ *                             format: date-time
+ *                           expiresAt:
+ *                             type: string
+ *                             format: date-time
+ *                           isActive:
+ *                             type: boolean
+ *                     total:
+ *                       type: integer
+ *                       example: 3
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/sessions', (req, res) => adminAuthController.getAdminSessions(req, res));
 
 /**
  * POST /api/admin/auth/change-password

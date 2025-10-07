@@ -13,7 +13,7 @@ const router = Router();
  */
 
 // Apply authentication middleware to all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 
 /**
  * GET /api/users/:userId/points/balance

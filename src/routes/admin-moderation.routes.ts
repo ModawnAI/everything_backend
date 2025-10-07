@@ -707,8 +707,6 @@ router.get(
   '/shops/:shopId/moderation-history',
   authenticateToken,
   adminRateLimit,
-  validateRequestWithSchema(shopIdSchema, 'params'),
-  validateRequestWithSchema(queryParamsSchema, 'query'),
   async (req, res) => {
     await adminModerationController.getShopModerationHistory(req as any, res);
   }

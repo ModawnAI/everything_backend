@@ -249,30 +249,6 @@ router.use(requireAdmin());
 /**
  * POST /api/admin/shops
  * Create a new shop (Admin only)
- *
- * Request body:
- * - name: Shop name (required)
- * - address: Shop address (required)
- * - main_category: Primary service category (required)
- * - description: Shop description (optional)
- * - phone_number: Contact phone number (optional)
- * - email: Contact email (optional)
- * - detailed_address: Detailed address (optional)
- * - postal_code: Postal code (optional)
- * - latitude: Shop latitude (optional)
- * - longitude: Shop longitude (optional)
- * - sub_categories: Additional service categories (optional)
- * - operating_hours: Operating hours (optional)
- * - payment_methods: Accepted payment methods (optional)
- * - kakao_channel_url: KakaoTalk channel URL (optional)
- * - business_license_number: Business license number (optional)
- * - business_license_image_url: Business license image URL (optional)
- * - owner_id: Shop owner ID (optional, defaults to admin)
- * - shop_status: Shop status (optional, defaults to 'active')
- * - verification_status: Verification status (optional, defaults to 'verified')
- * - shop_type: Shop type (optional, defaults to 'partnered')
- * - commission_rate: Commission rate (optional, defaults to 0)
- * - is_featured: Featured shop flag (optional, defaults to false)
  */
 router.post(
   '/',
@@ -320,90 +296,6 @@ router.get(
 );
 
 /**
- * PUT /api/admin/shops/:shopId
- * Update shop information (Admin only)
- *
- * Request body: (all optional)
- * - name: Shop name
- * - description: Shop description
- * - phone_number: Contact phone number
- * - email: Contact email
- * - address: Shop address
- * - detailed_address: Detailed address
- * - postal_code: Postal code
- * - latitude: Shop latitude
- * - longitude: Shop longitude
- * - main_category: Primary service category
- * - sub_categories: Additional service categories
- * - operating_hours: Operating hours
- * - payment_methods: Accepted payment methods
- * - kakao_channel_url: KakaoTalk channel URL
- * - business_license_number: Business license number
- * - business_license_image_url: Business license image URL
- * - owner_id: Shop owner ID
- * - shop_status: Shop status (active, inactive, pending_approval, suspended, deleted)
- * - verification_status: Verification status (pending, verified, rejected)
- * - shop_type: Shop type (partnered, non_partnered)
- * - commission_rate: Commission rate
- * - is_featured: Featured shop flag
- */
-router.put(
-  '/:shopId',
-  sensitiveRateLimit,
-  validateRequestBody(updateShopSchema),
-  adminShopController.updateShop
-);
-
-/**
- * DELETE /api/admin/shops/:shopId
- * Delete shop (Admin only)
- *
- * Query parameters:
- * - permanent: Set to 'true' for hard delete, defaults to 'false' (soft delete)
- *
- * Soft delete: Updates shop_status to 'deleted'
- * Hard delete: Permanently removes shop from database
- */
-router.delete(
-  '/:shopId',
-  sensitiveRateLimit,
-  adminShopController.deleteShop
-);
-
-/**
- * PUT /api/admin/shops/:shopId/approve
- * Approve or reject a shop (Admin only)
- *
- * Request body:
- * {
- *   "approved": true,
- *   "shopType": "partnered",
- *   "commissionRate": 10.0,
- *   "notes": "승인 완료"
- * }
- */
-router.put(
-  '/:shopId/approve',
-  sensitiveRateLimit,
-  validateRequestBody(approveShopSchema),
-  adminShopController.approveShop
-);
-
-/**
- * GET /api/admin/shops/:shopId/verification-history
- * Get shop verification history (Admin only)
- * 
- * Query parameters:
- * - page: Page number (default: 1)
- * - limit: Items per page (default: 20, max: 100)
- */
-router.get(
-  '/:shopId/verification-history',
-  adminRateLimit,
-  adminShopController.getShopVerificationHistory
-);
-
-/**
  * GET /api/admin/shops/search
  * Search all shops (Admin only)
  *
@@ -438,9 +330,23 @@ router.get(
 );
 
 /**
+ * GET /api/admin/shops/:shopId/verification-history
+ * Get shop verification history (Admin only)
+ *
+ * Query parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ */
+router.get(
+  '/:shopId/verification-history',
+  adminRateLimit,
+  adminShopController.getShopVerificationHistory
+);
+
+/**
  * GET /api/admin/shops/:shopId/verification-requirements
  * Check if shop meets verification requirements (Admin only)
- * 
+ *
  * Returns:
  * - Whether shop meets all requirements
  * - List of missing requirements
@@ -450,6 +356,67 @@ router.get(
   '/:shopId/verification-requirements',
   adminRateLimit,
   adminShopController.checkVerificationRequirements
+);
+
+/**
+ * PUT /api/admin/shops/:shopId/approve
+ * Approve or reject a shop (Admin only)
+ *
+ * Request body:
+ * {
+ *   "approved": true,
+ *   "shopType": "partnered",
+ *   "commissionRate": 10.0,
+ *   "notes": "승인 완료"
+ * }
+ */
+router.put(
+  '/:shopId/approve',
+  sensitiveRateLimit,
+  validateRequestBody(approveShopSchema),
+  adminShopController.approveShop
+);
+
+/**
+ * GET /api/admin/shops/:shopId
+ * Get detailed shop information by ID (Admin only)
+ *
+ * Returns complete shop details including:
+ * - Basic shop information
+ * - Operating hours
+ * - Services
+ * - Images
+ * - Owner information
+ * - Verification status
+ */
+router.get(
+  '/:shopId',
+  adminRateLimit,
+  adminShopController.getShopById
+);
+
+/**
+ * PUT /api/admin/shops/:shopId
+ * Update shop information (Admin only)
+ */
+router.put(
+  '/:shopId',
+  sensitiveRateLimit,
+  validateRequestBody(updateShopSchema),
+  adminShopController.updateShop
+);
+
+/**
+ * DELETE /api/admin/shops/:shopId
+ * Delete shop (Admin only, supports soft and hard delete)
+ *
+ * Query parameters:
+ * - permanent: Set to 'true' for hard delete, defaults to 'false' (soft delete)
+ */
+router.delete(
+  '/:shopId',
+  sensitiveRateLimit,
+  adminShopController.deleteShop
 );
 
 // Error handling middleware
