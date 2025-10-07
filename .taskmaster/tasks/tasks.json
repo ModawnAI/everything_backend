@@ -3794,39 +3794,204 @@
       {
         "id": 1,
         "title": "Install PortOne V2 SDKs and Dependencies",
-        "description": "Install and configure PortOne V2 SDK packages for server-side integration",
-        "details": "Install @portone/server-sdk (latest stable version ~2.0.0) using npm. Update package.json with proper version constraints. Verify SDK installation and basic import functionality. The server SDK provides TypeScript support and includes payment, webhook, and identity verification APIs.",
-        "testStrategy": "Verify successful installation by importing PortOneApi class and checking version compatibility. Test basic SDK initialization with dummy credentials.",
-        "priority": "high",
+        "description": "Install and configure PortOne V2 SDK packages for server-side integration - COMPLETED",
+        "status": "done",
         "dependencies": [],
-        "status": "pending",
-        "subtasks": []
+        "priority": "high",
+        "details": "✅ Successfully installed @portone/server-sdk@0.17.0 and verified functionality. The SDK has been added to package.json dependencies with proper version constraints. Created verification script at scripts/verify-portone-sdk.ts to validate SDK installation and basic import functionality. The server SDK provides TypeScript support and includes payment, webhook, and identity verification APIs through PortOneClient class.",
+        "testStrategy": "✅ Verification completed: PortOneClient class successfully imported, client instantiation working with test credentials, Payment API and Identity Verification API confirmed available through automated verification script.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install @portone/server-sdk package",
+            "description": "Add @portone/server-sdk to project dependencies using npm",
+            "status": "completed",
+            "dependencies": [],
+            "details": "Successfully installed @portone/server-sdk@0.17.0 and added to package.json dependencies",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create SDK verification script",
+            "description": "Create automated verification script to test SDK installation and basic functionality",
+            "status": "completed",
+            "dependencies": [],
+            "details": "Created scripts/verify-portone-sdk.ts with comprehensive SDK verification including PortOneClient import, instantiation, and API availability checks",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Verify SDK functionality",
+            "description": "Test PortOneClient import, instantiation, and API availability",
+            "status": "completed",
+            "dependencies": [],
+            "details": "Verified PortOneClient class import, successful client instantiation with test credentials, and confirmed availability of Payment API and Identity Verification API",
+            "testStrategy": ""
+          }
+        ]
       },
       {
         "id": 2,
         "title": "Configure PortOne Environment Variables",
-        "description": "Set up all required PortOne configuration variables and validation schema",
-        "details": "Add PORTONE_API_SECRET, PORTONE_STORE_ID, PORTONE_WEBHOOK_SECRET, and channel keys to environment configuration. Update src/config/environment.ts with Joi validation schema for all PortOne variables. Implement dual-mode migration settings with PORTONE_MIGRATION_MODE enum. Ensure proper secret management and validation.",
-        "testStrategy": "Validate environment schema with test configurations. Verify all required variables are properly typed and validated. Test dual-mode configuration switching.",
-        "priority": "high",
+        "description": "Set up all required PortOne configuration variables and validation schema - COMPLETED with comprehensive environment configuration, type definitions, and validation scripts",
+        "status": "done",
         "dependencies": [
           1
         ],
-        "status": "pending",
-        "subtasks": []
+        "priority": "high",
+        "details": "✅ COMPLETED: All PortOne environment variables have been successfully configured in .env with proper validation schema in src/config/environment.ts. The implementation includes:\n\n**Environment Variables Configured:**\n- PORTONE_ENABLED=false (integration toggle)\n- PORTONE_API_SECRET (API secret key)\n- PORTONE_STORE_ID (store identifier) \n- PORTONE_CHANNEL_KEY (optional channel key)\n- PORTONE_V2_API_BASE_URL=https://api.portone.io\n- PORTONE_MIGRATION_MODE=toss-only (supports: toss-only, portone-only, dual-mode, gradual-rollout)\n- PORTONE_ROLLOUT_PERCENTAGE=0 (for gradual rollout)\n- PORTONE_IDENTITY_VERIFICATION_ENABLED=false\n- PORTONE_IDENTITY_PROVIDER=kg-inicis (supports: danal, kcp, kg-inicis)\n- Legacy PASS integration variables maintained\n\n**Implementation Files:**\n- src/config/environment.ts: Updated with Joi validation schema for all PortOne variables\n- src/types/portone-config.types.ts: Created comprehensive type definitions and helper functions\n- scripts/verify-portone-config.ts: Created automated validation script\n\n**Key Features:**\n- Dual-mode migration support with PORTONE_MIGRATION_MODE enum\n- Gradual rollout capability with percentage-based traffic routing\n- Identity verification configuration for multiple providers\n- Comprehensive TypeScript typing and Joi validation\n- Helper functions for migration mode logic and configuration validation",
+        "testStrategy": "✅ COMPLETED: All validation tests have been successfully implemented and verified:\n- Environment schema validation with Joi passes for all configurations\n- TypeScript type checking validates all PortOne variables\n- Dual-mode configuration switching tested and working\n- Verification script confirms configuration loads without errors\n- Migration mode logic validated through helper functions\n- Identity verification configuration properly structured",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add PortOne environment variables to .env file",
+            "description": "Configure all required PortOne environment variables including API secrets, store ID, channel keys, and migration settings",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Added comprehensive PortOne environment variables: PORTONE_ENABLED, PORTONE_API_SECRET, PORTONE_STORE_ID, PORTONE_CHANNEL_KEY, PORTONE_V2_API_BASE_URL, PORTONE_MIGRATION_MODE, PORTONE_ROLLOUT_PERCENTAGE, PORTONE_IDENTITY_VERIFICATION_ENABLED, PORTONE_IDENTITY_PROVIDER, and legacy PASS integration variables",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Update src/config/environment.ts with Joi validation schema",
+            "description": "Implement comprehensive Joi validation for all PortOne configuration variables with proper TypeScript typing",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Updated environment.ts with complete Joi validation schema for payments.portone configuration object and identityVerification configuration objects. All variables properly typed and validated.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create PortOne type definitions",
+            "description": "Implement TypeScript type definitions for PortOne configuration and migration modes",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Created src/types/portone-config.types.ts with PortOneMigrationMode and PortOneIdentityProvider types, plus helper functions shouldUsePortOne() and validatePortOneConfig()",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement dual-mode migration configuration",
+            "description": "Set up PORTONE_MIGRATION_MODE enum with support for toss-only, portone-only, dual-mode, and gradual-rollout strategies",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Implemented comprehensive migration mode configuration with enum support and gradual rollout percentage logic. Migration mode logic validated through helper functions.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create configuration verification script",
+            "description": "Develop automated script to validate PortOne configuration and provide migration status",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Created scripts/verify-portone-config.ts with automated validation, migration status display, and next steps recommendations. Script successfully verifies configuration loads without errors.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Validate environment schema and configuration",
+            "description": "Run comprehensive validation tests to ensure all PortOne variables are properly configured and typed",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ All validation tests passed: environment schema validates correctly, PortOne payment configuration complete, identity verification configuration complete, migration mode working, dual-mode and gradual rollout supported.",
+            "testStrategy": ""
+          }
+        ]
       },
       {
         "id": 3,
         "title": "Create Database Schema Migrations for PortOne",
-        "description": "Add PortOne-specific columns to existing tables and create new webhook logging table",
-        "details": "Create migration files to add portone_payment_id, portone_transaction_id, portone_store_id, portone_channel_key columns to payments table. Add portone_identity_verification_id and related columns to phone_verifications table. Create new portone_webhook_logs table with proper indexes. Use PostgreSQL-compatible SQL with proper constraints and indexes for performance.",
-        "testStrategy": "Test migrations on development database. Verify all indexes are created correctly. Test rollback migrations. Validate foreign key constraints and data types.",
-        "priority": "high",
+        "description": "Add PortOne-specific columns to existing tables and create new webhook logging table - COMPLETED with comprehensive schema migrations, rollback support, and verification scripts",
+        "status": "done",
         "dependencies": [
           2
         ],
-        "status": "pending",
-        "subtasks": []
+        "priority": "high",
+        "details": "✅ COMPLETED: Successfully created comprehensive database schema migrations for PortOne v2 integration in supabase/migrations/. The implementation includes:\n\n**Migration Files Created:**\n- 20251007000000_portone_v2_integration_schema.sql - Main migration with all schema changes\n- 20251007000001_portone_v2_integration_schema_rollback.sql - Complete rollback script\n- verify-portone-migration.sql - Verification and testing script\n\n**Schema Changes Implemented:**\n1. **Enhanced payments table** with PortOne columns: portone_payment_id, portone_transaction_id, portone_store_id, portone_channel_key, portone_channel_name, portone_pg_provider, portone_method_type, portone_method_detail, payment_stage, migration_mode\n2. **New phone_verifications table** supporting both PASS and PortOne verification methods with CI/DI storage\n3. **New portone_webhook_logs table** with idempotency, retry mechanism, and comprehensive logging\n4. **New user_verifications table** for storing CI/DI verification data as JSONB\n\n**Advanced Features:**\n- Custom ENUMs for verification_status, verification_method, portone_webhook_status\n- 25+ optimized indexes for query performance\n- Helper functions for cleanup and payment lookup\n- Row Level Security (RLS) policies for all tables\n- Proper GRANT permissions for authenticated and service_role users\n- Complete rollback support preserving existing TOSS Payments functionality",
+        "testStrategy": "✅ COMPLETED: All migration testing successfully completed:\n- Migration applied successfully on development database\n- All 25+ indexes created and verified for optimal performance\n- Rollback migration tested and verified - safely removes all PortOne changes\n- Foreign key constraints and data types validated\n- RLS policies tested for proper access control\n- Helper functions tested for correct functionality\n- Verification script confirms all schema changes are properly applied\n- TOSS Payments functionality preserved during rollback testing",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create main PortOne v2 integration migration file",
+            "description": "Create comprehensive migration file with all PortOne schema changes",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created 20251007000000_portone_v2_integration_schema.sql with payments table enhancements, new phone_verifications table, portone_webhook_logs table, user_verifications table, custom ENUMs, helper functions, and RLS policies",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Add PortOne columns to payments table",
+            "description": "Extend payments table with PortOne-specific tracking columns",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Added 10 PortOne columns including portone_payment_id, portone_transaction_id, portone_store_id, portone_channel_key, portone_channel_name, portone_pg_provider, portone_method_type, portone_method_detail, payment_stage, migration_mode with proper constraints and indexes",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create phone_verifications table for identity verification",
+            "description": "Create table to handle both PASS and PortOne phone verification methods",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created phone_verifications table supporting verification_method enum (pass, portone, sms), CI/DI storage, portone_identity_verification_id, portone_provider fields, status tracking, and 10+ optimized indexes",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create portone_webhook_logs table",
+            "description": "Create webhook logging table with idempotency and retry mechanism",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created portone_webhook_logs table with webhook_id, webhook_type, payload, signature verification, retry mechanism with max_retries/retry_count, status enum, unique constraints, and 10+ indexes including compound indexes for retry queries",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create user_verifications table for CI/DI storage",
+            "description": "Create table to store user verification data including CI/DI information",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created user_verifications table with JSONB verification_data storage, unique constraint per (user_id, verification_type), supporting 'phone_pass' and 'phone_portone' types",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement helper functions and triggers",
+            "description": "Create database helper functions for cleanup and payment lookup",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created cleanup_expired_phone_verifications() function, get_payment_by_portone_id() lookup helper, and update_updated_at_column() trigger function",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Configure Row Level Security policies",
+            "description": "Set up RLS policies for secure access to all new tables",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Enabled RLS on all new tables with proper policies: phone_verifications (user access own records), user_verifications (user read own records), portone_webhook_logs (service-only access), with proper GRANT permissions",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create rollback migration script",
+            "description": "Create comprehensive rollback script to safely remove all PortOne changes",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created 20251007000001_portone_v2_integration_schema_rollback.sql with complete rollback of all PortOne schema changes while preserving TOSS Payments functionality",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Create migration verification script",
+            "description": "Create script to verify all migration changes are properly applied",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created verify-portone-migration.sql script to validate all tables, columns, indexes, ENUMs, functions, and RLS policies are correctly implemented",
+            "testStrategy": ""
+          }
+        ]
       },
       {
         "id": 4,
@@ -4206,7 +4371,7 @@
     ],
     "metadata": {
       "created": "2025-10-07T10:57:05.833Z",
-      "updated": "2025-10-07T10:59:05.028Z",
+      "updated": "2025-10-07T11:12:15.935Z",
       "description": "Tasks for portone-migration context"
     }
   }
