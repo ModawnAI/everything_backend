@@ -272,8 +272,6 @@ const adminAnalyticsOptimizedController = new AdminAnalyticsOptimizedController(
  *         description: Authentication required
  */
 router.get('/dashboard',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   adminAnalyticsController.getDashboardMetrics.bind(adminAnalyticsController)
 );
@@ -316,8 +314,6 @@ router.get('/dashboard',
  *         description: Internal server error
  */
 router.get('/realtime',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 200 } }), // Higher rate limit for real-time updates
   adminAnalyticsController.getRealTimeMetrics.bind(adminAnalyticsController)
 );
@@ -414,8 +410,6 @@ router.get('/realtime',
  *         description: Authentication required
  */
 router.get('/export',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // Lower rate limit for exports
   adminAnalyticsController.exportAnalytics.bind(adminAnalyticsController)
 );
@@ -466,8 +460,6 @@ router.get('/export',
  *         description: Internal server error
  */
 router.get('/cache/stats',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
   adminAnalyticsController.getCacheStats.bind(adminAnalyticsController)
 );
@@ -507,8 +499,6 @@ router.get('/cache/stats',
  *         description: Internal server error
  */
 router.post('/cache/clear',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // Very low rate limit for cache clearing
   adminAnalyticsController.clearCache.bind(adminAnalyticsController)
 );
@@ -603,8 +593,6 @@ router.post('/cache/clear',
  *         description: Internal Server Error
  */
 router.get('/health',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   adminAnalyticsController.getAnalyticsHealth.bind(adminAnalyticsController)
 );
@@ -975,8 +963,6 @@ router.get('/health',
  *         description: Authentication required
  */
 router.get('/shops/:shopId/analytics',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   adminAnalyticsController.getShopAnalytics.bind(adminAnalyticsController)
 );
@@ -1013,8 +999,7 @@ router.get('/shops/:shopId/analytics',
  *         description: Internal server error
  */
 router.get('/dashboard/quick',
-  authenticateJWT,
-  requireRole('admin'),
+  // authenticateJWT and requireRole('admin') are already applied globally via app.use('/api/admin/*', ...)
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }), // Higher rate limit due to excellent performance
   adminAnalyticsOptimizedController.getQuickDashboardMetrics.bind(adminAnalyticsOptimizedController)
 );
@@ -1048,8 +1033,7 @@ router.get('/dashboard/quick',
  *         description: Internal server error
  */
 router.get('/trends/users',
-  authenticateJWT,
-  requireRole('admin'),
+  // authenticateJWT and requireRole('admin') are already applied globally via app.use('/api/admin/*', ...)
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }),
   adminAnalyticsOptimizedController.getUserGrowthTrends.bind(adminAnalyticsOptimizedController)
 );
@@ -1083,8 +1067,6 @@ router.get('/trends/users',
  *         description: Internal server error
  */
 router.get('/trends/revenue',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }),
   adminAnalyticsOptimizedController.getRevenueTrends.bind(adminAnalyticsOptimizedController)
 );
@@ -1118,8 +1100,6 @@ router.get('/trends/revenue',
  *         description: Internal server error
  */
 router.get('/trends/reservations',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }),
   adminAnalyticsOptimizedController.getReservationTrends.bind(adminAnalyticsOptimizedController)
 );
@@ -1153,8 +1133,6 @@ router.get('/trends/reservations',
  *         description: Internal server error
  */
 router.get('/shops/performance',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }),
   adminAnalyticsOptimizedController.getShopPerformance.bind(adminAnalyticsOptimizedController)
 );
@@ -1180,8 +1158,6 @@ router.get('/shops/performance',
  *         description: Internal server error
  */
 router.get('/payments/summary',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }),
   adminAnalyticsOptimizedController.getPaymentStatusSummary.bind(adminAnalyticsOptimizedController)
 );
@@ -1207,8 +1183,6 @@ router.get('/payments/summary',
  *         description: Internal server error
  */
 router.get('/points/summary',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }),
   adminAnalyticsOptimizedController.getPointTransactionSummary.bind(adminAnalyticsOptimizedController)
 );
@@ -1234,8 +1208,6 @@ router.get('/points/summary',
  *         description: Internal server error
  */
 router.get('/categories/performance',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }),
   adminAnalyticsOptimizedController.getCategoryPerformance.bind(adminAnalyticsOptimizedController)
 );
@@ -1261,8 +1233,6 @@ router.get('/categories/performance',
  *         description: Internal server error
  */
 router.post('/refresh',
-  authenticateJWT,
-  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // Low rate limit for manual refresh
   adminAnalyticsOptimizedController.refreshAllViews.bind(adminAnalyticsOptimizedController)
 );
