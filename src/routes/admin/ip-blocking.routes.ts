@@ -15,8 +15,8 @@ import { body, param, query, validationResult } from 'express-validator';
 const router = Router();
 
 // Apply authentication and admin role requirement to all routes
-router.use(authenticateJWT);
-router.use(requireAdmin);
+router.use(authenticateJWT());
+router.use(requireAdmin());
 
 /**
  * GET /api/admin/ip-blocks

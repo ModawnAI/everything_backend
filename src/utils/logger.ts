@@ -13,6 +13,9 @@ const replacer = (key: string, value: any) => {
   return value;
 };
 
+// Filter disabled for now - using log level instead
+// const httpOnlyFilter = winston.format((info) => info)();
+
 // Enhanced development format - more readable and detailed
 const devFormat = winston.format.printf(({ timestamp, level, message, correlationId, ...meta }) => {
   const metaStr = Object.keys(meta).length > 0
@@ -50,7 +53,7 @@ const logFormat = winston.format.combine(
 
 // Create logger instance
 export const logger = winston.createLogger({
-  level: config.server.isDevelopment ? 'debug' : config.logging.level,
+  level: config.server.isDevelopment ? 'silent' : config.logging.level,
   format: logFormat,
   defaultMeta: {
     service: 'ebeautything-backend',
@@ -60,6 +63,7 @@ export const logger = winston.createLogger({
     // Console transport - always enabled
     new winston.transports.Console({
       format: logFormat,
+      silent: config.server.isDevelopment, // Silent in dev to show only HTTP requests via console.log
     }),
     // File transport for production
     ...(config.server.isProduction

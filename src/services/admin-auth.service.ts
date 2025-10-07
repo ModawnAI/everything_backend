@@ -144,28 +144,63 @@ export class AdminAuthService {
         role: admin.user_role
       });
 
-      // Verify password using a separate temporary client to avoid session pollution
+      // Verify password using Supabase Auth with retry logic for rate limiting
       logger.info('🔑 [PASSWORD-CHECK] Verifying password via Supabase Auth');
+
       const tempAuthClient = createClient(
         config.database.supabaseUrl,
-        config.database.supabaseAnonKey,  // Use anon key for auth operations
+        config.database.supabaseAnonKey,
         {
           auth: {
             autoRefreshToken: false,
-            persistSession: false  // Don't persist session
+            persistSession: false
           }
         }
       );
 
-      const { data: authData, error: authError } = await tempAuthClient.auth.signInWithPassword({
-        email: request.email,
-        password: request.password
-      });
+      let authData: any = null;
+      let authError: any = null;
+      let retries = 3;
 
-      if (authError || !authData.user) {
+      // Retry with exponential backoff to handle rate limiting
+      for (let attempt = 1; attempt <= retries; attempt++) {
+        logger.info(`🔐 [AUTH-ATTEMPT-${attempt}] Attempting Supabase auth`, {
+          email: request.email,
+          passwordLength: request.password?.length,
+          passwordFirst3: request.password?.substring(0, 3),
+          passwordLast3: request.password?.substring(request.password.length - 3)
+        });
+
+        const result = await tempAuthClient.auth.signInWithPassword({
+          email: request.email,
+          password: request.password
+        });
+
+        authData = result.data;
+        authError = result.error;
+
+        if (!authError && authData?.user) {
+          break; // Success
+        }
+
+        if (authError?.code === 'invalid_credentials') {
+          break; // Don't retry on invalid credentials
+        }
+
+        if (attempt < retries) {
+          const delay = Math.pow(2, attempt) * 100; // 200ms, 400ms, 800ms
+          logger.warn(`⏳ [PASSWORD-RETRY] Auth attempt ${attempt} failed, retrying in ${delay}ms`, {
+            error: authError?.message
+          });
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
+
+      if (authError || !authData?.user) {
         logger.error('❌ [PASSWORD-INVALID] Supabase Auth verification failed', {
           email: request.email,
-          error: authError?.message
+          errorMessage: authError?.message,
+          errorCode: authError?.code
         });
         await this.logFailedLoginAttempt(request.email, request.ipAddress, 'Invalid password');
         throw new Error('Invalid admin credentials');
@@ -267,9 +302,61 @@ export class AdminAuthService {
    */
   async validateAdminSession(token: string, ipAddress: string): Promise<AdminSessionValidation> {
     try {
-      // Verify JWT token
+      // Try to verify as Supabase token first
+      const { data: { user: supabaseUser }, error: supabaseError } = await this.supabase.auth.getUser(token);
+
+      if (!supabaseError && supabaseUser) {
+        logger.info('✅ Token verified as Supabase token', { userId: supabaseUser.id });
+
+        // Get admin user from database using Supabase user ID
+        const { data: admin, error: adminError } = await this.supabase
+          .from('users')
+          .select('*')
+          .eq('id', supabaseUser.id)
+          .eq('user_role', 'admin')
+          .eq('user_status', 'active')
+          .single();
+
+        if (adminError || !admin) {
+          logger.error('Supabase token verification failed', {
+            error: adminError?.message || 'Admin not found',
+            userId: supabaseUser.id
+          });
+          return { isValid: false, error: 'Admin user not found or inactive' };
+        }
+
+        // Return valid session without needing admin_sessions table
+        return {
+          isValid: true,
+          admin: {
+            id: admin.id,
+            email: admin.email,
+            role: admin.user_role,
+            permissions: await this.getAdminPermissions(admin.id)
+          },
+          session: {
+            id: supabaseUser.id, // Use Supabase user ID as session ID
+            adminId: admin.id,
+            token: token,
+            refreshToken: '',
+            ipAddress: ipAddress,
+            userAgent: '',
+            deviceId: '',
+            isActive: true,
+            lastActivityAt: new Date().toISOString(),
+            expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+            createdAt: admin.created_at || new Date().toISOString()
+          }
+        };
+      }
+
+      // If Supabase verification failed, try local JWT verification
+      logger.debug('Supabase token verification failed, attempting local JWT verification', {
+        error: supabaseError?.message
+      });
+
       const decoded = jwt.verify(token, config.auth.jwtSecret) as any;
-      
+
       // Get session from database
       const { data: session, error: sessionError } = await this.supabase
         .from('admin_sessions')
@@ -702,6 +789,36 @@ export class AdminAuthService {
   /**
    * Logout admin
    */
+  /**
+   * Get all active sessions for an admin
+   */
+  async getAdminSessions(adminId: string): Promise<AdminSession[]> {
+    try {
+      const { data: sessions, error } = await this.supabase
+        .from('admin_sessions')
+        .select('*')
+        .eq('admin_id', adminId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        logger.error('Failed to get admin sessions', {
+          error: error.message,
+          adminId
+        });
+        throw new Error('Failed to get admin sessions');
+      }
+
+      return sessions || [];
+    } catch (error) {
+      logger.error('Error getting admin sessions', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        adminId
+      });
+      throw error;
+    }
+  }
+
   async logoutAdmin(token: string): Promise<void> {
     try {
       const { data: session, error } = await this.supabase

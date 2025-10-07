@@ -399,6 +399,13 @@ class XSSProtectionService {
       timestamp: new Date()
     };
 
+    // Skip XSS detection for authenticated admin endpoints
+    const isAdminEndpoint = req.path.startsWith('/api/admin/');
+    const hasAdminAuth = req.headers.authorization?.startsWith('Bearer ');
+    if (isAdminEndpoint && hasAdminAuth) {
+      return violations; // Allow admin operations without XSS filtering
+    }
+
     // Check query parameters
     if (req.query) {
       for (const [key, value] of Object.entries(req.query)) {
@@ -518,7 +525,14 @@ class XSSProtectionService {
   /**
    * Check if IP should be blocked due to repeated violations
    */
-  private shouldBlockIP(ip: string): boolean {
+  private shouldBlockIP(ip: string, req?: Request): boolean {
+    // Don't block authenticated admin users
+    const isAdminEndpoint = req?.path.startsWith('/api/admin/');
+    const hasAdminAuth = req?.headers.authorization?.startsWith('Bearer ');
+    if (isAdminEndpoint && hasAdminAuth) {
+      return false; // Never block authenticated admins
+    }
+
     const attempts = this.violationHistory.filter(v => v.context.ip === ip).length;
     return attempts >= this.maxViolationsPerIP;
   }
@@ -685,7 +699,14 @@ class CSRFProtectionService {
   /**
    * Check if IP should be blocked due to repeated violations
    */
-  private shouldBlockIP(ip: string): boolean {
+  private shouldBlockIP(ip: string, req?: Request): boolean {
+    // Don't block authenticated admin users
+    const isAdminEndpoint = req?.path.startsWith('/api/admin/');
+    const hasAdminAuth = req?.headers.authorization?.startsWith('Bearer ');
+    if (isAdminEndpoint && hasAdminAuth) {
+      return false; // Never block authenticated admins
+    }
+
     const attempts = this.violationHistory.filter(v => v.context.ip === ip).length;
     return attempts >= this.maxViolationsPerIP;
   }
@@ -758,7 +779,7 @@ export function xssProtection() {
 
         // Check if IP should be blocked
         const ip = req.ip || req.connection.remoteAddress || 'unknown';
-        if (xssProtectionService['shouldBlockIP'](ip)) {
+        if (xssProtectionService['shouldBlockIP'](ip, req)) {
           logger.error('IP blocked due to repeated XSS attempts', {
             ip,
             attempts: violations.length
@@ -840,7 +861,7 @@ export function csrfProtection() {
 
         // Check if IP should be blocked
         const ip = req.ip || req.connection.remoteAddress || 'unknown';
-        if (csrfProtectionService['shouldBlockIP'](ip)) {
+        if (csrfProtectionService['shouldBlockIP'](ip, req)) {
           logger.error('IP blocked due to repeated CSRF violations', {
             ip,
             attempts: csrfProtectionService['violationHistory'].filter(v => v.context.ip === ip).length

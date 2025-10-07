@@ -862,11 +862,9 @@ export class SocialAuthController {
             created_at: user?.created_at || authResult.user.created_at,
             updated_at: user?.updated_at || authResult.user.updated_at
           },
-          tokens: {
-            accessToken: supabaseAccessToken,
-            refreshToken: supabaseRefreshToken,
-            expiresIn
-          },
+          token: supabaseAccessToken,
+          refreshToken: supabaseRefreshToken,
+          expiresIn,
           isNewUser,
           profileComplete,
           supabaseSession: authResult.session // Include full Supabase session for client

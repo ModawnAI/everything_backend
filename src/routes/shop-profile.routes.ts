@@ -47,7 +47,7 @@ const updateRateLimit = rateLimit({
 });
 
 // Apply authentication to all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 
 /**
  * @swagger

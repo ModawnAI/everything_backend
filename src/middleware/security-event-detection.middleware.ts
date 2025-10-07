@@ -190,26 +190,16 @@ async function processSecurityTrigger(trigger: SecurityTrigger, context: Securit
                                    ['account_compromise', 'token_theft_detected', 'suspicious_activity'].includes(trigger.eventType);
 
     if (shouldInvalidateSessions) {
-      // Invalidate sessions with intelligent filtering
-      const result = await refreshTokenService.invalidateSessionsOnSecurityEvent(
-        context.userId,
-        trigger.eventType,
-        `Auto-triggered: ${trigger.eventType}`,
-        true, // notifyUser
-        trigger.severity as string // priority
-      );
+      // Invalidate sessions
+      await refreshTokenService.revokeAllUserTokens(context.userId);
 
       logger.warn('Sessions invalidated due to security trigger', {
         userId: context.userId,
-        eventType: trigger.eventType,
-        invalidatedCount: result.invalidatedCount,
-        failedCount: result.failedCount,
-        securityEventId: result.securityEventId,
-        notificationSent: result.notificationSent
+        eventType: trigger.eventType
       });
 
       // Log security event for monitoring
-        await securityMonitoringService.logSecurityEvent({
+      await securityMonitoringService.logSecurityEvent({
         event_type: 'session_invalidated',
         user_id: context.userId,
         source_ip: context.ipAddress,
@@ -218,9 +208,7 @@ async function processSecurityTrigger(trigger: SecurityTrigger, context: Securit
         severity: trigger.severity,
         details: {
           trigger: trigger.eventType,
-          autoTriggered: trigger.autoTriggered,
-          sessionsInvalidated: result.invalidatedCount,
-          securityEventId: result.securityEventId
+          autoTriggered: trigger.autoTriggered
         }
       });
     }

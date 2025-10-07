@@ -48,6 +48,7 @@ import influencerBonusRoutes from './routes/influencer-bonus.routes';
 import adminAdjustmentRoutes from './routes/admin-adjustment.routes';
 import adminPaymentRoutes from './routes/admin-payment.routes';
 import adminAnalyticsRoutes from './routes/admin-analytics.routes';
+import adminAnalyticsOptimizedRoutes from './routes/admin-analytics-optimized.routes';
 import ipBlockingRoutes from './routes/admin/ip-blocking.routes';
 import securityRoutes from './routes/security.routes';
 import notificationRoutes from './routes/notification.routes';
@@ -65,6 +66,9 @@ import adminSecurityRoutes from './routes/admin-security.routes';
 import adminSecurityEnhancedRoutes from './routes/admin-security-enhanced.routes';
 import adminSecurityEventsRoutes from './routes/admin-security-events.routes';
 import authAnalyticsRoutes from './routes/auth-analytics.routes';
+import referralRoutes from './routes/referral.routes';
+import auditTrailRoutes from './routes/audit-trail.routes';
+import automaticStateProgressionRoutes from './routes/automatic-state-progression.routes';
 import referralCodeRoutes from './routes/referral-code.routes';
 import referralRelationshipRoutes from './routes/referral-relationship.routes';
 import influencerQualificationRoutes from './routes/influencer-qualification.routes';
@@ -88,6 +92,9 @@ import serviceCatalogRoutes from './routes/service-catalog.routes';
 import feedRoutes from './routes/feed.routes';
 import csrfRoutes from './routes/csrf.routes';
 import adminFinancialRoutes from './routes/admin-financial.routes';
+import adminProductRoutes from './routes/admin-product.routes';
+import adminTicketRoutes from './routes/admin-ticket.routes';
+import dashboardRoutes from './routes/dashboard.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -175,6 +182,9 @@ import { rpcSecurityMiddleware } from './middleware/rpc-security.middleware';
 import { xssProtection, csrfProtection } from './middleware/xss-csrf-protection.middleware';
 import { securityEventLoggingMiddleware } from './middleware/security-event-logging.middleware';
 import { applyResponseStandardization } from './middleware/response-standardization.middleware';
+import { authenticateJWT } from './middleware/auth.middleware';
+import { requireAdmin } from './middleware/rbac.middleware';
+import { adminNoCacheMiddleware } from './middleware/no-cache.middleware';
 app.use(securityHeaders());
 app.use(securityEventDetection());
 app.use(securityEventResponseHandler());
@@ -332,15 +342,26 @@ app.use('/api/registration', registrationRoutes);
 
 // IMPORTANT: More specific routes MUST come BEFORE general routes
 // Place /api/admin/* specific routes before /api/admin
+
+// Admin authentication - Auth routes don't need authentication middleware
 app.use('/api/admin/auth', adminAuthRoutes);
+
+// Apply authentication to all other admin routes (supports both Supabase and JWT tokens)
+app.use('/api/admin/*', authenticateJWT(), requireAdmin());
+
+// Disable caching for all admin endpoints to ensure fresh data
+app.use('/api/admin/*', adminNoCacheMiddleware);
+
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
-// Mount admin shop routes FIRST (handles GET /api/admin/shops)
+app.use('/api/admin/shops/:shopId/services', adminShopServiceRoutes); // Shop service management (specific path to avoid conflicts)
 app.use('/api/admin/shops', adminShopRoutes);
-// Then mount service sub-routes (handles /:shopId/services)
-app.use('/api/admin/shops', adminShopServiceRoutes);
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
+// Alias for backwards compatibility: /admin/bookings -> /api/admin/reservations
+app.use('/admin/bookings', adminReservationRoutes);
+// Alias for frontend: /shops -> /api/admin/shops
+app.use('/shops', adminShopRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
@@ -357,26 +378,40 @@ app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
 app.use('/api/shop/dashboard', shopDashboardRoutes);
 app.use('/api/shop/images', imageMetadataRoutes);
 app.use('/api/cdn', cdnRoutes);
-app.use('/api', favoritesRoutes);
-app.use('/api/shop', shopContactMethodsRoutes);
-app.use('/api/shops', shopReportingRoutes);
-app.use('/api/admin', adminModerationRoutes);
-app.use('/api', reservationRoutes);
-app.use('/api/admin/no-show', noShowDetectionRoutes);
-app.use('/api', reservationReschedulingRoutes);
-app.use('/api', conflictResolutionRoutes);
+
+// IMPORTANT: Routes ordered from MOST SPECIFIC to MOST GENERAL
+// This prevents route conflicts when multiple routers share base paths
+
+// Payment routes
 app.use('/api/payments', paymentRoutes);
 app.use('/api/webhooks', paymentRoutes);
 app.use('/api/split-payments', splitPaymentRoutes);
-app.use('/api/points', pointRoutes);
-app.use('/api', pointBalanceRoutes);
-app.use('/api/admin/point-processing', pointProcessingRoutes);
 app.use('/api/payment-security', paymentSecurityRoutes);
-app.use('/api', influencerBonusRoutes);
-app.use('/api', adminAdjustmentRoutes);
+app.use('/api/points', pointRoutes);
+
+// Admin routes (specific paths first)
+app.use('/api/admin/no-show', noShowDetectionRoutes);
+app.use('/api/admin/point-processing', pointProcessingRoutes);
+app.use('/api/admin/adjustments', adminAdjustmentRoutes);
+app.use('/api/admin/influencer-bonus', influencerBonusRoutes);
+app.use('/api/admin', adminModerationRoutes);
+
+// General /api routes (order matters less since paths are unique)
+app.use('/api', favoritesRoutes);
+app.use('/api', reservationRoutes);
+app.use('/api', reservationReschedulingRoutes);
+app.use('/api', conflictResolutionRoutes);
+app.use('/api', pointBalanceRoutes);
+app.use('/api/shop', shopContactMethodsRoutes);
+app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
+// Optimized analytics routes with materialized views (< 10ms response time)
+app.use('/api/admin/analytics', adminAnalyticsOptimizedRoutes);
+// Original analytics routes (fallback for backwards compatibility)
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
+app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/financial', adminFinancialRoutes);
+app.use('/api/admin/tickets', adminTicketRoutes);
 app.use('/api/admin', ipBlockingRoutes);
 app.use('/api/security', securityRoutes);
 app.use('/api/notifications', notificationRoutes);
@@ -397,6 +432,9 @@ app.use('/api/referral-relationships', referralRelationshipRoutes);
 app.use('/api/influencer-qualification', influencerQualificationRoutes);
 app.use('/api/referral-earnings', referralEarningsRoutes);
 app.use('/api/referral-analytics', referralAnalyticsRoutes);
+app.use('/api/referrals', referralRoutes);
+app.use('/api/admin/audit', auditTrailRoutes);
+app.use('/api/admin/automation', automaticStateProgressionRoutes);
 app.use('/api/users', userSettingsRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/csrf', csrfRoutes);
@@ -436,21 +474,21 @@ if (require.main === module) {
 
     try {
       server = app.listen(PORT, () => {
-        console.log(`🚀 에뷰리띵 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
-        console.log(`📍 Health Check: http://localhost:${PORT}/health`);
-        console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
-        console.log(`📚 API Documentation:`);
-        console.log(`   📖 Complete API: http://localhost:${PORT}/api-docs`);
-        console.log(`   🔒 Admin API: http://localhost:${PORT}/admin-docs`);
-        console.log(`   🛍️ Service API: http://localhost:${PORT}/service-docs`);
+        // console.log(`🚀 에뷰리띵 백엔드 서버가 포트 ${PORT}에서 실행 중입니다.`);
+        // console.log(`📍 Health Check: http://localhost:${PORT}/health`);
+        // console.log(`🔐 Auth API: http://localhost:${PORT}/api/auth`);
+        // console.log(`📚 API Documentation:`);
+        // console.log(`   📖 Complete API: http://localhost:${PORT}/api-docs`);
+        // console.log(`   🔒 Admin API: http://localhost:${PORT}/admin-docs`);
+        // console.log(`   🛍️ Service API: http://localhost:${PORT}/service-docs`);
 
         // Initialize WebSocket service
         initializeWebSocketService(server);
-        console.log(`🔌 WebSocket 서비스가 초기화되었습니다.`);
+        // console.log(`🔌 WebSocket 서비스가 초기화되었습니다.`);
 
         // Start influencer qualification scheduler
         influencerSchedulerService.startScheduler();
-        console.log(`⭐ 인플루언서 자격 관리 스케줄러가 시작되었습니다.`);
+        // console.log(`⭐ 인플루언서 자격 관리 스케줄러가 시작되었습니다.`);
       });
 
       // Handle server errors
@@ -470,9 +508,10 @@ if (require.main === module) {
     }
   };
 
-  // Graceful shutdown handler - optimized for Windows + Nodemon
+  // Graceful shutdown handler
   const gracefulShutdown = (signal: string) => {
     if (isShuttingDown) {
+      console.log('⏳ Shutdown already in progress...');
       return;
     }
 
@@ -481,39 +520,35 @@ if (require.main === module) {
 
     // Stop accepting new connections
     if (server) {
-      // Stop scheduler first
-      try {
-        influencerSchedulerService.stopScheduler();
-        console.log('✅ Scheduler stopped');
-      } catch (error) {
-        console.error('⚠️  Error stopping scheduler:', error);
-      }
-
       server.close(() => {
         console.log('✅ Server closed successfully');
+
+        // Stop scheduler
+        influencerSchedulerService.stopScheduler();
+        console.log('✅ Scheduler stopped');
+
+        // Exit process
         process.exit(0);
       });
 
-      // Reduced timeout for faster restarts (Windows + Nodemon)
+      // Force shutdown after 10 seconds
       setTimeout(() => {
-        console.error('⚠️  Force shutdown - connections did not close in time');
+        console.error('❌ Could not close connections in time, forcefully shutting down');
         process.exit(1);
-      }, 3000); // Reduced from 10s to 3s
+      }, 10000);
     } else {
       process.exit(0);
     }
   };
 
-  // Register shutdown handlers - Windows compatible
-  // SIGINT is the primary signal used by Nodemon on Windows
+  // Register shutdown handlers
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
   process.on('SIGINT', () => gracefulShutdown('SIGINT'));
+  process.on('SIGHUP', () => gracefulShutdown('SIGHUP'));
 
-  // Handle nodemon restart - SIGUSR2 not reliable on Windows, use SIGINT
-  // Nodemon will send SIGINT before restart
-  process.once('beforeExit', () => {
-    if (!isShuttingDown) {
-      gracefulShutdown('beforeExit');
-    }
+  // Handle nodemon restart
+  process.once('SIGUSR2', () => {
+    gracefulShutdown('SIGUSR2');
   });
 
   // Start the server

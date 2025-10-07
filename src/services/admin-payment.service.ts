@@ -233,18 +233,18 @@ export class AdminPaymentService {
             email,
             phone_number
           ),
-          shop:shops!reservations_shop_id_fkey(
-            id,
-            name,
-            main_category,
-            shop_status
-          ),
           reservation:reservations!payments_reservation_id_fkey(
             id,
             reservation_date,
             reservation_time,
             status,
-            total_amount
+            total_amount,
+            shop:shops(
+              id,
+              name,
+              main_category,
+              shop_status
+            )
           )
         `, { count: 'exact' });
 
@@ -350,12 +350,12 @@ export class AdminPaymentService {
             email: payment.customer.email,
             phoneNumber: payment.customer.phone_number
           } : undefined,
-          // Shop information
-          shop: payment.shop ? {
-            id: payment.shop.id,
-            name: payment.shop.name,
-            mainCategory: payment.shop.main_category,
-            shopStatus: payment.shop.shop_status
+          // Shop information (nested under reservation)
+          shop: payment.reservation?.shop ? {
+            id: payment.reservation.shop.id,
+            name: payment.reservation.shop.name,
+            mainCategory: payment.reservation.shop.main_category,
+            shopStatus: payment.reservation.shop.shop_status
           } : undefined,
           // Reservation information
           reservation: payment.reservation ? {

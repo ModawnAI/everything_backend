@@ -60,16 +60,11 @@ export class AdminSecurityController {
         });
       }
 
-      const result = await refreshTokenService.invalidateSessionsOnSecurityEvent(
-        userId,
-        eventType,
-        reason || 'Admin-initiated session invalidation',
-        true, // notifyUser
-        'high' // priority
-      );
+      // Revoke all user tokens
+      await refreshTokenService.revokeAllUserTokens(userId);
 
       // Log admin action
-        await securityMonitoringService.logSecurityEvent({
+      await securityMonitoringService.logSecurityEvent({
         event_type: 'admin_session_invalidation',
         user_id: userId,
         source_ip: req.ip,
@@ -79,10 +74,7 @@ export class AdminSecurityController {
         details: {
           adminId,
           reason,
-          eventType,
-          sessionsInvalidated: result.invalidatedCount,
-          sessionsFailed: result.failedCount,
-          securityEventId: result.securityEventId
+          eventType
         }
       });
 
@@ -90,10 +82,7 @@ export class AdminSecurityController {
         adminId,
         targetUserId: userId,
         reason,
-        eventType,
-        invalidatedCount: result.invalidatedCount,
-        failedCount: result.failedCount,
-        securityEventId: result.securityEventId
+        eventType
       });
 
       res.json({
@@ -101,11 +90,7 @@ export class AdminSecurityController {
         message: 'User sessions invalidated successfully',
         data: {
           userId,
-          invalidatedCount: result.invalidatedCount,
-          failedCount: result.failedCount,
-          eventType: result.eventType,
-          securityEventId: result.securityEventId,
-          notificationSent: result.notificationSent
+          eventType
         }
       });
 
@@ -146,49 +131,36 @@ export class AdminSecurityController {
       }
 
       // Get active sessions
-      const sessionData = await refreshTokenService.getActiveUserSessions(userId);
-      
+      const sessions = await refreshTokenService.getActiveUserSessions(userId);
+
       // Get session analytics
       const analytics = await refreshTokenService.getUserSessionAnalytics(userId);
-      
+
       // Get suspicious activity analysis
       const suspiciousActivity = await refreshTokenService.detectSuspiciousActivity(userId);
 
       logger.info('Admin retrieved user session info', {
         adminId,
         targetUserId: userId,
-        sessionCount: sessionData.totalCount
+        sessionCount: sessions.length
       });
 
       res.json({
         success: true,
         data: {
           userId,
-          sessions: sessionData.sessions.map(session => ({
+          sessions: sessions.map(session => ({
             id: session.id,
-            deviceId: session.deviceId,
-            deviceFingerprint: session.deviceFingerprint,
-            deviceInfo: session.deviceInfo,
-            locationInfo: session.locationInfo,
-            lastActivity: session.lastActivity,
-            createdAt: session.createdAt,
-            expiresAt: session.expiresAt
+            deviceId: session.device_id,
+            platform: session.platform,
+            appVersion: session.app_version,
+            lastActivity: session.last_activity,
+            createdAt: session.created_at,
+            expiresAt: session.expires_at
           })),
-          analytics: {
-            totalSessions: analytics.totalSessions,
-            activeSessions: analytics.activeSessions,
-            deviceTypes: analytics.deviceTypes,
-            locations: analytics.locations,
-            lastActivity: analytics.lastActivity
-          },
-          suspiciousActivity: {
-            hasExcessiveSessions: suspiciousActivity.hasExcessiveSessions,
-            hasHighDeviceDiversity: suspiciousActivity.hasHighDeviceDiversity,
-            hasMultipleLocations: suspiciousActivity.hasMultipleLocations,
-            riskScore: suspiciousActivity.riskScore,
-            recommendations: suspiciousActivity.recommendations
-          },
-          sessionLimitReached: sessionData.sessionLimitReached
+          analytics: analytics,
+          suspiciousActivity: suspiciousActivity,
+          sessionLimitReached: sessions.length >= 5
         }
       });
 
@@ -241,20 +213,11 @@ export class AdminSecurityController {
 
       for (const userId of userIds) {
         try {
-          const result = await refreshTokenService.invalidateSessionsOnSecurityEvent(
-            userId,
-            eventType,
-            reason || 'Bulk admin-initiated session invalidation',
-            true, // notifyUser
-            'high' // priority
-          );
+          await refreshTokenService.revokeAllUserTokens(userId);
 
           results.push({
             userId,
-            success: true,
-            invalidatedCount: result.invalidatedCount,
-            failedCount: result.failedCount,
-            securityEventId: result.securityEventId
+            success: true
           });
 
           successCount++;
@@ -267,7 +230,7 @@ export class AdminSecurityController {
           });
 
           failureCount++;
-          
+
           logger.error('Failed to invalidate sessions for user in bulk operation', {
             adminId,
             userId,

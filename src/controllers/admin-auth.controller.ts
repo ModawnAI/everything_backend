@@ -75,12 +75,16 @@ export class AdminAuthController {
         sessionExpiresAt: result.session?.expiresAt
       });
 
-      // Frontend expects token and refreshToken at root level
+      // Frontend expects token and refreshToken inside data object
       res.json({
         success: true,
-        token: result.session.token,
-        refreshToken: result.session.refreshToken,
-        data: result
+        data: {
+          token: result.session.token,
+          refreshToken: result.session.refreshToken,
+          admin: result.admin,
+          security: result.security,
+          expiresAt: result.session.expiresAt
+        }
       });
     } catch (error) {
       logger.error('❌ Admin login failed', {
@@ -295,6 +299,64 @@ export class AdminAuthController {
       res.status(500).json({
         success: false,
         error: 'Failed to get admin profile'
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/auth/sessions
+   * Get admin's active sessions
+   */
+  async getAdminSessions(req: Request, res: Response): Promise<void> {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+
+      if (!token) {
+        res.status(401).json({
+          success: false,
+          error: 'Authorization token is required'
+        });
+        return;
+      }
+
+      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
+
+      if (!validation.isValid || !validation.admin) {
+        res.status(401).json({
+          success: false,
+          error: validation.error || 'Invalid session'
+        });
+        return;
+      }
+
+      const sessions = await adminAuthService.getAdminSessions(validation.admin.id);
+
+      res.json({
+        success: true,
+        data: {
+          sessions: sessions.map(session => ({
+            id: session.id,
+            deviceId: session.deviceId,
+            ipAddress: session.ipAddress,
+            userAgent: session.userAgent,
+            createdAt: session.createdAt,
+            lastActivityAt: session.lastActivityAt,
+            expiresAt: session.expiresAt,
+            isActive: session.isActive
+          })),
+          total: sessions.length
+        }
+      });
+    } catch (error) {
+      logger.error('Get admin sessions failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        ipAddress: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get admin sessions'
       });
     }
   }

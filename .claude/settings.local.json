@@ -52,9 +52,17 @@
       "Bash(do curl -s http://localhost:3001/health)",
       "Bash(tasklist)",
       "Bash(Get-Content -Path \"logs/combined.log\" -Tail 50 -Wait)",
-      "Bash(docker stop:*)"
+      "Bash(docker stop:*)",
+      "Bash(lsof:*)",
+      "Bash(for:*)",
+      "Bash(do echo \"=== $file.routes.ts ===\" grep \"router\\.\\(get\\|post\\|put\\|delete\\)\" \"/Users/paksungho/everything_backend/src/routes/$file.routes.ts\")"
     ],
     "deny": [],
     "ask": []
-  }
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "task-master-ai",
+    "supabase"
+  ]
 }

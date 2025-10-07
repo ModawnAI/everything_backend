@@ -113,7 +113,7 @@ export class AdminShopServiceController {
         .from('shops')
         .select('id, name')
         .eq('id', shopId)
-        .single();
+        .maybeSingle();
 
       if (shopError || !shop) {
         res.status(404).json({

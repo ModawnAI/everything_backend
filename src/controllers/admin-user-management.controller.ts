@@ -84,6 +84,20 @@ export class AdminUserManagementController {
         return;
       }
 
+      // Map frontend camelCase sort fields to database snake_case columns
+      type ValidSortField = 'created_at' | 'name' | 'email' | 'last_login_at' | 'total_points' | 'total_referrals';
+      const sortByMap: Record<string, ValidSortField> = {
+        'createdAt': 'created_at',
+        'updatedAt': 'created_at', // Map updatedAt to created_at since it's not in the valid list
+        'lastLoginAt': 'last_login_at',
+        'totalPoints': 'total_points',
+        'totalReferrals': 'total_referrals',
+        'name': 'name',
+        'email': 'email'
+      };
+
+      const mappedSortBy = (sortBy ? (sortByMap[sortBy as string] || 'created_at') : 'created_at') as ValidSortField;
+
       const filters = {
         search: search as string,
         role: role as UserRole,
@@ -98,7 +112,7 @@ export class AdminUserManagementController {
         hasReferrals: hasReferrals === 'true' ? true : hasReferrals === 'false' ? false : undefined,
         minPoints: minPoints ? parseInt(minPoints as string, 10) : undefined,
         maxPoints: maxPoints ? parseInt(maxPoints as string, 10) : undefined,
-        sortBy: sortBy as any,
+        sortBy: mappedSortBy,
         sortOrder: sortOrder as 'asc' | 'desc',
         page: parseInt(page as string, 10),
         limit: parseInt(limit as string, 10)
@@ -119,6 +133,31 @@ export class AdminUserManagementController {
       res.status(500).json({
         success: false,
         error: 'Failed to get users'
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/roles
+   * Get list of available user roles
+   */
+  async getUserRoles(req: Request, res: Response): Promise<void> {
+    try {
+      res.json({
+        success: true,
+        data: VALID_USER_ROLES.map(role => ({
+          value: role,
+          label: role.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')
+        }))
+      });
+    } catch (error) {
+      logger.error('Admin get user roles failed', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get user roles'
       });
     }
   }
@@ -540,16 +579,17 @@ export class AdminUserManagementController {
       // Get user with detailed information
       const { data: user, error } = await adminUserManagementService['supabase']
         .from('users')
-        .select(`
-          *,
-          reservations:reservations(id, status, created_at),
-          point_transactions:point_transactions(id, amount, transaction_type, status, created_at),
-          referrals:referrals(id, status, created_at)
-        `)
+        .select('*')
         .eq('id', userId)
         .single();
 
       if (error || !user) {
+        logger.error('Failed to fetch user details', {
+          userId,
+          error: error?.message,
+          errorCode: error?.code,
+          details: error?.details
+        });
         res.status(404).json({
           success: false,
           error: 'User not found'
@@ -557,11 +597,27 @@ export class AdminUserManagementController {
         return;
       }
 
+      // Fetch related data separately to avoid Supabase relationship issues
+      const { data: reservations } = await adminUserManagementService['supabase']
+        .from('reservations')
+        .select('id, status, created_at')
+        .eq('user_id', userId);
+
+      const { data: referrals } = await adminUserManagementService['supabase']
+        .from('referrals')
+        .select('id, status, created_at')
+        .eq('referrer_id', userId);
+
+      // Attach related data to user object
+      user.reservations = reservations || [];
+      user.referrals = referrals || [];
+
       // Calculate additional statistics
       const totalReservations = user.reservations?.length || 0;
       const completedReservations = user.reservations?.filter((r: any) => r.status === 'completed').length || 0;
-      const totalPointsEarned = user.point_transactions?.filter((t: any) => t.transaction_type === 'earned_service').reduce((sum: number, t: any) => sum + t.amount, 0) || 0;
-      const totalPointsUsed = user.point_transactions?.filter((t: any) => t.transaction_type === 'used_service').reduce((sum: number, t: any) => sum + Math.abs(t.amount), 0) || 0;
+      // Note: point_transactions table doesn't exist yet, using user's total_points fields instead
+      const totalPointsEarned = user.total_points || 0;
+      const totalPointsUsed = (user.total_points || 0) - (user.available_points || 0);
       const successfulReferrals = user.referrals?.filter((r: any) => r.status === 'completed').length || 0;
 
       const userDetails = {

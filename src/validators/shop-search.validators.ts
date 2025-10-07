@@ -338,16 +338,16 @@ export const popularSearchesSchema = Joi.object({
  */
 export const validateKoreanText = (value: string, helpers: Joi.CustomHelpers) => {
   if (!value) return value;
-  
-  // Allow Korean characters, English letters, numbers, and common punctuation
-  const koreanTextPattern = /^[가-힣a-zA-Z0-9\s\-\(\)\.]+$/;
-  
+
+  // Allow Korean characters (including consonants/vowels), English letters, numbers, and common punctuation
+  const koreanTextPattern = /^[가-힣ㄱ-ㅎㅏ-ㅣa-zA-Z0-9\s\-\(\)\.]+$/;
+
   if (!koreanTextPattern.test(value)) {
     return helpers.error('string.pattern.base', {
       message: '한글, 영문, 숫자, 기본 문장부호만 입력 가능합니다.'
     });
   }
-  
+
   return value;
 };
 

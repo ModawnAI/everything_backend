@@ -1,0 +1,83 @@
+{
+  "timestamp": "2025-10-05T14:44:15.976Z",
+  "summary": {
+    "total": 12,
+    "passed": 12,
+    "failed": 0,
+    "successRate": "100.00%"
+  },
+  "tests": [
+    {
+      "name": "Backend Health Check",
+      "status": "PASS",
+      "time": "10ms",
+      "details": ""
+    },
+    {
+      "name": "Admin Login",
+      "status": "PASS",
+      "time": "1262ms",
+      "details": ""
+    },
+    {
+      "name": "JWT Token Structure",
+      "status": "PASS",
+      "time": "0ms",
+      "details": ""
+    },
+    {
+      "name": "Session Validation",
+      "status": "PASS",
+      "time": "548ms",
+      "details": ""
+    },
+    {
+      "name": "Admin Data Integrity",
+      "status": "PASS",
+      "time": "0ms",
+      "details": ""
+    },
+    {
+      "name": "Profile Retrieval",
+      "status": "PASS",
+      "time": "683ms",
+      "details": ""
+    },
+    {
+      "name": "Admin Permissions Check",
+      "status": "PASS",
+      "time": "0ms",
+      "details": "8 permissions"
+    },
+    {
+      "name": "Shop List API",
+      "status": "PASS",
+      "time": "812ms",
+      "details": ""
+    },
+    {
+      "name": "Shop Data Structure",
+      "status": "PASS",
+      "time": "0ms",
+      "details": "Found 20 shops"
+    },
+    {
+      "name": "Unauthorized Access Blocked",
+      "status": "PASS",
+      "time": "2ms",
+      "details": ""
+    },
+    {
+      "name": "Token Refresh",
+      "status": "PASS",
+      "time": "711ms",
+      "details": ""
+    },
+    {
+      "name": "Admin Logout",
+      "status": "PASS",
+      "time": "302ms",
+      "details": ""
+    }
+  ]
+}

@@ -1834,21 +1834,10 @@ export class AdminUserManagementService {
         offset = 0
       } = filters;
 
-      // Build base query
+      // Build base query without relationships
       let query = this.supabase
         .from('admin_actions')
-        .select(`
-          id,
-          admin_id,
-          action_type,
-          target_type,
-          target_id,
-          reason,
-          metadata,
-          created_at,
-          admin:admin_id(id, name, email),
-          target_user:target_id(id, name, email)
-        `)
+        .select('*', { count: 'exact' })
         .order('created_at', { ascending: false });
 
       // Apply filters
@@ -1892,25 +1881,60 @@ export class AdminUserManagementService {
         throw new Error(`Failed to search audit logs: ${auditError.message}`);
       }
 
+      // Get unique admin IDs and target user IDs
+      const adminIds = [...new Set(auditData?.map(entry => entry.admin_id).filter(Boolean) || [])];
+      const targetUserIds = [...new Set(auditData?.map(entry => entry.target_id).filter(Boolean) || [])];
+
+      // Fetch admin details separately
+      const adminDetailsMap = new Map();
+      if (adminIds.length > 0) {
+        const { data: admins } = await this.supabase
+          .from('users')
+          .select('id, name, email')
+          .in('id', adminIds);
+
+        admins?.forEach(admin => {
+          adminDetailsMap.set(admin.id, admin);
+        });
+      }
+
+      // Fetch target user details separately
+      const targetUserDetailsMap = new Map();
+      if (targetUserIds.length > 0) {
+        const { data: targetUsers } = await this.supabase
+          .from('users')
+          .select('id, name, email')
+          .in('id', targetUserIds);
+
+        targetUsers?.forEach(user => {
+          targetUserDetailsMap.set(user.id, user);
+        });
+      }
+
       // Transform data to AuditLogEntry format
-      let auditLogs: AuditLogEntry[] = (auditData || []).map(entry => ({
-        id: entry.id,
-        adminId: entry.admin_id,
-        adminName: entry.admin?.[0]?.name || 'Unknown Admin',
-        adminEmail: entry.admin?.[0]?.email,
-        actionType: entry.action_type,
-        targetType: entry.target_type,
-        targetId: entry.target_id,
-        targetName: entry.target_user?.[0]?.name,
-        reason: entry.reason,
-        metadata: entry.metadata || {},
-        ipAddress: entry.metadata?.ipAddress,
-        userAgent: entry.metadata?.userAgent,
-        sessionId: entry.metadata?.sessionId,
-        timestamp: entry.created_at,
-        severity: entry.metadata?.severity || this.getActionSeverity(entry.action_type),
-        category: entry.metadata?.category || this.getActionCategory(entry.action_type)
-      }));
+      let auditLogs: AuditLogEntry[] = (auditData || []).map(entry => {
+        const adminDetails = adminDetailsMap.get(entry.admin_id);
+        const targetUserDetails = targetUserDetailsMap.get(entry.target_id);
+
+        return {
+          id: entry.id,
+          adminId: entry.admin_id,
+          adminName: adminDetails?.name || 'Unknown Admin',
+          adminEmail: adminDetails?.email,
+          actionType: entry.action_type,
+          targetType: entry.target_type,
+          targetId: entry.target_id,
+          targetName: targetUserDetails?.name,
+          reason: entry.reason,
+          metadata: entry.metadata || {},
+          ipAddress: entry.metadata?.ipAddress,
+          userAgent: entry.metadata?.userAgent,
+          sessionId: entry.metadata?.sessionId,
+          timestamp: entry.created_at,
+          severity: entry.metadata?.severity || this.getActionSeverity(entry.action_type),
+          category: entry.metadata?.category || this.getActionCategory(entry.action_type)
+        };
+      });
 
       // Apply client-side filters for metadata fields
       if (categories && categories.length > 0) {
@@ -2712,18 +2736,7 @@ export class AdminUserManagementService {
       // Start with base query
       let query = this.supabase
         .from('users')
-        .select(`
-          id,
-          email,
-          name,
-          user_role,
-          user_status,
-          created_at,
-          last_activity_at,
-          total_referrals,
-          phone_number,
-          profile_image_url
-        `);
+        .select('*', { count: 'exact' });
 
       // Apply base filters
       if (email) {
