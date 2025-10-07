@@ -485,6 +485,7 @@ export function requirePermission(options: PermissionMiddlewareOptions) {
       });
 
       res.status(500).json({
+        success: false,
         error: {
           code: 'INTERNAL_ERROR',
           message: 'Internal server error',
@@ -542,6 +543,7 @@ export function requireAnyPermission(
       });
 
       res.status(500).json({
+        success: false,
         error: {
           code: 'INTERNAL_ERROR',
           message: 'Internal server error',
@@ -587,6 +589,7 @@ export function requireAdmin() {
          const user = req.user;
      if (!user || user.role !== 'admin') {
       res.status(403).json({
+        success: false,
         error: {
           code: 'ADMIN_REQUIRED',
           message: 'Admin access required',
