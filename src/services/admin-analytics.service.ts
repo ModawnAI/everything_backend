@@ -249,48 +249,20 @@ export class AdminAnalyticsService {
         period = 'month'
       } = filters;
 
-      // Create a timeout promise (10 seconds max)
-      const timeoutPromise = new Promise<never>((_, reject) => {
-        setTimeout(() => reject(new Error('Dashboard metrics timeout after 10 seconds')), 10000);
-      });
+      // Helper function to wrap promises with timeout
+      const withTimeout = <T>(promise: Promise<T>, fallback: T, timeoutMs: number = 3000): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((resolve) => {
+            setTimeout(() => {
+              logger.warn(`Promise timed out after ${timeoutMs}ms, using fallback`);
+              resolve(fallback);
+            }, timeoutMs);
+          })
+        ]);
+      };
 
-      // Parallel execution for performance with individual error handling
-      const metricsPromise = Promise.all([
-        this.getUserGrowthMetrics(startDate, endDate).catch(err => {
-          logger.error('getUserGrowthMetrics failed', { error: err });
-          return this.getFallbackUserMetrics();
-        }),
-        this.getRevenueMetrics(startDate, endDate).catch(err => {
-          logger.error('getRevenueMetrics failed', { error: err });
-          return this.getFallbackRevenueMetrics();
-        }),
-        this.getGeneralShopPerformanceMetrics(startDate, endDate).catch(err => {
-          logger.error('getGeneralShopPerformanceMetrics failed', { error: err });
-          return {} as any; // Fallback empty object
-        }),
-        this.getReservationMetrics(startDate, endDate).catch(err => {
-          logger.error('getReservationMetrics failed', { error: err });
-          return {} as any; // Fallback empty object
-        }),
-        this.getPaymentMetrics(startDate, endDate).catch(err => {
-          logger.error('getPaymentMetrics failed', { error: err });
-          return {} as any; // Fallback empty object
-        }),
-        this.getReferralMetrics(startDate, endDate).catch(err => {
-          logger.error('getReferralMetrics failed', { error: err });
-          return {} as any; // Fallback empty object
-        }),
-        this.getSystemHealthMetrics().catch(err => {
-          logger.error('getSystemHealthMetrics failed', { error: err });
-          return {} as any; // Fallback empty object
-        }),
-        this.getBusinessIntelligenceMetrics(startDate, endDate).catch(err => {
-          logger.error('getBusinessIntelligenceMetrics failed', { error: err });
-          return {} as any; // Fallback empty object
-        })
-      ]);
-
-      // Race between timeout and actual metrics retrieval
+      // Parallel execution for performance with individual timeouts
       const [
         userGrowth,
         revenue,
@@ -300,7 +272,16 @@ export class AdminAnalyticsService {
         referrals,
         systemHealth,
         businessIntelligence
-      ] = await Promise.race([metricsPromise, timeoutPromise]);
+      ] = await Promise.all([
+        withTimeout(this.getUserGrowthMetrics(startDate, endDate), this.getFallbackUserMetrics()),
+        withTimeout(this.getRevenueMetrics(startDate, endDate), this.getFallbackRevenueMetrics()),
+        withTimeout(this.getGeneralShopPerformanceMetrics(startDate, endDate), {} as any),
+        withTimeout(this.getReservationMetrics(startDate, endDate), {} as any),
+        withTimeout(this.getPaymentMetrics(startDate, endDate), {} as any),
+        withTimeout(this.getReferralMetrics(startDate, endDate), {} as any),
+        withTimeout(this.getSystemHealthMetrics(), {} as any),
+        withTimeout(this.getBusinessIntelligenceMetrics(startDate, endDate), {} as any)
+      ]);
 
       const dashboardMetrics: DashboardMetrics = {
         userGrowth,
@@ -822,12 +803,25 @@ export class AdminAnalyticsService {
     try {
       logger.info('Getting real-time metrics', { adminId });
 
-      // Get only the most critical real-time metrics
+      // Helper function to wrap promises with timeout
+      const withTimeout = <T>(promise: Promise<T>, fallback: T, timeoutMs: number = 2000): Promise<T> => {
+        return Promise.race([
+          promise,
+          new Promise<T>((resolve) => {
+            setTimeout(() => {
+              logger.warn(`Real-time metric timed out after ${timeoutMs}ms, using fallback`);
+              resolve(fallback);
+            }, timeoutMs);
+          })
+        ]);
+      };
+
+      // Get only the most critical real-time metrics with fast timeouts
       const [userGrowth, revenue, reservations, payments] = await Promise.all([
-        this.getUserGrowthMetrics(this.getDefaultStartDate(), this.getDefaultEndDate()),
-        this.getRevenueMetrics(this.getDefaultStartDate(), this.getDefaultEndDate()),
-        this.getReservationMetrics(this.getDefaultStartDate(), this.getDefaultEndDate()),
-        this.getPaymentMetrics(this.getDefaultStartDate(), this.getDefaultEndDate())
+        withTimeout(this.getUserGrowthMetrics(this.getDefaultStartDate(), this.getDefaultEndDate()), this.getFallbackUserMetrics()),
+        withTimeout(this.getRevenueMetrics(this.getDefaultStartDate(), this.getDefaultEndDate()), this.getFallbackRevenueMetrics()),
+        withTimeout(this.getReservationMetrics(this.getDefaultStartDate(), this.getDefaultEndDate()), {} as any),
+        withTimeout(this.getPaymentMetrics(this.getDefaultStartDate(), this.getDefaultEndDate()), {} as any)
       ]);
 
       return {
@@ -843,7 +837,14 @@ export class AdminAnalyticsService {
         adminId,
         error: error instanceof Error ? error.message : 'Unknown error'
       });
-      throw new Error(`Failed to get real-time metrics: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      // Return fallback data instead of throwing
+      return {
+        userGrowth: this.getFallbackUserMetrics(),
+        revenue: this.getFallbackRevenueMetrics(),
+        reservations: {} as any,
+        payments: {} as any,
+        lastUpdated: new Date().toISOString()
+      };
     }
   }
 
