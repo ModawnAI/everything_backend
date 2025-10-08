@@ -15,6 +15,7 @@ import { authenticateJWT } from '../middleware/auth.middleware';
 import { requireAdmin } from '../middleware/rbac.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { logger } from '../utils/logger';
+import adminShopServiceRoutes from './admin-shop-service.routes';
 
 // Validation schemas
 import Joi from 'joi';
@@ -245,6 +246,10 @@ const sensitiveRateLimit = rateLimit({
 // Middleware for all routes
 router.use(authenticateJWT());
 router.use(requireAdmin());
+
+// Mount shop services routes BEFORE other routes to ensure proper matching
+// This must come before /:shopId routes to prevent path conflicts
+router.use('/:shopId/services', adminShopServiceRoutes);
 
 /**
  * POST /api/admin/shops

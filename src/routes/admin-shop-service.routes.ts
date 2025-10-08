@@ -10,8 +10,6 @@
 
 import { Router } from 'express';
 import { adminShopServiceController } from '../controllers/admin-shop-service.controller';
-import { authenticateJWT } from '../middleware/auth.middleware';
-import { requireAdmin } from '../middleware/rbac.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import {
   validateCreateService,
@@ -26,6 +24,7 @@ const router = Router();
 
 // Note: shopId is now captured from the mount path /api/admin/shops/:shopId/services
 // It's automatically available in req.params.shopId
+// Authentication and admin authorization are applied by parent router (admin-shop.routes.ts)
 
 // Rate limiting for admin service operations
 const adminServiceRateLimit = rateLimit({
@@ -43,10 +42,6 @@ const adminServiceUpdateRateLimit = rateLimit({
     strategy: 'fixed_window'
   }
 });
-
-// Apply authentication and admin authorization to all routes
-router.use(authenticateJWT());
-router.use(requireAdmin());
 
 /**
  * @route GET /api/admin/shops/:shopId/services
