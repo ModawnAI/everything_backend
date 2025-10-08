@@ -1,12 +1,12 @@
 /**
  * Enhanced Service Catalog Types
- * 
+ *
  * This file contains enhanced types for the service catalog system,
  * extending the basic ShopService interface with additional metadata
  * and functionality for a comprehensive service catalog.
  */
 
-import { ServiceCategory } from './database.types';
+import { ServiceCategory, Shop } from './database.types';
 
 // =============================================
 // ENHANCED SERVICE CATALOG TYPES
@@ -58,6 +58,7 @@ export interface ServiceCatalogEntry {
   // Basic service information (from ShopService)
   id: string;
   shop_id: string;
+  shop?: Shop; // Shop information (populated when joined)
   name: string;
   description?: string;
   category: ServiceCategory;
