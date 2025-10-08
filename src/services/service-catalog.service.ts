@@ -174,7 +174,8 @@ class ServiceCatalogService {
         .from('shop_services')
         .select(`
           *,
-          service_images:service_images(*)
+          service_images:service_images(*),
+          shop:shops(*)
         `)
         .eq('id', serviceId)
         .single();
