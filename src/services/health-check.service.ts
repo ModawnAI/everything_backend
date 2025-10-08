@@ -226,20 +226,21 @@ export class HealthCheckService {
   }
 
   /**
-   * Check TossPayments API
+   * Check PortOne API
    */
   private async checkTossPayments(): Promise<HealthCheckResult> {
-    const cacheKey = 'tossPayments';
+    const cacheKey = 'portone';
     const cached = this.getCachedResult(cacheKey);
     if (cached) return cached;
 
     const startTime = Date.now();
     try {
-      // Test TossPayments API connectivity
-      const response = await fetch(`${config.payments.tossPayments.baseUrl}/v1/status`, {
+      // Test PortOne V2 API connectivity
+      const response = await fetch(`${config.payments.portone.v2.baseUrl}/v2/stores/${config.payments.portone.v2.storeId}`, {
         method: 'GET',
         headers: {
-          'Authorization': `Basic ${Buffer.from(config.payments.tossPayments.secretKey + ':').toString('base64')}`,
+          'Authorization': `PortOne ${config.payments.portone.v2.apiSecret}`,
+          'Content-Type': 'application/json',
         },
         signal: AbortSignal.timeout(5000), // 5 second timeout
       });
@@ -247,7 +248,7 @@ export class HealthCheckService {
       const responseTime = Date.now() - startTime;
       const result: HealthCheckResult = {
         status: response.ok ? 'healthy' : 'degraded',
-        message: response.ok ? 'TossPayments API accessible' : 'TossPayments API issues detected',
+        message: response.ok ? 'PortOne API accessible' : 'PortOne API issues detected',
         responseTime,
         details: {
           statusCode: response.status,
@@ -261,7 +262,7 @@ export class HealthCheckService {
     } catch (error) {
       const result: HealthCheckResult = {
         status: 'unhealthy',
-        message: 'TossPayments API unreachable',
+        message: 'PortOne API unreachable',
         responseTime: Date.now() - startTime,
         details: { error: (error as Error).message },
         lastChecked: new Date().toISOString(),

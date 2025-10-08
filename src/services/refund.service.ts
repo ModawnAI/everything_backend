@@ -5,12 +5,12 @@
  * - Refund request creation and validation
  * - Automatic and manual refund processing
  * - Approval workflow management
- * - TossPayments refund integration
+ * - PortOne refund integration
  * - Audit trail and reporting
  */
 
 import { getSupabaseClient } from '../config/database';
-import { tossPaymentsService } from './toss-payments.service';
+import { portOneService } from './portone.service';
 import { logger } from '../utils/logger';
 import { automatedRefundService } from './automated-refund.service';
 import { 
@@ -670,7 +670,7 @@ export class RefundService {
     
     try {
       // Call TossPayments refund API
-      const refundResult = await tossPaymentsService.cancelPayment(
+      const refundResult = await portOneService.cancelPayment(
         payment.provider_transaction_id,
         refund.refund_reason_details || 'Customer refund request',
         refund.approved_amount

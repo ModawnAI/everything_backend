@@ -134,7 +134,11 @@
     "test:reconciliation:comprehensive": "node scripts/run-reconciliation-tests.js comprehensive",
     "test:reconciliation:coverage": "node scripts/run-reconciliation-tests.js coverage",
     "test:reconciliation:watch": "node scripts/run-reconciliation-tests.js watch",
-    "test:reconciliation:all": "node scripts/run-reconciliation-tests.js all"
+    "test:reconciliation:all": "node scripts/run-reconciliation-tests.js all",
+    "migrate:portone-v2": "ts-node scripts/run-portone-v2-migration.ts",
+    "migrate:portone-v2:verify": "ts-node scripts/run-portone-v2-migration.ts --verify-only",
+    "migrate:portone-v2:check": "ts-node scripts/run-portone-v2-migration-advanced.ts",
+    "migrate:portone-v2:add-columns": "ts-node scripts/add-portone-columns.ts"
   },
   "keywords": [
     "nodejs",
@@ -148,6 +152,7 @@
   "author": "에뷰리띵",
   "license": "MIT",
   "dependencies": {
+    "@portone/server-sdk": "^0.17.0",
     "@supabase/supabase-js": "^2.57.4",
     "@tosspayments/payment-sdk": "^1.9.1",
     "@types/bcrypt": "^6.0.0",

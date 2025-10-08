@@ -1285,8 +1285,8 @@ export class ReservationReschedulingService {
         return { success: true };
       }
 
-      // Import TossPayments service dynamically
-      const { tossPaymentsService } = await import('./toss-payments.service');
+      // Import PortOne service dynamically
+      const { portOneService } = await import('./portone.service');
       
       // Create payment initiation request for reschedule fee
       const paymentRequest: any = {
@@ -1320,7 +1320,7 @@ export class ReservationReschedulingService {
       paymentRequest.customerName = user.name;
 
       // Initialize payment
-      const paymentResult = await tossPaymentsService.initializePayment(paymentRequest);
+      const paymentResult = await portOneService.initializePayment(paymentRequest);
 
       if (!paymentResult || !paymentResult.paymentKey) {
         logger.error('Failed to initialize reschedule fee payment:', {
