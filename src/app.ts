@@ -29,7 +29,6 @@ import userStatusRoutes from './routes/user-status.routes';
 import shopRoutes from './routes/shop.routes';
 import shopImageRoutes from './routes/shop-image.routes';
 import { adminShopRoutes } from './routes/admin-shop.routes';
-import adminShopServiceRoutes from './routes/admin-shop-service.routes';
 import adminShopApprovalRoutes from './routes/admin-shop-approval.routes';
 import adminReservationRoutes from './routes/admin-reservation.routes';
 import shopOwnerRoutes from './routes/shop-owner.routes';
@@ -353,8 +352,7 @@ app.use('/api/admin/*', authenticateJWT(), requireAdmin());
 app.use('/api/admin/*', adminNoCacheMiddleware);
 
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
-app.use('/api/admin/shops/:shopId/services', adminShopServiceRoutes); // Shop service management (specific path to avoid conflicts)
-app.use('/api/admin/shops', adminShopRoutes);
+app.use('/api/admin/shops', adminShopRoutes); // Includes /:shopId/services sub-router
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
