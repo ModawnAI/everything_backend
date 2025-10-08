@@ -25,7 +25,9 @@ export class AdminAnalyticsOptimizedController {
    */
   async getQuickDashboardMetrics(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
+
       const adminId = req.user?.id;
+
       if (!adminId) {
         res.status(401).json({
           success: false,
@@ -38,9 +40,11 @@ export class AdminAnalyticsOptimizedController {
         return;
       }
 
-      logger.info('Getting quick dashboard metrics', { adminId });
+      logger.info('[CONTROLLER] Calling analytics service...', { adminId });
 
       const metrics = await this.analyticsService.getQuickDashboardMetrics();
+
+      logger.info('[CONTROLLER] Got metrics, sending response', { metricsKeys: Object.keys(metrics) });
 
       res.status(200).json({
         success: true,
@@ -49,8 +53,10 @@ export class AdminAnalyticsOptimizedController {
         timestamp: new Date().toISOString()
       });
 
+      logger.info('[CONTROLLER] Response sent successfully');
+
     } catch (error) {
-      logger.error('Error in getQuickDashboardMetrics:', error);
+      logger.error('[CONTROLLER] Error in getQuickDashboardMetrics:', error);
 
       res.status(500).json({
         success: false,

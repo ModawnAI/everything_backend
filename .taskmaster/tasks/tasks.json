@@ -3788,5 +3788,591 @@
       "updated": "2025-09-22T10:20:54.315Z",
       "description": "Tasks for phase-6-social-feed context"
     }
+  },
+  "portone-migration": {
+    "tasks": [
+      {
+        "id": 1,
+        "title": "Install PortOne V2 SDKs and Dependencies",
+        "description": "Install and configure PortOne V2 SDK packages for server-side integration - COMPLETED",
+        "status": "done",
+        "dependencies": [],
+        "priority": "high",
+        "details": "✅ Successfully installed @portone/server-sdk@0.17.0 and verified functionality. The SDK has been added to package.json dependencies with proper version constraints. Created verification script at scripts/verify-portone-sdk.ts to validate SDK installation and basic import functionality. The server SDK provides TypeScript support and includes payment, webhook, and identity verification APIs through PortOneClient class.",
+        "testStrategy": "✅ Verification completed: PortOneClient class successfully imported, client instantiation working with test credentials, Payment API and Identity Verification API confirmed available through automated verification script.",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Install @portone/server-sdk package",
+            "description": "Add @portone/server-sdk to project dependencies using npm",
+            "status": "completed",
+            "dependencies": [],
+            "details": "Successfully installed @portone/server-sdk@0.17.0 and added to package.json dependencies",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Create SDK verification script",
+            "description": "Create automated verification script to test SDK installation and basic functionality",
+            "status": "completed",
+            "dependencies": [],
+            "details": "Created scripts/verify-portone-sdk.ts with comprehensive SDK verification including PortOneClient import, instantiation, and API availability checks",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Verify SDK functionality",
+            "description": "Test PortOneClient import, instantiation, and API availability",
+            "status": "completed",
+            "dependencies": [],
+            "details": "Verified PortOneClient class import, successful client instantiation with test credentials, and confirmed availability of Payment API and Identity Verification API",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Configure PortOne Environment Variables",
+        "description": "Set up all required PortOne configuration variables and validation schema - COMPLETED with comprehensive environment configuration, type definitions, and validation scripts",
+        "status": "done",
+        "dependencies": [
+          1
+        ],
+        "priority": "high",
+        "details": "✅ COMPLETED: All PortOne environment variables have been successfully configured in .env with proper validation schema in src/config/environment.ts. The implementation includes:\n\n**Environment Variables Configured:**\n- PORTONE_ENABLED=false (integration toggle)\n- PORTONE_API_SECRET (API secret key)\n- PORTONE_STORE_ID (store identifier) \n- PORTONE_CHANNEL_KEY (optional channel key)\n- PORTONE_V2_API_BASE_URL=https://api.portone.io\n- PORTONE_MIGRATION_MODE=toss-only (supports: toss-only, portone-only, dual-mode, gradual-rollout)\n- PORTONE_ROLLOUT_PERCENTAGE=0 (for gradual rollout)\n- PORTONE_IDENTITY_VERIFICATION_ENABLED=false\n- PORTONE_IDENTITY_PROVIDER=kg-inicis (supports: danal, kcp, kg-inicis)\n- Legacy PASS integration variables maintained\n\n**Implementation Files:**\n- src/config/environment.ts: Updated with Joi validation schema for all PortOne variables\n- src/types/portone-config.types.ts: Created comprehensive type definitions and helper functions\n- scripts/verify-portone-config.ts: Created automated validation script\n\n**Key Features:**\n- Dual-mode migration support with PORTONE_MIGRATION_MODE enum\n- Gradual rollout capability with percentage-based traffic routing\n- Identity verification configuration for multiple providers\n- Comprehensive TypeScript typing and Joi validation\n- Helper functions for migration mode logic and configuration validation",
+        "testStrategy": "✅ COMPLETED: All validation tests have been successfully implemented and verified:\n- Environment schema validation with Joi passes for all configurations\n- TypeScript type checking validates all PortOne variables\n- Dual-mode configuration switching tested and working\n- Verification script confirms configuration loads without errors\n- Migration mode logic validated through helper functions\n- Identity verification configuration properly structured",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Add PortOne environment variables to .env file",
+            "description": "Configure all required PortOne environment variables including API secrets, store ID, channel keys, and migration settings",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Added comprehensive PortOne environment variables: PORTONE_ENABLED, PORTONE_API_SECRET, PORTONE_STORE_ID, PORTONE_CHANNEL_KEY, PORTONE_V2_API_BASE_URL, PORTONE_MIGRATION_MODE, PORTONE_ROLLOUT_PERCENTAGE, PORTONE_IDENTITY_VERIFICATION_ENABLED, PORTONE_IDENTITY_PROVIDER, and legacy PASS integration variables",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Update src/config/environment.ts with Joi validation schema",
+            "description": "Implement comprehensive Joi validation for all PortOne configuration variables with proper TypeScript typing",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Updated environment.ts with complete Joi validation schema for payments.portone configuration object and identityVerification configuration objects. All variables properly typed and validated.",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create PortOne type definitions",
+            "description": "Implement TypeScript type definitions for PortOne configuration and migration modes",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Created src/types/portone-config.types.ts with PortOneMigrationMode and PortOneIdentityProvider types, plus helper functions shouldUsePortOne() and validatePortOneConfig()",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Implement dual-mode migration configuration",
+            "description": "Set up PORTONE_MIGRATION_MODE enum with support for toss-only, portone-only, dual-mode, and gradual-rollout strategies",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Implemented comprehensive migration mode configuration with enum support and gradual rollout percentage logic. Migration mode logic validated through helper functions.",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create configuration verification script",
+            "description": "Develop automated script to validate PortOne configuration and provide migration status",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ Created scripts/verify-portone-config.ts with automated validation, migration status display, and next steps recommendations. Script successfully verifies configuration loads without errors.",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Validate environment schema and configuration",
+            "description": "Run comprehensive validation tests to ensure all PortOne variables are properly configured and typed",
+            "status": "completed",
+            "dependencies": [],
+            "details": "✅ All validation tests passed: environment schema validates correctly, PortOne payment configuration complete, identity verification configuration complete, migration mode working, dual-mode and gradual rollout supported.",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Create Database Schema Migrations for PortOne",
+        "description": "Add PortOne-specific columns to existing tables and create new webhook logging table - COMPLETED with comprehensive schema migrations, rollback support, and verification scripts",
+        "status": "done",
+        "dependencies": [
+          2
+        ],
+        "priority": "high",
+        "details": "✅ COMPLETED: Successfully created comprehensive database schema migrations for PortOne v2 integration in supabase/migrations/. The implementation includes:\n\n**Migration Files Created:**\n- 20251007000000_portone_v2_integration_schema.sql - Main migration with all schema changes\n- 20251007000001_portone_v2_integration_schema_rollback.sql - Complete rollback script\n- verify-portone-migration.sql - Verification and testing script\n\n**Schema Changes Implemented:**\n1. **Enhanced payments table** with PortOne columns: portone_payment_id, portone_transaction_id, portone_store_id, portone_channel_key, portone_channel_name, portone_pg_provider, portone_method_type, portone_method_detail, payment_stage, migration_mode\n2. **New phone_verifications table** supporting both PASS and PortOne verification methods with CI/DI storage\n3. **New portone_webhook_logs table** with idempotency, retry mechanism, and comprehensive logging\n4. **New user_verifications table** for storing CI/DI verification data as JSONB\n\n**Advanced Features:**\n- Custom ENUMs for verification_status, verification_method, portone_webhook_status\n- 25+ optimized indexes for query performance\n- Helper functions for cleanup and payment lookup\n- Row Level Security (RLS) policies for all tables\n- Proper GRANT permissions for authenticated and service_role users\n- Complete rollback support preserving existing TOSS Payments functionality",
+        "testStrategy": "✅ COMPLETED: All migration testing successfully completed:\n- Migration applied successfully on development database\n- All 25+ indexes created and verified for optimal performance\n- Rollback migration tested and verified - safely removes all PortOne changes\n- Foreign key constraints and data types validated\n- RLS policies tested for proper access control\n- Helper functions tested for correct functionality\n- Verification script confirms all schema changes are properly applied\n- TOSS Payments functionality preserved during rollback testing",
+        "subtasks": [
+          {
+            "id": 1,
+            "title": "Create main PortOne v2 integration migration file",
+            "description": "Create comprehensive migration file with all PortOne schema changes",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created 20251007000000_portone_v2_integration_schema.sql with payments table enhancements, new phone_verifications table, portone_webhook_logs table, user_verifications table, custom ENUMs, helper functions, and RLS policies",
+            "testStrategy": ""
+          },
+          {
+            "id": 2,
+            "title": "Add PortOne columns to payments table",
+            "description": "Extend payments table with PortOne-specific tracking columns",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Added 10 PortOne columns including portone_payment_id, portone_transaction_id, portone_store_id, portone_channel_key, portone_channel_name, portone_pg_provider, portone_method_type, portone_method_detail, payment_stage, migration_mode with proper constraints and indexes",
+            "testStrategy": ""
+          },
+          {
+            "id": 3,
+            "title": "Create phone_verifications table for identity verification",
+            "description": "Create table to handle both PASS and PortOne phone verification methods",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created phone_verifications table supporting verification_method enum (pass, portone, sms), CI/DI storage, portone_identity_verification_id, portone_provider fields, status tracking, and 10+ optimized indexes",
+            "testStrategy": ""
+          },
+          {
+            "id": 4,
+            "title": "Create portone_webhook_logs table",
+            "description": "Create webhook logging table with idempotency and retry mechanism",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created portone_webhook_logs table with webhook_id, webhook_type, payload, signature verification, retry mechanism with max_retries/retry_count, status enum, unique constraints, and 10+ indexes including compound indexes for retry queries",
+            "testStrategy": ""
+          },
+          {
+            "id": 5,
+            "title": "Create user_verifications table for CI/DI storage",
+            "description": "Create table to store user verification data including CI/DI information",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created user_verifications table with JSONB verification_data storage, unique constraint per (user_id, verification_type), supporting 'phone_pass' and 'phone_portone' types",
+            "testStrategy": ""
+          },
+          {
+            "id": 6,
+            "title": "Implement helper functions and triggers",
+            "description": "Create database helper functions for cleanup and payment lookup",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created cleanup_expired_phone_verifications() function, get_payment_by_portone_id() lookup helper, and update_updated_at_column() trigger function",
+            "testStrategy": ""
+          },
+          {
+            "id": 7,
+            "title": "Configure Row Level Security policies",
+            "description": "Set up RLS policies for secure access to all new tables",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Enabled RLS on all new tables with proper policies: phone_verifications (user access own records), user_verifications (user read own records), portone_webhook_logs (service-only access), with proper GRANT permissions",
+            "testStrategy": ""
+          },
+          {
+            "id": 8,
+            "title": "Create rollback migration script",
+            "description": "Create comprehensive rollback script to safely remove all PortOne changes",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created 20251007000001_portone_v2_integration_schema_rollback.sql with complete rollback of all PortOne schema changes while preserving TOSS Payments functionality",
+            "testStrategy": ""
+          },
+          {
+            "id": 9,
+            "title": "Create migration verification script",
+            "description": "Create script to verify all migration changes are properly applied",
+            "status": "done",
+            "dependencies": [],
+            "details": "✅ Created verify-portone-migration.sql script to validate all tables, columns, indexes, ENUMs, functions, and RLS policies are correctly implemented",
+            "testStrategy": ""
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Implement Core PortOne Payment Service",
+        "description": "Create the main payment service class with all payment operations",
+        "details": "Implement PortOnePaymentService class in src/services/portone-payment.service.ts. Include methods for initializePayment, confirmPayment, cancelPayment, and getPaymentById. Use PortOne Server SDK v2 with proper error handling and TypeScript interfaces. Implement payment amount verification and status mapping. Support all payment methods: card, virtual account, and easy pay.",
+        "testStrategy": "Unit tests for all payment methods. Mock PortOne SDK responses. Test error handling for network failures and API errors. Validate payment amount calculations and status transitions.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 5,
+        "title": "Implement PortOne Webhook Service",
+        "description": "Create webhook handling service with signature verification and event processing",
+        "details": "Implement PortOneWebhookService in src/services/portone-webhook.service.ts. Use PortOne SDK's webhook verification with HMAC-SHA256 signature validation. Handle webhook events: Transaction.Paid, Transaction.Cancelled, Transaction.VirtualAccountIssued. Implement idempotency checks using webhook_id and transaction_id. Add retry mechanism for failed webhook processing with exponential backoff.",
+        "testStrategy": "Test webhook signature verification with valid/invalid signatures. Mock webhook payloads for all event types. Test idempotency with duplicate webhook deliveries. Verify error handling and retry logic.",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 6,
+        "title": "Implement Two-Stage Payment Adapter Service",
+        "description": "Create adapter service to maintain backward compatibility with existing two-stage payment logic",
+        "details": "Implement PortOneTwoStagePaymentService in src/services/portone-two-stage-payment.service.ts. Maintain existing deposit (20-30% of total) and final payment logic. Calculate deposit amounts based on business rules. Validate final payment conditions (service completion required). Track payment stage progression and handle stage-specific cancellations. Ensure compatibility with existing reservation status updates.",
+        "testStrategy": "Test deposit amount calculations with various total amounts. Verify final payment condition validation. Test stage progression tracking. Mock reservation service interactions.",
+        "priority": "medium",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 7,
+        "title": "Implement PortOne Identity Verification Service",
+        "description": "Create identity verification service for phone and unified authentication",
+        "details": "Implement PortOneIdentityVerificationService in src/services/portone-identity-verification.service.ts. Support phone verification via Danal/KCP and unified authentication via KG Inicis. Implement initiateVerification, verifyResult, and extractCustomerInfo methods. Handle CI/DI extraction and storage. Support multiple verification methods with proper channel key routing. Include cleanup for expired verifications.",
+        "testStrategy": "Test phone verification flow with mock providers. Test unified authentication with various providers (Kakao, Naver, PASS). Verify CI/DI extraction and validation. Test verification expiration cleanup.",
+        "priority": "high",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 8,
+        "title": "Create PortOne Error Handling Classes",
+        "description": "Implement custom error classes for PortOne-specific error handling",
+        "details": "Create PortOnePaymentError, PortOneWebhookError, and PortOneVerificationError classes in src/errors/portone-errors.ts. Include error codes, detailed messages, and context information. Implement proper error inheritance from base Error class. Add error serialization for logging. Map PortOne API error codes to application-specific error types with user-friendly messages.",
+        "testStrategy": "Test error class instantiation and inheritance. Verify error serialization for logging. Test error code mapping from PortOne API responses. Validate error message formatting.",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          5,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 9,
+        "title": "Update Payment Controller with PortOne Integration",
+        "description": "Modify existing payment controller to use PortOne services while maintaining API compatibility",
+        "details": "Update src/controllers/payment.controller.ts to use PortOnePaymentService. Maintain existing API endpoints: /api/payments/prepare, /api/payments/deposit/prepare, /api/payments/final/prepare, /api/payments/confirm, /api/payments/cancel. Implement dual-mode operation based on PORTONE_MIGRATION_MODE. Add proper request validation using Joi schemas. Ensure backward compatibility with existing frontend integration.",
+        "testStrategy": "Test all payment endpoints with PortOne integration. Verify dual-mode switching between TOSS and PortOne. Test request validation and error responses. Validate API response format compatibility.",
+        "priority": "high",
+        "dependencies": [
+          4,
+          6,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 10,
+        "title": "Create PortOne Webhook Controller",
+        "description": "Implement webhook endpoint controller for PortOne webhook events",
+        "details": "Create src/controllers/portone-webhook.controller.ts with POST /api/webhooks/portone endpoint. Implement webhook signature verification using PortOneWebhookService. Handle all webhook event types with proper error handling and logging. Return appropriate HTTP status codes (200 for success, 400 for invalid signature, 500 for processing errors). Implement request logging for debugging and monitoring.",
+        "testStrategy": "Test webhook endpoint with valid PortOne webhook payloads. Test signature verification with invalid signatures. Verify proper HTTP status code responses. Test webhook processing error handling.",
+        "priority": "high",
+        "dependencies": [
+          5,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 11,
+        "title": "Create Identity Verification Controller",
+        "description": "Implement new controller for PortOne identity verification endpoints",
+        "details": "Create src/controllers/portone-verification.controller.ts with endpoints: POST /api/verification/initiate, POST /api/verification/complete, GET /api/verification/:identityVerificationId. Implement request validation for verification initiation. Handle verification completion with CI/DI extraction. Update user verification status upon successful verification. Add proper error handling and user-friendly error messages.",
+        "testStrategy": "Test verification initiation with various verification methods. Test verification completion with valid/invalid results. Verify user status updates. Test error handling for failed verifications.",
+        "priority": "high",
+        "dependencies": [
+          7,
+          8
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 12,
+        "title": "Implement Payment Success/Failure Redirect Handlers",
+        "description": "Create redirect handlers for payment completion flows",
+        "details": "Add GET /api/payments/success and GET /api/payments/fail endpoints to payment controller. Handle payment completion redirects from PortOne payment window. Validate payment status and update reservation accordingly. Implement proper redirect logic to frontend with payment result parameters. Add logging for payment completion tracking and debugging.",
+        "testStrategy": "Test success redirect with completed payments. Test failure redirect with failed payments. Verify parameter passing to frontend. Test reservation status updates on payment completion.",
+        "priority": "medium",
+        "dependencies": [
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 13,
+        "title": "Update Route Configurations for PortOne Endpoints",
+        "description": "Configure Express routes for all new PortOne endpoints with proper middleware",
+        "details": "Update src/routes/index.ts to include PortOne webhook and verification routes. Configure middleware for authentication, rate limiting, and request validation. Set up proper CORS configuration for webhook endpoints. Add request logging middleware for debugging. Ensure webhook endpoints are accessible without authentication while other endpoints maintain existing security.",
+        "testStrategy": "Test route accessibility and middleware execution. Verify CORS configuration for webhook endpoints. Test rate limiting on verification endpoints. Validate authentication requirements for protected endpoints.",
+        "priority": "medium",
+        "dependencies": [
+          10,
+          11,
+          12
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 14,
+        "title": "Implement Dual-Mode Operation Logic",
+        "description": "Create service layer logic to switch between TOSS and PortOne based on configuration",
+        "details": "Implement PaymentServiceFactory in src/services/payment-service-factory.ts to return appropriate payment service based on PORTONE_MIGRATION_MODE. Create interface abstraction for payment operations to ensure compatibility. Implement gradual migration logic with percentage-based traffic routing. Add logging for service selection and migration tracking. Ensure seamless switching without service interruption.",
+        "testStrategy": "Test service factory with different migration modes. Verify interface compatibility between TOSS and PortOne services. Test traffic routing percentages. Validate logging and monitoring of service selection.",
+        "priority": "high",
+        "dependencies": [
+          4,
+          9
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 15,
+        "title": "Implement Comprehensive Logging for PortOne Operations",
+        "description": "Add detailed logging for all PortOne payment and verification operations",
+        "details": "Implement structured logging using Winston or similar logger. Log all payment operations: initialization, confirmation, cancellation, webhook processing. Log identity verification operations: initiation, completion, CI/DI extraction. Implement log level configuration and sensitive data masking (credit cards, SSN, phone numbers). Add correlation IDs for request tracking. Create log aggregation for monitoring and debugging.",
+        "testStrategy": "Test logging output for all operations. Verify sensitive data masking. Test log level filtering. Validate correlation ID tracking across service calls.",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          5,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 16,
+        "title": "Create Data Migration Scripts for Existing Records",
+        "description": "Develop scripts to migrate existing TOSS payment and PASS verification records to PortOne format",
+        "details": "Create migration scripts in src/migrations/data/ to map existing TOSS payment records to PortOne format. Map payment statuses, amounts, and metadata. Create scripts to migrate PASS verification records with CI/DI mapping. Implement data validation and integrity checks. Create rollback scripts for data recovery. Add progress tracking and error reporting for large datasets.",
+        "testStrategy": "Test migration scripts on development data. Verify data integrity after migration. Test rollback procedures. Validate mapping accuracy for all record types.",
+        "priority": "medium",
+        "dependencies": [
+          3
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 17,
+        "title": "Implement Unit Tests for PortOne Payment Service",
+        "description": "Create comprehensive unit tests for all payment service methods",
+        "details": "Create test file src/services/__tests__/portone-payment.service.test.ts. Test all payment methods: single, deposit, final payments. Mock PortOne SDK responses for success and error scenarios. Test payment amount verification and status mapping. Test error handling for network failures and API errors. Achieve minimum 90% code coverage with edge case testing.",
+        "testStrategy": "Run unit tests with Jest. Verify mock implementations match PortOne SDK interfaces. Test all error paths and edge cases. Measure code coverage and ensure 90% minimum threshold.",
+        "priority": "high",
+        "dependencies": [
+          4
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 18,
+        "title": "Implement Unit Tests for PortOne Webhook Service",
+        "description": "Create comprehensive unit tests for webhook handling and signature verification",
+        "details": "Create test file src/services/__tests__/portone-webhook.service.test.ts. Test webhook signature verification with valid/invalid signatures. Test all webhook event types: Transaction.Paid, Transaction.Cancelled, etc. Test idempotency checks with duplicate webhooks. Test retry logic for failed webhook processing. Mock database operations and external service calls.",
+        "testStrategy": "Test webhook signature verification with PortOne test signatures. Verify idempotency with duplicate webhook IDs. Test retry mechanism with exponential backoff. Validate error handling for malformed webhooks.",
+        "priority": "high",
+        "dependencies": [
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 19,
+        "title": "Implement Unit Tests for Identity Verification Service",
+        "description": "Create comprehensive unit tests for identity verification operations",
+        "details": "Create test file src/services/__tests__/portone-identity-verification.service.test.ts. Test verification initiation for phone and unified auth methods. Test verification result processing and CI/DI extraction. Test customer info validation and user status updates. Mock PortOne identity verification API responses. Test verification expiration cleanup logic.",
+        "testStrategy": "Test all verification methods with mock responses. Verify CI/DI extraction accuracy. Test user status update logic. Validate cleanup of expired verifications.",
+        "priority": "high",
+        "dependencies": [
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 20,
+        "title": "Implement Integration Tests for Payment Flows",
+        "description": "Create end-to-end integration tests for complete payment workflows",
+        "details": "Create integration test suite in src/__tests__/integration/payment-flows.test.ts. Test complete payment flows: single payment, deposit payment, final payment. Test payment confirmation and webhook processing. Test payment cancellation and refund flows. Use PortOne test environment with real API calls. Test error scenarios and recovery mechanisms.",
+        "testStrategy": "Run tests against PortOne test environment. Verify complete payment workflows from initiation to completion. Test webhook delivery and processing. Validate database state changes throughout flows.",
+        "priority": "high",
+        "dependencies": [
+          4,
+          5,
+          9,
+          10
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 21,
+        "title": "Implement Integration Tests for Identity Verification Flows",
+        "description": "Create end-to-end integration tests for identity verification workflows",
+        "details": "Create integration test suite in src/__tests__/integration/verification-flows.test.ts. Test complete verification flows for phone and unified authentication. Test CI/DI extraction and user status updates. Use PortOne test environment for real verification flows. Test verification failure scenarios and error handling. Validate database updates for successful verifications.",
+        "testStrategy": "Run tests against PortOne test verification environment. Test complete verification workflows. Verify CI/DI extraction accuracy. Validate user verification status updates.",
+        "priority": "high",
+        "dependencies": [
+          7,
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 22,
+        "title": "Implement Performance Tests for PortOne Integration",
+        "description": "Create performance tests to validate response times and concurrent request handling",
+        "details": "Create performance test suite using Artillery or similar tool. Test payment initialization performance (target: <500ms). Test payment confirmation performance (target: <1s). Test webhook processing performance (target: <2s). Test concurrent payment handling (target: 100 req/s). Test identity verification performance (target: <3s). Monitor memory usage and database connection pooling.",
+        "testStrategy": "Run performance tests with varying load levels. Measure response times under different concurrency levels. Monitor system resources during load testing. Validate performance targets are met consistently.",
+        "priority": "medium",
+        "dependencies": [
+          20,
+          21
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 23,
+        "title": "Implement Monitoring and Health Checks for PortOne Services",
+        "description": "Create monitoring endpoints and health checks for PortOne integration",
+        "details": "Implement health check endpoints in src/controllers/health.controller.ts for PortOne API connectivity. Create monitoring metrics for payment success rates, webhook processing rates, and verification success rates. Implement alerting for critical failures (payment success rate <95%, webhook failures >5%). Add dashboard metrics for real-time monitoring. Create automated health check scheduling.",
+        "testStrategy": "Test health check endpoints with PortOne API availability. Verify metric collection and alerting thresholds. Test dashboard metric updates. Validate automated health check execution.",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          5,
+          7
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 24,
+        "title": "Create Rollback Procedures and Emergency Switches",
+        "description": "Implement emergency rollback mechanisms and procedures for quick recovery",
+        "details": "Create emergency rollback script in scripts/emergency-rollback.sh to switch back to TOSS/PASS immediately. Implement environment variable-based service switching without deployment. Create database rollback procedures with backup restoration. Document rollback triggers and decision criteria. Create automated rollback testing procedures. Implement rollback monitoring and validation.",
+        "testStrategy": "Test emergency rollback procedures in staging environment. Verify service switching without downtime. Test database rollback and data integrity. Validate rollback trigger mechanisms.",
+        "priority": "high",
+        "dependencies": [
+          14,
+          16
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 25,
+        "title": "Create Production Deployment Configuration",
+        "description": "Configure production deployment settings and environment-specific configurations",
+        "details": "Create production environment configuration with proper PortOne credentials. Configure production webhook URLs and SSL certificates. Set up production database connection pooling and performance optimization. Configure production logging levels and log rotation. Create production monitoring and alerting configuration. Set up production backup and disaster recovery procedures.",
+        "testStrategy": "Validate production configuration in staging environment. Test SSL certificate configuration and webhook delivery. Verify database performance optimization. Test monitoring and alerting in production-like environment.",
+        "priority": "high",
+        "dependencies": [
+          23,
+          24
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 26,
+        "title": "Implement Financial Reconciliation for PortOne Transactions",
+        "description": "Create reconciliation service to match PortOne transactions with internal records",
+        "details": "Implement PortOneReconciliationService in src/services/portone-reconciliation.service.ts. Create daily reconciliation jobs to match PortOne transaction records with internal payment records. Implement discrepancy detection and reporting. Create reconciliation reports for financial audit. Add manual reconciliation tools for dispute resolution. Implement automated reconciliation alerts for mismatches.",
+        "testStrategy": "Test reconciliation with sample transaction data. Verify discrepancy detection accuracy. Test reconciliation report generation. Validate manual reconciliation tools functionality.",
+        "priority": "medium",
+        "dependencies": [
+          4,
+          5
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 27,
+        "title": "Create Documentation for PortOne Integration",
+        "description": "Create comprehensive documentation for the PortOne integration implementation",
+        "details": "Create technical documentation in docs/portone-integration.md covering architecture, API endpoints, configuration, and troubleshooting. Document migration procedures and rollback processes. Create API documentation for new endpoints with request/response examples. Document monitoring and alerting setup. Create operational runbooks for common issues and maintenance tasks.",
+        "testStrategy": "Review documentation for completeness and accuracy. Validate code examples and configuration snippets. Test documented procedures in development environment. Gather feedback from development team.",
+        "priority": "low",
+        "dependencies": [
+          25
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 28,
+        "title": "Implement Security Audit and Penetration Testing",
+        "description": "Conduct security review and penetration testing for PortOne integration",
+        "details": "Perform security audit of PortOne integration focusing on webhook signature verification, API secret management, and data encryption. Conduct penetration testing on webhook endpoints and payment flows. Review CI/DI data handling for privacy compliance. Test for common vulnerabilities: injection attacks, authentication bypass, data exposure. Create security checklist and remediation plan.",
+        "testStrategy": "Use automated security scanning tools. Perform manual penetration testing. Review code for security vulnerabilities. Validate webhook signature verification under attack scenarios.",
+        "priority": "high",
+        "dependencies": [
+          10,
+          11
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 29,
+        "title": "Execute Production Migration and Cutover",
+        "description": "Perform the actual production migration from TOSS/PASS to PortOne with monitoring",
+        "details": "Execute production deployment with dual-mode operation initially. Monitor error rates and performance metrics during initial deployment. Gradually shift traffic from TOSS to PortOne using percentage-based routing. Monitor payment success rates, webhook processing, and verification success rates. Complete cutover to PortOne after validation period. Disable TOSS/PASS services after stability confirmation.",
+        "testStrategy": "Monitor all key metrics during migration. Validate payment and verification success rates. Test rollback procedures if issues arise. Confirm financial reconciliation accuracy post-migration.",
+        "priority": "high",
+        "dependencies": [
+          25,
+          26,
+          28
+        ],
+        "status": "pending",
+        "subtasks": []
+      },
+      {
+        "id": 30,
+        "title": "Post-Migration Cleanup and Optimization",
+        "description": "Clean up deprecated code and optimize PortOne integration performance",
+        "details": "Remove TOSS Payments service code and dependencies after successful migration. Remove PASS authentication service code and dependencies. Clean up deprecated database columns and indexes. Remove old environment variables and configuration. Optimize PortOne integration performance based on production metrics. Update documentation to reflect final implementation. Archive migration-related code and procedures.",
+        "testStrategy": "Verify complete removal of deprecated code. Test application functionality after cleanup. Validate performance improvements. Confirm documentation accuracy post-cleanup.",
+        "priority": "low",
+        "dependencies": [
+          29
+        ],
+        "status": "pending",
+        "subtasks": []
+      }
+    ],
+    "metadata": {
+      "created": "2025-10-07T10:57:05.833Z",
+      "updated": "2025-10-07T11:12:15.935Z",
+      "description": "Tasks for portone-migration context"
+    }
   }
 }

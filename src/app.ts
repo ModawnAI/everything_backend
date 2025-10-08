@@ -48,7 +48,6 @@ import influencerBonusRoutes from './routes/influencer-bonus.routes';
 import adminAdjustmentRoutes from './routes/admin-adjustment.routes';
 import adminPaymentRoutes from './routes/admin-payment.routes';
 import adminAnalyticsRoutes from './routes/admin-analytics.routes';
-import adminAnalyticsOptimizedRoutes from './routes/admin-analytics-optimized.routes';
 import ipBlockingRoutes from './routes/admin/ip-blocking.routes';
 import securityRoutes from './routes/security.routes';
 import notificationRoutes from './routes/notification.routes';
@@ -353,17 +352,11 @@ app.use('/api/admin/*', authenticateJWT(), requireAdmin());
 app.use('/api/admin/*', adminNoCacheMiddleware);
 
 app.use('/api/admin/shops/approval', adminShopApprovalRoutes);
-// Backward compatibility route without /api prefix (temporary - fix frontend base URL)
-app.use('/admin/shops/approval', authenticateJWT(), requireAdmin(), adminShopApprovalRoutes);
 app.use('/api/admin/shops/:shopId/services', adminShopServiceRoutes); // Shop service management (specific path to avoid conflicts)
 app.use('/api/admin/shops', adminShopRoutes);
 // Alias for backwards compatibility: /api/admin/shop -> /api/admin/shops
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
-// Alias for backwards compatibility: /admin/bookings -> /api/admin/reservations
-app.use('/admin/bookings', adminReservationRoutes);
-// Alias for frontend: /shops -> /api/admin/shops
-app.use('/shops', adminShopRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
@@ -407,11 +400,8 @@ app.use('/api', pointBalanceRoutes);
 app.use('/api/shop', shopContactMethodsRoutes);
 app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
-// Regular analytics routes (comprehensive dashboard, realtime, export, etc.)
+// Admin analytics routes (comprehensive dashboard, realtime, export, etc.)
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
-// Optimized analytics routes with materialized views (< 10ms response time)
-// These must come AFTER regular routes since they handle more specific paths
-app.use('/api/admin/analytics', adminAnalyticsOptimizedRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
 app.use('/api/admin/financial', adminFinancialRoutes);
 app.use('/api/admin/tickets', adminTicketRoutes);

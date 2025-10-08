@@ -468,11 +468,11 @@ const router = Router();
  *       401:
  *         description: Authentication required
  */
-router.get('/', 
-  authenticateJWT, 
-  requireRole('admin'), 
+router.get('/',
+  authenticateJWT(),
+  requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 15 minutes, 100 requests
-  adminPaymentController.getPayments
+  (req, res) => adminPaymentController.getPayments(req, res)
 );
 
 /**
@@ -515,10 +515,10 @@ router.get('/',
  *         description: Internal server error
  */
 router.get('/summary',
-  authenticateJWT,
+  authenticateJWT(),
   requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }), // 15 minutes, 50 requests
-  adminPaymentController.getPaymentSummary
+  (req, res) => adminPaymentController.getPaymentSummary(req, res)
 );
 
 /**
@@ -561,10 +561,10 @@ router.get('/summary',
  *         description: Internal server error
  */
 router.get('/settlements',
-  authenticateJWT,
+  authenticateJWT(),
   requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 30 } }), // 15 minutes, 30 requests
-  adminPaymentController.getSettlementReport
+  (req, res) => adminPaymentController.getSettlementReport(req, res)
 );
 
 /**
@@ -607,10 +607,10 @@ router.get('/settlements',
  *         description: Internal server error
  */
 router.get('/analytics',
-  authenticateJWT,
+  authenticateJWT(),
   requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 30 } }), // 15 minutes, 30 requests
-  adminPaymentController.getPaymentAnalytics
+  (req, res) => adminPaymentController.getPaymentAnalytics(req, res)
 );
 
 /**
@@ -734,10 +734,10 @@ router.get('/analytics',
  *         description: Authentication required
  */
 router.get('/export',
-  authenticateJWT,
+  authenticateJWT(),
   requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // 15 minutes, 10 requests (export is resource-intensive)
-  adminPaymentController.exportPayments
+  (req, res) => adminPaymentController.exportPayments(req, res)
 );
 
 /**
@@ -784,10 +784,10 @@ router.get('/export',
  *         description: Internal server error
  */
 router.get('/:paymentId',
-  authenticateJWT,
+  authenticateJWT(),
   requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 15 minutes, 100 requests
-  adminPaymentController.getPaymentDetails
+  (req, res) => adminPaymentController.getPaymentDetails(req, res)
 );
 
 /**
@@ -899,10 +899,10 @@ router.get('/:paymentId',
  *         description: Authentication required
  */
 router.post('/:paymentId/refund',
-  authenticateJWT,
+  authenticateJWT(),
   requireRole('admin'),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // 15 minutes, 20 requests (refund operations)
-  adminPaymentController.processRefund
+  (req, res) => adminPaymentController.processRefund(req, res)
 );
 
 export default router; 
