@@ -111,7 +111,7 @@ export class UserSessionsController {
         });
       }
 
-      await refreshTokenService.revokeUserSession(userId, sessionId);
+      await refreshTokenService.revokeUserSession(sessionId);
 
       logger.info('Session revoked by user', {
         userId,

@@ -140,7 +140,10 @@ export class RegistrationController {
       this.registrationSessions.set(sessionId, session);
 
       // Generate device fingerprint for session tracking
-      const deviceFingerprint = refreshTokenService.generateDeviceFingerprint(req.headers, deviceInfo);
+      const deviceFingerprint = refreshTokenService.generateDeviceFingerprint(
+        req.headers['user-agent'],
+        req.ip || req.connection?.remoteAddress
+      );
 
       logger.info('Registration social login successful', {
         sessionId,
@@ -712,11 +715,17 @@ export class RegistrationController {
         });
 
         // Generate authentication tokens
-        const deviceFingerprint = refreshTokenService.generateDeviceFingerprint(req.headers);
+        const deviceFingerprint = refreshTokenService.generateDeviceFingerprint(
+          req.headers['user-agent'],
+          req.ip || req.connection?.remoteAddress
+        );
         tokens = await refreshTokenService.generateTokenPair(
           userProfile.id,
-          undefined,
-          deviceFingerprint
+          {
+            deviceId: deviceFingerprint,
+            userAgent: req.headers['user-agent'],
+            ipAddress: req.ip || req.connection?.remoteAddress
+          }
         );
         logger.info('Authentication tokens generated successfully', { 
           userId: userProfile.id 

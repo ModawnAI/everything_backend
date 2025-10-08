@@ -587,6 +587,7 @@ export function requireShopOwnership(getShopId: (req: any) => string) {
 export function requireAdmin() {
   return (req: AuthorizedRequest, res: Response, next: NextFunction): void => {
          const user = req.user;
+
      if (!user || user.role !== 'admin') {
       res.status(403).json({
         success: false,
