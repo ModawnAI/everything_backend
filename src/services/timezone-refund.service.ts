@@ -184,7 +184,7 @@ export class TimezoneRefundService {
       let refundStatus = 'processed';
 
       try {
-        const { tossPaymentsService } = await import('./toss-payments.service');
+        const { portOneService } = await import('./portone.service');
         
         // Get payments for the reservation
         const { data: payments } = await this.supabase
@@ -196,7 +196,7 @@ export class TimezoneRefundService {
         if (payments && payments.length > 0) {
           // Process refunds for all payments
           for (const payment of payments) {
-            await tossPaymentsService.cancelPayment(
+            await portOneService.cancelPayment(
               payment.id,
               request.reason || `Cancellation: ${request.cancellationType}`,
               Math.round((payment.amount * refundCalculation.refundPercentage) / 100)

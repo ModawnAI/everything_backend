@@ -10,7 +10,7 @@
 
 import { Request, Response } from 'express';
 import { splitPaymentService, CreateSplitPaymentPlanRequest, ProcessSplitPaymentRequest } from '../services/split-payment.service';
-import { tossPaymentsService, PaymentInitiationRequest } from '../services/toss-payments.service';
+import { portOneService, PaymentInitiationRequest } from '../services/portone.service';
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
@@ -160,7 +160,7 @@ export class SplitPaymentController {
         failUrl: failUrl || `${process.env.FRONTEND_URL}/payments/fail`
       };
 
-      const paymentResponse = await tossPaymentsService.initializePayment(paymentRequest);
+      const paymentResponse = await portOneService.initializePayment(paymentRequest);
 
       res.status(201).json({
         success: true,
@@ -488,7 +488,7 @@ export class SplitPaymentController {
         failUrl: failUrl || `${process.env.FRONTEND_URL}/payments/fail`
       };
 
-      const paymentResponse = await tossPaymentsService.initializePayment(paymentRequest);
+      const paymentResponse = await portOneService.initializePayment(paymentRequest);
 
       res.status(200).json({
         success: true,

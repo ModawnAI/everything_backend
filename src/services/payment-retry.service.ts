@@ -10,7 +10,7 @@
  */
 
 import { getSupabaseClient } from '../config/database';
-import { tossPaymentsService } from './toss-payments.service';
+import { portOneService } from './portone.service';
 import { paymentConfirmationService } from './payment-confirmation.service';
 import { logger } from '../utils/logger';
 import { 

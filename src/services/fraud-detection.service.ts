@@ -1201,6 +1201,219 @@ export class FraudDetectionService {
       logger.error('Error in logSecurityEvent', { error });
     }
   }
+
+  /**
+   * Get recent suspicious activities for monitoring
+   */
+  async getRecentSuspiciousActivities(startTime: Date): Promise<any[]> {
+    try {
+      const { data, error } = await this.supabase
+        .from('fraud_detection_alerts')
+        .select(`
+          *,
+          payments!inner(
+            id,
+            amount,
+            payment_status,
+            user_id
+          )
+        `)
+        .gte('detected_at', startTime.toISOString())
+        .order('detected_at', { ascending: false })
+        .limit(50);
+
+      if (error) {
+        logger.error('Error fetching suspicious activities', { error });
+        return [];
+      }
+
+      return data || [];
+    } catch (error) {
+      logger.error('Error getting recent suspicious activities', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Get fraud detection statistics
+   */
+  async getFraudStatistics(): Promise<any> {
+    try {
+      const now = new Date();
+      const last24Hours = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+      const last7Days = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const last30Days = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // Get alerts for different time periods
+      const { data: alerts24h } = await this.supabase
+        .from('fraud_detection_alerts')
+        .select('*')
+        .gte('detected_at', last24Hours.toISOString());
+
+      const { data: alerts7d } = await this.supabase
+        .from('fraud_detection_alerts')
+        .select('*')
+        .gte('detected_at', last7Days.toISOString());
+
+      const { data: alerts30d } = await this.supabase
+        .from('fraud_detection_alerts')
+        .select('*')
+        .gte('detected_at', last30Days.toISOString());
+
+      return {
+        last24Hours: {
+          total: alerts24h?.length || 0,
+          high: alerts24h?.filter(a => a.severity === 'high').length || 0,
+          medium: alerts24h?.filter(a => a.severity === 'medium').length || 0,
+          low: alerts24h?.filter(a => a.severity === 'low').length || 0
+        },
+        last7Days: {
+          total: alerts7d?.length || 0,
+          high: alerts7d?.filter(a => a.severity === 'high').length || 0,
+          medium: alerts7d?.filter(a => a.severity === 'medium').length || 0,
+          low: alerts7d?.filter(a => a.severity === 'low').length || 0
+        },
+        last30Days: {
+          total: alerts30d?.length || 0,
+          high: alerts30d?.filter(a => a.severity === 'high').length || 0,
+          medium: alerts30d?.filter(a => a.severity === 'medium').length || 0,
+          low: alerts30d?.filter(a => a.severity === 'low').length || 0
+        },
+        topRulesTriggered: [...new Set(alerts30d?.map(a => a.rule_id) || [])]
+          .map(ruleId => ({
+            rule: ruleId,
+            value: alerts30d?.filter(alert => alert.rule_id === ruleId).length || 0
+          }))
+          .sort((a, b) => b.value - a.value)
+          .slice(0, 5)
+      };
+    } catch (error) {
+      logger.error('Error getting fraud statistics', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      return {
+        last24Hours: { total: 0, high: 0, medium: 0, low: 0 },
+        last7Days: { total: 0, high: 0, medium: 0, low: 0 },
+        last30Days: { total: 0, high: 0, medium: 0, low: 0 },
+        topRulesTriggered: []
+      };
+    }
+  }
+
+  /**
+   * Handle fraud alert action
+   */
+  async handleAlert(alertId: string, action: string, adminId: string, notes?: string): Promise<any> {
+    try {
+      // Get alert details
+      const { data: alert, error: alertError } = await this.supabase
+        .from('fraud_detection_alerts')
+        .select('*')
+        .eq('id', alertId)
+        .single();
+
+      if (alertError || !alert) {
+        throw new Error(`Alert not found: ${alertId}`);
+      }
+
+      // Process action
+      let actionResult: any = {};
+      switch (action) {
+        case 'block_payment':
+          // Block the payment
+          const { error: blockError } = await this.supabase
+            .from('payments')
+            .update({
+              payment_status: 'blocked',
+              updated_at: new Date().toISOString(),
+              metadata: {
+                blockedBy: adminId,
+                blockReason: 'Fraud alert action',
+                alertId
+              }
+            })
+            .eq('id', alert.payment_id);
+
+          if (blockError) throw blockError;
+          actionResult.paymentBlocked = true;
+          break;
+
+        case 'block_user':
+          // Block the user
+          const { error: userBlockError } = await this.supabase
+            .from('users')
+            .update({
+              status: 'blocked',
+              updated_at: new Date().toISOString(),
+              blocked_at: new Date().toISOString(),
+              blocked_reason: 'Fraud detection alert'
+            })
+            .eq('id', alert.user_id);
+
+          if (userBlockError) throw userBlockError;
+          actionResult.userBlocked = true;
+          break;
+
+        case 'allow':
+          // Mark alert as resolved
+          actionResult.allowed = true;
+          break;
+
+        case 'investigate':
+          // Mark for investigation
+          actionResult.investigationStarted = true;
+          break;
+
+        case 'refund':
+          // Process refund (would integrate with payment service)
+          actionResult.refundInitiated = true;
+          break;
+      }
+
+      // Update alert status
+      const { error: updateError } = await this.supabase
+        .from('fraud_detection_alerts')
+        .update({
+          status: action === 'investigate' ? 'investigating' : 'resolved',
+          resolved_by: adminId,
+          resolved_at: new Date().toISOString(),
+          resolution_action: action,
+          resolution_notes: notes
+        })
+        .eq('id', alertId);
+
+      if (updateError) throw updateError;
+
+      // Log the action
+      await this.supabase
+        .from('fraud_alert_actions')
+        .insert({
+          alert_id: alertId,
+          action,
+          performed_by: adminId,
+          notes,
+          result: actionResult,
+          created_at: new Date().toISOString()
+        });
+
+      return {
+        success: true,
+        alertId,
+        action,
+        result: actionResult
+      };
+
+    } catch (error) {
+      logger.error('Error handling fraud alert', {
+        alertId,
+        action,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      throw error;
+    }
+  }
 }
 
 export const fraudDetectionService = new FraudDetectionService(); 

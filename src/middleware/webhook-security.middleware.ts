@@ -13,7 +13,7 @@ import { webhookSecurityService, WebhookSecurityConfig } from '../services/webho
 import { logger } from '../utils/logger';
 
 export interface WebhookSecurityOptions {
-  provider: 'toss-payments' | 'generic';
+  provider: 'portone' | 'generic';
   secretKey?: string;
   allowedIPs?: string[];
   timestampTolerance?: number;
@@ -233,11 +233,11 @@ function validateBasicRequest(req: Request, options: WebhookSecurityOptions): { 
   }
 
   // Check for required headers based on provider
-  if (options.provider === 'toss-payments') {
-    // TossPayments specific header validation
+  if (options.provider === 'portone') {
+    // PortOne specific header validation
     const userAgent = req.get('User-Agent');
-    if (!userAgent || !userAgent.toLowerCase().includes('toss')) {
-      logger.warn('Suspicious User-Agent for TossPayments webhook', {
+    if (!userAgent || !userAgent.toLowerCase().includes('portone')) {
+      logger.warn('Suspicious User-Agent for PortOne webhook', {
         userAgent,
         ipAddress: req.ip
       });
@@ -250,12 +250,26 @@ function validateBasicRequest(req: Request, options: WebhookSecurityOptions): { 
     return { isValid: false, reason: 'Request body is required and must be valid JSON' };
   }
 
-  // Provider-specific payload validation
-  if (options.provider === 'toss-payments') {
-    const requiredFields = ['paymentKey', 'orderId', 'status'];
-    for (const field of requiredFields) {
-      if (!req.body[field]) {
-        return { isValid: false, reason: `Missing required field: ${field}` };
+  // Provider-specific payload validation for PortOne V2
+  if (options.provider === 'portone') {
+    // PortOne V2 webhook format validation
+    if (req.body.type && req.body.data) {
+      // New V2 webhook format with type and data fields
+      const requiredDataFields = ['paymentId'];
+      if (req.body.data) {
+        for (const field of requiredDataFields) {
+          if (!req.body.data[field]) {
+            return { isValid: false, reason: `Missing required data field: ${field}` };
+          }
+        }
+      }
+    } else {
+      // Legacy V1 format compatibility
+      const requiredFields = ['imp_uid', 'merchant_uid', 'status'];
+      for (const field of requiredFields) {
+        if (!req.body[field]) {
+          return { isValid: false, reason: `Missing required field: ${field}` };
+        }
       }
     }
   }
@@ -280,10 +294,101 @@ function getLocalizedErrorMessage(reason: string): string {
 }
 
 /**
- * TossPayments webhook security middleware (pre-configured)
+ * PortOne V2 webhook middleware (simplified for SDK verification)
+ * The official SDK handles signature verification, so this just provides basic security
  */
-export const tossPaymentsWebhookSecurity = createWebhookSecurityMiddleware({
-  provider: 'toss-payments',
+export function portOneV2WebhookSecurity(req: Request, res: Response, next: NextFunction): void {
+  const webhookId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  const startTime = Date.now();
+
+  try {
+    // Basic security checks
+    if (req.method !== 'POST') {
+      res.status(405).json({
+        success: false,
+        error: {
+          code: 'METHOD_NOT_ALLOWED',
+          message: 'Only POST method allowed',
+          webhookId
+        }
+      });
+      return;
+    }
+
+    const contentType = req.get('Content-Type');
+    if (!contentType || !contentType.includes('application/json')) {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_CONTENT_TYPE',
+          message: 'Content-Type must be application/json',
+          webhookId
+        }
+      });
+      return;
+    }
+
+    // HTTPS requirement in production
+    if (process.env.NODE_ENV === 'production' && !req.secure && req.get('X-Forwarded-Proto') !== 'https') {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'HTTPS_REQUIRED',
+          message: 'HTTPS required in production',
+          webhookId
+        }
+      });
+      return;
+    }
+
+    // Basic payload validation
+    if (!req.body || typeof req.body !== 'object') {
+      res.status(400).json({
+        success: false,
+        error: {
+          code: 'INVALID_PAYLOAD',
+          message: 'Invalid JSON payload',
+          webhookId
+        }
+      });
+      return;
+    }
+
+    const duration = Date.now() - startTime;
+    logger.info('PortOne V2 webhook basic validation passed', {
+      webhookId,
+      duration,
+      path: req.path,
+      method: req.method
+    });
+
+    // Note: Signature verification is handled by the PortOne SDK in the service layer
+    next();
+
+  } catch (error) {
+    const duration = Date.now() - startTime;
+    logger.error('Error in PortOne V2 webhook middleware', {
+      webhookId,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      duration
+    });
+
+    res.status(500).json({
+      success: false,
+      error: {
+        code: 'WEBHOOK_MIDDLEWARE_ERROR',
+        message: 'Internal server error',
+        webhookId
+      }
+    });
+  }
+}
+
+/**
+ * PortOne webhook security middleware (legacy, pre-configured)
+ */
+export const portOneWebhookSecurity = createWebhookSecurityMiddleware({
+  provider: 'portone',
   requireHTTPS: process.env.NODE_ENV === 'production',
   maxPayloadSize: 1024 * 1024, // 1MB
   enableReplayProtection: true,

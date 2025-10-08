@@ -2,7 +2,7 @@
  * Payment Confirmation Service
  * 
  * Enhanced payment confirmation and verification service including:
- * - Payment verification with TossPayments
+ * - Payment verification with PortOne
  * - Atomic database operations
  * - Customer notification system
  * - Payment receipt generation and delivery
@@ -11,7 +11,7 @@
  */
 
 import { getSupabaseClient } from '../config/database';
-import { tossPaymentsService, PaymentConfirmationRequest, PaymentConfirmationResponse } from './toss-payments.service';
+import { portOneService, PaymentConfirmationRequest, PaymentConfirmationResponse } from './portone.service';
 import { logger } from '../utils/logger';
 import { PaymentStatus, ReservationStatus } from '../types/database.types';
 
@@ -26,6 +26,9 @@ export interface EnhancedPaymentConfirmationResponse extends PaymentConfirmation
   notificationSent?: boolean | undefined;
   receiptGenerated?: boolean | undefined;
   auditLogId?: string | undefined;
+  success?: boolean;
+  payment?: any;
+  error?: string;
 }
 
 export interface PaymentReceipt {
@@ -85,14 +88,14 @@ export class PaymentConfirmationService {
       // Step 3: Check for duplicate confirmation
       await this.checkDuplicateConfirmation(paymentRecord.id);
       
-      // Step 4: Confirm payment with TossPayments
+      // Step 4: Confirm payment with PortOne
       const confirmRequest: PaymentConfirmationRequest = {
         paymentKey: request.paymentKey,
         orderId: request.orderId,
         amount: request.amount
       };
 
-      const confirmResponse = await tossPaymentsService.confirmPayment(confirmRequest);
+      const confirmResponse = await portOneService.confirmPayment(confirmRequest);
       
       // Step 5: Perform atomic database operations
       const dbResult = await this.performAtomicPaymentUpdate(
@@ -164,6 +167,8 @@ export class PaymentConfirmationService {
 
       return {
         ...confirmResponse,
+        success: true,
+        payment: confirmResponse,
         reservationStatus,
         notificationSent,
         receiptGenerated,

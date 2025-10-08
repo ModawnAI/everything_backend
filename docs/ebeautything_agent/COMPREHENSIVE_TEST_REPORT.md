@@ -103,7 +103,7 @@
 - ✅ Frontend accessible at http://localhost:3000
 - ✅ Login page renders correctly
 - ✅ HTML structure valid (Next.js application detected)
-- ✅ Admin dashboard title present ("eBeautyThing Admin")
+- ✅ Admin dashboard title present ("에뷰리띵 어드민")
 
 **Frontend Stack Detected:**
 - Framework: Next.js
