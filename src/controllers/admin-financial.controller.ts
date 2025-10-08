@@ -17,7 +17,7 @@ import { adminPaymentService } from '../services/admin-payment.service';
 import { adminAdjustmentService } from '../services/admin-adjustment.service';
 import { refundService } from '../services/refund.service';
 import { pointService } from '../services/point.service';
-import { tossPaymentsService } from '../services/toss-payments.service';
+import { portOneService } from '../services/portone.service';
 
 export interface AuthenticatedRequest extends Request {
   user?: {

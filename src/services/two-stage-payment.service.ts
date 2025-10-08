@@ -11,7 +11,7 @@
 
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
-import { tossPaymentsService, PaymentInitiationRequest } from './toss-payments.service';
+import { portOneService, PaymentInitiationRequest } from './portone.service';
 import { notificationService } from './notification.service';
 import { PaymentStatus, ReservationStatus } from '../types/database.types';
 
@@ -119,7 +119,7 @@ export class TwoStagePaymentService {
       };
 
       // Initialize payment with TossPayments
-      const paymentResponse = await tossPaymentsService.initializePayment(paymentRequest);
+      const paymentResponse = await portOneService.initializePayment(paymentRequest);
 
       // Update reservation status to 'requested' (awaiting deposit payment)
       await this.updateReservationStatus(request.reservationId, 'requested');
@@ -202,7 +202,7 @@ export class TwoStagePaymentService {
       };
 
       // Initialize payment with TossPayments
-      const paymentResponse = await tossPaymentsService.initializePayment(paymentRequest);
+      const paymentResponse = await portOneService.initializePayment(paymentRequest);
 
       logger.info('Final payment prepared successfully', {
         reservationId: request.reservationId,

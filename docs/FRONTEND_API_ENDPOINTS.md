@@ -1,6 +1,6 @@
 # Frontend API Endpoints Documentation
 
-This document lists all API endpoints used in the eBeautyThing Admin frontend application.
+This document lists all API endpoints used in the 에뷰리띵 어드민 frontend application.
 
 **Last Updated:** 2025-10-07
 

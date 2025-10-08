@@ -24,7 +24,7 @@ initializeDatabase();
 // Import routes
 import authRoutes from './routes/auth.routes';
 import registrationRoutes from './routes/registration.routes';
-// import userProfileRoutes from './routes/user-profile.routes'; // Archived - conflicts with user-settings.routes.ts
+import userProfileRoutes from './routes/user-profile.routes';
 import userStatusRoutes from './routes/user-status.routes';
 import shopRoutes from './routes/shop.routes';
 import shopImageRoutes from './routes/shop-image.routes';
@@ -47,6 +47,7 @@ import paymentSecurityRoutes from './routes/payment-security.routes';
 import influencerBonusRoutes from './routes/influencer-bonus.routes';
 import adminAdjustmentRoutes from './routes/admin-adjustment.routes';
 import adminPaymentRoutes from './routes/admin-payment.routes';
+import adminPaymentManagementRoutes from './routes/admin-payment-management.routes';
 import adminAnalyticsRoutes from './routes/admin-analytics.routes';
 import ipBlockingRoutes from './routes/admin/ip-blocking.routes';
 import securityRoutes from './routes/security.routes';
@@ -337,7 +338,7 @@ app.use(applyResponseStandardization());
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);
-// app.use('/api/users', userProfileRoutes); // Archived - conflicts with user-settings.routes.ts
+app.use('/api/users', userProfileRoutes);
 
 // IMPORTANT: More specific routes MUST come BEFORE general routes
 // Place /api/admin/* specific routes before /api/admin
@@ -400,6 +401,7 @@ app.use('/api', pointBalanceRoutes);
 app.use('/api/shop', shopContactMethodsRoutes);
 app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
+app.use('/api/admin/payments/management', adminPaymentManagementRoutes);
 // Admin analytics routes (comprehensive dashboard, realtime, export, etc.)
 app.use('/api/admin/analytics', adminAnalyticsRoutes);
 app.use('/api/admin/dashboard', dashboardRoutes);
