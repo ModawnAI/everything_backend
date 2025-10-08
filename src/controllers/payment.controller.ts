@@ -1,15 +1,15 @@
 /**
  * Payment Controller
- * 
+ *
  * Handles payment-related API endpoints including:
- * - TossPayments payment initialization
+ * - PortOne payment initialization
  * - Payment confirmation and verification
  * - Webhook handling for status updates
  * - Payment history and status tracking
  */
 
 import { Request, Response } from 'express';
-import { tossPaymentsService, PaymentInitiationRequest, PaymentConfirmationRequest } from '../services/toss-payments.service';
+import { portOneService, PaymentInitiationRequest, PaymentConfirmationRequest } from '../services/portone.service';
 import { paymentConfirmationService, EnhancedPaymentConfirmationRequest } from '../services/payment-confirmation.service';
 import { twoStagePaymentService, DepositPaymentRequest, FinalPaymentRequest } from '../services/two-stage-payment.service';
 import { getSupabaseClient } from '../config/database';
@@ -22,10 +22,10 @@ export class PaymentController {
 
   /**
    * @swagger
-   * /api/payments/toss/prepare:
+   * /api/payments/portone/prepare:
    *   post:
-   *     summary: Initialize payment with TossPayments
-   *     description: Prepare a payment transaction with TossPayments for reservation deposit or full payment
+   *     summary: Initialize payment with PortOne
+   *     description: Prepare a payment transaction with PortOne for reservation deposit or full payment
    *     tags: [Payments]
    *     security:
    *       - bearerAuth: []
@@ -85,7 +85,7 @@ export class PaymentController {
    *                       example: "pay_123e4567-e89b-12d3-a456-426614174000"
    *                     orderId:
    *                       type: string
-   *                       description: TossPayments order ID
+   *                       description: PortOne order ID
    *                       example: "order_20240115_123456"
    *                     amount:
    *                       type: number
@@ -322,8 +322,8 @@ export class PaymentController {
         paymentStage: paymentStage
       };
 
-      // Initialize payment with TossPayments
-      const paymentResponse = await tossPaymentsService.initializePayment(paymentRequest);
+      // Initialize payment with PortOne
+      const paymentResponse = await portOneService.initializePayment(paymentRequest);
 
       logger.info('Payment preparation successful', {
         paymentId: paymentResponse.paymentId,
@@ -696,7 +696,7 @@ export class PaymentController {
 
   /**
    * POST /api/payments/toss/confirm
-   * Confirm payment with TossPayments
+   * Confirm payment with PortOne
    */
   async confirmPayment(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
@@ -826,9 +826,8 @@ export class PaymentController {
       const confirmResponse = await paymentConfirmationService.confirmPaymentWithVerification(enhancedConfirmRequest);
 
       logger.info('Payment confirmation successful', {
-        paymentId: confirmResponse.paymentId,
-        transactionId: confirmResponse.transactionId,
-        status: confirmResponse.status,
+        success: confirmResponse.success,
+        payment: confirmResponse.payment,
         userId,
         orderId
       });
@@ -836,11 +835,11 @@ export class PaymentController {
       res.status(200).json({
         success: true,
         data: {
-          paymentId: confirmResponse.paymentId,
-          status: confirmResponse.status,
-          transactionId: confirmResponse.transactionId,
-          approvedAt: confirmResponse.approvedAt,
-          receiptUrl: confirmResponse.receiptUrl,
+          paymentId: confirmResponse.payment?.paymentId || paymentKey,
+          status: confirmResponse.payment?.status || 'success',
+          transactionId: confirmResponse.payment?.transactionId,
+          approvedAt: confirmResponse.payment?.approvedAt || new Date().toISOString(),
+          receiptUrl: confirmResponse.payment?.receiptUrl,
           amount,
           orderId,
           reservationStatus: confirmResponse.reservationStatus,
@@ -859,7 +858,7 @@ export class PaymentController {
         userId: req.user?.id
       });
 
-      // Handle specific TossPayments errors
+      // Handle specific PortOne errors
       if (error instanceof Error) {
         if (error.message.includes('Amount mismatch')) {
           res.status(400).json({
@@ -898,71 +897,55 @@ export class PaymentController {
   }
 
   /**
-   * POST /api/webhooks/toss-payments
-   * Handle webhooks from TossPayments with enhanced security
-   * Note: Security validation is handled by webhook security middleware
+   * POST /api/webhooks/portone
+   * Handle webhooks from PortOne using official SDK verification
+   * Note: Uses official PortOne SDK for webhook signature verification
    */
-  async handleWebhook(req: SecureWebhookRequest, res: Response): Promise<void> {
-    const webhookId = req.webhookId || `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+  async handleWebhook(req: Request, res: Response): Promise<void> {
+    const webhookId = `webhook_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     const startTime = Date.now();
 
     try {
-      const payload = req.body;
+      const body = JSON.stringify(req.body);
+      const headers = req.headers as Record<string, string>;
       const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
       const userAgent = req.get('User-Agent') || 'unknown';
 
-      logger.info('TossPayments webhook received (security validated)', {
+      logger.info('PortOne webhook received', {
         webhookId,
-        paymentKey: payload.paymentKey,
-        orderId: payload.orderId,
-        status: payload.status,
         ipAddress,
         userAgent,
-        securityValidated: req.securityValidated,
         timestamp: new Date().toISOString()
       });
 
-      // Security validation is already handled by middleware
-      // Process webhook asynchronously with enhanced error handling
+      // Process webhook asynchronously with SDK verification
       setImmediate(async () => {
         const processingStartTime = Date.now();
         try {
-          await tossPaymentsService.processWebhook(payload);
-          
+          // Use official PortOne SDK for webhook processing (includes verification)
+          await portOneService.processWebhook(body, headers);
+
           const processingDuration = Date.now() - processingStartTime;
-          logger.info('Webhook processed successfully', {
+          logger.info('Webhook processed successfully via SDK', {
             webhookId,
-            paymentKey: payload.paymentKey,
-            orderId: payload.orderId,
-            status: payload.status,
             processingDuration
           });
 
-          // Update webhook log with successful processing
-          const { webhookSecurityService } = require('../services/webhook-security.service');
-          await webhookSecurityService.markAsProcessed(
-            payload.paymentKey,
-            payload.status,
-            webhookId,
-            processingDuration
-          );
-
         } catch (error) {
           const processingDuration = Date.now() - processingStartTime;
-          logger.error('Error processing webhook:', {
+          logger.error('Error processing webhook via SDK:', {
             webhookId,
             error: error instanceof Error ? error.message : 'Unknown error',
             stack: error instanceof Error ? error.stack : undefined,
-            payload,
             processingDuration
           });
 
           // Log failed webhook for retry analysis
-          await this.logFailedWebhook(payload, error, webhookId);
+          await this.logFailedWebhook(req.body, error, webhookId);
         }
       });
 
-      // Respond immediately to TossPayments
+      // Respond immediately to PortOne
       const duration = Date.now() - startTime;
       logger.info('Webhook response sent', {
         webhookId,
@@ -970,16 +953,16 @@ export class PaymentController {
         duration
       });
 
-      res.status(200).json({ 
+      res.status(200).json({
         success: true,
         webhookId,
         timestamp: new Date().toISOString(),
-        securityValidated: true
+        verified: true
       });
 
     } catch (error) {
       const duration = Date.now() - startTime;
-      
+
       logger.error('Error in handleWebhook:', {
         webhookId,
         error: error instanceof Error ? error.message : 'Unknown error',
@@ -1003,7 +986,7 @@ export class PaymentController {
    * Validate webhook source IP
    */
   private isValidWebhookSource(ipAddress: string): boolean {
-    // Get allowed IPs from environment (TossPayments IP ranges)
+    // Get allowed IPs from environment (PortOne IP ranges)
     const allowedIPs = process.env.TOSS_PAYMENTS_ALLOWED_IPS?.split(',') || [];
     
     if (allowedIPs.length === 0) {
@@ -1333,7 +1316,7 @@ export class PaymentController {
 
   /**
    * POST /api/payments/toss/confirm
-   * Confirm payment with TossPayments
+   * Confirm payment with PortOne
    */
 
   /**
@@ -1358,10 +1341,10 @@ export class PaymentController {
    *             properties:
    *               paymentKey:
    *                 type: string
-   *                 description: TossPayments payment key
+   *                 description: PortOne payment key
    *               orderId:
    *                 type: string
-   *                 description: TossPayments order ID
+   *                 description: PortOne order ID
    *               amount:
    *                 type: number
    *                 description: Final payment amount
@@ -1387,7 +1370,7 @@ export class PaymentController {
    *                       description: Payment status
    *                     transactionId:
    *                       type: string
-   *                       description: TossPayments transaction ID
+   *                       description: PortOne transaction ID
    *                     approvedAt:
    *                       type: string
    *                       format: date-time
@@ -1492,9 +1475,8 @@ export class PaymentController {
       const confirmResponse = await paymentConfirmationService.confirmPaymentWithVerification(enhancedConfirmRequest);
 
       logger.info('Final payment confirmation successful', {
-        paymentId: confirmResponse.paymentId,
-        transactionId: confirmResponse.transactionId,
-        status: confirmResponse.status,
+        success: confirmResponse.success,
+        payment: confirmResponse.payment,
         userId,
         orderId,
         reservationId: payment.reservations.id
@@ -1503,11 +1485,11 @@ export class PaymentController {
       res.status(200).json({
         success: true,
         data: {
-          paymentId: confirmResponse.paymentId,
-          status: confirmResponse.status,
-          transactionId: confirmResponse.transactionId,
-          approvedAt: confirmResponse.approvedAt,
-          receiptUrl: confirmResponse.receiptUrl,
+          paymentId: confirmResponse.payment?.paymentId || paymentKey,
+          status: confirmResponse.payment?.status || 'success',
+          transactionId: confirmResponse.payment?.transactionId,
+          approvedAt: confirmResponse.payment?.approvedAt || new Date().toISOString(),
+          receiptUrl: confirmResponse.payment?.receiptUrl,
           amount,
           orderId,
           reservationStatus: confirmResponse.reservationStatus,
@@ -1526,7 +1508,7 @@ export class PaymentController {
         userId: req.user?.id
       });
 
-      // Handle specific TossPayments errors
+      // Handle specific PortOne errors
       if (error instanceof Error) {
         if (error.message.includes('Amount mismatch')) {
           res.status(400).json({

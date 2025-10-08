@@ -28,10 +28,24 @@ const envSchema = Joi.object({
   REDIS_PASSWORD: Joi.string().allow('').optional(),
   REDIS_DB: Joi.number().default(0),
 
-  // Payment Integration (TossPayments)
-  TOSS_PAYMENTS_SECRET_KEY: Joi.string().required(),
-  TOSS_PAYMENTS_CLIENT_KEY: Joi.string().required(),
-  TOSS_PAYMENTS_BASE_URL: Joi.string().uri().default('https://api.tosspayments.com'),
+  // Payment Integration (PortOne V2) - Optional in development
+  PORTONE_V2_STORE_ID: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }),
+  PORTONE_V2_CHANNEL_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }),
+  PORTONE_V2_API_SECRET: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }),
+  PORTONE_V2_WEBHOOK_SECRET: Joi.string().optional(),
+  PORTONE_V2_BASE_URL: Joi.string().uri().default('https://api.portone.io'),
 
   // Push Notifications (Firebase FCM)
   FCM_SERVER_KEY: Joi.string().required(),
@@ -162,10 +176,14 @@ export const config = {
   },
 
   payments: {
-    tossPayments: {
-      secretKey: envVars.TOSS_PAYMENTS_SECRET_KEY as string,
-      clientKey: envVars.TOSS_PAYMENTS_CLIENT_KEY as string,
-      baseUrl: envVars.TOSS_PAYMENTS_BASE_URL as string,
+    portone: {
+      v2: {
+        storeId: envVars.PORTONE_V2_STORE_ID as string | undefined,
+        channelKey: envVars.PORTONE_V2_CHANNEL_KEY as string | undefined,
+        apiSecret: envVars.PORTONE_V2_API_SECRET as string | undefined,
+        webhookSecret: envVars.PORTONE_V2_WEBHOOK_SECRET as string | undefined,
+        baseUrl: envVars.PORTONE_V2_BASE_URL as string,
+      },
     },
   },
 

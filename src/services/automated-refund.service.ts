@@ -12,7 +12,7 @@
 
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
-import { tossPaymentsService } from './toss-payments.service';
+import { portOneService } from './portone.service';
 import { pointService } from './point.service';
 import { fifoPointUsageService } from './fifo-point-usage.service';
 import { POINT_POLICY_V32, POINT_CALCULATIONS } from '../constants/point-policies';
@@ -732,7 +732,7 @@ export class AutomatedRefundService {
         );
 
         if (paymentRefundAmount > 0) {
-          const refundResult = await tossPaymentsService.cancelPayment(
+          const refundResult = await portOneService.cancelPayment(
             payment.id,
             reason,
             paymentRefundAmount

@@ -7,7 +7,7 @@ export { userService } from './user.service';
 export { passService } from './pass.service';
 export { referralService } from './referral.service';
 export { userProfileService } from './user-profile.service';
-export { tossPaymentsService } from './toss-payments.service';
+export { portOneService } from './portone.service';
 export { paymentConfirmationService } from './payment-confirmation.service';
 export { splitPaymentService } from './split-payment.service';
 export { refundService } from './refund.service';

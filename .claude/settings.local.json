@@ -63,6 +63,7 @@
   "enableAllProjectMcpServers": true,
   "enabledMcpjsonServers": [
     "task-master-ai",
-    "supabase"
+    "supabase",
+    "portone-mcp-server"
   ]
 }

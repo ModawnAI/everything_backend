@@ -619,6 +619,89 @@ export class WebhookSecurityService {
       };
     }
   }
+
+  /**
+   * Retry a failed webhook
+   */
+  async retryWebhook(webhook: any): Promise<any> {
+    try {
+      logger.info('Retrying webhook', {
+        webhookId: webhook.id,
+        paymentKey: webhook.payment_key,
+        originalStatus: webhook.status
+      });
+
+      // Parse webhook payload
+      let payload: any;
+      try {
+        payload = typeof webhook.payload === 'string'
+          ? JSON.parse(webhook.payload)
+          : webhook.payload;
+      } catch (error) {
+        logger.error('Failed to parse webhook payload', {
+          webhookId: webhook.id,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        return {
+          success: false,
+          error: 'Invalid payload format'
+        };
+      }
+
+      // Import PortOne service to reprocess webhook
+      const { portOneService } = await import('./portone.service');
+
+      // Reprocess the webhook (headers may not be available for retry)
+      const webhookHeaders = webhook.headers ? JSON.parse(webhook.headers) : {};
+      await portOneService.processWebhook(JSON.stringify(payload), webhookHeaders);
+
+      // Update webhook log
+      const { error: updateError } = await this.supabase
+        .from('webhook_logs')
+        .update({
+          status: 'retried',
+          retried_at: new Date().toISOString(),
+          retry_success: true
+        })
+        .eq('id', webhook.id);
+
+      if (updateError) {
+        logger.error('Failed to update webhook log after retry', {
+          webhookId: webhook.id,
+          error: updateError.message
+        });
+      }
+
+      return {
+        success: true,
+        webhookId: webhook.id,
+        message: 'Webhook retried successfully'
+      };
+
+    } catch (error) {
+      logger.error('Failed to retry webhook', {
+        webhookId: webhook.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      // Update webhook log with failure
+      await this.supabase
+        .from('webhook_logs')
+        .update({
+          status: 'retry_failed',
+          retried_at: new Date().toISOString(),
+          retry_success: false,
+          retry_error: error instanceof Error ? error.message : 'Unknown error'
+        })
+        .eq('id', webhook.id);
+
+      return {
+        success: false,
+        webhookId: webhook.id,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      };
+    }
+  }
 }
 
 // Export singleton instance

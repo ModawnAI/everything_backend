@@ -23,24 +23,55 @@ export type ReservationStatus =
   | 'cancelled_by_shop' 
   | 'no_show';
 
-export type PaymentStatus = 
-  | 'pending' 
-  | 'deposit_paid' 
-  | 'final_payment_pending' 
-  | 'fully_paid' 
-  | 'refunded' 
-  | 'partially_refunded' 
-  | 'failed' 
-  | 'deposit_refunded' 
-  | 'final_payment_refunded' 
-  | 'overdue';
+// PortOne V2 Official Payment Status
+export type PortOnePaymentStatus =
+  | 'READY'                    // Payment ready/initialized
+  | 'PAID'                     // Payment completed successfully
+  | 'FAILED'                   // Payment failed
+  | 'CANCELLED'                // Payment cancelled
+  | 'PARTIAL_CANCELLED'        // Payment partially cancelled/refunded
+  | 'PAY_PENDING'              // Payment pending (awaiting confirmation)
+  | 'VIRTUAL_ACCOUNT_ISSUED';  // Virtual account issued (for bank transfer)
 
-export type PaymentMethod = 
-  | 'toss_payments' 
-  | 'kakao_pay' 
-  | 'naver_pay' 
-  | 'card' 
-  | 'bank_transfer';
+// Internal Payment Status (mapped from PortOne status)
+export type PaymentStatus =
+  | 'pending'                  // Maps to READY, PAY_PENDING
+  | 'deposit_paid'             // Internal: deposit stage completed
+  | 'final_payment_pending'    // Internal: awaiting final payment
+  | 'fully_paid'               // Maps to PAID (all payments complete)
+  | 'refunded'                 // Maps to CANCELLED
+  | 'partially_refunded'       // Maps to PARTIAL_CANCELLED
+  | 'failed'                   // Maps to FAILED
+  | 'deposit_refunded'         // Internal: deposit refunded
+  | 'final_payment_refunded'   // Internal: final payment refunded
+  | 'overdue'                  // Internal: payment overdue
+  | 'virtual_account_issued';  // Maps to VIRTUAL_ACCOUNT_ISSUED
+
+// PortOne V2 Official Payment Methods
+export type PortOnePaymentMethod =
+  | 'CARD'                     // Credit/Debit card
+  | 'TRANSFER'                 // Bank transfer
+  | 'VIRTUAL_ACCOUNT'          // Virtual account
+  | 'GIFT_CERTIFICATE'         // Gift certificate
+  | 'MOBILE'                   // Mobile payment
+  | 'EASY_PAY'                 // Easy pay services (Kakao, Naver, etc.)
+  | 'CONVENIENCE_STORE'        // Convenience store payment
+  | 'POINT';                   // Point payment
+
+// Internal Payment Method (legacy compatibility)
+export type PaymentMethod =
+  | 'portone'                  // PortOne V2 (new standard)
+  | 'toss_payments'            // Legacy TossPayments
+  | 'kakao_pay'                // Kakao Pay
+  | 'naver_pay'                // Naver Pay
+  | 'card'                     // Generic card
+  | 'bank_transfer'            // Bank transfer
+  | 'virtual_account'          // Virtual account
+  | 'gift_certificate'         // Gift certificate
+  | 'mobile'                   // Mobile payment
+  | 'easy_pay'                 // Easy pay
+  | 'convenience_store'        // Convenience store
+  | 'point';                   // Point payment
 
 export type PointTransactionType = 
   | 'earned_service' 
