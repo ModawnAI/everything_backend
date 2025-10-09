@@ -38,27 +38,6 @@ export class RequestValidationError extends Error {
 export function validateRequestBody(schema: Joi.Schema) {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
-      // Log incoming request for social-login endpoint
-      if (req.path === '/auth/social-login' || req.path.endsWith('/social-login')) {
-        logger.info('🔍 [VALIDATION] Incoming social-login request', {
-          path: req.path,
-          method: req.method,
-          bodyKeys: Object.keys(req.body || {}),
-          bodyPreview: {
-            provider: req.body?.provider,
-            hasToken: !!req.body?.token,
-            hasIdToken: !!req.body?.idToken,
-            hasAccessToken: !!req.body?.accessToken,
-            tokenLength: req.body?.token?.length || req.body?.idToken?.length || 0
-          },
-          headers: {
-            contentType: req.headers['content-type'],
-            userAgent: req.headers['user-agent']?.substring(0, 50)
-          },
-          ip: req.ip
-        });
-      }
-
       const { error, value } = schema.validate(req.body, {
         abortEarly: false, // Get all validation errors
         stripUnknown: true, // Remove unknown properties
@@ -72,12 +51,11 @@ export function validateRequestBody(schema: Joi.Schema) {
           value: detail.context?.value
         }));
 
-        logger.warn('❌ [VALIDATION] Request body validation failed', {
+        logger.warn('Request body validation failed', {
           errors: validationErrors,
           path: req.path,
           method: req.method,
-          ip: req.ip,
-          receivedBody: req.body
+          ip: req.ip
         });
 
         res.status(400).json({
@@ -90,14 +68,6 @@ export function validateRequestBody(schema: Joi.Schema) {
           }
         });
         return;
-      }
-
-      // Log successful validation for social-login
-      if (req.path === '/auth/social-login' || req.path.endsWith('/social-login')) {
-        logger.info('✅ [VALIDATION] Social-login validation passed', {
-          path: req.path,
-          validatedFields: Object.keys(value || {})
-        });
       }
 
       // Replace request body with validated and sanitized data

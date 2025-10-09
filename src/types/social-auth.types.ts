@@ -9,14 +9,11 @@ export type SocialProvider = 'kakao' | 'apple' | 'google';
 
 /**
  * Social login request payload
- * Supports both 'token' and 'idToken' fields for compatibility
- * NOTE: These fields should contain the Supabase access token obtained from OAuth callback
  */
 export interface SocialLoginRequest {
   provider: SocialProvider;
-  token?: string; // Supabase access token from OAuth callback
-  idToken?: string; // Alternative field name for Supabase access token (for compatibility)
-  accessToken?: string; // Additional access token if needed (optional)
+  token: string; // ID token for provider authentication
+  accessToken?: string; // Access token (if available from provider)
   fcmToken?: string;
   deviceInfo?: {
     deviceId?: string;
@@ -50,8 +47,8 @@ export interface UserProfile {
   id: string;
   email: string;
   name: string;
-  user_role?: 'user' | 'shop_owner' | 'influencer' | 'admin';
-  user_status?: 'active' | 'inactive' | 'suspended' | 'deleted';
+  user_role: 'user' | 'shop_owner' | 'influencer' | 'admin';
+  user_status: 'active' | 'inactive' | 'suspended' | 'deleted';
   profile_image_url?: string;
   phone?: string;
   birth_date?: string;
