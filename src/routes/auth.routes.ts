@@ -632,9 +632,67 @@ router.get('/sessions',
 );
 
 /**
+ * POST /api/auth/supabase-session
+ * Process Supabase Auth session from frontend
+ *
+ * Rate limited: Standard rate limiting
+ * Body: { fcmToken?: string, deviceInfo?: object }
+ * Headers: Authorization: Bearer <supabase_access_token>
+ */
+
+/**
+ * @swagger
+ * /supabase-session:
+ *   post:
+ *     summary: POST /supabase-session (POST /supabase-session)
+ *     description: Process Supabase Auth session from frontend
+ *
+ *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
+ *
+ *       ---
+ *
+ *     tags: [인증]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               fcmToken:
+ *                 type: string
+ *                 description: Firebase FCM token for notifications
+ *               deviceInfo:
+ *                 type: object
+ *                 properties:
+ *                   platform:
+ *                     type: string
+ *                     enum: [ios, android, web]
+ *                   version:
+ *                     type: string
+ *                   deviceId:
+ *                     type: string
+ *     responses:
+ *       200:
+ *         description: Session processed successfully
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ *       401:
+ *         description: Authentication required
+ */
+router.post('/supabase-session',
+  rateLimit(),
+  socialAuthController.processSupabaseSession
+);
+
+/**
  * POST /api/auth/refresh-supabase
  * Refresh Supabase Auth session using refresh token
- * 
+ *
  * Rate limited: Standard rate limiting
  * Body: { refreshToken: string }
  */
@@ -645,11 +703,11 @@ router.get('/sessions',
  *   post:
  *     summary: POST /refresh-supabase (POST /refresh-supabase)
  *     description: POST endpoint for /refresh-supabase
- *       
+ *
  *       인증 관련 API입니다. 로그인, 회원가입, 토큰 관리를 처리합니다.
- *       
+ *
  *       ---
- *       
+ *
  *     tags: [인증]
  *     security:
  *       - bearerAuth: []

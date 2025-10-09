@@ -5,7 +5,7 @@
  * supporting Kakao, Apple, and Google OAuth providers
  */
 
-export type SocialProvider = 'kakao' | 'apple' | 'google';
+export type SocialProvider = 'kakao' | 'apple' | 'google' | 'supabase';
 
 /**
  * Social login request payload
@@ -302,7 +302,7 @@ export interface SocialLoginAuditLog {
   id: string;
   user_id?: string;
   provider: SocialProvider;
-  action: 'login_attempt' | 'login_success' | 'login_failure' | 'token_validation' | 'user_creation' | 'supabase_auth_success' | 'supabase_auth_failed';
+  action: 'login_attempt' | 'login_success' | 'login_failure' | 'token_validation' | 'user_creation' | 'supabase_auth_success' | 'supabase_auth_failed' | 'session_processed';
   ip_address: string;
   user_agent: string;
   success: boolean;
