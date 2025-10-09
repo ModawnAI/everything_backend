@@ -616,9 +616,22 @@ export class SocialAuthController {
   public socialLogin = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
     const requestId = `social-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     const startTime = Date.now();
-    
+
+    // CRITICAL: Log at the VERY START to verify controller is reached
+    logger.info('🚀 [CONTROLLER ENTRY] socialLogin method called', {
+      requestId,
+      path: req.path,
+      method: req.method,
+      bodyKeys: Object.keys(req.body || {}),
+      hasBody: !!req.body,
+      provider: req.body?.provider
+    });
+
     try {
-      const { provider, token, accessToken, fcmToken, deviceInfo }: SocialLoginRequest = req.body;
+      // Support both 'token' and 'idToken' fields for compatibility
+      // Both fields should contain the Supabase access token from OAuth callback
+      const { provider, token, idToken, accessToken, fcmToken, deviceInfo } = req.body;
+      const supabaseAccessToken = token || idToken;  // Use whichever is provided
       const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
       const userAgent = req.get('User-Agent') || 'unknown';
 
@@ -632,10 +645,12 @@ export class SocialAuthController {
         request_id: requestId
       });
 
-      logger.info('Social login attempt via Supabase Auth', {
+      logger.info('💡 [CONTROLLER] Social login attempt via Supabase token verification', {
         provider,
         requestId,
-        hasToken: !!token,
+        hasSupabaseToken: !!supabaseAccessToken,
+        tokenLength: supabaseAccessToken?.length || 0,
+        tokenPreview: supabaseAccessToken?.substring(0, 30) + '...',
         hasAccessToken: !!accessToken,
         hasFcmToken: !!fcmToken,
         deviceInfo,
@@ -645,33 +660,33 @@ export class SocialAuthController {
 
       // Enhanced provider validation
       if (!['kakao', 'apple', 'google'].includes(provider)) {
-        logger.warn('Invalid social provider attempted', { 
-          provider, 
-          ipAddress, 
-          userAgent, 
-          requestId 
+        logger.warn('Invalid social provider attempted', {
+          provider,
+          ipAddress,
+          userAgent,
+          requestId
         });
         throw new SocialAuthError('Invalid provider', 'INVALID_PROVIDER', 400);
       }
 
       // Enhanced token validation
-      if (!token || typeof token !== 'string' || token.trim().length === 0) {
-        logger.warn('Social login attempted without token', { 
-          provider, 
-          ipAddress, 
-          userAgent, 
-          requestId 
+      if (!supabaseAccessToken || typeof supabaseAccessToken !== 'string' || supabaseAccessToken.trim().length === 0) {
+        logger.warn('Social login attempted without Supabase token', {
+          provider,
+          ipAddress,
+          userAgent,
+          requestId
         });
-        throw new SocialAuthError('Token is required', 'MISSING_TOKEN', 400);
+        throw new SocialAuthError('Supabase access token is required', 'MISSING_TOKEN', 400);
       }
 
       // Additional security checks
-      if (token.length > 10000) { // Prevent extremely large tokens
-        logger.warn('Suspiciously large token provided', { 
-          provider, 
-          tokenLength: token.length, 
-          ipAddress, 
-          requestId 
+      if (supabaseAccessToken.length > 10000) { // Prevent extremely large tokens
+        logger.warn('Suspiciously large Supabase token provided', {
+          provider,
+          tokenLength: supabaseAccessToken.length,
+          ipAddress,
+          requestId
         });
         throw new SocialAuthError('Invalid token format', 'INVALID_TOKEN_FORMAT', 400);
       }
@@ -688,12 +703,12 @@ export class SocialAuthController {
         }
       }
 
-      // Authenticate with Supabase Auth
+      // Verify Supabase token and get user info
       let authResult;
       try {
         authResult = await socialAuthService.authenticateWithProvider(
           provider as SocialProvider,
-          token,
+          supabaseAccessToken,
           accessToken
         );
 
@@ -762,8 +777,8 @@ export class SocialAuthController {
         );
       }
 
-      // Use Supabase session tokens instead of generating our own
-      const supabaseAccessToken = authResult.session?.access_token;
+      // Use Supabase session tokens
+      // Note: We already have supabaseAccessToken from the request
       const supabaseRefreshToken = authResult.session?.refresh_token;
       const expiresIn = authResult.session?.expires_in || 3600;
 

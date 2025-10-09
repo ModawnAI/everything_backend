@@ -53,7 +53,7 @@ const logFormat = winston.format.combine(
 
 // Create logger instance
 export const logger = winston.createLogger({
-  level: config.server.isDevelopment ? 'silent' : config.logging.level,
+  level: config.server.isDevelopment ? 'debug' : config.logging.level,
   format: logFormat,
   defaultMeta: {
     service: 'ebeautything-backend',
@@ -63,24 +63,20 @@ export const logger = winston.createLogger({
     // Console transport - always enabled
     new winston.transports.Console({
       format: logFormat,
-      silent: config.server.isDevelopment, // Silent in dev to show only HTTP requests via console.log
+      silent: false, // Enable console logging in development mode
     }),
-    // File transport for production
-    ...(config.server.isProduction
-      ? [
-          new winston.transports.File({
-            filename: `${config.logging.filePath}/error.log`,
-            level: 'error',
-            maxsize: 20971520, // 20MB
-            maxFiles: 5,
-          }),
-          new winston.transports.File({
-            filename: `${config.logging.filePath}/combined.log`,
-            maxsize: 20971520, // 20MB
-            maxFiles: 5,
-          }),
-        ]
-      : []),
+    // File transport - enabled in both dev and production
+    new winston.transports.File({
+      filename: `${config.logging.filePath}/error.log`,
+      level: 'error',
+      maxsize: 20971520, // 20MB
+      maxFiles: 5,
+    }),
+    new winston.transports.File({
+      filename: `${config.logging.filePath}/combined.log`,
+      maxsize: 20971520, // 20MB
+      maxFiles: 5,
+    }),
   ],
 });
 

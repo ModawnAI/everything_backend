@@ -1,5 +1,6 @@
 // Load environment configuration first
 import { config } from './config/environment';
+console.log('✅ [DEBUG] Config loaded successfully');
 
 import express from 'express';
 import cors from 'cors';
@@ -16,10 +17,12 @@ import {
 import compression from 'compression';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+console.log('✅ [DEBUG] Express and middleware imports completed');
 
 // Initialize database first before importing any services
 import { initializeDatabase } from './config/database';
 initializeDatabase();
+console.log('✅ [DEBUG] Database initialized');
 
 // Import routes
 import authRoutes from './routes/auth.routes';
@@ -48,6 +51,7 @@ import adminAdjustmentRoutes from './routes/admin-adjustment.routes';
 import adminPaymentRoutes from './routes/admin-payment.routes';
 import adminPaymentManagementRoutes from './routes/admin-payment-management.routes';
 import adminAnalyticsRoutes from './routes/admin-analytics.routes';
+console.log('✅ [DEBUG] First 30 routes imported');
 import ipBlockingRoutes from './routes/admin/ip-blocking.routes';
 import securityRoutes from './routes/security.routes';
 import notificationRoutes from './routes/notification.routes';
@@ -67,6 +71,7 @@ import adminSecurityEventsRoutes from './routes/admin-security-events.routes';
 import authAnalyticsRoutes from './routes/auth-analytics.routes';
 import referralRoutes from './routes/referral.routes';
 import auditTrailRoutes from './routes/audit-trail.routes';
+console.log('✅ [DEBUG] Routes 31-45 imported');
 import automaticStateProgressionRoutes from './routes/automatic-state-progression.routes';
 import referralCodeRoutes from './routes/referral-code.routes';
 import referralRelationshipRoutes from './routes/referral-relationship.routes';
@@ -94,6 +99,7 @@ import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
 import adminTicketRoutes from './routes/admin-ticket.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+console.log('✅ [DEBUG] All route files imported (70+ routes)');
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -102,15 +108,19 @@ import {} from '@/repositories';
 import {} from '@/middleware';
 import {} from '@/routes';
 import {} from '@/types';
+console.log('✅ [DEBUG] Barrel exports imported');
 import {} from '@/utils';
 import {} from '@/config';
 import {} from '@/validators';
 import {} from '@/constants';
+console.log('✅ [DEBUG] All barrel exports completed');
 import { initializeWebSocketService } from './services/websocket.service';
 import { influencerSchedulerService } from './services/influencer-scheduler.service';
+console.log('✅ [DEBUG] Service imports completed');
 
 const app = express();
 const PORT = config.server.port;
+console.log('✅ [DEBUG] Express app created, PORT:', PORT);
 
 // CORS Configuration - Must be before other middleware
 const corsOrigins = process.env.CORS_ORIGIN
@@ -172,8 +182,10 @@ app.use(morganFormat);
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+console.log('✅ [DEBUG] Body parsers configured');
 
 // Comprehensive security middleware setup
+console.log('✅ [DEBUG] Starting security middleware imports...');
 import { securityHeaders } from './middleware/security.middleware';
 import { securityEventDetection, securityEventResponseHandler } from './middleware/security-event-detection.middleware';
 import { sqlInjectionPrevention } from './middleware/sql-injection-prevention.middleware';
@@ -192,8 +204,10 @@ app.use(rpcSecurityMiddleware());
 app.use(xssProtection());
 app.use(csrfProtection());
 app.use(securityEventLoggingMiddleware());
+console.log('✅ [DEBUG] Security middleware applied');
 
 // Import comprehensive OpenAPI configurations
+console.log('✅ [DEBUG] Starting OpenAPI config imports...');
 import { OPENAPI_GENERATION_CONFIG } from './config/openapi.config';
 import { 
   ADMIN_OPENAPI_GENERATION_CONFIG, 

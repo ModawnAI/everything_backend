@@ -342,6 +342,7 @@ export const userProfileUpdateSchema = Joi.object({
 
 /**
  * Social login request validation schema
+ * Supports both 'token' and 'idToken' fields for compatibility
  */
 export const socialLoginSchema = Joi.object({
   provider: Joi.string()
@@ -352,16 +353,38 @@ export const socialLoginSchema = Joi.object({
       'any.only': 'Provider must be one of: kakao, apple, google'
     }),
 
+  // Support both 'token' and 'idToken' fields for Supabase access token (at least one required)
+  // These fields should contain the Supabase access token obtained from OAuth callback
   token: Joi.string()
     .trim()
     .min(10)
     .max(10000)
-    .required()
+    .optional()
     .messages({
-      'any.required': 'Token is required',
-      'string.empty': 'Token cannot be empty',
-      'string.min': 'Token is too short',
-      'string.max': 'Token is too long'
+      'string.empty': 'Supabase access token cannot be empty',
+      'string.min': 'Supabase access token is too short',
+      'string.max': 'Supabase access token is too long'
+    }),
+
+  idToken: Joi.string()
+    .trim()
+    .min(10)
+    .max(10000)
+    .optional()
+    .messages({
+      'string.empty': 'Supabase access token cannot be empty',
+      'string.min': 'Supabase access token is too short',
+      'string.max': 'Supabase access token is too long'
+    }),
+
+  accessToken: Joi.string()
+    .trim()
+    .min(10)
+    .max(10000)
+    .optional()
+    .messages({
+      'string.min': 'Access token is too short',
+      'string.max': 'Access token is too long'
     }),
 
   fcmToken: Joi.string()
@@ -375,7 +398,11 @@ export const socialLoginSchema = Joi.object({
     }),
 
   deviceInfo: deviceInfoSchema
-});
+})
+  .or('token', 'idToken')  // At least one of token or idToken must be provided
+  .messages({
+    'object.missing': 'Either token or idToken is required'
+  });
 
 /**
  * Provider-specific token validation
