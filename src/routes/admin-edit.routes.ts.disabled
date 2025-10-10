@@ -1,0 +1,975 @@
+/**
+ * Admin Edit Routes
+ *
+ * Comprehensive editing endpoints for admin dashboard
+ * Handles users, services, reservations with validation and audit logging
+ */
+
+import { Router } from 'express';
+import { adminEditController } from '../controllers/admin-edit.controller';
+import { authenticateJWT } from '../middleware/auth.middleware';
+import { requireAdminRole } from '../middleware/admin-auth.middleware';
+import { rateLimit } from '../middleware/rate-limit.middleware';
+import {
+  validateUserEdit,
+  validateServiceEdit,
+  validateReservationEdit,
+  validateBulkEdit
+} from '../validators/admin-edit.validators';
+import { logger } from '../utils/logger';
+
+const router = Router();
+
+// Apply authentication and admin authorization to all routes
+router.use(authenticateJWT());
+router.use(requireAdminRole);
+
+// Rate limiting for edit operations
+const editRateLimit = rateLimit({
+  config: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 100, // Limit edit operations
+    strategy: 'fixed_window'
+  }
+});
+
+const bulkEditRateLimit = rateLimit({
+  config: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 20, // Lower limit for bulk operations
+    strategy: 'fixed_window'
+  }
+});
+
+// ===========================
+// USER EDITING ENDPOINTS
+// ===========================
+
+/**
+ * @swagger
+ * /api/admin/edit/users/{userId}:
+ *   put:
+ *     summary: 사용자 정보 수정 (관리자)
+ *     description: |
+ *       관리자가 사용자의 정보를 수정합니다.
+ *
+ *       **수정 가능한 필드:**
+ *       - 기본 정보: 이름, 닉네임, 성별, 생년월일
+ *       - 연락처: 이메일, 전화번호
+ *       - 상태: 사용자 상태, 역할
+ *       - 설정: 마케팅 동의, 알림 설정
+ *       - 포인트: 총 포인트, 사용 가능 포인트
+ *       - 인플루언서: 인플루언서 상태 변경
+ *
+ *       **제한사항:**
+ *       - 소셜 인증 정보는 수정 불가
+ *       - 생성일/수정일은 자동 관리
+ *       - 포인트 변경 시 자동으로 거래 내역 생성
+ *
+ *       **보안 및 감사:**
+ *       - 모든 변경사항이 감사 로그에 기록
+ *       - 민감한 정보 변경 시 사용자에게 알림
+ *       - IP 주소 및 변경 사유 기록
+ *
+ *     tags: [Admin Edit]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: 사용자 고유 식별자
+ *         example: "123e4567-e89b-12d3-a456-426614174000"
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 100
+ *                 description: 사용자 실명
+ *                 example: "김철수"
+ *               nickname:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 50
+ *                 description: 사용자 닉네임
+ *                 example: "철수님"
+ *               email:
+ *                 type: string
+ *                 format: email
+ *                 description: 이메일 주소
+ *                 example: "chulsu@example.com"
+ *               phone_number:
+ *                 type: string
+ *                 pattern: '^\\+82-\\d{2,3}-\\d{3,4}-\\d{4}$'
+ *                 description: 전화번호 (한국 형식)
+ *                 example: "+82-10-1234-5678"
+ *               gender:
+ *                 type: string
+ *                 enum: [male, female, other, prefer_not_to_say]
+ *                 description: 성별
+ *                 example: "male"
+ *               birth_date:
+ *                 type: string
+ *                 format: date
+ *                 description: 생년월일
+ *                 example: "1990-01-15"
+ *               user_role:
+ *                 type: string
+ *                 enum: [user, shop_owner, admin, influencer]
+ *                 description: 사용자 역할
+ *                 example: "user"
+ *               user_status:
+ *                 type: string
+ *                 enum: [active, inactive, suspended, deleted]
+ *                 description: 사용자 상태
+ *                 example: "active"
+ *               is_influencer:
+ *                 type: boolean
+ *                 description: 인플루언서 여부
+ *                 example: false
+ *               total_points:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: 총 포인트 (조정 시 거래 내역 자동 생성)
+ *                 example: 1500
+ *               available_points:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: 사용 가능 포인트
+ *                 example: 1200
+ *               marketing_consent:
+ *                 type: boolean
+ *                 description: 마케팅 수신 동의
+ *                 example: true
+ *               edit_reason:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 500
+ *                 description: 수정 사유 (필수)
+ *                 example: "고객 요청에 따른 정보 수정"
+ *               notify_user:
+ *                 type: boolean
+ *                 default: true
+ *                 description: 사용자에게 변경 알림 발송 여부
+ *                 example: true
+ *           examples:
+ *             basic_info_update:
+ *               summary: 기본 정보 수정
+ *               value:
+ *                 name: "김철수"
+ *                 nickname: "철수님"
+ *                 phone_number: "+82-10-1234-5678"
+ *                 edit_reason: "고객 요청에 따른 연락처 변경"
+ *                 notify_user: true
+ *             status_change:
+ *               summary: 계정 상태 변경
+ *               value:
+ *                 user_status: "suspended"
+ *                 edit_reason: "약관 위반으로 인한 계정 정지"
+ *                 notify_user: true
+ *             points_adjustment:
+ *               summary: 포인트 조정
+ *               value:
+ *                 total_points: 2000
+ *                 available_points: 1800
+ *                 edit_reason: "이벤트 보상 지급"
+ *                 notify_user: true
+ *             influencer_promotion:
+ *               summary: 인플루언서 승격
+ *               value:
+ *                 is_influencer: true
+ *                 user_role: "influencer"
+ *                 edit_reason: "인플루언서 자격 요건 충족"
+ *                 notify_user: true
+ *     responses:
+ *       200:
+ *         description: 사용자 정보 수정 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     changes:
+ *                       type: object
+ *                       description: 변경된 필드들
+ *                       example:
+ *                         name: { old: "김철수", new: "김철수" }
+ *                         phone_number: { old: "+82-10-1111-1111", new: "+82-10-1234-5678" }
+ *                     audit_log_id:
+ *                       type: string
+ *                       description: 감사 로그 ID
+ *                 message:
+ *                   type: string
+ *                   example: "사용자 정보가 성공적으로 수정되었습니다."
+ *       400:
+ *         description: 잘못된 요청 데이터
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/ValidationError'
+ *       404:
+ *         description: 사용자를 찾을 수 없음
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       409:
+ *         description: 충돌 (예: 이메일 중복)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.put('/users/:userId',
+  editRateLimit,
+  validateUserEdit,
+  async (req, res) => {
+    try {
+      await adminEditController.editUser(req, res);
+    } catch (error) {
+      logger.error('Error in admin user edit route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        adminId: (req as any).user?.id,
+        userId: req.params.userId,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '사용자 정보 수정 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+// ===========================
+// SERVICE EDITING ENDPOINTS
+// ===========================
+
+/**
+ * @swagger
+ * /api/admin/edit/services/{serviceId}:
+ *   put:
+ *     summary: 서비스 정보 수정 (관리자)
+ *     description: |
+ *       관리자가 샵 서비스의 정보를 수정합니다.
+ *
+ *       **수정 가능한 필드:**
+ *       - 기본 정보: 이름, 설명, 카테고리
+ *       - 가격: 최소/최대 가격, 예약금 설정
+ *       - 운영: 소요 시간, 사전 예약 기간, 취소 기간
+ *       - 상태: 서비스 활성화 여부, 표시 순서
+ *
+ *       **비즈니스 규칙 검증:**
+ *       - 가격 범위 유효성 (최소 ≤ 최대)
+ *       - 예약금 설정 (고정금액 OR 비율, 둘 다 불가)
+ *       - 기존 예약에 대한 영향 분석
+ *       - 가격 변경 시 기존 예약 보호
+ *
+ *       **안전 조치:**
+ *       - 활성 예약이 있는 서비스 비활성화 방지
+ *       - 가격 대폭 변경 시 경고
+ *       - 변경 이력 추적
+ *
+ *     tags: [Admin Edit]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: serviceId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: 서비스 고유 식별자
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               name:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 255
+ *                 description: 서비스명
+ *                 example: "프리미엄 젤네일"
+ *               description:
+ *                 type: string
+ *                 maxLength: 1000
+ *                 description: 서비스 설명
+ *                 example: "고품질 젤네일 서비스로 2-3주간 지속됩니다"
+ *               category:
+ *                 type: string
+ *                 enum: [nail, eyelash, waxing, eyebrow_tattoo, hair]
+ *                 description: 서비스 카테고리
+ *                 example: "nail"
+ *               price_min:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 10000000
+ *                 description: 최소 가격 (원)
+ *                 example: 30000
+ *               price_max:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 10000000
+ *                 description: 최대 가격 (원)
+ *                 example: 50000
+ *               duration_minutes:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 480
+ *                 description: 소요 시간 (분)
+ *                 example: 90
+ *               deposit_amount:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 1000000
+ *                 description: 고정 예약금 (원)
+ *                 example: 10000
+ *               deposit_percentage:
+ *                 type: number
+ *                 minimum: 0
+ *                 maximum: 100
+ *                 description: 예약금 비율 (%)
+ *                 example: 20.0
+ *               is_available:
+ *                 type: boolean
+ *                 description: 서비스 활성화 여부
+ *                 example: true
+ *               booking_advance_days:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 365
+ *                 description: 사전 예약 가능 일수
+ *                 example: 30
+ *               cancellation_hours:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 168
+ *                 description: 취소 가능 시간 (시간)
+ *                 example: 24
+ *               display_order:
+ *                 type: integer
+ *                 minimum: 0
+ *                 maximum: 999
+ *                 description: 표시 순서
+ *                 example: 1
+ *               edit_reason:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 500
+ *                 description: 수정 사유 (필수)
+ *                 example: "가격 정책 변경에 따른 업데이트"
+ *               force_update:
+ *                 type: boolean
+ *                 default: false
+ *                 description: 기존 예약이 있어도 강제 업데이트
+ *                 example: false
+ *           examples:
+ *             price_update:
+ *               summary: 가격 정책 변경
+ *               value:
+ *                 price_min: 35000
+ *                 price_max: 55000
+ *                 deposit_percentage: 30.0
+ *                 edit_reason: "시장 상황에 따른 가격 조정"
+ *             service_enhancement:
+ *               summary: 서비스 개선
+ *               value:
+ *                 name: "프리미엄 젤네일 플러스"
+ *                 description: "기존 서비스에 케어 단계가 추가된 프리미엄 버전"
+ *                 duration_minutes: 120
+ *                 price_max: 70000
+ *                 edit_reason: "서비스 품질 향상"
+ *             availability_change:
+ *               summary: 서비스 비활성화
+ *               value:
+ *                 is_available: false
+ *                 edit_reason: "직원 부족으로 인한 일시 중단"
+ *     responses:
+ *       200:
+ *         description: 서비스 정보 수정 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     service:
+ *                       $ref: '#/components/schemas/ShopService'
+ *                     changes:
+ *                       type: object
+ *                       description: 변경된 필드들
+ *                     impact_analysis:
+ *                       type: object
+ *                       properties:
+ *                         existing_reservations:
+ *                           type: integer
+ *                           description: 영향받는 기존 예약 수
+ *                         price_change_percentage:
+ *                           type: number
+ *                           description: 가격 변경률
+ *                         affected_customers:
+ *                           type: integer
+ *                           description: 영향받는 고객 수
+ *                 message:
+ *                   type: string
+ */
+router.put('/services/:serviceId',
+  editRateLimit,
+  validateServiceEdit,
+  async (req, res) => {
+    try {
+      await adminEditController.editService(req, res);
+    } catch (error) {
+      logger.error('Error in admin service edit route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        adminId: (req as any).user?.id,
+        serviceId: req.params.serviceId,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서비스 정보 수정 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+// ===========================
+// RESERVATION EDITING ENDPOINTS
+// ===========================
+
+/**
+ * @swagger
+ * /api/admin/edit/reservations/{reservationId}:
+ *   put:
+ *     summary: 예약 정보 수정 (관리자)
+ *     description: |
+ *       관리자가 예약 정보를 수정합니다.
+ *
+ *       **수정 가능한 필드:**
+ *       - 예약 일시: 날짜, 시간 변경
+ *       - 상태: 예약 상태 변경
+ *       - 금액: 총 금액, 예약금, 잔금 조정
+ *       - 포인트: 사용/적립 포인트 조정
+ *       - 메모: 특별 요청사항, 취소 사유
+ *
+ *       **복잡한 시나리오 처리:**
+ *       - 예약 시간 변경 시 충돌 검사
+ *       - 상태 변경 시 결제 상태 동기화
+ *       - 취소 시 환불 프로세스 자동 시작
+ *       - 금액 변경 시 결제 차액 처리
+ *
+ *       **제약사항:**
+ *       - 완료된 예약의 일시 변경 불가
+ *       - 결제 완료된 예약의 금액 하향 조정 시 환불 필요
+ *       - 과거 날짜로 예약 변경 불가
+ *
+ *     tags: [Admin Edit]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: reservationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: 예약 고유 식별자
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               reservation_date:
+ *                 type: string
+ *                 format: date
+ *                 description: 예약 날짜 (YYYY-MM-DD)
+ *                 example: "2024-03-20"
+ *               reservation_time:
+ *                 type: string
+ *                 pattern: '^([01]?[0-9]|2[0-3]):[0-5][0-9]$'
+ *                 description: 예약 시간 (HH:MM)
+ *                 example: "14:00"
+ *               status:
+ *                 type: string
+ *                 enum: [requested, confirmed, completed, cancelled_by_user, cancelled_by_shop, no_show]
+ *                 description: 예약 상태
+ *                 example: "confirmed"
+ *               total_amount:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: 총 금액 (원)
+ *                 example: 50000
+ *               deposit_amount:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: 예약금 (원)
+ *                 example: 10000
+ *               points_used:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: 사용 포인트
+ *                 example: 1000
+ *               points_earned:
+ *                 type: integer
+ *                 minimum: 0
+ *                 description: 적립 포인트
+ *                 example: 1250
+ *               special_requests:
+ *                 type: string
+ *                 maxLength: 1000
+ *                 description: 특별 요청사항
+ *                 example: "창가 자리 희망"
+ *               cancellation_reason:
+ *                 type: string
+ *                 maxLength: 500
+ *                 description: 취소 사유 (상태가 취소일 때)
+ *                 example: "고객 개인 사정으로 인한 취소"
+ *               no_show_reason:
+ *                 type: string
+ *                 maxLength: 500
+ *                 description: 노쇼 사유 (상태가 no_show일 때)
+ *                 example: "연락 두절"
+ *               edit_reason:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 500
+ *                 description: 수정 사유 (필수)
+ *                 example: "고객 요청에 따른 시간 변경"
+ *               notify_customer:
+ *                 type: boolean
+ *                 default: true
+ *                 description: 고객에게 변경 알림 발송 여부
+ *                 example: true
+ *               notify_shop:
+ *                 type: boolean
+ *                 default: true
+ *                 description: 샵에게 변경 알림 발송 여부
+ *                 example: true
+ *               auto_process_refund:
+ *                 type: boolean
+ *                 default: false
+ *                 description: 취소 시 자동 환불 처리 여부
+ *                 example: false
+ *           examples:
+ *             time_change:
+ *               summary: 예약 시간 변경
+ *               value:
+ *                 reservation_date: "2024-03-20"
+ *                 reservation_time: "16:00"
+ *                 edit_reason: "고객 요청에 따른 시간 변경"
+ *                 notify_customer: true
+ *                 notify_shop: true
+ *             status_change:
+ *               summary: 예약 상태 변경 (취소)
+ *               value:
+ *                 status: "cancelled_by_shop"
+ *                 cancellation_reason: "샵 사정으로 인한 취소"
+ *                 edit_reason: "돌발 상황으로 인한 영업 중단"
+ *                 auto_process_refund: true
+ *                 notify_customer: true
+ *             amount_adjustment:
+ *               summary: 금액 조정
+ *               value:
+ *                 total_amount: 45000
+ *                 deposit_amount: 9000
+ *                 edit_reason: "추가 서비스 제외로 인한 금액 조정"
+ *                 notify_customer: true
+ *             no_show_marking:
+ *               summary: 노쇼 처리
+ *               value:
+ *                 status: "no_show"
+ *                 no_show_reason: "예약 시간에 나타나지 않음, 연락 불가"
+ *                 edit_reason: "고객 노쇼로 인한 상태 변경"
+ *                 notify_customer: false
+ *     responses:
+ *       200:
+ *         description: 예약 정보 수정 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     reservation:
+ *                       $ref: '#/components/schemas/Reservation'
+ *                     changes:
+ *                       type: object
+ *                       description: 변경된 필드들
+ *                     automatic_actions:
+ *                       type: object
+ *                       properties:
+ *                         refund_initiated:
+ *                           type: boolean
+ *                           description: 환불 프로세스 시작 여부
+ *                         notifications_sent:
+ *                           type: array
+ *                           items:
+ *                             type: string
+ *                           description: 발송된 알림 목록
+ *                         payment_adjustments:
+ *                           type: array
+ *                           items:
+ *                             type: object
+ *                           description: 결제 조정 내역
+ *                 message:
+ *                   type: string
+ */
+router.put('/reservations/:reservationId',
+  editRateLimit,
+  validateReservationEdit,
+  async (req, res) => {
+    try {
+      await adminEditController.editReservation(req, res);
+    } catch (error) {
+      logger.error('Error in admin reservation edit route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        adminId: (req as any).user?.id,
+        reservationId: req.params.reservationId,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 정보 수정 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+// ===========================
+// BULK EDIT ENDPOINTS
+// ===========================
+
+/**
+ * @swagger
+ * /api/admin/edit/bulk:
+ *   post:
+ *     summary: 대량 편집 작업 (관리자)
+ *     description: |
+ *       선택된 여러 항목을 일괄적으로 수정합니다.
+ *
+ *       **지원되는 대량 작업:**
+ *       - 사용자 상태 일괄 변경
+ *       - 서비스 활성화/비활성화
+ *       - 예약 상태 일괄 변경
+ *       - 포인트 일괄 조정
+ *       - 역할 일괄 변경
+ *
+ *       **안전 조치:**
+ *       - 작업 전 영향도 분석
+ *       - 단계별 확인 프로세스
+ *       - 실패한 항목 개별 보고
+ *       - 전체 작업 롤백 옵션
+ *
+ *       **성능 최적화:**
+ *       - 배치 처리로 성능 향상
+ *       - 진행률 실시간 추적
+ *       - 비동기 처리 지원
+ *
+ *     tags: [Admin Edit]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [operation_type, target_ids, changes, edit_reason]
+ *             properties:
+ *               operation_type:
+ *                 type: string
+ *                 enum: [users, services, reservations]
+ *                 description: 작업 대상 타입
+ *                 example: "users"
+ *               target_ids:
+ *                 type: array
+ *                 items:
+ *                   type: string
+ *                   format: uuid
+ *                 minItems: 1
+ *                 maxItems: 100
+ *                 description: 대상 ID 목록 (최대 100개)
+ *                 example: ["123e4567-e89b-12d3-a456-426614174000", "456e7890-f12a-34b5-c678-901234567890"]
+ *               changes:
+ *                 type: object
+ *                 description: 적용할 변경사항 (타입별로 다름)
+ *                 example:
+ *                   user_status: "active"
+ *                   marketing_consent: true
+ *               edit_reason:
+ *                 type: string
+ *                 minLength: 1
+ *                 maxLength: 500
+ *                 description: 대량 수정 사유
+ *                 example: "연말 정책 변경에 따른 일괄 업데이트"
+ *               batch_size:
+ *                 type: integer
+ *                 minimum: 1
+ *                 maximum: 50
+ *                 default: 10
+ *                 description: 배치 처리 크기
+ *                 example: 10
+ *               notify_targets:
+ *                 type: boolean
+ *                 default: false
+ *                 description: 대상자들에게 알림 발송 여부
+ *                 example: false
+ *               dry_run:
+ *                 type: boolean
+ *                 default: false
+ *                 description: 실제 실행 없이 영향도만 분석
+ *                 example: false
+ *           examples:
+ *             bulk_user_activation:
+ *               summary: 사용자 일괄 활성화
+ *               value:
+ *                 operation_type: "users"
+ *                 target_ids: ["user1-id", "user2-id", "user3-id"]
+ *                 changes:
+ *                   user_status: "active"
+ *                   marketing_consent: true
+ *                 edit_reason: "이벤트 참여자 계정 일괄 활성화"
+ *                 notify_targets: true
+ *             bulk_service_disable:
+ *               summary: 서비스 일괄 비활성화
+ *               value:
+ *                 operation_type: "services"
+ *                 target_ids: ["service1-id", "service2-id"]
+ *                 changes:
+ *                   is_available: false
+ *                 edit_reason: "휴일 기간 서비스 일시 중단"
+ *                 notify_targets: false
+ *             bulk_reservation_cancel:
+ *               summary: 예약 일괄 취소
+ *               value:
+ *                 operation_type: "reservations"
+ *                 target_ids: ["reservation1-id", "reservation2-id"]
+ *                 changes:
+ *                   status: "cancelled_by_shop"
+ *                   cancellation_reason: "천재지변으로 인한 휴업"
+ *                 edit_reason: "태풍으로 인한 예약 일괄 취소"
+ *                 notify_targets: true
+ *     responses:
+ *       200:
+ *         description: 대량 편집 작업 성공 (또는 부분 성공)
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     operation_id:
+ *                       type: string
+ *                       description: 작업 고유 ID (진행률 추적용)
+ *                     total_targets:
+ *                       type: integer
+ *                       description: 총 대상 개수
+ *                     successful_updates:
+ *                       type: integer
+ *                       description: 성공한 업데이트 개수
+ *                     failed_updates:
+ *                       type: integer
+ *                       description: 실패한 업데이트 개수
+ *                     results:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           target_id:
+ *                             type: string
+ *                           success:
+ *                             type: boolean
+ *                           error:
+ *                             type: string
+ *                           changes_applied:
+ *                             type: object
+ *                     estimated_completion_time:
+ *                       type: string
+ *                       format: date-time
+ *                       description: 예상 완료 시간 (비동기인 경우)
+ *                 message:
+ *                   type: string
+ */
+router.post('/bulk',
+  bulkEditRateLimit,
+  validateBulkEdit,
+  async (req, res) => {
+    try {
+      await adminEditController.bulkEdit(req, res);
+    } catch (error) {
+      logger.error('Error in admin bulk edit route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        adminId: (req as any).user?.id,
+        operationType: req.body?.operation_type,
+        targetCount: req.body?.target_ids?.length,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '대량 편집 작업 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/admin/edit/bulk/{operationId}/status:
+ *   get:
+ *     summary: 대량 편집 작업 진행률 조회
+ *     description: 비동기 대량 편집 작업의 진행률을 조회합니다.
+ *     tags: [Admin Edit]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: operationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: 작업 고유 ID
+ *     responses:
+ *       200:
+ *         description: 작업 진행률 조회 성공
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     operation_id:
+ *                       type: string
+ *                     status:
+ *                       type: string
+ *                       enum: [pending, in_progress, completed, failed, cancelled]
+ *                     progress_percentage:
+ *                       type: number
+ *                       minimum: 0
+ *                       maximum: 100
+ *                     processed_count:
+ *                       type: integer
+ *                     total_count:
+ *                       type: integer
+ *                     success_count:
+ *                       type: integer
+ *                     failure_count:
+ *                       type: integer
+ *                     estimated_completion_time:
+ *                       type: string
+ *                       format: date-time
+ *                     last_updated_at:
+ *                       type: string
+ *                       format: date-time
+ */
+router.get('/bulk/:operationId/status',
+  async (req, res) => {
+    try {
+      await adminEditController.getBulkEditStatus(req, res);
+    } catch (error) {
+      logger.error('Error in bulk edit status route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        adminId: (req as any).user?.id,
+        operationId: req.params.operationId,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '작업 상태 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+// Error handling middleware for admin edit routes
+router.use((error: any, req: any, res: any, next: any) => {
+  logger.error('Unhandled error in admin edit routes', {
+    error: error instanceof Error ? error.message : 'Unknown error',
+    stack: error instanceof Error ? error.stack : undefined,
+    url: req.url,
+    method: req.method,
+    adminId: req.user?.id
+  });
+
+  res.status(500).json({
+    success: false,
+    error: {
+      code: 'INTERNAL_SERVER_ERROR',
+      message: '편집 요청 처리 중 오류가 발생했습니다.',
+      details: '잠시 후 다시 시도해주세요.'
+    }
+  });
+});
+
+export default router;

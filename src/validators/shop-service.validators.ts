@@ -368,11 +368,18 @@ export const serviceListQuerySchema = Joi.object({
 export const serviceIdSchema = Joi.object({
   id: Joi.string()
     .uuid()
-    .required()
+    .optional()
     .messages({
-      'string.guid': '유효하지 않은 서비스 ID입니다.',
-      'any.required': '서비스 ID는 필수입니다.'
+      'string.guid': '유효하지 않은 서비스 ID입니다.'
+    }),
+  serviceId: Joi.string()
+    .uuid()
+    .optional()
+    .messages({
+      'string.guid': '유효하지 않은 서비스 ID입니다.'
     })
+}).or('id', 'serviceId').messages({
+  'object.missing': '서비스 ID는 필수입니다.'
 });
 
 /**

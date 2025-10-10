@@ -12,6 +12,7 @@ import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { ShopVerificationStatus, ShopType, ShopStatus } from '../types/database.types';
 import { shopVerificationService } from '../services/shop-verification.service';
+import { AdminAnalyticsService } from '../services/admin-analytics.service';
 
 // Request interfaces
 interface ApproveShopRequest extends Request {
@@ -48,6 +49,8 @@ interface GetShopVerificationHistoryRequest extends Request {
 }
 
 export class AdminShopController {
+  private analyticsService = new AdminAnalyticsService();
+
   /**
    * GET /api/admin/shops
    * Get all shops with filtering and pagination (Admin only)
@@ -91,6 +94,16 @@ export class AdminShopController {
           is_featured,
           created_at,
           updated_at,
+          shop_services(
+            id,
+            name,
+            category,
+            price_min,
+            price_max,
+            duration_minutes,
+            is_available,
+            display_order
+          ),
           owner:users!shops_owner_id_fkey(
             id,
             name,
@@ -192,11 +205,33 @@ export class AdminShopController {
 
       const client = getSupabaseClient();
 
-      // Fetch shop with all related data
+      // Fetch shop with all related data including services
       const { data: shop, error } = await client
         .from('shops')
         .select(`
-          *
+          *,
+          shop_services(
+            id,
+            name,
+            description,
+            category,
+            price_min,
+            price_max,
+            duration_minutes,
+            deposit_amount,
+            deposit_percentage,
+            is_available,
+            booking_advance_days,
+            cancellation_hours,
+            display_order
+          ),
+          shop_images(
+            id,
+            image_url,
+            alt_text,
+            display_order,
+            is_primary
+          )
         `)
         .eq('id', shopId)
         .maybeSingle();
@@ -220,7 +255,7 @@ export class AdminShopController {
 
       res.status(200).json({
         success: true,
-        data: { shop }
+        data: shop
       });
 
     } catch (error: any) {
@@ -409,8 +444,19 @@ export class AdminShopController {
           business_license_image_url,
           verification_status,
           shop_status,
+          commission_rate,
           created_at,
           updated_at,
+          shop_services(
+            id,
+            name,
+            category,
+            price_min,
+            price_max,
+            duration_minutes,
+            is_available,
+            display_order
+          ),
           owner:users!shops_owner_id_fkey(
             id,
             name,
@@ -1040,6 +1086,285 @@ export class AdminShopController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get shop analytics data
+   */
+  async getShopAnalytics(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const { period = '30d' } = req.query;
+
+      // Validate shopId
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+
+      // Check if shop exists
+      const { data: shop, error: shopError } = await supabase
+        .from('shops')
+        .select('id, name, main_category')
+        .eq('id', shopId)
+        .single();
+
+      if (shopError || !shop) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '해당 샵을 찾을 수 없습니다.'
+          }
+        });
+        return;
+      }
+
+      // Calculate date range based on period
+      const now = new Date();
+      let startDate: Date;
+
+      switch (period) {
+        case '7d':
+          startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+          break;
+        case '30d':
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+          break;
+        case '90d':
+          startDate = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000);
+          break;
+        default:
+          startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      }
+
+      // Get services count
+      const { data: services, error: servicesError } = await supabase
+        .from('shop_services')
+        .select('id, name, category, price_min, price_max, is_available')
+        .eq('shop_id', shopId);
+
+      if (servicesError) {
+        logger.error('Failed to fetch shop services for analytics', {
+          error: servicesError.message,
+          shopId
+        });
+      }
+
+      // Mock analytics data (replace with real data when booking system is implemented)
+      const analyticsData = {
+        shopInfo: {
+          id: shop.id,
+          name: shop.name,
+          category: shop.main_category
+        },
+        period: period,
+        dateRange: {
+          startDate: startDate.toISOString(),
+          endDate: now.toISOString()
+        },
+        services: {
+          total: services?.length || 0,
+          active: services?.filter(s => s.is_available)?.length || 0,
+          categories: [...new Set(services?.map(s => s.category) || [])],
+          priceRange: {
+            min: Math.min(...(services?.map(s => s.price_min).filter(p => p) || [0])),
+            max: Math.max(...(services?.map(s => s.price_max).filter(p => p) || [0]))
+          }
+        },
+        bookings: {
+          total: 0,
+          confirmed: 0,
+          pending: 0,
+          cancelled: 0,
+          completed: 0,
+          revenue: 0
+        },
+        customers: {
+          total: 0,
+          new: 0,
+          returning: 0,
+          averageBookings: 0
+        },
+        performance: {
+          averageRating: 0,
+          reviewCount: 0,
+          responseRate: 0,
+          utilizationRate: 0
+        }
+      };
+
+      logger.info('Shop analytics retrieved', {
+        shopId,
+        shopName: shop.name,
+        period,
+        servicesCount: services?.length || 0
+      });
+
+      res.status(200).json({
+        success: true,
+        data: analyticsData
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.getShopAnalytics error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/data-integrity/validate
+   * Validate data integrity across all analytics tables
+   */
+  async validateDataIntegrity(req: Request, res: Response): Promise<void> {
+    try {
+      logger.info('AdminShopController.validateDataIntegrity called');
+
+      const integrityReport = await this.analyticsService.validateDataIntegrity();
+
+      logger.info('Data integrity validation completed', {
+        isValid: integrityReport.isValid,
+        issuesCount: integrityReport.issues.length
+      });
+
+      res.status(200).json({
+        success: true,
+        data: integrityReport,
+        message: integrityReport.isValid ?
+          '모든 데이터가 올바른 관계를 유지하고 있습니다.' :
+          `${integrityReport.issues.length}개의 데이터 무결성 문제가 발견되었습니다.`
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.validateDataIntegrity error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '데이터 무결성 검증 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * POST /api/admin/data-integrity/cleanup
+   * Clean up orphaned analytics data
+   */
+  async cleanupOrphanedData(req: Request, res: Response): Promise<void> {
+    try {
+      logger.info('AdminShopController.cleanupOrphanedData called');
+
+      const cleanupResult = await this.analyticsService.cleanupOrphanedAnalyticsData();
+
+      const totalCleaned = Object.values(cleanupResult).reduce((sum, count) => sum + count, 0);
+
+      logger.info('Orphaned data cleanup completed', {
+        totalCleaned,
+        breakdown: cleanupResult
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          totalCleaned,
+          breakdown: cleanupResult
+        },
+        message: totalCleaned > 0 ?
+          `${totalCleaned}개의 고아 데이터가 정리되었습니다.` :
+          '정리할 고아 데이터가 없습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.cleanupOrphanedData error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '고아 데이터 정리 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/data-integrity/status
+   * Get current data integrity status
+   */
+  async getDataIntegrityStatus(req: Request, res: Response): Promise<void> {
+    try {
+      logger.info('AdminShopController.getDataIntegrityStatus called');
+
+      // Get basic integrity report
+      const integrityReport = await this.analyticsService.validateDataIntegrity();
+
+      // Get additional statistics
+      const supabase = getSupabaseClient();
+
+      const [
+        { count: totalShops },
+        { count: totalUsers },
+        { count: totalReservations },
+        { count: totalPayments },
+        { count: totalAnalytics }
+      ] = await Promise.all([
+        supabase.from('shops').select('*', { count: 'exact', head: true }),
+        supabase.from('users').select('*', { count: 'exact', head: true }),
+        supabase.from('reservations').select('*', { count: 'exact', head: true }),
+        supabase.from('payments').select('*', { count: 'exact', head: true }),
+        supabase.from('referral_analytics').select('*', { count: 'exact', head: true })
+      ]);
+
+      const statusReport = {
+        ...integrityReport,
+        statistics: {
+          totalShops: totalShops || 0,
+          totalUsers: totalUsers || 0,
+          totalReservations: totalReservations || 0,
+          totalPayments: totalPayments || 0,
+          totalAnalytics: totalAnalytics || 0
+        },
+        lastChecked: new Date().toISOString()
+      };
+
+      logger.info('Data integrity status retrieved', {
+        isValid: statusReport.isValid,
+        statistics: statusReport.statistics
+      });
+
+      res.status(200).json({
+        success: true,
+        data: statusReport
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.getDataIntegrityStatus error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '데이터 무결성 상태 조회 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });

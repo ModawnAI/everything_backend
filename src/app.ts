@@ -62,6 +62,7 @@ import monitoringDashboardRoutes from './routes/monitoring-dashboard.routes';
 import shutdownRoutes from './routes/shutdown.routes';
 import userSessionsRoutes from './routes/user-sessions.routes';
 import adminSecurityRoutes from './routes/admin-security.routes';
+import adminServiceDetailsRoutes from './routes/admin-service-details.routes';
 import adminSecurityEnhancedRoutes from './routes/admin-security-enhanced.routes';
 import adminSecurityEventsRoutes from './routes/admin-security-events.routes';
 import authAnalyticsRoutes from './routes/auth-analytics.routes';
@@ -357,6 +358,7 @@ app.use('/api/admin/shops', adminShopRoutes); // Includes /:shopId/services sub-
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
+app.use('/api/admin/services', adminServiceDetailsRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
 app.use('/api/storage', storageRoutes);

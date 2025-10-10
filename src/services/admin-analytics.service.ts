@@ -6,6 +6,25 @@ import { ReferralServiceImpl } from './referral.service';
 import { AdminUserManagementService } from './admin-user-management.service';
 import { AdminShopApprovalService } from './admin-shop-approval.service';
 
+// Type definitions for analytics data
+interface ReservationData {
+  id: string;
+  status: string;
+  total_amount: number;
+  created_at: string;
+  completed_at: string | null;
+  cancelled_at: string | null;
+}
+
+interface ServiceData {
+  id: string;
+  name: string;
+  category: string;
+  price_min: number;
+  price_max: number;
+  is_available: boolean;
+}
+
 /**
  * Comprehensive analytics dashboard service for admin oversight
  * 
@@ -226,6 +245,212 @@ export class AdminAnalyticsService {
   // Cache for performance optimization
   private cache = new Map<string, { data: any; expiry: number }>();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
+
+  /**
+   * Validate that a shop exists and is accessible
+   */
+  private async validateShopExists(shopId: string): Promise<boolean> {
+    try {
+      const { data: shop, error } = await this.supabase
+        .from('shops')
+        .select('id')
+        .eq('id', shopId)
+        .single();
+
+      if (error || !shop) {
+        logger.warn(`Shop validation failed for ID: ${shopId}`, { error });
+        return false;
+      }
+      return true;
+    } catch (error) {
+      logger.error('Error validating shop existence:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Validate that a user exists and is accessible
+   */
+  private async validateUserExists(userId: string): Promise<boolean> {
+    try {
+      const { data: user, error } = await this.supabase
+        .from('users')
+        .select('id')
+        .eq('id', userId)
+        .single();
+
+      if (error || !user) {
+        logger.warn(`User validation failed for ID: ${userId}`, { error });
+        return false;
+      }
+      return true;
+    } catch (error) {
+      logger.error('Error validating user existence:', error);
+      return false;
+    }
+  }
+
+  /**
+   * Get analytics data with relationship validation
+   * Ensures all returned data relates to existing shops/users only
+   */
+  private async getValidatedAnalyticsData<T = any>(
+    query: any,
+    entityType: 'shop' | 'user' | 'general',
+    entityId?: string
+  ): Promise<T[] | null> {
+    try {
+      // For specific entity queries, validate existence first
+      if (entityType === 'shop' && entityId) {
+        const shopExists = await this.validateShopExists(entityId);
+        if (!shopExists) {
+          logger.warn(`Analytics requested for non-existent shop: ${entityId}`);
+          return null;
+        }
+      }
+
+      if (entityType === 'user' && entityId) {
+        const userExists = await this.validateUserExists(entityId);
+        if (!userExists) {
+          logger.warn(`Analytics requested for non-existent user: ${entityId}`);
+          return null;
+        }
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        logger.error(`Error fetching ${entityType} analytics:`, error);
+        return null;
+      }
+
+      return data as T[];
+    } catch (error) {
+      logger.error(`Error in validated analytics query for ${entityType}:`, error);
+      return null;
+    }
+  }
+
+  /**
+   * Clean up orphaned analytics data
+   * Removes any analytics records that reference non-existent shops or users
+   */
+  async cleanupOrphanedAnalyticsData(): Promise<{
+    referralAnalytics: number;
+    errorReports: number;
+    shopReports: number;
+    contentReports: number;
+  }> {
+    try {
+      logger.info('Starting orphaned analytics data cleanup');
+
+      // Clean up referral_analytics with orphaned user references
+      const { count: orphanedReferrals } = await this.supabase
+        .from('referral_analytics')
+        .delete()
+        .not('user_id', 'in', `(SELECT id FROM users)`);
+
+      // Clean up error_reports with orphaned references
+      const { count: orphanedErrors } = await this.supabase
+        .from('error_reports')
+        .delete()
+        .or('user_id.not.in.(SELECT id FROM users),shop_id.not.in.(SELECT id FROM shops),reservation_id.not.in.(SELECT id FROM reservations),payment_id.not.in.(SELECT id FROM payments)');
+
+      // Clean up shop_reports with orphaned references
+      const { count: orphanedShopReports } = await this.supabase
+        .from('shop_reports')
+        .delete()
+        .or('reporter_id.not.in.(SELECT id FROM users),shop_id.not.in.(SELECT id FROM shops)');
+
+      // Clean up content_reports with orphaned reporter references
+      const { count: orphanedContentReports } = await this.supabase
+        .from('content_reports')
+        .delete()
+        .not('reporter_id', 'in', `(SELECT id FROM users)`);
+
+      const result = {
+        referralAnalytics: orphanedReferrals || 0,
+        errorReports: orphanedErrors || 0,
+        shopReports: orphanedShopReports || 0,
+        contentReports: orphanedContentReports || 0
+      };
+
+      logger.info('Orphaned analytics data cleanup completed', result);
+      return result;
+
+    } catch (error) {
+      logger.error('Error during orphaned analytics data cleanup:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * Validate data integrity across all analytics tables
+   * Returns a report of any integrity issues found
+   */
+  async validateDataIntegrity(): Promise<{
+    isValid: boolean;
+    issues: Array<{
+      table: string;
+      issue: string;
+      count: number;
+    }>;
+  }> {
+    try {
+      const issues = [];
+
+      // Check for orphaned referral analytics
+      const { count: orphanedReferrals } = await this.supabase
+        .from('referral_analytics')
+        .select('*', { count: 'exact', head: true })
+        .not('user_id', 'in', `(SELECT id FROM users)`);
+
+      if (orphanedReferrals && orphanedReferrals > 0) {
+        issues.push({
+          table: 'referral_analytics',
+          issue: 'Orphaned user references',
+          count: orphanedReferrals
+        });
+      }
+
+      // Check for reservations without valid shops
+      const { count: reservationsWithoutShops } = await this.supabase
+        .from('reservations')
+        .select('*', { count: 'exact', head: true })
+        .not('shop_id', 'in', `(SELECT id FROM shops)`);
+
+      if (reservationsWithoutShops && reservationsWithoutShops > 0) {
+        issues.push({
+          table: 'reservations',
+          issue: 'Invalid shop references',
+          count: reservationsWithoutShops
+        });
+      }
+
+      // Check for payments without valid reservations
+      const { count: paymentsWithoutReservations } = await this.supabase
+        .from('payments')
+        .select('*', { count: 'exact', head: true })
+        .not('reservation_id', 'in', `(SELECT id FROM reservations)`);
+
+      if (paymentsWithoutReservations && paymentsWithoutReservations > 0) {
+        issues.push({
+          table: 'payments',
+          issue: 'Invalid reservation references',
+          count: paymentsWithoutReservations
+        });
+      }
+
+      return {
+        isValid: issues.length === 0,
+        issues
+      };
+
+    } catch (error) {
+      logger.error('Error validating data integrity:', error);
+      throw error;
+    }
+  }
 
   /**
    * Get comprehensive dashboard metrics
@@ -1597,18 +1822,30 @@ export class AdminAnalyticsService {
    * Get shop performance metrics
    */
   private async getShopPerformanceMetrics(shopId: string, startDate: string, endDate: string): Promise<any> {
+    // Validate shop exists first
+    const shopExists = await this.validateShopExists(shopId);
+    if (!shopExists) {
+      logger.warn(`Shop performance metrics requested for non-existent shop: ${shopId}`);
+      return null;
+    }
+
     const supabase = getSupabaseClient();
 
-    // Get reservations data
-    const { data: reservations, error: reservationsError } = await supabase
-      .from('reservations')
-      .select('id, status, total_amount, created_at, completed_at, cancelled_at')
-      .eq('shop_id', shopId)
-      .gte('created_at', startDate)
-      .lte('created_at', endDate);
+    // Get reservations data using validated approach
+    const reservations = await this.getValidatedAnalyticsData<ReservationData>(
+      supabase
+        .from('reservations')
+        .select('id, status, total_amount, created_at, completed_at, cancelled_at')
+        .eq('shop_id', shopId)
+        .gte('created_at', startDate)
+        .lte('created_at', endDate),
+      'shop',
+      shopId
+    );
 
-    if (reservationsError) {
-      logger.error('Error fetching reservations for shop analytics:', reservationsError);
+    if (!reservations) {
+      logger.error('Failed to fetch reservations for shop analytics');
+      return null;
     }
 
     const totalReservations = reservations?.length || 0;
@@ -1616,19 +1853,19 @@ export class AdminAnalyticsService {
     const cancelledReservations = reservations?.filter(r => r.status === 'cancelled').length || 0;
     const noShowReservations = reservations?.filter(r => r.status === 'no_show').length || 0;
     
-    const totalRevenue = reservations?.reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
+    const totalRevenue: number = reservations?.reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
     const averageReservationValue = totalReservations > 0 ? totalRevenue / totalReservations : 0;
     const completionRate = totalReservations > 0 ? (completedReservations / totalReservations) * 100 : 0;
 
-    // Get services data
-    const { data: services, error: servicesError } = await supabase
-      .from('shop_services')
-      .select('id, name, category, price_min, price_max, is_available')
-      .eq('shop_id', shopId);
-
-    if (servicesError) {
-      logger.error('Error fetching services for shop analytics:', servicesError);
-    }
+    // Get services data using validated approach
+    const services = await this.getValidatedAnalyticsData<ServiceData>(
+      supabase
+        .from('shop_services')
+        .select('id, name, category, price_min, price_max, is_available')
+        .eq('shop_id', shopId),
+      'shop',
+      shopId
+    );
 
     return {
       reservations: {
