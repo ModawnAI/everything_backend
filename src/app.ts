@@ -95,6 +95,7 @@ import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
 import adminTicketRoutes from './routes/admin-ticket.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import { testDashboardRoutes } from './routes/test-dashboard.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -334,6 +335,9 @@ app.get('/service-swagger.json', (_req, res) => {
 
 // Apply response standardization middleware AFTER OpenAPI endpoints
 app.use(applyResponseStandardization());
+
+// Test Routes (no authentication required)
+app.use('/api/test/dashboard', testDashboardRoutes);
 
 // API Routes
 app.use('/api/auth', authRoutes);
