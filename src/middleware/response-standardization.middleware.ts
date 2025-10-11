@@ -38,10 +38,8 @@ export function responseStandardizationMiddleware() {
     // Set request ID header in response
     res.setHeader('X-Request-ID', req.headers['x-request-id'] as string);
 
-    // Add CORS headers for API documentation
-    res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-    res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Request-ID');
+    // Note: CORS headers are handled by the cors middleware in app.ts
+    // Do not override them here to maintain proper credentials support
 
     // Apply response formatter middleware
     responseFormatterMiddleware()(req, res, next);

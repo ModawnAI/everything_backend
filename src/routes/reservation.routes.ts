@@ -363,7 +363,7 @@ router.get('/shops/:shopId/available-slots',
  */
 
 router.post('/',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // 20 requests per 15 minutes
   validateRequestBody(createReservationSchema),
   bookingValidationMiddleware.validateBookingRequest,
@@ -494,7 +494,7 @@ router.post('/',
  */
 
 router.get('/',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
   async (req, res) => {
     try {
@@ -560,7 +560,7 @@ router.get('/',
  *         description: Internal server error
  */
 router.get('/:id',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
   async (req, res) => {
     try {
@@ -710,7 +710,7 @@ const cancelReservationSchema = Joi.object({
  */
 
 router.put('/:id/cancel',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // 10 requests per 15 minutes
   validateRequestBody(cancelReservationSchema),
   async (req, res) => {

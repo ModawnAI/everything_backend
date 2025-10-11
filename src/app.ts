@@ -62,6 +62,7 @@ import monitoringDashboardRoutes from './routes/monitoring-dashboard.routes';
 import shutdownRoutes from './routes/shutdown.routes';
 import userSessionsRoutes from './routes/user-sessions.routes';
 import adminSecurityRoutes from './routes/admin-security.routes';
+import adminServiceDetailsRoutes from './routes/admin-service-details.routes';
 import adminSecurityEnhancedRoutes from './routes/admin-security-enhanced.routes';
 import adminSecurityEventsRoutes from './routes/admin-security-events.routes';
 import authAnalyticsRoutes from './routes/auth-analytics.routes';
@@ -94,6 +95,7 @@ import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
 import adminTicketRoutes from './routes/admin-ticket.routes';
 import dashboardRoutes from './routes/dashboard.routes';
+import { testDashboardRoutes } from './routes/test-dashboard.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -334,6 +336,9 @@ app.get('/service-swagger.json', (_req, res) => {
 // Apply response standardization middleware AFTER OpenAPI endpoints
 app.use(applyResponseStandardization());
 
+// Test Routes (no authentication required)
+app.use('/api/test/dashboard', testDashboardRoutes);
+
 // API Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);
@@ -357,6 +362,7 @@ app.use('/api/admin/shops', adminShopRoutes); // Includes /:shopId/services sub-
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
+app.use('/api/admin/services', adminServiceDetailsRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
 app.use('/api/storage', storageRoutes);
@@ -392,7 +398,7 @@ app.use('/api/admin', adminModerationRoutes);
 
 // General /api routes (order matters less since paths are unique)
 app.use('/api', favoritesRoutes);
-app.use('/api', reservationRoutes);
+app.use('/api/reservations', reservationRoutes);
 app.use('/api', reservationReschedulingRoutes);
 app.use('/api', conflictResolutionRoutes);
 app.use('/api', pointBalanceRoutes);
@@ -542,6 +548,35 @@ if (require.main === module) {
   // Handle nodemon restart
   process.once('SIGUSR2', () => {
     gracefulShutdown('SIGUSR2');
+  });
+
+  // Handle uncaught exceptions and unhandled promise rejections
+  process.on('uncaughtException', (error: Error) => {
+    console.error('❌ UNCAUGHT EXCEPTION:', error);
+    logger.error('Uncaught Exception', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+
+    // Don't exit the process in development, just log
+    if (config.server.isProduction) {
+      gracefulShutdown('UNCAUGHT_EXCEPTION');
+    }
+  });
+
+  process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+    console.error('❌ UNHANDLED PROMISE REJECTION:', reason);
+    logger.error('Unhandled Promise Rejection', {
+      reason: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
+
+    // Don't exit the process in development, just log
+    if (config.server.isProduction) {
+      gracefulShutdown('UNHANDLED_REJECTION');
+    }
   });
 
   // Start the server

@@ -364,6 +364,26 @@ router.get(
 );
 
 /**
+ * GET /api/admin/shops/:shopId/analytics
+ * Get shop analytics data (Admin only)
+ *
+ * Query parameters:
+ * - period: Time period for analytics (7d, 30d, 90d) - default: 30d
+ *
+ * Returns:
+ * - Shop information
+ * - Services statistics
+ * - Booking analytics
+ * - Customer metrics
+ * - Performance data
+ */
+router.get(
+  '/:shopId/analytics',
+  adminRateLimit,
+  adminShopController.getShopAnalytics
+);
+
+/**
  * PUT /api/admin/shops/:shopId/approve
  * Approve or reject a shop (Admin only)
  *
@@ -422,6 +442,25 @@ router.delete(
   '/:shopId',
   sensitiveRateLimit,
   adminShopController.deleteShop
+);
+
+// Data integrity management routes
+router.get(
+  '/data-integrity/status',
+  adminRateLimit,
+  adminShopController.getDataIntegrityStatus
+);
+
+router.post(
+  '/data-integrity/validate',
+  adminRateLimit,
+  adminShopController.validateDataIntegrity
+);
+
+router.post(
+  '/data-integrity/cleanup',
+  sensitiveRateLimit, // More restrictive rate limit for cleanup operations
+  adminShopController.cleanupOrphanedData
 );
 
 // Error handling middleware

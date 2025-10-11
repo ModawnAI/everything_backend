@@ -6,10 +6,12 @@
   "env": {
     "NODE_ENV": "development"
   },
-  "delay": "2500",
-  "signal": "SIGTERM",
+  "delay": "1000",
+  "signal": "SIGINT",
   "events": {
-    "restart": "echo 'Restarting server...'",
-    "crash": "echo 'Server crashed, waiting for changes...'"
-  }
-} 
+    "restart": "echo '\n🔄 Server restarting...\n'",
+    "crash": "echo '\n⚠️  Server crashed, waiting for changes...\n'"
+  },
+  "verbose": true,
+  "restartable": "rs"
+}

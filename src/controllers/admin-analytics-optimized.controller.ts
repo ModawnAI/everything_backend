@@ -1,6 +1,7 @@
 import { Response } from 'express';
 import { AuthenticatedRequest } from '../types/auth.types';
 import { AdminAnalyticsOptimizedService } from '../services/admin-analytics-optimized.service';
+import { AdminAnalyticsRealtimeService } from '../services/admin-analytics-realtime.service';
 import { logger } from '../utils/logger';
 
 /**
@@ -11,11 +12,13 @@ import { logger } from '../utils/logger';
  */
 export class AdminAnalyticsOptimizedController {
   private analyticsService = new AdminAnalyticsOptimizedService();
+  private realtimeService = new AdminAnalyticsRealtimeService();
 
   /**
    * GET /api/admin/analytics/dashboard/quick
-   * Get quick dashboard metrics (< 10ms)
+   * Get quick dashboard metrics with real-time fallback
    *
+   * First tries materialized views (< 10ms), falls back to real-time calculation
    * Returns 15 key metrics:
    * - User metrics (total, active, new this month, growth rate)
    * - Revenue metrics (total, today, month, growth rate)
@@ -40,16 +43,43 @@ export class AdminAnalyticsOptimizedController {
         return;
       }
 
-      logger.info('[CONTROLLER] Calling analytics service...', { adminId });
+      logger.info('[CONTROLLER] Getting dashboard metrics...', { adminId });
 
-      const metrics = await this.analyticsService.getQuickDashboardMetrics();
+      let metrics;
+      let usedRealtime = false;
 
-      logger.info('[CONTROLLER] Got metrics, sending response', { metricsKeys: Object.keys(metrics) });
+      try {
+        // First try materialized views
+        metrics = await this.analyticsService.getQuickDashboardMetrics();
+
+        // Check if data looks current (today's data should exist)
+        const now = new Date();
+        const isDataStale = metrics.todayRevenue === 0 && metrics.todayReservations === 0;
+
+        if (isDataStale) {
+          logger.warn('[CONTROLLER] Materialized view data appears stale, using real-time calculation');
+          metrics = await this.realtimeService.getRealTimeDashboardMetrics();
+          usedRealtime = true;
+        }
+      } catch (viewError) {
+        logger.warn('[CONTROLLER] Materialized view failed, using real-time calculation', { viewError });
+        metrics = await this.realtimeService.getRealTimeDashboardMetrics();
+        usedRealtime = true;
+      }
+
+      logger.info('[CONTROLLER] Got metrics', {
+        method: usedRealtime ? 'realtime' : 'materialized_view',
+        todayRevenue: metrics.todayRevenue,
+        todayReservations: metrics.todayReservations
+      });
 
       res.status(200).json({
         success: true,
         message: '빠른 대시보드 메트릭을 성공적으로 조회했습니다.',
-        data: metrics,
+        data: {
+          ...metrics,
+          dataSource: usedRealtime ? 'realtime' : 'materialized_view'
+        },
         timestamp: new Date().toISOString()
       });
 

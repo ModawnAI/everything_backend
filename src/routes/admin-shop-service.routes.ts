@@ -20,10 +20,11 @@ import {
 import Joi from 'joi';
 import { logger } from '../utils/logger';
 
-const router = Router();
+// IMPORTANT: { mergeParams: true } is required to access parent route params like :shopId
+const router = Router({ mergeParams: true });
 
-// Note: shopId is now captured from the mount path /api/admin/shops/:shopId/services
-// It's automatically available in req.params.shopId
+// Note: shopId is captured from the parent mount path /api/admin/shops/:shopId/services
+// With mergeParams: true, it's available in req.params.shopId
 // Authentication and admin authorization are applied by parent router (admin-shop.routes.ts)
 
 // Rate limiting for admin service operations

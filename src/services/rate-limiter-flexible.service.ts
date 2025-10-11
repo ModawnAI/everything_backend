@@ -78,15 +78,26 @@ export class RateLimiterFlexibleService {
         this.fallbackMode = true;
       });
 
-      // Test connection
-      await this.redisClient.ping();
+      // Test connection with timeout to prevent blocking
+      const pingPromise = this.redisClient.ping();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Redis ping timeout')), 2000)
+      );
+
+      await Promise.race([pingPromise, timeoutPromise]);
       this.isConnected = true;
 
     } catch (error) {
-      logger.error('Failed to initialize Redis for rate limiting', {
+      logger.warn('Redis connection failed, using in-memory fallback', {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       this.fallbackMode = true;
+      this.isConnected = false;
+      // Close the failed client
+      if (this.redisClient) {
+        this.redisClient.disconnect();
+        this.redisClient = null;
+      }
     }
   }
 

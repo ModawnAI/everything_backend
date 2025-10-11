@@ -1083,6 +1083,210 @@ export class SocialAuthController {
   }
 
   /**
+   * Process Supabase Auth session from frontend
+   * This endpoint receives authenticated sessions from frontend Supabase client
+   */
+  public processSupabaseSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {
+    const requestId = `session-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    try {
+      const { fcmToken, deviceInfo } = req.body;
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      const userAgent = req.get('User-Agent') || 'unknown';
+      const authHeader = req.get('Authorization');
+
+      logger.info('Processing Supabase session from frontend', {
+        requestId,
+        hasFcmToken: !!fcmToken,
+        hasDeviceInfo: !!deviceInfo,
+        hasAuthHeader: !!authHeader,
+        ipAddress,
+        userAgent
+      });
+
+      // Extract Bearer token from Authorization header
+      if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'MISSING_AUTH_TOKEN',
+            message: 'Authorization header with Bearer token is required',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      const accessToken = authHeader.substring(7); // Remove 'Bearer ' prefix
+
+      // Validate the Supabase session with the access token
+      let supabaseUser;
+      try {
+        const { data: userData, error: userError } = await this.supabase.auth.getUser(accessToken);
+
+        if (userError || !userData.user) {
+          logger.warn('Invalid Supabase access token', {
+            requestId,
+            error: userError?.message,
+            ipAddress
+          });
+
+          res.status(401).json({
+            success: false,
+            error: {
+              code: 'INVALID_ACCESS_TOKEN',
+              message: 'Invalid or expired access token',
+              timestamp: new Date().toISOString()
+            }
+          });
+          return;
+        }
+
+        supabaseUser = userData.user;
+
+      } catch (error) {
+        logger.error('Failed to validate Supabase access token', {
+          requestId,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'TOKEN_VALIDATION_FAILED',
+            message: 'Failed to validate access token',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // Get user profile from our database
+      const { data: userProfile, error: profileError } = await this.supabase
+        .from('users')
+        .select('*')
+        .eq('id', supabaseUser.id)
+        .single();
+
+      if (profileError && profileError.code !== 'PGRST116') { // Not found is OK for new users
+        logger.error('Failed to fetch user profile', {
+          requestId,
+          userId: supabaseUser.id,
+          error: profileError.message
+        });
+      }
+
+      const isNewUser = !userProfile;
+      const profileComplete = !!(
+        userProfile?.name &&
+        userProfile?.email &&
+        userProfile?.phone &&
+        userProfile?.birth_date
+      );
+
+      // Register FCM token if provided
+      if (fcmToken && fcmToken.trim().length > 0) {
+        try {
+          await this.registerFcmToken({
+            userId: supabaseUser.id,
+            token: fcmToken,
+            deviceId: deviceInfo?.deviceId,
+            platform: deviceInfo?.platform,
+            appVersion: deviceInfo?.version,
+            osVersion: deviceInfo?.osVersion
+          });
+
+          logger.info('FCM token registered for Supabase session', {
+            userId: supabaseUser.id,
+            requestId
+          });
+        } catch (error) {
+          // Don't fail the session processing if FCM registration fails
+          logger.warn('Failed to register FCM token', {
+            userId: supabaseUser.id,
+            requestId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Log successful session processing
+      await this.logSocialLoginAudit({
+        user_id: supabaseUser.id,
+        provider: 'supabase',
+        action: 'session_processed',
+        ip_address: ipAddress,
+        user_agent: userAgent,
+        success: true,
+        request_id: requestId
+      });
+
+      // Broadcast login activity to admin monitoring
+      if (websocketService) {
+        websocketService.broadcastUserLogin(
+          supabaseUser.id,
+          supabaseUser.user_metadata?.full_name || userProfile?.name || 'Unknown User',
+          supabaseUser.email || userProfile?.email,
+          ipAddress,
+          userAgent
+        );
+      }
+
+      const duration = Date.now() - startTime;
+      logger.info('Supabase session processed successfully', {
+        userId: supabaseUser.id,
+        isNewUser,
+        profileComplete,
+        duration,
+        requestId
+      });
+
+      // Return user information and status
+      res.status(200).json({
+        success: true,
+        data: {
+          user: {
+            id: supabaseUser.id,
+            email: supabaseUser.email || userProfile?.email,
+            name: supabaseUser.user_metadata?.full_name || userProfile?.name,
+            user_role: userProfile?.user_role || 'user',
+            user_status: userProfile?.user_status || 'active',
+            profile_image_url: supabaseUser.user_metadata?.avatar_url || userProfile?.profile_image_url,
+            phone: userProfile?.phone,
+            birth_date: userProfile?.birth_date,
+            created_at: userProfile?.created_at || supabaseUser.created_at,
+            updated_at: userProfile?.updated_at || supabaseUser.updated_at
+          },
+          isNewUser,
+          profileComplete,
+          sessionValid: true
+        },
+        message: isNewUser ? 'New user session processed' : 'User session processed successfully'
+      });
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      logger.error('Failed to process Supabase session', {
+        requestId,
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'SESSION_PROCESSING_FAILED',
+          message: 'Failed to process session',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  };
+
+  /**
    * Refresh Supabase Auth session
    */
   public refreshSupabaseSession = async (req: Request, res: Response, next: NextFunction): Promise<void> => {

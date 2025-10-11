@@ -802,7 +802,7 @@ export class ReservationService {
   async getUserReservations(
     userId: string,
     filters: {
-      status?: ReservationStatus;
+      status?: ReservationStatus | 'upcoming' | 'past';  // Allow "upcoming" and "past" as application-level filters
       startDate?: string;
       endDate?: string;
       shopId?: string;
@@ -832,12 +832,26 @@ export class ReservationService {
           special_requests,
           created_at,
           updated_at
-        `, { count: 'exact' })
+        `, { count: 'planned' })
         .eq('user_id', userId);
 
       // Apply filters
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        // Map "upcoming" to database statuses (requested or confirmed) with future dates
+        if ((filters.status as string) === 'upcoming') {
+          const today = new Date().toISOString().split('T')[0];
+          query = query
+            .in('status', ['requested', 'confirmed'])
+            .gte('reservation_date', today);
+        }
+        // Map "past" to any reservation with a date before today
+        else if ((filters.status as string) === 'past') {
+          const today = new Date().toISOString().split('T')[0];
+          query = query.lt('reservation_date', today);
+        }
+        else {
+          query = query.eq('status', filters.status as ReservationStatus);
+        }
       }
 
       if (filters.startDate) {
@@ -857,13 +871,41 @@ export class ReservationService {
       const limit = filters.limit || 10;
       const offset = (page - 1) * limit;
 
+      console.log('[SERVICE-DEBUG-0] Query filters applied:', {
+        userId,
+        status: filters.status,
+        shopId: filters.shopId,
+        startDate: filters.startDate,
+        endDate: filters.endDate,
+        page,
+        limit,
+        offset,
+        range: `${offset} to ${offset + limit - 1}`
+      });
+
       query = query.range(offset, offset + limit - 1);
 
+      console.log('[SERVICE-DEBUG-1] Executing Supabase query...');
       const { data: reservations, error, count } = await query;
+      console.log('[SERVICE-DEBUG-2] Query result:', {
+        hasData: !!reservations,
+        dataLength: reservations?.length,
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorDetails: error?.details,
+        errorHint: error?.hint,
+        count
+      });
 
       if (error) {
-        logger.error('Error fetching user reservations', { userId, error: error.message });
-        throw new Error('Failed to fetch reservations');
+        logger.error('Error fetching user reservations', {
+          userId,
+          error: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw new Error(`Failed to fetch reservations: ${error.message}`);
       }
 
       const formattedReservations = reservations?.map(reservation => ({

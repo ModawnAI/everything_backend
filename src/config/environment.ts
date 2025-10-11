@@ -17,6 +17,8 @@ const envSchema = Joi.object({
   SUPABASE_SERVICE_ROLE_KEY: Joi.string().required(),
 
   // Authentication & Security
+  // IMPORTANT: JWT_SECRET must be the Supabase JWT Secret from Dashboard > Settings > API
+  // This is NOT the same as SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY
   JWT_SECRET: Joi.string().min(32).required(),
   JWT_EXPIRES_IN: Joi.string().default('24h'),
   JWT_REFRESH_EXPIRES_IN: Joi.string().default('30d'),
@@ -164,7 +166,7 @@ export const config = {
     jwtExpiresIn: envVars.JWT_EXPIRES_IN as string,
     jwtRefreshExpiresIn: envVars.JWT_REFRESH_EXPIRES_IN as string,
     bcryptSaltRounds: envVars.BCRYPT_SALT_ROUNDS as number,
-    issuer: envVars.SUPABASE_URL as string || 'supabase',
+    issuer: `${envVars.SUPABASE_URL}/auth/v1`,
     audience: 'authenticated',
   },
 
