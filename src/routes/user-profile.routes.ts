@@ -33,7 +33,7 @@ const upload = multer({
 });
 
 // Apply authentication middleware to all routes
-router.use(authenticateJWT);
+router.use(authenticateJWT());
 
 /**
  * @swagger

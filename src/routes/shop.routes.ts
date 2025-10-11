@@ -21,7 +21,7 @@
 
 import { Router } from 'express';
 import { ShopController } from '../controllers/shop.controller';
-import { validateRequestBody, validateRequestWithSchema } from '../middleware/validation.middleware';
+import { validateRequestBody, validateRequestWithSchema, validateQueryParams } from '../middleware/validation.middleware';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { logger } from '../utils/logger';
@@ -149,16 +149,21 @@ const updateShopSchema = Joi.object({
 });
 
 const nearbyShopsSchema = Joi.object({
-  latitude: Joi.string().required().messages({
-    'string.empty': '위도는 필수입니다.',
+  latitude: Joi.number().min(-90).max(90).required().messages({
+    'number.base': '위도는 숫자여야 합니다.',
+    'number.min': '위도는 -90~90 범위 내에서 입력해주세요.',
+    'number.max': '위도는 -90~90 범위 내에서 입력해주세요.',
     'any.required': '위도는 필수입니다.'
   }),
-  longitude: Joi.string().required().messages({
-    'string.empty': '경도는 필수입니다.',
+  longitude: Joi.number().min(-180).max(180).required().messages({
+    'number.base': '경도는 숫자여야 합니다.',
+    'number.min': '경도는 -180~180 범위 내에서 입력해주세요.',
+    'number.max': '경도는 -180~180 범위 내에서 입력해주세요.',
     'any.required': '경도는 필수입니다.'
   }),
-  radius: Joi.string().pattern(/^\d+(\.\d+)?$/).optional().messages({
-    'string.pattern.base': '반경은 숫자로 입력해주세요.'
+  radius: Joi.number().positive().optional().messages({
+    'number.base': '반경은 숫자여야 합니다.',
+    'number.positive': '반경은 양수여야 합니다.'
   }),
   category: Joi.string().valid(
     'nail', 'hair', 'makeup', 'skincare', 'massage', 'tattoo', 'piercing', 'eyebrow', 'eyelash'
@@ -168,32 +173,45 @@ const nearbyShopsSchema = Joi.object({
   shopType: Joi.string().valid('partnered', 'non_partnered').optional().messages({
     'any.only': '유효하지 않은 샵 타입입니다.'
   }),
-  onlyFeatured: Joi.string().valid('true', 'false').optional().messages({
-    'any.only': 'onlyFeatured는 true 또는 false여야 합니다.'
+  onlyFeatured: Joi.boolean().optional().messages({
+    'boolean.base': 'onlyFeatured는 true 또는 false여야 합니다.'
   }),
-  limit: Joi.string().pattern(/^\d+$/).optional().messages({
-    'string.pattern.base': 'limit은 숫자로 입력해주세요.'
+  limit: Joi.number().integer().positive().max(100).optional().messages({
+    'number.base': 'limit은 숫자여야 합니다.',
+    'number.integer': 'limit은 정수여야 합니다.',
+    'number.positive': 'limit은 양수여야 합니다.',
+    'number.max': 'limit은 최대 100까지 가능합니다.'
   }),
-  offset: Joi.string().pattern(/^\d+$/).optional().messages({
-    'string.pattern.base': 'offset은 숫자로 입력해주세요.'
+  offset: Joi.number().integer().min(0).optional().messages({
+    'number.base': 'offset은 숫자여야 합니다.',
+    'number.integer': 'offset은 정수여야 합니다.',
+    'number.min': 'offset은 0 이상이어야 합니다.'
   })
 });
 
 const boundsShopsSchema = Joi.object({
-  neLat: Joi.string().required().messages({
-    'string.empty': '북동쪽 위도는 필수입니다.',
+  neLat: Joi.number().min(-90).max(90).required().messages({
+    'number.base': '북동쪽 위도는 숫자여야 합니다.',
+    'number.min': '북동쪽 위도는 -90~90 범위 내에서 입력해주세요.',
+    'number.max': '북동쪽 위도는 -90~90 범위 내에서 입력해주세요.',
     'any.required': '북동쪽 위도는 필수입니다.'
   }),
-  neLng: Joi.string().required().messages({
-    'string.empty': '북동쪽 경도는 필수입니다.',
+  neLng: Joi.number().min(-180).max(180).required().messages({
+    'number.base': '북동쪽 경도는 숫자여야 합니다.',
+    'number.min': '북동쪽 경도는 -180~180 범위 내에서 입력해주세요.',
+    'number.max': '북동쪽 경도는 -180~180 범위 내에서 입력해주세요.',
     'any.required': '북동쪽 경도는 필수입니다.'
   }),
-  swLat: Joi.string().required().messages({
-    'string.empty': '남서쪽 위도는 필수입니다.',
+  swLat: Joi.number().min(-90).max(90).required().messages({
+    'number.base': '남서쪽 위도는 숫자여야 합니다.',
+    'number.min': '남서쪽 위도는 -90~90 범위 내에서 입력해주세요.',
+    'number.max': '남서쪽 위도는 -90~90 범위 내에서 입력해주세요.',
     'any.required': '남서쪽 위도는 필수입니다.'
   }),
-  swLng: Joi.string().required().messages({
-    'string.empty': '남서쪽 경도는 필수입니다.',
+  swLng: Joi.number().min(-180).max(180).required().messages({
+    'number.base': '남서쪽 경도는 숫자여야 합니다.',
+    'number.min': '남서쪽 경도는 -180~180 범위 내에서 입력해주세요.',
+    'number.max': '남서쪽 경도는 -180~180 범위 내에서 입력해주세요.',
     'any.required': '남서쪽 경도는 필수입니다.'
   }),
   category: Joi.string().valid(
@@ -204,8 +222,8 @@ const boundsShopsSchema = Joi.object({
   shopType: Joi.string().valid('partnered', 'non_partnered').optional().messages({
     'any.only': '유효하지 않은 샵 타입입니다.'
   }),
-  onlyFeatured: Joi.string().valid('true', 'false').optional().messages({
-    'any.only': 'onlyFeatured는 true 또는 false여야 합니다.'
+  onlyFeatured: Joi.boolean().optional().messages({
+    'boolean.base': 'onlyFeatured는 true 또는 false여야 합니다.'
   })
 });
 
@@ -484,7 +502,7 @@ router.get('/',
  */
 router.get('/nearby',
   searchRateLimit,
-  validateRequestBody(nearbyShopsSchema),
+  validateQueryParams(nearbyShopsSchema),
   async (req, res) => {
     try {
       await shopController.getNearbyShops(req, res);
@@ -547,7 +565,7 @@ router.get('/nearby',
  */
 router.get('/bounds',
   searchRateLimit,
-  validateRequestBody(boundsShopsSchema),
+  validateQueryParams(boundsShopsSchema),
   async (req, res) => {
     try {
       await shopController.getShopsInBounds(req, res);

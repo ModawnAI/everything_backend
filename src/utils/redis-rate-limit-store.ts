@@ -34,6 +34,7 @@ export class RedisRateLimitStore implements RateLimitStore {
   private client: Redis | null = null;
   private isConnected = false;
   private connectionPromise: Promise<void> | null = null;
+  private connectionFailed = false;
   private readonly config: RedisRateLimitConfig;
   private mockStore: Map<string, RateLimitData> = new Map();
 
@@ -102,7 +103,13 @@ export class RedisRateLimitStore implements RateLimitStore {
         this.isConnected = false;
       });
 
-      await this.client.connect();
+      // Connect with timeout to prevent blocking
+      const connectPromise = this.client.connect();
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Redis connection timeout')), 2000)
+      );
+
+      await Promise.race([connectPromise, timeoutPromise]);
       this.isConnected = true;
 
       logger.info('Redis rate limit store initialized', {
@@ -114,9 +121,14 @@ export class RedisRateLimitStore implements RateLimitStore {
     } catch (error) {
       this.isConnected = false;
       this.connectionPromise = null;
+      this.connectionFailed = true;
       const message = error instanceof Error ? error.message : 'Unknown error';
-      logger.error('Failed to connect to Redis rate limit store', { error: message });
-      throw new RateLimitStoreError('Redis connection failed', error as Error);
+      logger.warn('Failed to connect to Redis rate limit store, using in-memory fallback', { error: message });
+      // Don't throw error - gracefully fallback to in-memory store
+      if (this.client) {
+        this.client.disconnect();
+        this.client = null;
+      }
     }
   }
 
@@ -124,14 +136,19 @@ export class RedisRateLimitStore implements RateLimitStore {
    * Ensure Redis connection is established
    */
   private async ensureConnection(): Promise<Redis> {
+    // If connection previously failed or Redis is disabled, don't retry
+    if (this.connectionFailed || !config.redis.enabled) {
+      throw new RateLimitStoreError('Redis client not available');
+    }
+
     if (!this.client || !this.isConnected) {
       await this.connect();
     }
-    
+
     if (!this.client) {
       throw new RateLimitStoreError('Redis client not available');
     }
-    
+
     return this.client;
   }
 

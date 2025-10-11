@@ -102,6 +102,77 @@ export class UserNotFoundError extends AuthenticationError {
 }
 
 /**
+ * Extract JWT token from Supabase auth cookie
+ * Fallback for when frontend doesn't send Authorization header
+ * Handles multi-part cookies (sb-{project}-auth-token.0, .1, .2, etc.)
+ */
+function extractTokenFromSupabaseCookie(cookieHeader: string): string | null {
+  try {
+    // Supabase may split auth token across multiple cookies if it's too large
+    // Format: sb-{project-ref}-auth-token.0=base64-{part1}; sb-{project-ref}-auth-token.1={part2}; ...
+
+    // Find the project reference from the first cookie part
+    const projectMatch = cookieHeader.match(/sb-([a-z0-9]+)-auth-token\.0=/);
+    if (!projectMatch) {
+      console.log('[COOKIE-DEBUG] No Supabase auth token found in cookie');
+      return null;
+    }
+
+    const projectRef = projectMatch[1];
+    console.log('[COOKIE-DEBUG] Found Supabase project:', projectRef);
+
+    // Collect all cookie parts in order (.0, .1, .2, etc.)
+    const cookieParts: string[] = [];
+    let partIndex = 0;
+
+    while (true) {
+      const partPattern = new RegExp(`sb-${projectRef}-auth-token\\.${partIndex}=([^;]+)`);
+      const partMatch = cookieHeader.match(partPattern);
+
+      if (!partMatch) {
+        break; // No more parts
+      }
+
+      // Remove "base64-" prefix from first part if present
+      let partValue = partMatch[1];
+      if (partIndex === 0 && partValue.startsWith('base64-')) {
+        partValue = partValue.substring(7); // Remove "base64-" prefix
+      }
+
+      cookieParts.push(partValue);
+      partIndex++;
+    }
+
+    if (cookieParts.length === 0) {
+      console.log('[COOKIE-DEBUG] No cookie parts found');
+      return null;
+    }
+
+    console.log(`[COOKIE-DEBUG] Found ${cookieParts.length} cookie parts`);
+
+    // Combine all parts
+    const encodedToken = cookieParts.join('');
+
+    // Decode the base64 to get the JSON string
+    const decodedString = Buffer.from(encodedToken, 'base64').toString('utf-8');
+
+    // Parse the JSON to extract access_token
+    const authData = JSON.parse(decodedString);
+
+    if (authData.access_token) {
+      console.log('[COOKIE-DEBUG] Successfully extracted token from cookie');
+      return authData.access_token;
+    }
+
+    console.log('[COOKIE-DEBUG] No access_token found in parsed cookie data');
+    return null;
+  } catch (error) {
+    console.log('[COOKIE-DEBUG] Error extracting token from cookie:', error instanceof Error ? error.message : 'Unknown error');
+    return null;
+  }
+}
+
+/**
  * Extract JWT token from Authorization header
  */
 export function extractTokenFromHeader(authHeader?: string): string | null {
@@ -130,20 +201,38 @@ export function extractTokenFromHeader(authHeader?: string): string | null {
 export async function verifySupabaseToken(token: string): Promise<SupabaseJWTPayload> {
   try {
     const supabase = getSupabaseClient();
-    
-    // Use Supabase's built-in token verification
-    const { data: { user }, error } = await supabase.auth.getUser(token);
-    
+
+    logger.info('[verifySupabaseToken] Starting Supabase token verification');
+
+    // Use Supabase's built-in token verification with timeout
+    const verificationPromise = supabase.auth.getUser(token);
+
+    // Add 5 second timeout to prevent hanging
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Supabase token verification timeout')), 5000)
+    );
+
+    const { data: { user }, error } = await Promise.race([
+      verificationPromise,
+      timeoutPromise
+    ]) as any;
+
+    logger.info('[verifySupabaseToken] Verification completed', {
+      success: !error,
+      hasUser: !!user,
+      error: error?.message
+    });
+
     if (error) {
       logger.error('Supabase token verification failed', { error: error.message });
-      
+
       if (error.message.includes('expired')) {
         throw new TokenExpiredError('Token has expired');
       }
-      
+
       throw new InvalidTokenError(`Invalid token: ${error.message}`);
     }
-    
+
     if (!user) {
       throw new InvalidTokenError('No user found for token');
     }
@@ -170,18 +259,22 @@ export async function verifySupabaseToken(token: string): Promise<SupabaseJWTPay
     if (error instanceof AuthenticationError) {
       throw error;
     }
-    
+
     logger.error('Token verification failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined
     });
-    
+
     throw new InvalidTokenError('Token verification failed');
   }
 }
 
 /**
  * Fallback JWT verification using local secret (for backward compatibility)
+ *
+ * IMPORTANT: JWT_SECRET in .env must be the Supabase JWT Secret
+ * You can find it in Supabase Dashboard > Settings > API > JWT Secret
+ * This is NOT the same as SUPABASE_ANON_KEY or SUPABASE_SERVICE_ROLE_KEY
  */
 export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJWTPayload> {
   try {
@@ -193,11 +286,18 @@ export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJ
       throw new InvalidTokenError('JWT secret not configured');
     }
 
+    logger.debug('[verifySupabaseTokenLocal] Attempting local JWT verification', {
+      issuer: config.auth.issuer,
+      audience: config.auth.audience
+    });
+
     // Verify and decode the token
     const decoded = jwt.verify(token, jwtSecret, {
       issuer: config.auth.issuer,
       audience: config.auth.audience,
     }) as SupabaseJWTPayload;
+
+    logger.debug('[verifySupabaseTokenLocal] Local JWT verification successful');
 
     // Validate required fields
     if (!decoded.sub) {
@@ -213,23 +313,29 @@ export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJ
     // Check error name for JWT library errors
     if (error instanceof Error) {
       if (error.name === 'TokenExpiredError') {
+        logger.debug('[verifySupabaseTokenLocal] Token expired');
         throw new TokenExpiredError('Token has expired');
       }
-      
+
       if (error.name === 'JsonWebTokenError') {
+        logger.debug('[verifySupabaseTokenLocal] Invalid JWT', {
+          message: error.message,
+          hint: 'Ensure JWT_SECRET in .env matches Supabase JWT Secret from Dashboard'
+        });
         throw new InvalidTokenError(`Invalid token: ${error.message}`);
       }
     }
-    
+
     if (error instanceof AuthenticationError) {
       throw error;
     }
-    
-    logger.error('Local token verification failed', {
+
+    logger.error('[verifySupabaseTokenLocal] Local token verification failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
-      stack: error instanceof Error ? error.stack : undefined
+      stack: error instanceof Error ? error.stack : undefined,
+      hint: 'Check if JWT_SECRET in .env matches Supabase Dashboard > Settings > API > JWT Secret'
     });
-    
+
     throw new InvalidTokenError('Token verification failed');
   }
 }
@@ -398,8 +504,8 @@ export async function validateAndTrackSession(
   const now = new Date();
 
   try {
-    // Check if we have an active session for this token
-    const { data: existingSession, error: sessionError } = await supabase
+    // Check if we have an active session for this token with timeout
+    const sessionQueryPromise = supabase
       .from('refresh_tokens')
       .select('*')
       .eq('user_id', userId)
@@ -409,6 +515,16 @@ export async function validateAndTrackSession(
       .order('last_activity', { ascending: false })
       .limit(1)
       .single();
+
+    // Add 5 second timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Session query timeout')), 5000)
+    );
+
+    const { data: existingSession, error: sessionError } = await Promise.race([
+      sessionQueryPromise,
+      timeoutPromise
+    ]) as any;
 
     let sessionId: string;
     let deviceId: string;
@@ -455,14 +571,26 @@ export async function validateAndTrackSession(
       sessionId = existingSession.id;
       deviceId = existingSession.device_id;
 
-      // Update session activity
-      await supabase
+      // Update session activity with timeout
+      const updatePromise = supabase
         .from('refresh_tokens')
         .update({
           last_activity: now.toISOString(),
           updated_at: now.toISOString()
         })
         .eq('id', sessionId);
+
+      const updateTimeoutPromise = new Promise((_, reject) =>
+        setTimeout(() => reject(new Error('Session update timeout')), 5000)
+      );
+
+      // Fire and forget - don't wait for session update to complete
+      Promise.race([updatePromise, updateTimeoutPromise]).catch(error => {
+        logger.warn('Session update failed or timed out', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          sessionId
+        });
+      });
     }
 
     return {
@@ -530,9 +658,11 @@ export async function validateTokenExpiration(tokenPayload: SupabaseJWTPayload):
 export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promise<any> {
   try {
     const supabase = getSupabaseClient();
-    
-    // Query user data from our users table
-    const { data: userData, error } = await supabase
+
+    logger.info('[getUserFromToken] Querying user from database', { userId: tokenPayload.sub });
+
+    // Query user data from our users table with timeout
+    const queryPromise = supabase
       .from('users')
       .select(`
         id,
@@ -547,6 +677,19 @@ export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promis
       `)
       .eq('id', tokenPayload.sub)
       .single();
+
+    // Add 5 second timeout to prevent hanging
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('Database query timeout')), 5000)
+    );
+
+    const { data: userData, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+
+    logger.info('[getUserFromToken] Query completed', {
+      success: !error,
+      hasData: !!userData,
+      error: error?.message
+    });
 
     if (error || !userData) {
       logger.error('User not found in database', {
@@ -585,29 +728,48 @@ export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promis
  */
 export function authenticateJWT() {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    console.log('[AUTH-DEBUG-1] authenticateJWT middleware started', {
+      path: req.path,
+      method: req.method,
+      hasAuthHeader: !!req.headers.authorization,
+      fullUrl: req.originalUrl,
+      origin: req.headers.origin,
+      referer: req.headers.referer
+    });
+
+    console.log('[AUTH-DEBUG-1.5] ALL REQUEST HEADERS:', JSON.stringify(req.headers, null, 2));
 
     try {
-      // Extract token from Authorization header
+      // Extract token from Authorization header OR Supabase cookie
       const authHeader = req.headers.authorization;
+      console.log('[AUTH-DEBUG-2] Extracting token from header');
 
-      const token = extractTokenFromHeader(authHeader);
+      let token = extractTokenFromHeader(authHeader);
+      console.log('[AUTH-DEBUG-3] Token extracted from header:', token ? 'yes' : 'no');
+
+      // FALLBACK: Try extracting from Supabase cookie if header is missing
+      if (!token && req.headers.cookie) {
+        console.log('[AUTH-DEBUG-3.1] No header token, trying cookie extraction');
+        token = extractTokenFromSupabaseCookie(req.headers.cookie);
+        console.log('[AUTH-DEBUG-3.2] Token extracted from cookie:', token ? 'yes' : 'no');
+      }
 
       if (!token) {
         throw new AuthenticationError('Missing authorization token', 401, 'MISSING_TOKEN');
       }
 
 
-      // Verify the JWT token with local verification (server-side)
-      // NOTE: Using local verification to avoid Supabase client hanging in server environments
-      let tokenPayload: SupabaseJWTPayload;
-      try {
-        tokenPayload = await verifySupabaseTokenLocal(token);
-      } catch (localError) {
-        tokenPayload = await verifySupabaseToken(token);
-      }
+      // Verify the JWT token using Supabase's official method (recommended approach)
+      // This uses Supabase's auth.getUser() which handles all token verification including
+      // new JWT signing keys and legacy tokens
+      console.log('[AUTH-DEBUG-4] Starting Supabase token verification');
+      const tokenPayload: SupabaseJWTPayload = await verifySupabaseToken(token);
+      console.log('[AUTH-DEBUG-5] Token verified via Supabase API');
 
       // Enhanced token validation with expiration checks
+      console.log('[AUTH-DEBUG-8] Validating token expiration');
       await validateTokenExpiration(tokenPayload);
+      console.log('[AUTH-DEBUG-9] Token expiration validated');
 
       // Performance optimization: Skip expensive database lookup for analytics endpoints
       // The JWT token is already cryptographically verified, so we can trust its contents
@@ -640,13 +802,17 @@ export function authenticateJWT() {
           isNewDevice: false
         };
       } else {
+        console.log('[AUTH-DEBUG-10] Fetching user from database');
         logger.info('[AUTH] Fetching user from database');
         // Get user data from database for non-analytics endpoints
         userData = await getUserFromToken(tokenPayload);
+        console.log('[AUTH-DEBUG-11] User data retrieved');
         logger.info('[AUTH] User data retrieved successfully');
 
         // Validate and track session with device fingerprinting
+        console.log('[AUTH-DEBUG-12] Validating and tracking session');
         sessionInfo = await validateAndTrackSession(userData.id, token, req);
+        console.log('[AUTH-DEBUG-13] Session validated');
       }
 
 
@@ -694,7 +860,9 @@ export function authenticateJWT() {
         isNewDevice: sessionInfo.isNewDevice
       };
 
+      console.log('[AUTH-DEBUG-14] Calling next()');
       next();
+      console.log('[AUTH-DEBUG-15] next() called successfully');
     } catch (error) {
       if (error instanceof AuthenticationError) {
         // Log authentication failure for security monitoring

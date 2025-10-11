@@ -353,10 +353,9 @@ export class FavoritesService {
           break;
       }
 
-      // Apply pagination
-      query = query.range(offset, offset + limit - 1);
-
-      const { data: favorites, error, count } = await query;
+      // Apply pagination - using count: 'planned' for performance
+      const { data: favorites, error, count } = await query
+        .range(offset, offset + limit - 1);
 
       if (error) {
         logger.error('FavoritesService.getUserFavorites: Database error', { userId, error });
@@ -372,21 +371,21 @@ export class FavoritesService {
         id: fav.id,
         shopId: fav.shop_id,
         shop: {
-          id: fav.shops[0]?.id,
-          name: fav.shops[0]?.name,
-          description: fav.shops[0]?.description || '',
-          address: fav.shops[0]?.address,
-          mainCategory: fav.shops[0]?.main_category,
-          shopStatus: fav.shops[0]?.shop_status,
-          shopType: fav.shops[0]?.shop_type,
-          latitude: fav.shops[0]?.latitude || 0,
-          longitude: fav.shops[0]?.longitude || 0,
-          totalBookings: fav.shops[0]?.total_bookings || 0,
-          isFeatured: fav.shops[0]?.is_featured || false,
-          featuredUntil: fav.shops[0]?.featured_until,
-          commissionRate: fav.shops[0]?.commission_rate || 0,
-          createdAt: fav.shops[0]?.created_at,
-          updatedAt: fav.shops[0]?.updated_at
+          id: fav.shops?.[0]?.id,
+          name: fav.shops?.[0]?.name,
+          description: fav.shops?.[0]?.description || '',
+          address: fav.shops?.[0]?.address,
+          mainCategory: fav.shops?.[0]?.main_category,
+          shopStatus: fav.shops?.[0]?.shop_status,
+          shopType: fav.shops?.[0]?.shop_type,
+          latitude: fav.shops?.[0]?.latitude || 0,
+          longitude: fav.shops?.[0]?.longitude || 0,
+          totalBookings: fav.shops?.[0]?.total_bookings || 0,
+          isFeatured: fav.shops?.[0]?.is_featured || false,
+          featuredUntil: fav.shops?.[0]?.featured_until,
+          commissionRate: fav.shops?.[0]?.commission_rate || 0,
+          createdAt: fav.shops?.[0]?.created_at,
+          updatedAt: fav.shops?.[0]?.updated_at
         },
         addedAt: fav.created_at
       })) || [];

@@ -9,7 +9,11 @@
   },
   "scripts": {
     "dev": "nodemon",
+    "dev:redis": "node scripts/start-redis.js && nodemon",
     "dev:clean": "node scripts/kill-port.js 3001 && nodemon",
+    "redis:start": "node scripts/start-redis.js",
+    "redis:stop": "taskkill /F /IM redis-server.exe 2>nul || echo Redis not running",
+    "redis:status": "netstat -ano | findstr :6379 || echo Redis not running on port 6379",
     "kill-port": "node scripts/kill-port.js",
     "build": "tsc",
     "dev-build": "tsc --skipLibCheck --noEmitOnError false",
