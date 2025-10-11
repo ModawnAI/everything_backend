@@ -398,7 +398,7 @@ app.use('/api/admin', adminModerationRoutes);
 
 // General /api routes (order matters less since paths are unique)
 app.use('/api', favoritesRoutes);
-app.use('/api', reservationRoutes);
+app.use('/api/reservations', reservationRoutes);
 app.use('/api', reservationReschedulingRoutes);
 app.use('/api', conflictResolutionRoutes);
 app.use('/api', pointBalanceRoutes);
@@ -548,6 +548,35 @@ if (require.main === module) {
   // Handle nodemon restart
   process.once('SIGUSR2', () => {
     gracefulShutdown('SIGUSR2');
+  });
+
+  // Handle uncaught exceptions and unhandled promise rejections
+  process.on('uncaughtException', (error: Error) => {
+    console.error('❌ UNCAUGHT EXCEPTION:', error);
+    logger.error('Uncaught Exception', {
+      error: error.message,
+      stack: error.stack,
+      timestamp: new Date().toISOString()
+    });
+
+    // Don't exit the process in development, just log
+    if (config.server.isProduction) {
+      gracefulShutdown('UNCAUGHT_EXCEPTION');
+    }
+  });
+
+  process.on('unhandledRejection', (reason: any, promise: Promise<any>) => {
+    console.error('❌ UNHANDLED PROMISE REJECTION:', reason);
+    logger.error('Unhandled Promise Rejection', {
+      reason: reason instanceof Error ? reason.message : String(reason),
+      stack: reason instanceof Error ? reason.stack : undefined,
+      timestamp: new Date().toISOString()
+    });
+
+    // Don't exit the process in development, just log
+    if (config.server.isProduction) {
+      gracefulShutdown('UNHANDLED_REJECTION');
+    }
   });
 
   // Start the server
