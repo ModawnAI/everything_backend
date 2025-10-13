@@ -20,6 +20,7 @@ export interface AuthenticatedRequest extends Request {
     id: string;
     email?: string;
     role: string;
+    user_role?: string;  // Alias for role (for compatibility)
     status: string;
     aud: string;
     exp: number;
@@ -31,6 +32,8 @@ export interface AuthenticatedRequest extends Request {
     last_sign_in_at?: string;
     user_metadata?: Record<string, any>;
     app_metadata?: Record<string, any>;
+    shopId?: string;  // For dashboard toggle feature (camelCase for API response)
+    shop_id?: string;  // Database field name (snake_case)
   };
   token?: string;
   session?: {
@@ -57,6 +60,7 @@ interface SupabaseJWTPayload {
   };
   user_metadata?: Record<string, any>;
   role?: string;
+  shopId?: string;  // For shop access validation and dashboard toggle
   aal?: string;
   amr?: Array<{
     method: string;
@@ -762,9 +766,22 @@ export function authenticateJWT() {
       // Verify the JWT token using Supabase's official method (recommended approach)
       // This uses Supabase's auth.getUser() which handles all token verification including
       // new JWT signing keys and legacy tokens
+      // FALLBACK: If Supabase verification fails, try local JWT verification for admin tokens
       console.log('[AUTH-DEBUG-4] Starting Supabase token verification');
-      const tokenPayload: SupabaseJWTPayload = await verifySupabaseToken(token);
-      console.log('[AUTH-DEBUG-5] Token verified via Supabase API');
+      let tokenPayload: SupabaseJWTPayload;
+      try {
+        tokenPayload = await verifySupabaseToken(token);
+        console.log('[AUTH-DEBUG-5] Token verified via Supabase API');
+      } catch (supabaseError) {
+        console.log('[AUTH-DEBUG-5.1] Supabase verification failed, trying local verification');
+        logger.info('Supabase token verification failed, attempting local verification', {
+          error: supabaseError instanceof Error ? supabaseError.message : 'Unknown'
+        });
+
+        // Fallback to local JWT verification for admin tokens
+        tokenPayload = await verifySupabaseTokenLocal(token);
+        console.log('[AUTH-DEBUG-5.2] Token verified via local JWT verification');
+      }
 
       // Enhanced token validation with expiration checks
       console.log('[AUTH-DEBUG-8] Validating token expiration');
@@ -838,6 +855,7 @@ export function authenticateJWT() {
         id: userData.id,
         email: userData.email,
         role: userData.user_role,
+        user_role: userData.user_role,  // Alias for compatibility
         status: userData.user_status,
         aud: tokenPayload.aud,
         exp: tokenPayload.exp,
@@ -849,6 +867,9 @@ export function authenticateJWT() {
         ...(tokenPayload.last_sign_in_at && { last_sign_in_at: tokenPayload.last_sign_in_at }),
         ...(tokenPayload.user_metadata && { user_metadata: tokenPayload.user_metadata }),
         ...(tokenPayload.app_metadata && { app_metadata: tokenPayload.app_metadata }),
+        // Shop fields from JWT token payload for dashboard toggle and access validation
+        ...(tokenPayload.shopId && { shopId: tokenPayload.shopId }),
+        ...(tokenPayload.shopId && { shop_id: tokenPayload.shopId }),
       };
 
       req.token = token;

@@ -39,6 +39,8 @@ export interface AdminAuthResponse {
     name: string;
     role: string;
     permissions: string[];
+    shopId?: string;  // Optional - for platform admins who own a shop
+    shopName?: string;  // Optional - shop display name for UI
   };
   session: {
     token: string;
@@ -268,7 +270,10 @@ export class AdminAuthService {
           email: admin.email,
           name: admin.name,
           role: admin.user_role,
-          permissions: await this.getAdminPermissions(admin.id)
+          permissions: await this.getAdminPermissions(admin.id),
+          // Include shopId and shopName for dashboard toggle feature
+          shopId: admin.shop_id || undefined,
+          shopName: admin.shop_name || undefined
         },
         session: {
           token: session.token,
@@ -442,11 +447,20 @@ export class AdminAuthService {
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours for admin
     const refreshExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
 
-    // Generate tokens with proper JWT claims
+    // Get admin user data for JWT claims
+    const { data: admin } = await this.supabase
+      .from('users')
+      .select('user_role, shop_id')
+      .eq('id', adminId)
+      .single();
+
+    // Generate tokens with proper JWT claims including shopId
     const token = jwt.sign(
       {
         sub: adminId,  // Standard JWT subject claim
         adminId,
+        role: admin?.user_role,
+        shopId: admin?.shop_id || undefined,  // Include shopId for shop access validation
         type: 'admin_access',
         ipAddress: request.ipAddress,
         deviceId: request.deviceId,
@@ -764,7 +778,9 @@ export class AdminAuthService {
           email: admin.email,
           name: admin.name,
           role: admin.user_role,
-          permissions: await this.getAdminPermissions(admin.id)
+          permissions: await this.getAdminPermissions(admin.id),
+          shopId: admin.shop_id || undefined,
+          shopName: admin.shop_name || undefined
         },
         session: {
           token: newSession.token,

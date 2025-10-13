@@ -1,12 +1,16 @@
 /**
  * API Response Formatter
- * 
+ *
  * Standardizes all API responses across the application with consistent structure,
  * error handling, and metadata support for the 에뷰리띵 Beauty Service Platform
+ *
+ * IMPORTANT: This formatter automatically transforms all response data from snake_case
+ * to camelCase for frontend compatibility while maintaining database conventions.
  */
 
 import { Response } from 'express';
 import { logger } from './logger';
+import { transformKeysToCamel } from './case-transformer';
 
 // =============================================
 // RESPONSE INTERFACES
@@ -80,6 +84,7 @@ export class ResponseFormatter {
 
   /**
    * Send successful response
+   * Automatically transforms data from snake_case to camelCase
    */
   success<T>(
     res: Response,
@@ -90,14 +95,17 @@ export class ResponseFormatter {
   ): void {
     const requestId = res.locals.requestId || res.get('x-request-id');
     const startTime = res.locals.startTime;
-    
+
+    // Transform data from snake_case to camelCase for frontend
+    const transformedData = data !== undefined ? transformKeysToCamel(data) : undefined;
+
     const response: StandardResponse<T> = {
       success: true,
       timestamp: new Date().toISOString(),
-      ...(data !== undefined && { data }),
+      ...(transformedData !== undefined && { data: transformedData }),
       ...(message && { message }),
       ...(requestId && { requestId }),
-      ...(meta && { 
+      ...(meta && {
         meta: {
           ...meta,
           ...(startTime && { executionTime: Date.now() - startTime }),

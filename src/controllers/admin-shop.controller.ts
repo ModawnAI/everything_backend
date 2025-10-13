@@ -255,7 +255,9 @@ export class AdminShopController {
 
       res.status(200).json({
         success: true,
-        data: shop
+        data: {
+          shop: shop
+        }
       });
 
     } catch (error: any) {

@@ -96,6 +96,9 @@ import adminProductRoutes from './routes/admin-product.routes';
 import adminTicketRoutes from './routes/admin-ticket.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import { testDashboardRoutes } from './routes/test-dashboard.routes';
+import shopReservationsRoutes from './routes/shop-reservations.routes';
+import shopPaymentsRoutes from './routes/shop-payments.routes';
+import shopAnalyticsRoutes from './routes/shop-analytics.routes';
 
 // Import barrel exports (will be populated as we build the application)
 import {} from '@/controllers';
@@ -174,6 +177,11 @@ app.use(morganFormat);
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Case transformation middleware - MUST be after body parsers
+// Automatically transforms ALL JSON responses from snake_case to camelCase
+import { transformResponseMiddleware } from './utils/case-transformer';
+app.use(transformResponseMiddleware);
 
 // Comprehensive security middleware setup
 import { securityHeaders } from './middleware/security.middleware';
@@ -378,6 +386,12 @@ app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
 app.use('/api/shop/dashboard', shopDashboardRoutes);
 app.use('/api/shop/images', imageMetadataRoutes);
 app.use('/api/cdn', cdnRoutes);
+
+// Shop-scoped routes (requires authentication + shop access validation)
+// Platform admins can access any shop, shop users only their own
+app.use('/api/shops/:shopId/reservations', shopReservationsRoutes);
+app.use('/api/shops/:shopId/payments', shopPaymentsRoutes);
+app.use('/api/shops/:shopId/analytics', shopAnalyticsRoutes);
 
 // IMPORTANT: Routes ordered from MOST SPECIFIC to MOST GENERAL
 // This prevents route conflicts when multiple routers share base paths

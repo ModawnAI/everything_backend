@@ -261,10 +261,10 @@ export class AdminAuthController {
         return;
       }
 
-      // Get additional admin profile data
+      // Get additional admin profile data including shop info
       const { data: adminProfile, error } = await adminAuthService['supabase']
         .from('users')
-        .select('id, email, name, user_role, user_status, created_at, last_login_at, last_login_ip')
+        .select('id, email, name, user_role, user_status, shop_id, shop_name, created_at, last_login_at, last_login_ip')
         .eq('id', validation.admin.id)
         .single();
 
@@ -285,6 +285,8 @@ export class AdminAuthController {
           role: adminProfile.user_role,
           status: adminProfile.user_status,
           permissions: validation.admin.permissions,
+          shopId: adminProfile.shop_id || undefined,
+          shopName: adminProfile.shop_name || undefined,
           createdAt: adminProfile.created_at,
           lastLoginAt: adminProfile.last_login_at,
           lastLoginIp: adminProfile.last_login_ip
