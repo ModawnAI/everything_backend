@@ -111,4 +111,30 @@ const router = Router();
  */
 router.get('/overview', dashboardController.getDashboardOverview.bind(dashboardController));
 
+/**
+ * @swagger
+ * /api/admin/dashboard/stats:
+ *   get:
+ *     summary: Get dashboard statistics (alias for /overview)
+ *     tags: [Admin Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [7d, 30d, 90d]
+ *           default: 30d
+ *         description: Time period for statistics
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/stats', dashboardController.getDashboardOverview.bind(dashboardController));
+
 export default router;

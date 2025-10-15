@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { adminUserManagementController } from '../controllers/admin-user-management.controller';
+import Joi from 'joi';
 
 const router = Router();
 
@@ -607,6 +608,182 @@ router.get('/search/advanced', adminUserManagementController.advancedUserSearch)
  */
 router.get('/:id', adminUserManagementController.getUserDetails);
 
+// User-specific endpoint aliases - These must come AFTER general routes to avoid conflicts
+router.get('/:id/activity', (req, res) => {
+  // Delegate to getUserActivity with userId filter
+  req.query.userId = req.params.id;
+  return adminUserManagementController.getUserActivity(req, res);
+});
+
+router.get('/:id/reservations', async (req: any, res: any) => {
+  // Placeholder - returns user reservations
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Authorization token is required' });
+    }
+
+    const { adminAuthService } = require('../services/admin-auth.service');
+    const validation = await adminAuthService.validateAdminSession(token, ipAddress);
+    if (!validation.isValid || !validation.admin) {
+      return res.status(401).json({ success: false, error: 'Invalid admin session' });
+    }
+
+    const { adminUserManagementService } = require('../services/admin-user-management.service');
+    const { data: reservations, error } = await adminUserManagementService['supabase']
+      .from('reservations')
+      .select('*')
+      .eq('user_id', req.params.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      return res.status(500).json({ success: false, error: 'Failed to fetch user reservations' });
+    }
+
+    res.json({ success: true, data: { reservations: reservations || [], totalCount: reservations?.length || 0 } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch user reservations' });
+  }
+});
+
+router.get('/:id/favorites', async (req: any, res: any) => {
+  // Placeholder - returns user favorites
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Authorization token is required' });
+    }
+
+    const { adminAuthService } = require('../services/admin-auth.service');
+    const validation = await adminAuthService.validateAdminSession(token, ipAddress);
+    if (!validation.isValid || !validation.admin) {
+      return res.status(401).json({ success: false, error: 'Invalid admin session' });
+    }
+
+    const { adminUserManagementService } = require('../services/admin-user-management.service');
+    const { data: favorites, error } = await adminUserManagementService['supabase']
+      .from('user_favorites')
+      .select('*')
+      .eq('user_id', req.params.id);
+
+    if (error) {
+      return res.status(500).json({ success: false, error: 'Failed to fetch user favorites' });
+    }
+
+    res.json({ success: true, data: { favorites: favorites || [], totalCount: favorites?.length || 0 } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch user favorites' });
+  }
+});
+
+router.get('/:id/verification-status', async (req: any, res: any) => {
+  // Returns user verification status
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Authorization token is required' });
+    }
+
+    const { adminAuthService } = require('../services/admin-auth.service');
+    const validation = await adminAuthService.validateAdminSession(token, ipAddress);
+    if (!validation.isValid || !validation.admin) {
+      return res.status(401).json({ success: false, error: 'Invalid admin session' });
+    }
+
+    const { adminUserManagementService } = require('../services/admin-user-management.service');
+    const { data: user, error } = await adminUserManagementService['supabase']
+      .from('users')
+      .select('id, email, phone_verified, email_verified, terms_accepted_at, privacy_accepted_at')
+      .eq('id', req.params.id)
+      .single();
+
+    if (error || !user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.json({
+      success: true,
+      data: {
+        phoneVerified: user.phone_verified || false,
+        emailVerified: user.email_verified || false,
+        termsAccepted: !!user.terms_accepted_at,
+        privacyAccepted: !!user.privacy_accepted_at,
+        fullyVerified: user.phone_verified && user.email_verified && user.terms_accepted_at && user.privacy_accepted_at
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to fetch verification status' });
+  }
+});
+
+router.put('/:id', async (req: any, res: any) => {
+  // Update user details
+  try {
+    const token = req.headers.authorization?.replace('Bearer ', '');
+    const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+
+    if (!token) {
+      return res.status(401).json({ success: false, error: 'Authorization token is required' });
+    }
+
+    const { adminAuthService } = require('../services/admin-auth.service');
+    const validation = await adminAuthService.validateAdminSession(token, ipAddress);
+    if (!validation.isValid || !validation.admin) {
+      return res.status(401).json({ success: false, error: 'Invalid admin session' });
+    }
+
+    // Validate email if provided
+    if (req.body.email) {
+      const emailSchema = Joi.string().email().required();
+      const { error } = emailSchema.validate(req.body.email);
+      if (error) {
+        return res.status(400).json({
+          success: false,
+          error: 'Invalid email format',
+          details: error.details[0].message
+        });
+      }
+    }
+
+    const updateData: any = {};
+    if (req.body.name) updateData.name = req.body.name;
+    if (req.body.displayName) updateData.name = req.body.displayName; // Map displayName to name
+    if (req.body.nickname) updateData.nickname = req.body.nickname;
+    if (req.body.email) updateData.email = req.body.email;
+    if (req.body.phoneNumber) updateData.phone_number = req.body.phoneNumber;
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ success: false, error: 'No valid fields to update' });
+    }
+
+    const { adminUserManagementService } = require('../services/admin-user-management.service');
+    const { data: user, error } = await adminUserManagementService['supabase']
+      .from('users')
+      .update(updateData)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (error) {
+      return res.status(500).json({ success: false, error: 'Failed to update user' });
+    }
+
+    if (!user) {
+      return res.status(404).json({ success: false, error: 'User not found' });
+    }
+
+    res.json({ success: true, data: { user } });
+  } catch (error) {
+    res.status(500).json({ success: false, error: 'Failed to update user details' });
+  }
+});
+
 /**
  * PUT /api/admin/users/:id/status
  * Update user status
@@ -680,6 +857,7 @@ router.get('/:id', adminUserManagementController.getUserDetails);
  *         description: Authentication required
  */
 router.put('/:id/status', adminUserManagementController.updateUserStatus);
+router.patch('/:id/status', adminUserManagementController.updateUserStatus); // Alias for PATCH
 
 /**
  * PUT /api/admin/users/:id/role

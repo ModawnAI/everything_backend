@@ -350,6 +350,64 @@ export class AdminReservationController {
   }
 
   /**
+   * GET /api/admin/reservations/statistics
+   * Get reservation statistics for admin dashboard (frontend-compatible)
+   */
+  async getReservationStatistics(req: Request, res: Response): Promise<void> {
+    try {
+      const token = req.headers.authorization?.replace('Bearer ', '');
+      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+
+      if (!token) {
+        res.status(401).json({
+          success: false,
+          error: 'Authorization token is required'
+        });
+        return;
+      }
+
+      // Validate admin session
+      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
+      if (!validation.isValid || !validation.admin) {
+        res.status(401).json({
+          success: false,
+          error: validation.error || 'Invalid admin session'
+        });
+        return;
+      }
+
+      // Extract query parameters
+      const { shopId, staffId, dateFrom, dateTo } = req.query;
+
+      // Build filters
+      const filters = {
+        shopId: shopId as string | undefined,
+        staffId: staffId as string | undefined,
+        dateFrom: dateFrom as string | undefined,
+        dateTo: dateTo as string | undefined
+      };
+
+      const statistics = await adminReservationService.getReservationStatistics(validation.admin.id, filters);
+
+      res.json({
+        success: true,
+        data: statistics,
+        message: 'Statistics retrieved successfully'
+      });
+    } catch (error) {
+      logger.error('Admin get reservation statistics failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        ipAddress: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get reservation statistics'
+      });
+    }
+  }
+
+  /**
    * GET /api/admin/reservations/:id/details
    * Get detailed reservation information for admin oversight
    */

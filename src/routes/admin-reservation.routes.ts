@@ -140,37 +140,6 @@ const router = Router();
 router.get('/', adminReservationController.getReservations);
 
 /**
- * GET /api/admin/reservations/:id
- * Get reservation by ID (alias to /:id/details for backwards compatibility)
- *
- * @swagger
- * /:id:
- *   get:
- *     summary: Get reservation by ID
- *     description: GET endpoint for /:id - Returns detailed reservation information
- *     tags: [예약]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: id
- *         required: true
- *         schema:
- *           type: string
- *         description: Reservation ID
- *     responses:
- *       200:
- *         description: Success
- *       401:
- *         description: Authentication required
- *       404:
- *         description: Reservation not found
- *       500:
- *         description: Internal Server Error
- */
-router.get('/:id', adminReservationController.getReservationDetails);
-
-/**
  * GET /api/admin/reservations/analytics
  * Get reservation analytics for admin dashboard
  * 
@@ -270,6 +239,93 @@ router.get('/:id', adminReservationController.getReservationDetails);
  *         description: Authentication required
  */
 router.get('/analytics', adminReservationController.getReservationAnalytics);
+
+/**
+ * GET /api/admin/reservations/statistics
+ * Get reservation statistics for admin dashboard (frontend-compatible)
+ *
+ * Query Parameters:
+ * - shopId: Filter by specific shop (UUID)
+ * - staffId: Filter by specific staff member (UUID)
+ * - dateFrom: Start date for statistics (ISO date, default: start of current month)
+ * - dateTo: End date for statistics (ISO date, default: today)
+ *
+ * Headers:
+ * Authorization: Bearer <admin-jwt-token>
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "todayReservations": 12,
+ *     "todayConfirmed": 8,
+ *     "todayPending": 3,
+ *     "todayCompleted": 1,
+ *     "monthlyRevenue": 1250000,
+ *     "revenueGrowth": 15.5,
+ *     "monthlyReservations": 145,
+ *     "totalCustomers": 320,
+ *     "newCustomersThisMonth": 28,
+ *     "returningCustomers": 187,
+ *     "activeServices": 8,
+ *     "topService": "헤어 컷",
+ *     "topServiceCount": 45,
+ *     "statusBreakdown": {
+ *       "requested": 5,
+ *       "confirmed": 42,
+ *       "completed": 89,
+ *       "cancelled_by_user": 7,
+ *       "cancelled_by_shop": 2,
+ *       "no_show": 0
+ *     },
+ *     "revenueByStatus": {
+ *       "total": 1480000,
+ *       "paid": 1250000,
+ *       "outstanding": 230000
+ *     }
+ *   },
+ *   "message": "Statistics retrieved successfully"
+ * }
+ *
+ * Security Features:
+ * - Requires valid admin session
+ * - Real-time statistics calculation
+ * - Supports filtering by shop and staff
+ * - Date range filtering with defaults
+ * - Performance optimized queries
+ */
+router.get('/statistics', adminReservationController.getReservationStatistics);
+
+/**
+ * GET /api/admin/reservations/:id
+ * Get reservation by ID (alias to /:id/details for backwards compatibility)
+ *
+ * @swagger
+ * /:id:
+ *   get:
+ *     summary: Get reservation by ID
+ *     description: GET endpoint for /:id - Returns detailed reservation information
+ *     tags: [예약]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Reservation ID
+ *     responses:
+ *       200:
+ *         description: Success
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: Reservation not found
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/:id', adminReservationController.getReservationDetails);
 
 /**
  * PUT /api/admin/reservations/:id/status

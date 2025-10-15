@@ -64,6 +64,7 @@ export class AdminShopController {
         category,
         shopType,
         verificationStatus,
+        search,
         sortBy = 'created_at',
         sortOrder = 'desc'
       } = req.query;
@@ -124,6 +125,10 @@ export class AdminShopController {
       }
       if (verificationStatus) {
         query = query.eq('verification_status', verificationStatus);
+      }
+      // Add search filter
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,address.ilike.%${search}%`);
       }
 
       // Add sorting
@@ -1222,6 +1227,113 @@ export class AdminShopController {
 
     } catch (error) {
       logger.error('AdminShopController.getShopAnalytics error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/shops/:shopId/reservations
+   * Get shop reservations (Admin only)
+   */
+  async getShopReservations(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const { page = '1', limit = '20', status } = req.query;
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const pageNum = parseInt(page as string);
+      const limitNum = Math.min(parseInt(limit as string), 100);
+      const offset = (pageNum - 1) * limitNum;
+
+      const supabase = getSupabaseClient();
+
+      // Build query for reservations
+      let query = supabase
+        .from('reservations')
+        .select(`
+          id,
+          user_id,
+          shop_id,
+          status,
+          reservation_date,
+          reservation_time,
+          total_amount,
+          deposit_amount,
+          remaining_amount,
+          points_used,
+          points_earned,
+          special_requests,
+          confirmed_at,
+          completed_at,
+          cancelled_at,
+          created_at,
+          updated_at
+        `, { count: 'exact' })
+        .eq('shop_id', shopId);
+
+      // Add status filter if provided
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      // Add sorting and pagination
+      query = query
+        .order('reservation_date', { ascending: false })
+        .order('reservation_time', { ascending: false })
+        .range(offset, offset + limitNum - 1);
+
+      const { data: reservations, error, count } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch shop reservations', {
+          error: error.message,
+          shopId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'FETCH_RESERVATIONS_FAILED',
+            message: '예약 목록을 가져오는데 실패했습니다.',
+            details: error.message
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reservations: reservations || [],
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total: count || 0,
+            totalPages: Math.ceil((count || 0) / limitNum)
+          }
+        },
+        message: '샵 예약 목록을 성공적으로 조회했습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.getShopReservations error:', { error });
       res.status(500).json({
         success: false,
         error: {

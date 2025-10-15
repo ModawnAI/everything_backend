@@ -364,6 +364,25 @@ router.get(
 );
 
 /**
+ * GET /api/admin/shops/:shopId/reservations
+ * Get shop reservations (Admin only)
+ *
+ * Query parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ * - status: Filter by reservation status
+ *
+ * Returns:
+ * - List of reservations for the shop
+ * - Pagination info
+ */
+router.get(
+  '/:shopId/reservations',
+  adminRateLimit,
+  adminShopController.getShopReservations
+);
+
+/**
  * GET /api/admin/shops/:shopId/analytics
  * Get shop analytics data (Admin only)
  *

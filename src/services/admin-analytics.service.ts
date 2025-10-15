@@ -1740,9 +1740,7 @@ export class AdminAnalyticsService {
           phone_number,
           email,
           business_license_number,
-          is_featured,
-          rating,
-          review_count
+          is_featured
         `)
         .eq('id', shopId)
         .single();
@@ -1757,15 +1755,26 @@ export class AdminAnalyticsService {
 
       // Get shop performance metrics
       const shopMetrics = await this.getShopPerformanceMetrics(shopId, startDate, endDate);
-      
+
       // Get registration and approval metrics
       const registrationMetrics = await this.getShopRegistrationMetrics(shopId);
-      
+
       // Get user engagement metrics
       const engagementMetrics = await this.getShopEngagementMetrics(shopId, startDate, endDate);
-      
+
       // Get discovery and favorites metrics
       const discoveryMetrics = await this.getShopDiscoveryMetrics(shopId, startDate, endDate);
+
+      // Calculate rating and review count from reviews table
+      const { data: reviews } = await supabase
+        .from('reviews')
+        .select('rating')
+        .eq('shop_id', shopId);
+
+      const reviewCount = reviews?.length || 0;
+      const averageRating = reviews && reviews.length > 0
+        ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+        : 0;
 
       const shopAnalytics = {
         shop: {
@@ -1790,8 +1799,8 @@ export class AdminAnalyticsService {
           },
           businessLicense: shop.business_license_number,
           isFeatured: shop.is_featured,
-          rating: shop.rating,
-          reviewCount: shop.review_count
+          rating: Math.round(averageRating * 100) / 100,
+          reviewCount: reviewCount
         },
         performance: shopMetrics,
         registration: registrationMetrics,

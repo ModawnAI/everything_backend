@@ -416,7 +416,8 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api', reservationReschedulingRoutes);
 app.use('/api', conflictResolutionRoutes);
 app.use('/api', pointBalanceRoutes);
-app.use('/api/shop', shopContactMethodsRoutes);
+// MOVED UP: More specific /api/shop routes MUST come before catch-all /api/shop
+// app.use('/api/shop', shopContactMethodsRoutes); // MOVED TO AFTER SPECIFIC ROUTES
 app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
 app.use('/api/admin/payments/management', adminPaymentManagementRoutes);
@@ -451,6 +452,8 @@ app.use('/api/admin/automation', automaticStateProgressionRoutes);
 app.use('/api/users', userSettingsRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/csrf', csrfRoutes);
+// Catch-all /api/shop routes LAST (after all specific /api/shop/* routes above)
+app.use('/api/shop', shopContactMethodsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

@@ -4,7 +4,7 @@ import pyautogui
 import sys
 
 # Configuration
-TARGET = (1394, -575)# Using negative Y coordinate (common in multi-monitor setups)
+TARGET = (571, 793)# Using negative Y coordinate (common in multi-monitor setups)
 INTERVAL = 300        # 5 minutes
 pyautogui.PAUSE = 0.1
 
@@ -53,7 +53,7 @@ def main():
             pyautogui.click()
             
             # Type "continue" with slight delays between characters
-            pyautogui.typewrite("continue", interval=0.03)
+            pyautogui.typewrite("continue to make sure everything in running memory is finished and all of the tests is completed.", interval=0.03)
             pyautogui.press("enter")
             
             print(f"[{time.strftime('%H:%M:%S')}] Command sent. Sleeping for {INTERVAL} seconds...")
