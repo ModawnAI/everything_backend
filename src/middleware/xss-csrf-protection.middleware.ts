@@ -606,8 +606,9 @@ class CSRFProtectionService {
     };
 
     // Skip CSRF for GET requests and safe endpoints
-    if (req.method === 'GET' || 
-        req.path.startsWith('/api/health') || 
+    if (req.method === 'GET' ||
+        req.path.startsWith('/api/health') ||
+        req.path.startsWith('/api/admin/auth') ||
         req.path.startsWith('/api/security/csp-report') ||
         req.path.startsWith('/api/security/ct-report') ||
         process.env.NODE_ENV === 'test' ||

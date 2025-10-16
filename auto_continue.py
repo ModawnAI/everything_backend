@@ -53,7 +53,7 @@ def main():
             pyautogui.click()
             
             # Type "continue" with slight delays between characters
-            pyautogui.typewrite("continue to make sure everything in running memory is finished and all of the tests is completed.", interval=0.03)
+            pyautogui.typewrite("continue to make sure everything in exhaustive endpoint point verification summary all runs.", interval=0.03)
             pyautogui.press("enter")
             
             print(f"[{time.strftime('%H:%M:%S')}] Command sent. Sleeping for {INTERVAL} seconds...")
