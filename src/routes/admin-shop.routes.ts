@@ -403,6 +403,26 @@ router.get(
 );
 
 /**
+ * GET /api/admin/shops/:shopId/operating-hours
+ * Get shop operating hours (Admin only)
+ *
+ * Returns:
+ * - shopId: Shop UUID
+ * - shopName: Shop name
+ * - operating_hours: Weekly operating hours data
+ * - current_status: Real-time operating status
+ *   - is_open: Whether shop is currently open
+ *   - current_day: Current day name
+ *   - current_time: Current time (HH:MM)
+ *   - next_opening: Next opening time if closed
+ */
+router.get(
+  '/:shopId/operating-hours',
+  adminRateLimit,
+  adminShopController.getShopOperatingHours.bind(adminShopController)
+);
+
+/**
  * PUT /api/admin/shops/:shopId/approve
  * Approve or reject a shop (Admin only)
  *

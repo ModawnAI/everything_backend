@@ -1423,6 +1423,197 @@ export class AdminShopController {
   }
 
   /**
+   * GET /api/admin/shops/:shopId/operating-hours
+   * Get shop operating hours (Admin only)
+   */
+  async getShopOperatingHours(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+
+      // Fetch shop with operating hours
+      const { data: shop, error } = await supabase
+        .from('shops')
+        .select('id, name, operating_hours')
+        .eq('id', shopId)
+        .single();
+
+      if (error || !shop) {
+        logger.error('Failed to fetch shop operating hours', {
+          shopId,
+          error: error?.message
+        });
+
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '샵을 찾을 수 없습니다.',
+            details: '요청하신 샵이 존재하지 않거나 삭제되었습니다.'
+          }
+        });
+        return;
+      }
+
+      // Calculate current status
+      const currentStatus = this.getCurrentOperatingStatus(shop.operating_hours);
+
+      logger.info('Shop operating hours retrieved by admin', {
+        shopId,
+        shopName: shop.name,
+        hasOperatingHours: !!shop.operating_hours
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          shopId: shop.id,
+          shopName: shop.name,
+          operating_hours: shop.operating_hours || this.getDefaultOperatingHours(),
+          current_status: currentStatus
+        },
+        message: '영업시간을 성공적으로 조회했습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.getShopOperatingHours error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '영업시간 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get current shop operating status based on operating hours
+   */
+  private getCurrentOperatingStatus(operatingHours: any): {
+    is_open: boolean;
+    current_day: string;
+    current_time: string;
+    next_opening?: string;
+  } {
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = dayNames[now.getDay()];
+
+    const status = {
+      is_open: false,
+      current_day: currentDay,
+      current_time: currentTime,
+      next_opening: undefined as string | undefined
+    };
+
+    if (!operatingHours || !operatingHours[currentDay]) {
+      return status;
+    }
+
+    const todayHours = operatingHours[currentDay];
+
+    // Check if shop is closed today
+    if (todayHours.closed === true) {
+      status.next_opening = this.getNextOpening(operatingHours, now);
+      return status;
+    }
+
+    if (!todayHours.open || !todayHours.close) {
+      return status;
+    }
+
+    const currentMinutes = this.timeToMinutes(currentTime);
+    const openMinutes = this.timeToMinutes(todayHours.open);
+    const closeMinutes = this.timeToMinutes(todayHours.close);
+
+    // Check if currently in break time
+    if (todayHours.break_start && todayHours.break_end) {
+      const breakStartMinutes = this.timeToMinutes(todayHours.break_start);
+      const breakEndMinutes = this.timeToMinutes(todayHours.break_end);
+
+      if (currentMinutes >= breakStartMinutes && currentMinutes < breakEndMinutes) {
+        status.next_opening = `Today at ${todayHours.break_end}`;
+        return status;
+      }
+    }
+
+    // Handle overnight hours
+    if (closeMinutes <= openMinutes && closeMinutes < 12 * 60) {
+      // Overnight hours (e.g., 22:00 - 02:00)
+      status.is_open = currentMinutes >= openMinutes || currentMinutes < closeMinutes;
+    } else {
+      // Regular hours
+      status.is_open = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+    }
+
+    if (!status.is_open) {
+      status.next_opening = this.getNextOpening(operatingHours, now);
+    }
+
+    return status;
+  }
+
+  /**
+   * Convert time string (HH:MM) to minutes since midnight
+   */
+  private timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Get next opening time
+   */
+  private getNextOpening(operatingHours: any, currentDate: Date): string | undefined {
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = currentDate.getDay();
+
+    // Check remaining days in the week
+    for (let i = 1; i <= 7; i++) {
+      const nextDayIndex = (currentDay + i) % 7;
+      const nextDayName = dayNames[nextDayIndex];
+      const nextDayHours = operatingHours[nextDayName];
+
+      if (nextDayHours && !nextDayHours.closed && nextDayHours.open) {
+        const dayLabel = i === 1 ? 'Tomorrow' : nextDayName;
+        return `${dayLabel} at ${nextDayHours.open}`;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get default operating hours template
+   */
+  private getDefaultOperatingHours(): any {
+    return {
+      monday: { open: '09:00', close: '18:00', closed: false },
+      tuesday: { open: '09:00', close: '18:00', closed: false },
+      wednesday: { open: '09:00', close: '18:00', closed: false },
+      thursday: { open: '09:00', close: '18:00', closed: false },
+      friday: { open: '09:00', close: '18:00', closed: false },
+      saturday: { open: '10:00', close: '17:00', closed: false },
+      sunday: { closed: true }
+    };
+  }
+
+  /**
    * GET /api/admin/data-integrity/status
    * Get current data integrity status
    */

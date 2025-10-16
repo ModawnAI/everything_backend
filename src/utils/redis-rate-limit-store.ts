@@ -24,7 +24,7 @@ const REDIS_RATE_LIMIT_CONFIG: RedisRateLimitConfig = {
   keyPrefix: 'rate_limit:',
   maxRetriesPerRequest: 3,
   connectTimeout: 5000,
-  lazyConnect: true,
+  lazyConnect: true, // Connect lazily to prevent blocking initialization
 };
 
 /**

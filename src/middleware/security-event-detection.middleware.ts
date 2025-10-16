@@ -198,8 +198,8 @@ async function processSecurityTrigger(trigger: SecurityTrigger, context: Securit
         eventType: trigger.eventType
       });
 
-      // Log security event for monitoring
-      await securityMonitoringService.logSecurityEvent({
+      // Log security event for monitoring (fire-and-forget to prevent blocking)
+      securityMonitoringService.logSecurityEvent({
         event_type: 'session_invalidated',
         user_id: context.userId,
         source_ip: context.ipAddress,
@@ -210,6 +210,10 @@ async function processSecurityTrigger(trigger: SecurityTrigger, context: Securit
           trigger: trigger.eventType,
           autoTriggered: trigger.autoTriggered
         }
+      }).catch(err => {
+        logger.warn('Failed to log session invalidation security event', {
+          error: err instanceof Error ? err.message : 'Unknown error'
+        });
       });
     }
 

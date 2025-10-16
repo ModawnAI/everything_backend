@@ -194,7 +194,7 @@ export const REDIS_RATE_LIMIT_CONFIG: RedisRateLimitConfig = {
   keyPrefix: 'rl:', // Rate limit key prefix
   maxRetriesPerRequest: 3,
   connectTimeout: 5000,
-  lazyConnect: true,
+  lazyConnect: false, // Changed to false to prevent hanging requests
   maxmemoryPolicy: 'allkeys-lru'
 };
 

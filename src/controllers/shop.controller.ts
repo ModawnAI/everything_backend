@@ -944,6 +944,7 @@ export class ShopController {
       const client = getSupabaseClient();
 
       // Get shop with aggregated data (using left joins to allow missing related data)
+      // Note: Removed shop_status filter to allow viewing shops in any status
       const { data: shop, error } = await client
         .from('shops')
         .select(`
@@ -955,7 +956,6 @@ export class ShopController {
           )
         `)
         .eq('id', id)
-        .eq('shop_status', 'active')
         .single();
 
       if (error || !shop) {

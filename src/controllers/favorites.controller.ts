@@ -10,13 +10,13 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { 
-  favoritesService, 
-  FavoriteShopRequest, 
-  BulkFavoritesRequest 
+import {
+  favoritesService,
+  FavoriteShopRequest,
+  BulkFavoritesRequest
 } from '../services/favorites.service';
 import { logger } from '../utils/logger';
-import { CustomError } from '../utils/error-handler';
+import { BusinessLogicError, ValidationError } from '../middleware/error-handling.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 // Request interfaces
@@ -78,13 +78,13 @@ export class FavoritesController {
       const userId = req.user.id;
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
 
       const result = await favoritesService.addFavorite(userId, shopId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 400);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -119,13 +119,13 @@ export class FavoritesController {
       const userId = req.user.id;
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
 
       const result = await favoritesService.removeFavorite(userId, shopId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 400);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -159,13 +159,13 @@ export class FavoritesController {
       const userId = req.user.id;
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
 
       const result = await favoritesService.toggleFavorite(userId, shopId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 400);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -209,7 +209,7 @@ export class FavoritesController {
       const result = await favoritesService.getUserFavorites(userId, options);
 
       if (!result.success) {
-        throw new CustomError(result.message, 500);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -249,7 +249,7 @@ export class FavoritesController {
       const result = await favoritesService.getFavoritesStats(userId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 500);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -279,21 +279,21 @@ export class FavoritesController {
       const { shopIds, action } = req.body;
 
       if (!shopIds || !Array.isArray(shopIds) || shopIds.length === 0) {
-        throw new CustomError('Shop IDs array is required', 400);
+        throw new ValidationError('Shop IDs array is required');
       }
 
       if (!action || !['add', 'remove'].includes(action)) {
-        throw new CustomError('Action must be either "add" or "remove"', 400);
+        throw new ValidationError('Action must be either "add" or "remove"');
       }
 
       if (shopIds.length > 100) {
-        throw new CustomError('Cannot process more than 100 shops at once', 400);
+        throw new ValidationError('Cannot process more than 100 shops at once');
       }
 
       const result = await favoritesService.bulkUpdateFavorites(userId, shopIds, action);
 
       if (!result.success) {
-        throw new CustomError(result.message, 500);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -333,11 +333,11 @@ export class FavoritesController {
       const { shopIds } = req.body;
 
       if (!shopIds || !Array.isArray(shopIds) || shopIds.length === 0) {
-        throw new CustomError('Shop IDs array is required', 400);
+        throw new ValidationError('Shop IDs array is required');
       }
 
       if (shopIds.length > 100) {
-        throw new CustomError('Cannot check more than 100 shops at once', 400);
+        throw new ValidationError('Cannot check more than 100 shops at once');
       }
 
       const result = await favoritesService.checkMultipleFavorites(userId, shopIds);
@@ -377,7 +377,7 @@ export class FavoritesController {
       const userId = req.user.id;
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
 
       const isFavorited = await favoritesService.isFavorite(userId, shopId);

@@ -18,29 +18,7 @@ import Joi from 'joi';
 const router = Router();
 
 // Rate limiting configurations
-const favoritesRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // 100 requests per 15 minutes
-    strategy: 'sliding_window'
-  }
-});
-
-const favoritesModificationRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 50, // 50 modification requests per 15 minutes
-    strategy: 'sliding_window'
-  }
-});
-
-const bulkFavoritesRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 bulk operations per 15 minutes
-    strategy: 'sliding_window'
-  }
-});
+// NOTE: Using inline calls like reservation.routes.ts (no pre-defined middleware variables)
 
 // Joi validation schemas
 const shopIdSchema = Joi.object({
@@ -118,8 +96,8 @@ const checkFavoritesBodySchema = Joi.object({
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.post('/shops/:shopId/favorite',
-  authenticateJWT,
-  favoritesModificationRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Modification rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.addFavorite
 );
@@ -174,8 +152,8 @@ router.post('/shops/:shopId/favorite',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.delete('/shops/:shopId/favorite',
-  authenticateJWT,
-  favoritesModificationRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Modification rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.removeFavorite
 );
@@ -231,8 +209,8 @@ router.delete('/shops/:shopId/favorite',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.put('/shops/:shopId/favorite',
-  authenticateJWT,
-  favoritesModificationRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Modification rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.toggleFavorite
 );
@@ -285,8 +263,8 @@ router.put('/shops/:shopId/favorite',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/shops/:shopId/favorite/status',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.isFavorite
 );
@@ -379,8 +357,8 @@ router.get('/shops/:shopId/favorite/status',
  *         description: Authentication required
  */
 router.get('/user/favorites',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),  // FIXED: Added parentheses to call the function
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   validateRequestQuery(getFavoritesQuerySchema),
   favoritesController.getFavorites
 );
@@ -419,8 +397,8 @@ router.get('/user/favorites',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/user/favorites/stats',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   favoritesController.getFavoritesStats
 );
 
@@ -522,8 +500,8 @@ router.get('/user/favorites/stats',
  *         description: Authentication required
  */
 router.post('/user/favorites/bulk',
-  authenticateJWT,
-  bulkFavoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),  // Bulk operations rate limit (stricter)
   validateRequestBody(bulkFavoritesBodySchema),
   favoritesController.bulkUpdateFavorites
 );
@@ -617,10 +595,16 @@ router.post('/user/favorites/bulk',
  *         description: Authentication required
  */
 router.post('/user/favorites/check',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   validateRequestBody(checkFavoritesBodySchema),
   favoritesController.checkFavorites
 );
+
+// DEBUG ROUTE - TEST IF ROUTER IS WORKING
+router.get('/test-favorites-route', (req, res) => {
+  console.log('🧪 TEST ROUTE HIT: /api/test-favorites-route');
+  res.json({ success: true, message: 'Favorites router is working!' });
+});
 
 export default router;

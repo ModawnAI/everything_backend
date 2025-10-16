@@ -37,6 +37,14 @@ export class RateLimiterFlexibleService {
    * Initialize Redis connection
    */
   private async initializeRedis(): Promise<void> {
+    // Check if rate limiting is disabled
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
+      logger.info("Rate limiting is disabled, skipping Redis initialization");
+      this.redisClient = null;
+      this.fallbackMode = true;
+      return;
+    }
+
     // Check if Redis is enabled
     if (!config.redis.enabled) {
       logger.info("Redis rate limiter is disabled, using in-memory fallback");
@@ -53,7 +61,7 @@ export class RateLimiterFlexibleService {
         db: REDIS_RATE_LIMIT_CONFIG.db,
         maxRetriesPerRequest: REDIS_RATE_LIMIT_CONFIG.maxRetriesPerRequest,
         connectTimeout: REDIS_RATE_LIMIT_CONFIG.connectTimeout,
-        lazyConnect: REDIS_RATE_LIMIT_CONFIG.lazyConnect,
+        lazyConnect: true, // Connect lazily to prevent blocking initialization
         keyPrefix: REDIS_RATE_LIMIT_CONFIG.keyPrefix
       });
 
@@ -78,14 +86,9 @@ export class RateLimiterFlexibleService {
         this.fallbackMode = true;
       });
 
-      // Test connection with timeout to prevent blocking
-      const pingPromise = this.redisClient.ping();
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Redis ping timeout')), 2000)
-      );
-
-      await Promise.race([pingPromise, timeoutPromise]);
-      this.isConnected = true;
+      // With lazyConnect: true, connection happens on first use
+      // No need to ping during initialization - it would block constructor
+      logger.info('Redis rate limiter configured (will connect on first use)');
 
     } catch (error) {
       logger.warn('Redis connection failed, using in-memory fallback', {
