@@ -1,10 +1,24 @@
 /**
  * Middleware Index
- * 
+ *
  * Central export point for all middleware functions
  */
 
-// Authentication middleware
+// Unified Authentication middleware
+export {
+  authenticate,
+  requireRole as unifiedRequireRole,
+  requireAdmin as unifiedRequireAdmin,
+  requireShopOwner,
+  requireCustomer,
+  requireAdminOrShopOwner,
+  requireShopAssociation,
+  validateShopAccess,
+  optionalAuth as unifiedOptionalAuth,
+  rateLimitLogin
+} from './unified-auth.middleware';
+
+// Authentication middleware (legacy)
 export {
   authenticateJWT,
   optionalAuth,

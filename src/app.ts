@@ -55,6 +55,7 @@ import websocketRoutes from './routes/websocket.routes';
 import testErrorRoutes from './routes/test-error.routes';
 import healthRoutes from './routes/health.routes';
 import adminAuthRoutes from './routes/admin-auth.routes';
+import shopOwnerAuthRoutes from './routes/shop-owner-auth.routes';
 import adminUserManagementRoutes from './routes/admin-user-management.routes';
 import cacheRoutes from './routes/cache.routes';
 import monitoringRoutes from './routes/monitoring.routes';
@@ -99,18 +100,9 @@ import { testDashboardRoutes } from './routes/test-dashboard.routes';
 import shopReservationsRoutes from './routes/shop-reservations.routes';
 import shopPaymentsRoutes from './routes/shop-payments.routes';
 import shopAnalyticsRoutes from './routes/shop-analytics.routes';
+import unifiedAuthRoutes from './routes/unified-auth.routes';
 
-// Import barrel exports (will be populated as we build the application)
-import {} from '@/controllers';
-import {} from '@/services';
-import {} from '@/repositories';
-import {} from '@/middleware';
-import {} from '@/routes';
-import {} from '@/types';
-import {} from '@/utils';
-import {} from '@/config';
-import {} from '@/validators';
-import {} from '@/constants';
+// Import services
 import { initializeWebSocketService } from './services/websocket.service';
 import { influencerSchedulerService } from './services/influencer-scheduler.service';
 
@@ -348,6 +340,10 @@ app.use(applyResponseStandardization());
 app.use('/api/test/dashboard', testDashboardRoutes);
 
 // API Routes
+// Unified authentication (new)
+app.use('/api/v2/auth', unifiedAuthRoutes);
+
+// Legacy authentication routes
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/users', userProfileRoutes);
@@ -357,6 +353,9 @@ app.use('/api/users', userProfileRoutes);
 
 // Admin authentication - Auth routes don't need authentication middleware
 app.use('/api/admin/auth', adminAuthRoutes);
+
+// Shop owner authentication - Auth routes don't need authentication middleware
+app.use('/api/shop-owner/auth', shopOwnerAuthRoutes);
 
 // Apply authentication to all other admin routes (supports both Supabase and JWT tokens)
 app.use('/api/admin/*', authenticateJWT(), requireAdmin());

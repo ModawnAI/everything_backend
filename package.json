@@ -24,6 +24,8 @@
     "test:coverage": "jest --coverage",
     "test:unit": "jest tests/unit/ --verbose",
     "test:integration": "jest tests/integration/ --verbose --detectOpenHandles",
+    "test:unified-auth": "jest tests/integration/unified-auth.test.ts --verbose --detectOpenHandles",
+    "test:unified-auth:session": "jest tests/integration/session.repository.test.ts --verbose --detectOpenHandles",
     "test:reservation": "jest --testPathPattern=reservation --verbose",
     "test:reservation:unit": "jest tests/unit/ --testPathPattern=reservation --verbose",
     "test:reservation:integration": "jest tests/integration/ --testPathPattern=reservation --verbose --detectOpenHandles",

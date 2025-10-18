@@ -116,12 +116,13 @@ export class AdminAuthService {
       }
 
       // Get admin user FIRST (using service role, no RLS issues)
-      logger.info('🔍 [DB-QUERY] Searching for admin user', { email: request.email });
+      // Allow both 'admin' and 'shop_owner' roles for unified login
+      logger.info('🔍 [DB-QUERY] Searching for admin/shop_owner user', { email: request.email });
       const { data: admin, error: adminError } = await this.supabase
         .from('users')
         .select('*')
         .eq('email', request.email)
-        .eq('user_role', 'admin')
+        .in('user_role', ['admin', 'shop_owner'])
         .eq('user_status', 'active')
         .maybeSingle();
 
@@ -314,11 +315,12 @@ export class AdminAuthService {
         logger.info('✅ Token verified as Supabase token', { userId: supabaseUser.id });
 
         // Get admin user from database using Supabase user ID
+        // Allow both 'admin' and 'shop_owner' roles for unified login
         const { data: admin, error: adminError } = await this.supabase
           .from('users')
           .select('*')
           .eq('id', supabaseUser.id)
-          .eq('user_role', 'admin')
+          .in('user_role', ['admin', 'shop_owner'])
           .eq('user_status', 'active')
           .single();
 
@@ -391,11 +393,12 @@ export class AdminAuthService {
       }
 
       // Get admin user
+      // Allow both 'admin' and 'shop_owner' roles for unified login
       const { data: admin, error: adminError } = await this.supabase
         .from('users')
         .select('*')
         .eq('id', session.admin_id)
-        .eq('user_role', 'admin')
+        .in('user_role', ['admin', 'shop_owner'])
         .eq('user_status', 'active')
         .single();
 
@@ -746,11 +749,12 @@ export class AdminAuthService {
       }
 
       // Get admin user
+      // Allow both 'admin' and 'shop_owner' roles for unified login
       const { data: admin, error: adminError } = await this.supabase
         .from('users')
         .select('*')
         .eq('id', session.admin_id)
-        .eq('user_role', 'admin')
+        .in('user_role', ['admin', 'shop_owner'])
         .eq('user_status', 'active')
         .single();
 
