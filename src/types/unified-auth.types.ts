@@ -131,6 +131,7 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   shop_id?: string;
+  shop_name?: string; // Shop name for shop_owner role (from shops.name)
   full_name?: string;
   phone?: string;
   avatar_url?: string;
@@ -235,6 +236,7 @@ export interface CreateSecurityLogInput {
 
 export interface TokenPayload {
   userId: string;
+  sub: string;       // JWT standard: subject = user ID
   role: UserRole;
   shopId?: string;
   type: 'access' | 'refresh';

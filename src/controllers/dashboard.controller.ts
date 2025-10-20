@@ -10,23 +10,13 @@ export class DashboardController {
    */
   async getDashboardOverview(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }

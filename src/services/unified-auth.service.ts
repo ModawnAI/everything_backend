@@ -530,6 +530,7 @@ export class UnifiedAuthService {
    */
   private generateAccessToken(userId: string, role: UserRole, sessionId: string, shopId?: string): string {
     const payload: TokenPayload = {
+      sub: userId,      // JWT standard: subject = user ID
       userId,
       role,
       sessionId,
@@ -547,6 +548,7 @@ export class UnifiedAuthService {
    */
   private generateRefreshToken(userId: string, role: UserRole, sessionId: string): string {
     const payload: TokenPayload = {
+      sub: userId,      // JWT standard: subject = user ID
       userId,
       role,
       sessionId,
@@ -646,7 +648,7 @@ export class UnifiedAuthService {
 
       const { data, error } = await this.supabase
         .from('users')
-        .select('id, email, user_role, shop_id')
+        .select('id, email, name, user_role, shop_id, shop_name')
         .eq('email', email)
         .eq('user_role', dbRole)
         .eq('user_status', 'active')
@@ -671,8 +673,10 @@ export class UnifiedAuthService {
       return {
         id: data.id,
         email: data.email,
+        full_name: data.name, // Map database 'name' to 'full_name'
         role: role, // Return the requested role format
         shop_id: data.shop_id,
+        shop_name: data.shop_name, // Include shop_name for shop_owners
         is_active: true,
         email_verified: false,
         created_at: new Date(),
@@ -695,7 +699,7 @@ export class UnifiedAuthService {
     try {
       const { data, error } = await this.supabase
         .from('users')
-        .select('id, email, user_role, shop_id')
+        .select('id, email, name, user_role, shop_id, shop_name')
         .eq('id', userId)
         .eq('user_status', 'active')
         .single();
@@ -711,8 +715,10 @@ export class UnifiedAuthService {
       return {
         id: data.id,
         email: data.email,
+        full_name: data.name, // Map database 'name' to 'full_name'
         role: data.user_role === 'user' ? 'customer' : (data.user_role as UserRole),
         shop_id: data.shop_id,
+        shop_name: data.shop_name, // Include shop_name for shop_owners
         is_active: true,
         email_verified: false,
         created_at: new Date(),

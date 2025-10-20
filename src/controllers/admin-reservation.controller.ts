@@ -14,30 +14,20 @@ export class AdminReservationController {
    */
   async getReservations(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -113,7 +103,7 @@ export class AdminReservationController {
         // Shop Owner는 무조건 자신의 shopId만 사용 (쿼리 파라미터 무시)
         effectiveShopId = adminShopId;
         logger.info('Shop Owner filtering applied', {
-          adminId: validation.admin.id,
+          adminId: user.id,
           shopId: effectiveShopId,
           requestedShopId
         });
@@ -138,7 +128,7 @@ export class AdminReservationController {
         limit: parseInt(limit as string, 10)
       };
 
-      const result = await adminReservationService.getReservations(filters, validation.admin.id);
+      const result = await adminReservationService.getReservations(filters, user.id);
 
       res.json({
         success: true,
@@ -165,30 +155,20 @@ export class AdminReservationController {
     try {
       const { id: reservationId } = req.params;
       const { status, notes, reason, notifyCustomer, notifyShop, autoProcessPayment } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -229,7 +209,7 @@ export class AdminReservationController {
 
         if (reservation.shop_id !== adminShopId) {
           logger.warn('Shop Owner attempted to update reservation from another shop', {
-            adminId: validation.admin.id,
+            adminId: user.id,
             adminShopId,
             reservationId,
             reservationShopId: reservation.shop_id
@@ -260,7 +240,7 @@ export class AdminReservationController {
         autoProcessPayment: autoProcessPayment === true
       };
 
-      const result = await adminReservationService.updateReservationStatus(reservationId, request, validation.admin.id);
+      const result = await adminReservationService.updateReservationStatus(reservationId, request, user.id);
 
       res.json({
         success: true,
@@ -290,30 +270,20 @@ export class AdminReservationController {
     try {
       const { id: reservationId } = req.params;
       const { disputeType, description, requestedAction, priority, evidence } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -354,7 +324,7 @@ export class AdminReservationController {
 
         if (reservation.shop_id !== adminShopId) {
           logger.warn('Shop Owner attempted to create dispute for reservation from another shop', {
-            adminId: validation.admin.id,
+            adminId: user.id,
             adminShopId,
             reservationId,
             reservationShopId: reservation.shop_id
@@ -408,7 +378,7 @@ export class AdminReservationController {
         evidence: evidence || []
       };
 
-      const result = await adminReservationService.createReservationDispute(reservationId, request, validation.admin.id);
+      const result = await adminReservationService.createReservationDispute(reservationId, request, user.id);
 
       res.json({
         success: true,
@@ -436,30 +406,20 @@ export class AdminReservationController {
    */
   async getReservationAnalytics(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -483,7 +443,7 @@ export class AdminReservationController {
       // SECURITY: Pass shopId to service layer for Shop Owner filtering
       // Note: Service layer needs to filter analytics data by shopId for shop_owner role
       const analytics = await adminReservationService.getReservationAnalytics(
-        validation.admin.id,
+        user.id,
         dateRange,
         adminRole === 'shop_owner' ? adminShopId : undefined
       );
@@ -511,30 +471,20 @@ export class AdminReservationController {
    */
   async getReservationStatistics(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -559,7 +509,7 @@ export class AdminReservationController {
         // Shop Owner는 무조건 자신의 shopId만 사용 (쿼리 파라미터 무시)
         effectiveShopId = adminShopId;
         logger.info('Shop Owner filtering applied to statistics', {
-          adminId: validation.admin.id,
+          adminId: user.id,
           shopId: effectiveShopId,
           requestedShopId
         });
@@ -576,7 +526,7 @@ export class AdminReservationController {
         dateTo: dateTo as string | undefined
       };
 
-      const statistics = await adminReservationService.getReservationStatistics(validation.admin.id, filters);
+      const statistics = await adminReservationService.getReservationStatistics(user.id, filters);
 
       res.json({
         success: true,
@@ -603,30 +553,20 @@ export class AdminReservationController {
   async getReservationDetails(req: Request, res: Response): Promise<void> {
     try {
       const { id: reservationId } = req.params;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -843,30 +783,20 @@ export class AdminReservationController {
     try {
       const { id: reservationId } = req.params;
       const { reason, notes, refundAmount, compensationPoints, notifyCustomer, notifyShop } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -907,7 +837,7 @@ export class AdminReservationController {
 
         if (reservation.shop_id !== adminShopId) {
           logger.warn('Shop Owner attempted to force complete reservation from another shop', {
-            adminId: validation.admin.id,
+            adminId: user.id,
             adminShopId,
             reservationId,
             reservationShopId: reservation.shop_id
@@ -956,7 +886,7 @@ export class AdminReservationController {
         notifyShop: notifyShop === true
       };
 
-      const result = await adminReservationService.forceCompleteReservation(reservationId, request, validation.admin.id);
+      const result = await adminReservationService.forceCompleteReservation(reservationId, request, user.id);
 
       res.json({
         success: true,
@@ -985,30 +915,20 @@ export class AdminReservationController {
   async bulkStatusUpdate(req: Request, res: Response): Promise<void> {
     try {
       const { reservationIds, status, notes, reason, notifyCustomers, notifyShops } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
 
       // SECURITY: Get admin role and shop_id for role-based filtering
-      const adminRole = validation.admin.role;
-      const adminShopId = validation.admin.shop_id;
+      const adminRole = user.role;
+      const adminShopId = user.shopId;
 
       // SECURITY: Shop Owner must have shop_id
       if (adminRole === 'shop_owner' && !adminShopId) {
@@ -1065,7 +985,7 @@ export class AdminReservationController {
 
             if (reservation.shop_id !== adminShopId) {
               logger.warn('Shop Owner attempted to bulk update reservation from another shop', {
-                adminId: validation.admin.id,
+                adminId: user.id,
                 adminShopId,
                 reservationId,
                 reservationShopId: reservation.shop_id
@@ -1088,7 +1008,7 @@ export class AdminReservationController {
             notifyCustomer: notifyCustomers === true,
             notifyShop: notifyShops === true,
             autoProcessPayment: false // Don't auto-process payments in bulk operations
-          }, validation.admin.id);
+          }, user.id);
 
           results.push({ reservationId, success: true });
           successful++;

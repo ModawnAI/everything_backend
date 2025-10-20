@@ -1172,7 +1172,12 @@ export function authenticateJWT() {
         logger.info('[AUTH] Fetching user from database');
         // Get user data from database for non-analytics endpoints
         userData = await getUserFromToken(tokenPayload);
-        console.log('[AUTH-DEBUG-11] User data retrieved');
+        console.log('[AUTH-DEBUG-11] User data retrieved:', {
+          id: userData.id,
+          email: userData.email,
+          user_role: userData.user_role,
+          user_status: userData.user_status,
+        });
         logger.info('[AUTH] User data retrieved successfully');
 
         // Validate and track session with device fingerprinting
@@ -1342,8 +1347,16 @@ export function optionalAuth() {
  */
 export function requireRole(...roles: string[]) {
   return (req: AuthenticatedRequest, res: Response, next: NextFunction): void => {
+    console.log('[ROLE-CHECK] requireRole called:', {
+      hasUser: !!req.user,
+      userRole: req.user?.role,
+      userRoleAlias: req.user?.user_role,
+      requiredRoles: roles,
+      path: req.path,
+    });
 
     if (!req.user) {
+      console.log('[ROLE-CHECK] ❌ No user in request');
       res.status(401).json({
         error: {
           code: 'AUTHENTICATION_REQUIRED',
@@ -1355,6 +1368,12 @@ export function requireRole(...roles: string[]) {
     }
 
     if (!roles.includes(req.user.role)) {
+      console.log('[ROLE-CHECK] ❌ Role check failed:', {
+        userRole: req.user.role,
+        requiredRoles: roles,
+        userId: req.user.id,
+      });
+
       logger.warn('Insufficient permissions', {
         userId: req.user.id,
         userRole: req.user.role,
@@ -1372,6 +1391,7 @@ export function requireRole(...roles: string[]) {
       return;
     }
 
+    console.log('[ROLE-CHECK] ✅ Role check passed');
     next();
   };
 }

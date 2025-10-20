@@ -6,7 +6,7 @@
 
 ### Base URL
 ```
-http://localhost:3001/api/auth
+http://localhost:3001/api/v2/auth
 ```
 
 ### 지원 역할
@@ -26,7 +26,7 @@ http://localhost:3001/api/auth
 
 ### Endpoint
 ```http
-POST /api/auth/login
+POST /api/v2/auth/login
 ```
 
 ### Rate Limit
@@ -128,7 +128,7 @@ POST /api/auth/login
 #### JavaScript/TypeScript
 ```typescript
 async function login(email: string, password: string, role: string) {
-  const response = await fetch('http://localhost:3001/api/auth/login', {
+  const response = await fetch('http://localhost:3001/api/v2/auth/login', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -173,7 +173,7 @@ Access Token이 만료되었을 때 Refresh Token을 사용하여 새 토큰을 
 
 ### Endpoint
 ```http
-POST /api/auth/refresh
+POST /api/v2/auth/refresh
 ```
 
 ### Request Body
@@ -197,7 +197,7 @@ POST /api/auth/refresh
 async function refreshAccessToken() {
   const refreshToken = localStorage.getItem('refresh_token');
 
-  const response = await fetch('http://localhost:3001/api/auth/refresh', {
+  const response = await fetch('http://localhost:3001/api/v2/auth/refresh', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -226,7 +226,7 @@ async function refreshAccessToken() {
 
 ### Endpoint
 ```http
-GET /api/auth/validate
+GET /api/v2/auth/validate
 ```
 
 ### Headers
@@ -257,7 +257,7 @@ Authorization: Bearer {access_token}
 async function validateSession() {
   const token = localStorage.getItem('access_token');
 
-  const response = await fetch('http://localhost:3001/api/auth/validate', {
+  const response = await fetch('http://localhost:3001/api/v2/auth/validate', {
     method: 'GET',
     headers: {
       'Authorization': `Bearer ${token}`
@@ -277,7 +277,7 @@ async function validateSession() {
 
 ### Endpoint
 ```http
-POST /api/auth/logout
+POST /api/v2/auth/logout
 ```
 
 ### Headers
@@ -305,7 +305,7 @@ Authorization: Bearer {access_token}
 async function logout() {
   const token = localStorage.getItem('access_token');
 
-  await fetch('http://localhost:3001/api/auth/logout', {
+  await fetch('http://localhost:3001/api/v2/auth/logout', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -333,7 +333,7 @@ async function logout() {
 
 ### Endpoint
 ```http
-POST /api/auth/logout-all
+POST /api/v2/auth/logout-all
 ```
 
 ### Headers
@@ -365,7 +365,7 @@ Authorization: Bearer {access_token}
 
 ### Endpoint
 ```http
-POST /api/auth/change-password
+POST /api/v2/auth/change-password
 ```
 
 ### Headers
@@ -394,7 +394,7 @@ Authorization: Bearer {access_token}
 async function changePassword(currentPassword: string, newPassword: string) {
   const token = localStorage.getItem('access_token');
 
-  const response = await fetch('http://localhost:3001/api/auth/change-password', {
+  const response = await fetch('http://localhost:3001/api/v2/auth/change-password', {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -424,7 +424,7 @@ async function changePassword(currentPassword: string, newPassword: string) {
 
 ### Endpoint
 ```http
-GET /api/auth/sessions
+GET /api/v2/auth/sessions
 ```
 
 ### Headers
@@ -460,7 +460,7 @@ Authorization: Bearer {access_token}
 
 ### Endpoint
 ```http
-GET /api/auth/login-statistics
+GET /api/v2/auth/login-statistics
 ```
 
 ### Headers
@@ -491,7 +491,7 @@ Authorization: Bearer {access_token}
 
 ### Endpoint
 ```http
-GET /api/auth/security-logs?limit=50
+GET /api/v2/auth/security-logs?limit=50
 ```
 
 ### Headers
@@ -824,20 +824,16 @@ const userLogin = await login('user@example.com', 'password', 'user');
 
 ## ⚠️ 주의사항
 
-1. **절대 사용하지 말아야 할 엔드포인트**:
-   - ❌ `/api/admin/auth/login` (레거시 - 사용 금지)
-   - ✅ `/api/auth/login` (통합 시스템 - 사용)
-
-2. **역할 필드 필수**:
+1. **역할 필드 필수**:
    - 로그인 시 반드시 `role` 필드를 포함해야 합니다
    - 올바른 값: `'admin'`, `'shop_owner'`, `'user'`
 
-3. **토큰 만료 시간**:
+2. **토큰 만료 시간**:
    - Admin: 24시간
    - Shop Owner: 24시간
    - User: 30일
 
-4. **Rate Limiting**:
+3. **Rate Limiting**:
    - 로그인: 5회 시도 / 15분
    - 초과 시 자동으로 계정이 잠기지 않지만 요청이 차단됩니다
 
