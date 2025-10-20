@@ -999,7 +999,7 @@ router.get('/shops/:shopId/analytics',
  *         description: Internal server error
  */
 router.get('/dashboard/quick',
-  // authenticateJWT and requireRole('admin') are already applied globally via app.use('/api/admin/*', ...)
+  // Authentication already handled by global /api/admin/* middleware in app.ts
   rateLimit({ config: { windowMs: 5 * 60 * 1000, max: 300 } }), // Higher rate limit due to excellent performance
   adminAnalyticsOptimizedController.getQuickDashboardMetrics.bind(adminAnalyticsOptimizedController)
 );

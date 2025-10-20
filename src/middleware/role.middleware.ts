@@ -10,12 +10,14 @@ import { logger } from '../utils/logger';
 
 /**
  * User roles enum
+ * Note: This enum is deprecated. Use UserRole from unified-auth.types.ts instead.
+ * Kept for backward compatibility with legacy code.
  */
 export enum UserRole {
   USER = 'user',
   ADMIN = 'admin',
-  MODERATOR = 'moderator',
-  SUPER_ADMIN = 'super_admin'
+  SHOP_OWNER = 'shop_owner',
+  CUSTOMER = 'customer'
 }
 
 /**
@@ -23,9 +25,9 @@ export enum UserRole {
  */
 const ROLE_HIERARCHY: Record<UserRole, number> = {
   [UserRole.USER]: 1,
-  [UserRole.MODERATOR]: 2,
-  [UserRole.ADMIN]: 3,
-  [UserRole.SUPER_ADMIN]: 4
+  [UserRole.CUSTOMER]: 2,
+  [UserRole.SHOP_OWNER]: 3,
+  [UserRole.ADMIN]: 4
 };
 
 /**
@@ -102,14 +104,9 @@ export const requireRole = (requiredRole: UserRole | UserRole[]) => {
 export const requireAdmin = requireRole(UserRole.ADMIN);
 
 /**
- * Middleware to require super admin role
+ * Middleware to require shop owner role
  */
-export const requireSuperAdmin = requireRole(UserRole.SUPER_ADMIN);
-
-/**
- * Middleware to require moderator or higher role
- */
-export const requireModerator = requireRole([UserRole.MODERATOR, UserRole.ADMIN, UserRole.SUPER_ADMIN]);
+export const requireShopOwner = requireRole(UserRole.SHOP_OWNER);
 
 /**
  * Middleware to check if user can access resource
@@ -131,8 +128,8 @@ export const canAccessResource = (resourceOwnerId: string) => {
       const userRole = req.user.role as UserRole;
       const userId = req.user.id;
 
-      // Admin and super admin can access any resource
-      if (userRole === UserRole.ADMIN || userRole === UserRole.SUPER_ADMIN) {
+      // Admin can access any resource
+      if (userRole === UserRole.ADMIN) {
         return next();
       }
 
@@ -196,14 +193,14 @@ export const canPerformAction = (action: string, resource?: string) => {
 
       // Define action permissions
       const actionPermissions: Record<string, UserRole[]> = {
-        'read:users': [UserRole.ADMIN, UserRole.SUPER_ADMIN],
-        'write:users': [UserRole.ADMIN, UserRole.SUPER_ADMIN],
-        'delete:users': [UserRole.SUPER_ADMIN],
-        'read:analytics': [UserRole.ADMIN, UserRole.SUPER_ADMIN],
-        'write:analytics': [UserRole.ADMIN, UserRole.SUPER_ADMIN],
-        'read:security': [UserRole.ADMIN, UserRole.SUPER_ADMIN],
-        'write:security': [UserRole.ADMIN, UserRole.SUPER_ADMIN],
-        'manage:system': [UserRole.SUPER_ADMIN]
+        'read:users': [UserRole.ADMIN],
+        'write:users': [UserRole.ADMIN],
+        'delete:users': [UserRole.ADMIN],
+        'read:analytics': [UserRole.ADMIN],
+        'write:analytics': [UserRole.ADMIN],
+        'read:security': [UserRole.ADMIN],
+        'write:security': [UserRole.ADMIN],
+        'manage:system': [UserRole.ADMIN]
       };
 
       const allowedRoles = actionPermissions[action] || [UserRole.USER];

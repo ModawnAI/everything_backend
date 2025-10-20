@@ -61,6 +61,7 @@ export interface AdminSessionValidation {
     email: string;
     role: string;
     permissions: string[];
+    shop_id?: string;  // For shop_owner role filtering
   };
   session?: AdminSession;
   error?: string;
@@ -339,7 +340,8 @@ export class AdminAuthService {
             id: admin.id,
             email: admin.email,
             role: admin.user_role,
-            permissions: await this.getAdminPermissions(admin.id)
+            permissions: await this.getAdminPermissions(admin.id),
+            shop_id: admin.shop_id || undefined
           },
           session: {
             id: supabaseUser.id, // Use Supabase user ID as session ID
@@ -416,7 +418,8 @@ export class AdminAuthService {
           id: admin.id,
           email: admin.email,
           role: admin.user_role,
-          permissions: await this.getAdminPermissions(admin.id)
+          permissions: await this.getAdminPermissions(admin.id),
+          shop_id: admin.shop_id || undefined
         },
         session: {
           id: session.id,

@@ -5,8 +5,8 @@
  * All endpoints are scoped to a specific shop (/api/shops/:shopId/reservations)
  *
  * Access Control:
- * - Platform admins (super_admin, admin): Can access any shop
- * - Shop roles (shop_owner, shop_manager, shop_admin, manager): Only their own shop
+ * - Platform admins (admin): Can access any shop
+ * - Shop roles (shop_owner): Only their own shop
  */
 
 import { Router } from 'express';

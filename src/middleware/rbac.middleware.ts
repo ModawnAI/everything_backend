@@ -582,13 +582,15 @@ export function requireShopOwnership(getShopId: (req: any) => string) {
 }
 
 /**
- * Admin only middleware
+ * Admin area access middleware - allows admin and shop_owner
+ * Shop owners have limited access to only their shop's data (enforced in controllers)
  */
 export function requireAdmin() {
   return (req: AuthorizedRequest, res: Response, next: NextFunction): void => {
-         const user = req.user;
+    const user = req.user;
 
-     if (!user || user.role !== 'admin') {
+    // Allow admin and shop_owner roles
+    if (!user || !['admin', 'shop_owner'].includes(user.role)) {
       res.status(403).json({
         success: false,
         error: {

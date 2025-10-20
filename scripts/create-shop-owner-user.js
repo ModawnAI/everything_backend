@@ -23,21 +23,23 @@ async function createShopOwnerUser() {
   console.log('Password:', password);
 
   try {
+    let authData;
+
     // First, create the auth user using admin API
-    const { data: authData, error: authError } = await supabaseAdmin.auth.admin.createUser({
+    const { data: createData, error: authError } = await supabaseAdmin.auth.admin.createUser({
       email,
       password,
       email_confirm: true,
       user_metadata: {
         name,
-        role: 'shop-owner'
+        role: 'shop_owner'
       }
     });
 
     if (authError) {
       console.error('Error creating auth user:', authError);
       // Check if user already exists
-      if (authError.message.includes('already registered')) {
+      if (authError.message.includes('already registered') || authError.code === 'email_exists') {
         console.log('User already exists in auth, trying to get existing user...');
         const { data: { users }, error: listError } = await supabaseAdmin.auth.admin.listUsers();
         if (listError) {
@@ -51,20 +53,28 @@ async function createShopOwnerUser() {
         }
         console.log('Found existing user:', existingUser.id);
 
-        // Update the existing user's metadata
-        await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
+        // Update the existing user's metadata and password
+        const { data: updatedUser, error: updateAuthError } = await supabaseAdmin.auth.admin.updateUserById(existingUser.id, {
           email_confirm: true,
           password,
           user_metadata: {
             name,
-            role: 'shop-owner'
+            role: 'shop_owner'
           }
         });
 
-        authData.user = existingUser;
+        if (updateAuthError) {
+          console.error('Error updating auth user:', updateAuthError);
+          process.exit(1);
+        }
+
+        console.log('✅ Auth user updated');
+        authData = { user: updatedUser.user };
       } else {
         process.exit(1);
       }
+    } else {
+      authData = createData;
     }
 
     console.log('✅ Auth user created/updated:', authData.user.id);
@@ -76,6 +86,9 @@ async function createShopOwnerUser() {
       .eq('id', authData.user.id)
       .single();
 
+    // First, create or get a test shop for this owner
+    const testShopId = '22222222-2222-2222-2222-222222222222'; // Use existing test shop
+
     if (existingUser) {
       // Update existing user
       const { error: updateError } = await supabaseAdmin
@@ -83,9 +96,10 @@ async function createShopOwnerUser() {
         .update({
           email,
           name,
-          user_role: 'shop-owner',
+          user_role: 'shop_owner',
           user_status: 'active',
           phone_verified: true,
+          shop_id: testShopId, // Add shop_id for shop_owner role
           updated_at: new Date().toISOString()
         })
         .eq('id', authData.user.id);
@@ -103,9 +117,10 @@ async function createShopOwnerUser() {
           id: authData.user.id,
           email,
           name,
-          user_role: 'shop-owner',
+          user_role: 'shop_owner',
           user_status: 'active',
           phone_verified: true,
+          shop_id: testShopId, // Add shop_id for shop_owner role
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
@@ -115,6 +130,21 @@ async function createShopOwnerUser() {
         process.exit(1);
       }
       console.log('✅ User created in users table');
+    }
+
+    // Update shop's owner_id
+    const { error: shopError } = await supabaseAdmin
+      .from('shops')
+      .update({
+        owner_id: authData.user.id,
+        updated_at: new Date().toISOString()
+      })
+      .eq('id', testShopId);
+
+    if (shopError) {
+      console.warn('⚠️ Could not update shop owner_id:', shopError.message);
+    } else {
+      console.log('✅ Shop owner_id updated');
     }
 
     console.log('\n✅ Shop owner user ready!');

@@ -6,14 +6,14 @@ import { AuthenticatedRequest } from './auth.middleware';
  * Shop Access Validation Middleware
  *
  * Validates that users can only access shops they are authorized for:
- * - Platform admins (super_admin, admin) can access any shop
- * - Shop roles (shop_owner, shop_manager, shop_admin, manager) can only access their own shop
+ * - Platform admins (admin) can access any shop
+ * - Shop roles (shop_owner) can only access their own shop
  *
  * This middleware should be applied to all /api/shops/:shopId/* routes
  */
 
-const SHOP_ROLES = ['shop_owner', 'shop_manager', 'shop_admin', 'manager'];
-const PLATFORM_ADMIN_ROLES = ['super_admin', 'admin'];
+const SHOP_ROLES = ['shop_owner'];
+const PLATFORM_ADMIN_ROLES = ['admin'];
 
 export interface ShopAccessRequest extends AuthenticatedRequest {
   params: {

@@ -35,10 +35,27 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       // Extract and validate query parameters
       const {
         status,
-        shopId,
+        shopId: requestedShopId,
         userId,
         startDate,
         endDate,
@@ -87,9 +104,27 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Enforce role-based shop filtering
+      // Shop Owner: MUST use their own shop_id (ignore query parameter)
+      // Admin/Super Admin: CAN use requested shop_id (optional filter)
+      let effectiveShopId: string | undefined;
+
+      if (adminRole === 'shop_owner') {
+        // Shop Owner는 무조건 자신의 shopId만 사용 (쿼리 파라미터 무시)
+        effectiveShopId = adminShopId;
+        logger.info('Shop Owner filtering applied', {
+          adminId: validation.admin.id,
+          shopId: effectiveShopId,
+          requestedShopId
+        });
+      } else if (adminRole === 'admin') {
+        // Admin은 쿼리 파라미터의 shopId 사용 가능 (선택적 필터)
+        effectiveShopId = requestedShopId as string | undefined;
+      }
+
       const filters = {
         ...(status && { status: status as ReservationStatus }),
-        ...(shopId && { shopId: shopId as string }),
+        ...(effectiveShopId && { shopId: effectiveShopId }),
         ...(userId && { userId: userId as string }),
         ...(startDate && { startDate: startDate as string }),
         ...(endDate && { endDate: endDate as string }),
@@ -151,12 +186,61 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       if (!reservationId) {
         res.status(400).json({
           success: false,
           error: 'Reservation ID is required'
         });
         return;
+      }
+
+      // SECURITY: Shop Owner can only update reservations from their own shop
+      if (adminRole === 'shop_owner' && adminShopId) {
+        const { data: reservation, error: reservationError } = await adminReservationService['supabase']
+          .from('reservations')
+          .select('shop_id')
+          .eq('id', reservationId)
+          .single();
+
+        if (reservationError || !reservation) {
+          res.status(404).json({
+            success: false,
+            error: '예약을 찾을 수 없습니다.'
+          });
+          return;
+        }
+
+        if (reservation.shop_id !== adminShopId) {
+          logger.warn('Shop Owner attempted to update reservation from another shop', {
+            adminId: validation.admin.id,
+            adminShopId,
+            reservationId,
+            reservationShopId: reservation.shop_id
+          });
+
+          res.status(404).json({
+            success: false,
+            error: '예약을 찾을 수 없거나 접근 권한이 없습니다.'
+          });
+          return;
+        }
       }
 
       if (!status || !VALID_RESERVATION_STATUSES.includes(status)) {
@@ -227,12 +311,61 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       if (!reservationId) {
         res.status(400).json({
           success: false,
           error: 'Reservation ID is required'
         });
         return;
+      }
+
+      // SECURITY: Shop Owner can only create disputes for their own shop's reservations
+      if (adminRole === 'shop_owner' && adminShopId) {
+        const { data: reservation, error: reservationError } = await adminReservationService['supabase']
+          .from('reservations')
+          .select('shop_id')
+          .eq('id', reservationId)
+          .single();
+
+        if (reservationError || !reservation) {
+          res.status(404).json({
+            success: false,
+            error: '예약을 찾을 수 없습니다.'
+          });
+          return;
+        }
+
+        if (reservation.shop_id !== adminShopId) {
+          logger.warn('Shop Owner attempted to create dispute for reservation from another shop', {
+            adminId: validation.admin.id,
+            adminShopId,
+            reservationId,
+            reservationShopId: reservation.shop_id
+          });
+
+          res.status(404).json({
+            success: false,
+            error: '예약을 찾을 수 없거나 접근 권한이 없습니다.'
+          });
+          return;
+        }
       }
 
       if (!disputeType || !['customer_complaint', 'shop_issue', 'payment_dispute', 'service_quality', 'other'].includes(disputeType)) {
@@ -324,13 +457,36 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       const { startDate, endDate } = req.query;
       const dateRange = startDate && endDate ? {
         startDate: startDate as string,
         endDate: endDate as string
       } : undefined;
 
-      const analytics = await adminReservationService.getReservationAnalytics(validation.admin.id, dateRange);
+      // SECURITY: Pass shopId to service layer for Shop Owner filtering
+      // Note: Service layer needs to filter analytics data by shopId for shop_owner role
+      const analytics = await adminReservationService.getReservationAnalytics(
+        validation.admin.id,
+        dateRange,
+        adminRole === 'shop_owner' ? adminShopId : undefined
+      );
 
       res.json({
         success: true,
@@ -376,12 +532,45 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       // Extract query parameters
-      const { shopId, staffId, dateFrom, dateTo } = req.query;
+      const { shopId: requestedShopId, staffId, dateFrom, dateTo } = req.query;
+
+      // SECURITY: Enforce role-based shop filtering
+      let effectiveShopId: string | undefined;
+
+      if (adminRole === 'shop_owner') {
+        // Shop Owner는 무조건 자신의 shopId만 사용 (쿼리 파라미터 무시)
+        effectiveShopId = adminShopId;
+        logger.info('Shop Owner filtering applied to statistics', {
+          adminId: validation.admin.id,
+          shopId: effectiveShopId,
+          requestedShopId
+        });
+      } else if (adminRole === 'admin') {
+        // Admin은 쿼리 파라미터의 shopId 사용 가능 (선택적 필터)
+        effectiveShopId = requestedShopId as string | undefined;
+      }
 
       // Build filters
       const filters = {
-        shopId: shopId as string | undefined,
+        shopId: effectiveShopId,
         staffId: staffId as string | undefined,
         dateFrom: dateFrom as string | undefined,
         dateTo: dateTo as string | undefined
@@ -435,6 +624,23 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       if (!reservationId) {
         res.status(400).json({
           success: false,
@@ -444,7 +650,7 @@ export class AdminReservationController {
       }
 
       // Get reservation with detailed information
-      const { data: reservation, error } = await adminReservationService['supabase']
+      let query = adminReservationService['supabase']
         .from('reservations')
         .select(`
           *,
@@ -494,13 +700,21 @@ export class AdminReservationController {
             created_at
           )
         `)
-        .eq('id', reservationId)
-        .single();
+        .eq('id', reservationId);
+
+      // SECURITY: Shop Owner can only view reservations from their own shop
+      if (adminRole === 'shop_owner' && adminShopId) {
+        query = query.eq('shop_id', adminShopId);
+      }
+
+      const { data: reservation, error } = await query.single();
 
       if (error || !reservation) {
         res.status(404).json({
           success: false,
-          error: 'Reservation not found'
+          error: adminRole === 'shop_owner'
+            ? '예약을 찾을 수 없거나 접근 권한이 없습니다.'
+            : 'Reservation not found'
         });
         return;
       }
@@ -650,12 +864,61 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       if (!reservationId) {
         res.status(400).json({
           success: false,
           error: 'Reservation ID is required'
         });
         return;
+      }
+
+      // SECURITY: Shop Owner can only force complete reservations from their own shop
+      if (adminRole === 'shop_owner' && adminShopId) {
+        const { data: reservation, error: reservationError } = await adminReservationService['supabase']
+          .from('reservations')
+          .select('shop_id')
+          .eq('id', reservationId)
+          .single();
+
+        if (reservationError || !reservation) {
+          res.status(404).json({
+            success: false,
+            error: '예약을 찾을 수 없습니다.'
+          });
+          return;
+        }
+
+        if (reservation.shop_id !== adminShopId) {
+          logger.warn('Shop Owner attempted to force complete reservation from another shop', {
+            adminId: validation.admin.id,
+            adminShopId,
+            reservationId,
+            reservationShopId: reservation.shop_id
+          });
+
+          res.status(404).json({
+            success: false,
+            error: '예약을 찾을 수 없거나 접근 권한이 없습니다.'
+          });
+          return;
+        }
       }
 
       if (!reason || reason.trim().length === 0) {
@@ -743,6 +1006,23 @@ export class AdminReservationController {
         return;
       }
 
+      // SECURITY: Get admin role and shop_id for role-based filtering
+      const adminRole = validation.admin.role;
+      const adminShopId = validation.admin.shop_id;
+
+      // SECURITY: Shop Owner must have shop_id
+      if (adminRole === 'shop_owner' && !adminShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
       if (!reservationIds || !Array.isArray(reservationIds) || reservationIds.length === 0) {
         res.status(400).json({
           success: false,
@@ -765,6 +1045,42 @@ export class AdminReservationController {
 
       for (const reservationId of reservationIds) {
         try {
+          // SECURITY: Shop Owner can only bulk update reservations from their own shop
+          if (adminRole === 'shop_owner' && adminShopId) {
+            const { data: reservation, error: reservationError } = await adminReservationService['supabase']
+              .from('reservations')
+              .select('shop_id')
+              .eq('id', reservationId)
+              .single();
+
+            if (reservationError || !reservation) {
+              results.push({
+                reservationId,
+                success: false,
+                error: '예약을 찾을 수 없습니다.'
+              });
+              failed++;
+              continue;
+            }
+
+            if (reservation.shop_id !== adminShopId) {
+              logger.warn('Shop Owner attempted to bulk update reservation from another shop', {
+                adminId: validation.admin.id,
+                adminShopId,
+                reservationId,
+                reservationShopId: reservation.shop_id
+              });
+
+              results.push({
+                reservationId,
+                success: false,
+                error: '예약을 찾을 수 없거나 접근 권한이 없습니다.'
+              });
+              failed++;
+              continue;
+            }
+          }
+
           await adminReservationService.updateReservationStatus(reservationId, {
             status,
             notes,

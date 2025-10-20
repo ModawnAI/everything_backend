@@ -46,12 +46,36 @@ class SQLInjectionPreventionService {
   private readonly maxViolationsPerIP = 10;
   private readonly maxHistorySize = 1000;
 
+  // Common database column names that should NOT be sanitized
+  private readonly safeColumnNames = new Set([
+    'created_at', 'updated_at', 'deleted_at',
+    'created-at', 'updated-at', 'deleted-at', // kebab-case variants
+    'name', 'email', 'status', 'role', 'price', 'user_role',
+    'shop_id', 'user_id', 'service_id', 'reservation_id',
+    'start_time', 'end_time', 'duration', 'total_amount',
+    'deposit_amount', 'display_order', 'booking_advance_days',
+    'cancellation_hours', 'is_available', 'is_active'
+  ]);
+
+  /**
+   * Check if input is a safe column name
+   */
+  private isSafeColumnName(input: string): boolean {
+    const normalized = input.toLowerCase().trim();
+    return this.safeColumnNames.has(normalized);
+  }
+
   /**
    * Sanitize input to prevent SQL injection
    */
   sanitizeInput(input: string): string {
     if (typeof input !== 'string') {
       return String(input);
+    }
+
+    // Don't sanitize safe column names
+    if (this.isSafeColumnName(input)) {
+      return input;
     }
 
     // Remove or escape dangerous characters

@@ -6,6 +6,8 @@ import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { config } from '../config/environment';
 import { securityMonitoringService } from '../services/security-monitoring.service';
+import { TokenPayload } from '../types/unified-auth.types';
+import { SessionRepository } from '../repositories';
 
 /**
  * JWT Authentication Middleware
@@ -102,6 +104,73 @@ export class UserNotFoundError extends AuthenticationError {
   constructor(message: string = 'User not found') {
     super(message, 404, 'USER_NOT_FOUND');
     this.name = 'UserNotFoundError';
+  }
+}
+
+/**
+ * Extract refresh token from Supabase auth cookie
+ */
+function extractRefreshTokenFromCookie(cookieHeader: string): string | null {
+  try {
+    // Find the project reference from the first cookie part
+    const projectMatch = cookieHeader.match(/sb-([a-z0-9]+)-auth-token\.0=/);
+    if (!projectMatch) {
+      console.log('[REFRESH-DEBUG] No Supabase auth token found in cookie');
+      return null;
+    }
+
+    const projectRef = projectMatch[1];
+    console.log('[REFRESH-DEBUG] Found Supabase project:', projectRef);
+
+    // Collect all cookie parts in order (.0, .1, .2, etc.)
+    const cookieParts: string[] = [];
+    let partIndex = 0;
+
+    while (true) {
+      const partPattern = new RegExp(`sb-${projectRef}-auth-token\\.${partIndex}=([^;]+)`);
+      const partMatch = cookieHeader.match(partPattern);
+
+      if (!partMatch) {
+        break; // No more parts
+      }
+
+      // Remove "base64-" prefix from first part if present
+      let partValue = partMatch[1];
+      if (partIndex === 0 && partValue.startsWith('base64-')) {
+        partValue = partValue.substring(7); // Remove "base64-" prefix
+      }
+
+      cookieParts.push(partValue);
+      partIndex++;
+    }
+
+    if (cookieParts.length === 0) {
+      console.log('[REFRESH-DEBUG] No cookie parts found');
+      return null;
+    }
+
+    console.log(`[REFRESH-DEBUG] Found ${cookieParts.length} cookie parts`);
+
+    // Concatenate all parts and decode
+    const fullCookieValue = cookieParts.join('');
+    const decodedValue = Buffer.from(fullCookieValue, 'base64').toString('utf-8');
+
+    console.log('[REFRESH-DEBUG] Decoded cookie value length:', decodedValue.length);
+
+    // Parse the JSON
+    const sessionData = JSON.parse(decodedValue);
+
+    if (sessionData.refresh_token) {
+      console.log('[REFRESH-DEBUG] ✅ Found refresh token:', sessionData.refresh_token);
+      return sessionData.refresh_token;
+    }
+
+    console.log('[REFRESH-DEBUG] No refresh_token field in session data');
+    console.log('[REFRESH-DEBUG] Session data keys:', Object.keys(sessionData));
+    return null;
+  } catch (error) {
+    console.log('[REFRESH-DEBUG] Error extracting refresh token:', error instanceof Error ? error.message : error);
+    return null;
   }
 }
 
@@ -282,11 +351,14 @@ export async function verifySupabaseToken(token: string): Promise<SupabaseJWTPay
  */
 export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJWTPayload> {
   try {
+    console.log('[LOCAL-VERIFY-1] Starting local verification');
 
     // Get JWT secret from Supabase configuration
     const jwtSecret = config.auth.jwtSecret;
+    console.log('[LOCAL-VERIFY-2] JWT Secret available:', !!jwtSecret);
 
     if (!jwtSecret) {
+      console.log('[LOCAL-VERIFY-ERROR] JWT secret not configured');
       throw new InvalidTokenError('JWT secret not configured');
     }
 
@@ -296,44 +368,79 @@ export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJ
     });
 
     // Verify and decode the token
-    const decoded = jwt.verify(token, jwtSecret, {
-      issuer: config.auth.issuer,
-      audience: config.auth.audience,
-    }) as SupabaseJWTPayload;
+    // Try with issuer/audience first (for Supabase tokens)
+    let decoded: SupabaseJWTPayload;
+    try {
+      console.log('[LOCAL-VERIFY-3] Trying with issuer/audience');
+      decoded = jwt.verify(token, jwtSecret, {
+        issuer: config.auth.issuer,
+        audience: config.auth.audience,
+      }) as SupabaseJWTPayload;
+      console.log('[LOCAL-VERIFY-4] Success with issuer/audience');
+    } catch (firstError) {
+      // If issuer/audience validation fails, try without it (for admin tokens)
+      console.log('[LOCAL-VERIFY-5] Issuer/audience failed, trying without');
+      console.log('[LOCAL-VERIFY-6] First error:', firstError instanceof Error ? firstError.message : String(firstError));
+      logger.debug('[verifySupabaseTokenLocal] Retrying without issuer/audience validation');
+      decoded = jwt.verify(token, jwtSecret) as SupabaseJWTPayload;
+      console.log('[LOCAL-VERIFY-7] Success without issuer/audience');
+    }
 
+    console.log('[LOCAL-VERIFY-8] Token decoded successfully');
+    console.log('[LOCAL-VERIFY-9] Token payload:', JSON.stringify(decoded, null, 2));
     logger.debug('[verifySupabaseTokenLocal] Local JWT verification successful');
 
     // Validate required fields
+    console.log('[LOCAL-VERIFY-10] Validating required fields');
+    console.log('[LOCAL-VERIFY-11] Token.sub:', decoded.sub);
+    console.log('[LOCAL-VERIFY-12] Token.exp:', decoded.exp, 'Current time:', Date.now() / 1000);
+
     if (!decoded.sub) {
+      console.log('[LOCAL-VERIFY-ERROR] Token missing user ID');
       throw new InvalidTokenError('Token missing user ID');
     }
 
     if (!decoded.exp || decoded.exp < Date.now() / 1000) {
+      console.log('[LOCAL-VERIFY-ERROR] Token has expired');
       throw new TokenExpiredError('Token has expired');
     }
 
+    console.log('[LOCAL-VERIFY-SUCCESS] All validation passed, returning token');
     return decoded;
   } catch (error) {
+    console.log('[LOCAL-VERIFY-CATCH] Caught error in verifySupabaseTokenLocal');
+    console.log('[LOCAL-VERIFY-CATCH] Error type:', error instanceof Error ? error.constructor.name : typeof error);
+    console.log('[LOCAL-VERIFY-CATCH] Error name:', error instanceof Error ? error.name : 'N/A');
+    console.log('[LOCAL-VERIFY-CATCH] Error message:', error instanceof Error ? error.message : String(error));
+
     // Check error name for JWT library errors
     if (error instanceof Error) {
       if (error.name === 'TokenExpiredError') {
+        console.log('[LOCAL-VERIFY-CATCH] Token expired - throwing TokenExpiredError');
         logger.debug('[verifySupabaseTokenLocal] Token expired');
         throw new TokenExpiredError('Token has expired');
       }
 
       if (error.name === 'JsonWebTokenError') {
+        console.log('[LOCAL-VERIFY-CATCH] Invalid JWT - throwing InvalidTokenError');
         logger.debug('[verifySupabaseTokenLocal] Invalid JWT', {
           message: error.message,
-          hint: 'Ensure JWT_SECRET in .env matches Supabase JWT Secret from Dashboard'
+          hint: 'Token may be signed with a different secret or corrupted'
         });
-        throw new InvalidTokenError(`Invalid token: ${error.message}`);
+        throw new InvalidTokenError(
+          error.message.includes('invalid signature')
+            ? 'Token signature is invalid. Please log in again to get a new token.'
+            : `Invalid token: ${error.message}`
+        );
       }
     }
 
     if (error instanceof AuthenticationError) {
+      console.log('[LOCAL-VERIFY-CATCH] AuthenticationError - re-throwing');
       throw error;
     }
 
+    console.log('[LOCAL-VERIFY-CATCH] Unknown error - logging and re-throwing');
     logger.error('[verifySupabaseTokenLocal] Local token verification failed', {
       error: error instanceof Error ? error.message : 'Unknown error',
       stack: error instanceof Error ? error.stack : undefined,
@@ -341,6 +448,139 @@ export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJ
     });
 
     throw new InvalidTokenError('Token verification failed');
+  }
+}
+
+/**
+ * Verify Unified Auth System Token
+ * Validates tokens generated by the unified authentication system
+ */
+export async function verifyUnifiedAuthToken(token: string): Promise<SupabaseJWTPayload> {
+  try {
+    console.log('[UNIFIED-AUTH-1] Starting unified auth token verification');
+
+    // Verify JWT token with unified auth secret
+    const jwtSecret = config.auth.jwtSecret;
+    if (!jwtSecret) {
+      throw new InvalidTokenError('JWT secret not configured');
+    }
+
+    // Decode and verify token (without type assertion to allow legacy roles)
+    const decoded = jwt.verify(token, jwtSecret) as any;
+    console.log('[UNIFIED-AUTH-2] Token decoded:', {
+      userId: decoded.userId,
+      role: decoded.role,
+      type: decoded.type,
+      sessionId: decoded.sessionId
+    });
+
+    // Validate token type
+    if (decoded.type !== 'access') {
+      throw new InvalidTokenError('Invalid token type');
+    }
+
+    // Validate session (legacy tokens might not have session)
+    const sessionRepo = new SessionRepository();
+    const session = await sessionRepo.findByToken(token);
+
+    if (!session) {
+      console.log('[UNIFIED-AUTH-3] Session not found - checking if legacy token');
+      // Legacy token without session - allow if token is still valid by expiry
+      if (decoded.exp && decoded.exp < Date.now() / 1000) {
+        throw new TokenExpiredError('Legacy token has expired');
+      }
+      console.log('[UNIFIED-AUTH-3.5] Legacy token accepted (no session validation)');
+    } else {
+      // Session exists - validate it
+      if (!session.is_active) {
+        console.log('[UNIFIED-AUTH-4] Session is not active');
+        throw new InvalidTokenError('Session is not active');
+      }
+
+      if (new Date() > session.expires_at) {
+        console.log('[UNIFIED-AUTH-5] Session has expired');
+        throw new TokenExpiredError('Session has expired');
+      }
+
+      console.log('[UNIFIED-AUTH-6] Session validated successfully');
+    }
+
+    // Fetch user information from database
+    const supabase = getSupabaseClient();
+    let userQuery;
+
+    switch (decoded.role) {
+      case 'admin':
+        userQuery = supabase
+          .from('admins')
+          .select('id, email, role, shop_id')
+          .eq('id', decoded.userId)
+          .single();
+        break;
+      case 'shop_owner':
+        userQuery = supabase
+          .from('admins')
+          .select('id, email, role, shop_id')
+          .eq('id', decoded.userId)
+          .eq('role', 'shop_owner')
+          .single();
+        break;
+      case 'customer':
+        userQuery = supabase
+          .from('users')
+          .select('id, email, full_name, phone')
+          .eq('id', decoded.userId)
+          .single();
+        break;
+      default:
+        throw new InvalidTokenError('Invalid user role');
+    }
+
+    const { data: user, error: userError } = await userQuery;
+
+    if (userError || !user) {
+      console.log('[UNIFIED-AUTH-7] User not found:', userError?.message);
+      throw new InvalidTokenError('User not found');
+    }
+
+    console.log('[UNIFIED-AUTH-8] User found:', { email: user.email, role: decoded.role });
+
+    // Convert to Supabase-compatible payload format
+    const payload: SupabaseJWTPayload = {
+      sub: decoded.userId,
+      aud: 'authenticated',
+      exp: Math.floor(session.expires_at.getTime() / 1000),
+      iat: Math.floor(session.created_at.getTime() / 1000),
+      iss: config.auth.issuer,
+      email: user.email,
+      role: decoded.role,
+      user_metadata: {
+        full_name: user.full_name || '',
+        shop_id: decoded.shopId || user.shop_id
+      },
+      app_metadata: {
+        provider: 'unified-auth'
+      }
+    };
+
+    console.log('[UNIFIED-AUTH-SUCCESS] Token verified successfully');
+    return payload;
+  } catch (error) {
+    console.log('[UNIFIED-AUTH-ERROR]', error instanceof Error ? error.message : String(error));
+
+    if (error instanceof AuthenticationError) {
+      throw error;
+    }
+
+    if (error instanceof Error && error.name === 'TokenExpiredError') {
+      throw new TokenExpiredError('Token has expired');
+    }
+
+    if (error instanceof Error && error.name === 'JsonWebTokenError') {
+      throw new InvalidTokenError(`Invalid token: ${error.message}`);
+    }
+
+    throw new InvalidTokenError('Unified auth token verification failed');
   }
 }
 
@@ -749,13 +989,19 @@ export function authenticateJWT() {
       console.log('[AUTH-DEBUG-2] Extracting token from header');
 
       let token = extractTokenFromHeader(authHeader);
+      let tokenSource = 'none';
       console.log('[AUTH-DEBUG-3] Token extracted from header:', token ? 'yes' : 'no');
 
       // FALLBACK: Try extracting from Supabase cookie if header is missing
       if (!token && req.headers.cookie) {
         console.log('[AUTH-DEBUG-3.1] No header token, trying cookie extraction');
         token = extractTokenFromSupabaseCookie(req.headers.cookie);
+        if (token) {
+          tokenSource = 'cookie';
+        }
         console.log('[AUTH-DEBUG-3.2] Token extracted from cookie:', token ? 'yes' : 'no');
+      } else if (token) {
+        tokenSource = 'header';
       }
 
       if (!token) {
@@ -767,20 +1013,123 @@ export function authenticateJWT() {
       // This uses Supabase's auth.getUser() which handles all token verification including
       // new JWT signing keys and legacy tokens
       // FALLBACK: If Supabase verification fails, try local JWT verification for admin tokens
-      console.log('[AUTH-DEBUG-4] Starting Supabase token verification');
-      let tokenPayload: SupabaseJWTPayload;
+      console.log('[AUTH-DEBUG-4] Starting token verification from source:', tokenSource);
+      let tokenPayload: SupabaseJWTPayload | null = null;
+      let verificationError: Error | null = null;
+
       try {
         tokenPayload = await verifySupabaseToken(token);
         console.log('[AUTH-DEBUG-5] Token verified via Supabase API');
       } catch (supabaseError) {
+        verificationError = supabaseError as Error;
         console.log('[AUTH-DEBUG-5.1] Supabase verification failed, trying local verification');
         logger.info('Supabase token verification failed, attempting local verification', {
           error: supabaseError instanceof Error ? supabaseError.message : 'Unknown'
         });
 
-        // Fallback to local JWT verification for admin tokens
-        tokenPayload = await verifySupabaseTokenLocal(token);
-        console.log('[AUTH-DEBUG-5.2] Token verified via local JWT verification');
+        try {
+          // Fallback to local JWT verification for admin tokens
+          tokenPayload = await verifySupabaseTokenLocal(token);
+          console.log('[AUTH-DEBUG-5.2] Token verified via local JWT verification');
+          verificationError = null; // Clear error if local verification succeeded
+        } catch (localError) {
+          verificationError = localError as Error;
+          console.log('[AUTH-DEBUG-5.3] Local verification also failed');
+          console.log('[AUTH-DEBUG-5.3.1] tokenSource:', tokenSource);
+          console.log('[AUTH-DEBUG-5.3.2] Has cookie header:', !!req.headers.cookie);
+          console.log('[AUTH-DEBUG-5.3.3] Will attempt cookie fallback:', tokenSource === 'header' && !!req.headers.cookie);
+
+          // Try unified auth token verification
+          if (tokenSource === 'header') {
+            console.log('[AUTH-DEBUG-5.3.5] Attempting unified auth token verification');
+            try {
+              tokenPayload = await verifyUnifiedAuthToken(token);
+              console.log('[AUTH-DEBUG-5.3.6] ✅ Unified auth token verified successfully!');
+              tokenSource = 'unified-auth';
+              verificationError = null;
+            } catch (unifiedAuthError) {
+              console.log('[AUTH-DEBUG-5.3.7] Unified auth verification failed:', unifiedAuthError instanceof Error ? unifiedAuthError.message : String(unifiedAuthError));
+              // Continue to cookie fallback
+            }
+          }
+
+          // If token was from header and verification failed, try cookie as last resort
+          if (!tokenPayload && tokenSource === 'header' && req.headers.cookie) {
+            console.log('[AUTH-DEBUG-5.4] Header token invalid, attempting cookie fallback');
+            const cookieToken = extractTokenFromSupabaseCookie(req.headers.cookie);
+
+            if (cookieToken && cookieToken !== token) {
+              console.log('[AUTH-DEBUG-5.5] Found different token in cookie, trying verification');
+              try {
+                tokenPayload = await verifySupabaseToken(cookieToken);
+                console.log('[AUTH-DEBUG-5.6] ✅ Cookie token verified successfully!');
+                tokenSource = 'cookie-fallback';
+                verificationError = null;
+              } catch (cookieError) {
+                console.log('[AUTH-DEBUG-5.7] Cookie token verification failed, will try refresh');
+                // Don't clear verificationError yet, will try refresh next
+              }
+            }
+          }
+
+          // If we have cookie but no valid token source yet, try from cookie first
+          if (!tokenPayload && !tokenSource.includes('cookie') && tokenSource !== 'refreshed' && req.headers.cookie) {
+            console.log('[AUTH-DEBUG-5.7.5] Trying direct cookie extraction');
+            const cookieToken = extractTokenFromSupabaseCookie(req.headers.cookie);
+
+            if (cookieToken) {
+              try {
+                tokenPayload = await verifySupabaseToken(cookieToken);
+                console.log('[AUTH-DEBUG-5.7.6] ✅ Cookie token verified successfully!');
+                tokenSource = 'cookie';
+                verificationError = null;
+              } catch (cookieError) {
+                console.log('[AUTH-DEBUG-5.7.7] Cookie token verification failed, will try refresh');
+              }
+            }
+          }
+
+          // If all verification attempts failed, try token refresh as last resort
+          if (!tokenPayload && verificationError && req.headers.cookie) {
+            console.log('[AUTH-DEBUG-5.8] Attempting automatic token refresh');
+            const refreshToken = extractRefreshTokenFromCookie(req.headers.cookie);
+
+            if (refreshToken) {
+              console.log('[AUTH-DEBUG-5.9] Found refresh token, attempting refresh');
+              try {
+                // Use Supabase client to refresh the session
+                const { data: refreshData, error: refreshError } = await getSupabaseClient()
+                  .auth.refreshSession({ refresh_token: refreshToken });
+
+                if (refreshError || !refreshData.session) {
+                  console.log('[AUTH-DEBUG-5.10] Token refresh failed:', refreshError?.message);
+                } else {
+                  console.log('[AUTH-DEBUG-5.11] ✅ Token refreshed successfully!');
+                  // Verify the new access token
+                  const newAccessToken = refreshData.session.access_token;
+                  tokenPayload = await verifySupabaseToken(newAccessToken);
+                  tokenSource = 'refreshed';
+                  verificationError = null;
+
+                  // Set the new token in response header for client to update
+                  res.setHeader('X-Refreshed-Token', newAccessToken);
+                  res.setHeader('X-Refreshed-Refresh-Token', refreshData.session.refresh_token);
+                  console.log('[AUTH-DEBUG-5.12] New tokens set in response headers');
+                }
+              } catch (refreshError) {
+                console.log('[AUTH-DEBUG-5.13] Token refresh exception:', refreshError);
+                // Keep the original verificationError
+              }
+            } else {
+              console.log('[AUTH-DEBUG-5.14] No refresh token found in cookies');
+            }
+          }
+
+          // If all verification attempts failed, throw the error
+          if (!tokenPayload || verificationError) {
+            throw verificationError || new InvalidTokenError('Token verification failed');
+          }
+        }
       }
 
       // Enhanced token validation with expiration checks

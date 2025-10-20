@@ -98,6 +98,7 @@ import adminTicketRoutes from './routes/admin-ticket.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import { testDashboardRoutes } from './routes/test-dashboard.routes';
 import shopReservationsRoutes from './routes/shop-reservations.routes';
+import shopUsersRoutes from './routes/shop-users.routes';
 import shopPaymentsRoutes from './routes/shop-payments.routes';
 import shopAnalyticsRoutes from './routes/shop-analytics.routes';
 import unifiedAuthRoutes from './routes/unified-auth.routes';
@@ -380,6 +381,7 @@ app.use('/api/shops', shopRoutes);
 app.use('/api/shops/images', shopImageRoutes);
 app.use('/api/shop/register', shopRegistrationRoutes);
 app.use('/api/shop/profile', shopProfileRoutes);
+app.use('/api/shop/info', shopProfileRoutes); // Alias for /api/shop/profile
 app.use('/api/shop/services', shopServiceRoutes);
 app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
 app.use('/api/shop/dashboard', shopDashboardRoutes);
@@ -391,6 +393,7 @@ app.use('/api/cdn', cdnRoutes);
 app.use('/api/shops/:shopId/reservations', shopReservationsRoutes);
 app.use('/api/shops/:shopId/payments', shopPaymentsRoutes);
 app.use('/api/shops/:shopId/analytics', shopAnalyticsRoutes);
+app.use('/api/shops/:shopId/users', shopUsersRoutes);
 
 // IMPORTANT: Routes ordered from MOST SPECIFIC to MOST GENERAL
 // This prevents route conflicts when multiple routers share base paths

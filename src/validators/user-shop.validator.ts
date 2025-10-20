@@ -8,9 +8,9 @@ import { logger } from '../utils/logger';
  * and that shopId references exist and are valid
  */
 
-const SHOP_ROLES = ['shop_owner', 'shop_manager', 'shop_admin', 'manager'];
-const PLATFORM_ROLES = ['super_admin', 'admin'];
-const ALL_VALID_ROLES = [...PLATFORM_ROLES, ...SHOP_ROLES, 'user'];
+const SHOP_ROLES = ['shop_owner'];
+const PLATFORM_ROLES = ['admin'];
+const ALL_VALID_ROLES = [...PLATFORM_ROLES, ...SHOP_ROLES, 'customer'];
 
 export interface UserShopValidation {
   isValid: boolean;
@@ -219,14 +219,6 @@ export async function canManageUser(
     // Shop owners can manage users in their shop
     if (manager.user_role === 'shop_owner' && manager.shop_id) {
       return targetUser.shop_id === manager.shop_id;
-    }
-
-    // Shop managers can manage non-owner users in their shop
-    if (manager.user_role === 'shop_manager' && manager.shop_id) {
-      return (
-        targetUser.shop_id === manager.shop_id &&
-        targetUser.user_role !== 'shop_owner'
-      );
     }
 
     return false;

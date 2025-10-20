@@ -134,7 +134,7 @@ router.use((req, res, next) => {
  *                           type: string
  *                         role:
  *                           type: string
- *                           enum: [admin, super_admin]
+ *                           enum: [admin]
  *                         permissions:
  *                           type: array
  *                           items:
@@ -398,7 +398,7 @@ router.post('/logout', (req, res) => adminAuthController.adminLogout(req, res));
  *                           type: string
  *                         role:
  *                           type: string
- *                           enum: [admin, super_admin]
+ *                           enum: [admin]
  *                         permissions:
  *                           type: array
  *                           items:
@@ -460,7 +460,7 @@ router.get('/validate', (req, res) => adminAuthController.validateSession(req, r
  *                       type: string
  *                     role:
  *                       type: string
- *                       enum: [admin, super_admin]
+ *                       enum: [admin]
  *                     status:
  *                       type: string
  *                       enum: [active, inactive, suspended]

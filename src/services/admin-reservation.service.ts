@@ -617,79 +617,119 @@ export class AdminReservationService {
   /**
    * Get reservation analytics for admin dashboard
    */
-  async getReservationAnalytics(adminId: string, dateRange?: { startDate: string; endDate: string }): Promise<ReservationAnalytics> {
+  async getReservationAnalytics(adminId: string, dateRange?: { startDate: string; endDate: string }, shopId?: string): Promise<ReservationAnalytics> {
     try {
-      logger.info('Getting reservation analytics', { adminId, dateRange });
+      logger.info('Getting reservation analytics', { adminId, dateRange, shopId });
 
       const startDate = dateRange?.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const endDate = dateRange?.endDate || new Date().toISOString().split('T')[0];
 
-      // Get basic counts
-      const { count: totalReservations } = await this.supabase
+      // Get basic counts with optional shop filtering
+      let totalQuery = this.supabase
         .from('reservations')
         .select('*', { count: 'exact' })
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
-      const { count: activeReservations } = await this.supabase
+      if (shopId) {
+        totalQuery = totalQuery.eq('shop_id', shopId);
+      }
+      const { count: totalReservations } = await totalQuery;
+
+      let activeQuery = this.supabase
         .from('reservations')
         .select('*', { count: 'exact' })
         .in('status', ['requested', 'confirmed'])
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
-      const { count: completedReservations } = await this.supabase
+      if (shopId) {
+        activeQuery = activeQuery.eq('shop_id', shopId);
+      }
+      const { count: activeReservations } = await activeQuery;
+
+      let completedQuery = this.supabase
         .from('reservations')
         .select('*', { count: 'exact' })
         .eq('status', 'completed')
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
-      const { count: cancelledReservations } = await this.supabase
+      if (shopId) {
+        completedQuery = completedQuery.eq('shop_id', shopId);
+      }
+      const { count: completedReservations } = await completedQuery;
+
+      let cancelledQuery = this.supabase
         .from('reservations')
         .select('*', { count: 'exact' })
         .in('status', ['cancelled_by_user', 'cancelled_by_shop'])
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
-      const { count: noShowReservations } = await this.supabase
+      if (shopId) {
+        cancelledQuery = cancelledQuery.eq('shop_id', shopId);
+      }
+      const { count: cancelledReservations } = await cancelledQuery;
+
+      let noShowQuery = this.supabase
         .from('reservations')
         .select('*', { count: 'exact' })
         .eq('status', 'no_show')
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
-      // Get revenue data
-      const { data: revenueData } = await this.supabase
+      if (shopId) {
+        noShowQuery = noShowQuery.eq('shop_id', shopId);
+      }
+      const { count: noShowReservations } = await noShowQuery;
+
+      // Get revenue data with shop filtering
+      let revenueQuery = this.supabase
         .from('reservations')
         .select('total_amount')
         .eq('status', 'completed')
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
+      if (shopId) {
+        revenueQuery = revenueQuery.eq('shop_id', shopId);
+      }
+      const { data: revenueData } = await revenueQuery;
+
       const totalRevenue = (revenueData || []).reduce((sum, reservation) => sum + reservation.total_amount, 0);
       const averageReservationValue = totalRevenue / (completedReservations || 1);
 
-      // Get reservations by status
-      const { data: statusData } = await this.supabase
+      // Get reservations by status with shop filtering
+      let statusQuery = this.supabase
         .from('reservations')
         .select('status')
         .gte('created_at', startDate)
         .lte('created_at', endDate);
+
+      if (shopId) {
+        statusQuery = statusQuery.eq('shop_id', shopId);
+      }
+      const { data: statusData } = await statusQuery;
 
       const reservationsByStatus = (statusData || []).reduce((acc, reservation) => {
         acc[reservation.status] = (acc[reservation.status] || 0) + 1;
         return acc;
       }, {} as Record<ReservationStatus, number>);
 
-      // Get reservations by category
-      const { data: categoryData } = await this.supabase
+      // Get reservations by category with shop filtering
+      let categoryQuery = this.supabase
         .from('reservations')
         .select(`
           shop:shops!reservations_shop_id_fkey(main_category)
         `)
         .gte('created_at', startDate)
         .lte('created_at', endDate);
+
+      if (shopId) {
+        categoryQuery = categoryQuery.eq('shop_id', shopId);
+      }
+      const { data: categoryData } = await categoryQuery;
 
       const reservationsByCategory = (categoryData || []).reduce((acc, reservation) => {
         const category = (reservation.shop as any)?.main_category || 'unknown';

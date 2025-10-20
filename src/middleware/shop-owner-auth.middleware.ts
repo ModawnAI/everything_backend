@@ -84,10 +84,10 @@ export function requireShopOwnerRole() {
       return;
     }
 
-    // Allow shop_owner, admin, and super_admin roles
-    const allowedRoles = ['shop_owner', 'admin', 'super_admin'];
+    // Allow shop_owner and admin roles
+    const allowedRoles = ['shop_owner', 'admin'];
     if (!allowedRoles.includes(req.user.role)) {
-      logger.warn('Shop owner or superadmin role required', {
+      logger.warn('Shop owner or admin role required', {
         userId: req.user.id,
         userRole: req.user.role,
         ip: req.ip,
@@ -144,9 +144,9 @@ export function requireShopOwnership() {
       }
 
       const supabase = getSupabaseClient();
-      const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+      const isAdmin = req.user.role === 'admin';
 
-      // For admin/super_admin, get the first active shop or any shop if shopId is in params
+      // For admin, get the first active shop or any shop if shopId is in params
       let query = supabase
         .from('shops')
         .select(`
@@ -323,7 +323,7 @@ export function requireSpecificShopOwnership(shopIdSource: 'params' | 'body' = '
       }
 
       const supabase = getSupabaseClient();
-      const isAdmin = req.user.role === 'admin' || req.user.role === 'super_admin';
+      const isAdmin = req.user.role === 'admin';
 
       // Build query for shop verification
       let query = supabase
