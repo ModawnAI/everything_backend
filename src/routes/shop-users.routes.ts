@@ -1,12 +1,13 @@
 /**
- * Shop Users Routes
+ * Shop Customers Routes
  *
- * Provides user management endpoints for shops.
+ * Provides customer management endpoints for shops.
+ * Returns customers who have made reservations at the shop.
  * All endpoints are scoped to a specific shop (/api/shops/:shopId/users)
  *
  * Access Control:
- * - Platform admins (admin): Can access any shop's users
- * - Shop roles (shop_owner): Can only access their own shop's users
+ * - Platform admins (admin): Can access any shop's customers
+ * - Shop roles (shop_owner): Can only access their own shop's customers
  */
 
 import { Router } from 'express';
@@ -27,8 +28,8 @@ router.use(validateShopAccess);
  * @swagger
  * /api/shops/{shopId}/users:
  *   get:
- *     summary: Get shop users
- *     description: Retrieve all users associated with a specific shop
+ *     summary: Get shop customers
+ *     description: Retrieve all customers who made reservations at a specific shop with their statistics
  *     tags: [Shop Management - Users]
  *     security:
  *       - bearerAuth: []
@@ -40,21 +41,23 @@ router.use(validateShopAccess);
  *           type: string
  *           format: uuid
  *         description: Shop ID
- *       - name: role
- *         in: query
- *         schema:
- *           type: string
- *         description: Filter by user role
  *       - name: status
  *         in: query
  *         schema:
  *           type: string
- *         description: Filter by user status
+ *           enum: [requested, confirmed, cancelled, completed, no_show]
+ *         description: Filter by reservation status
+ *       - name: search
+ *         in: query
+ *         schema:
+ *           type: string
+ *         description: Search by customer name, email, or phone number
  *       - name: sortBy
  *         in: query
  *         schema:
  *           type: string
- *           default: created_at
+ *           enum: [total_reservations, total_spent, last_reservation_date, name]
+ *           default: total_reservations
  *         description: Sort field
  *       - name: sortOrder
  *         in: query
@@ -80,7 +83,7 @@ router.use(validateShopAccess);
  *         description: Items per page
  *     responses:
  *       200:
- *         description: Users retrieved successfully
+ *         description: Customers retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -92,10 +95,34 @@ router.use(validateShopAccess);
  *                 data:
  *                   type: object
  *                   properties:
- *                     users:
+ *                     customers:
  *                       type: array
  *                       items:
  *                         type: object
+ *                         properties:
+ *                           id:
+ *                             type: string
+ *                             format: uuid
+ *                           email:
+ *                             type: string
+ *                           name:
+ *                             type: string
+ *                           phone_number:
+ *                             type: string
+ *                           profile_image_url:
+ *                             type: string
+ *                           total_reservations:
+ *                             type: integer
+ *                             description: Total number of reservations made
+ *                           total_spent:
+ *                             type: number
+ *                             description: Total amount spent across all reservations
+ *                           last_reservation_date:
+ *                             type: string
+ *                             format: date-time
+ *                           reservation_statuses:
+ *                             type: object
+ *                             description: Count of reservations by status
  *                     pagination:
  *                       type: object
  *                       properties:
@@ -148,8 +175,8 @@ router.get('/',
  * @swagger
  * /api/shops/{shopId}/users/roles:
  *   get:
- *     summary: Get available user roles for shop
- *     description: Retrieve list of user roles that can be assigned in this shop
+ *     summary: Get customer reservation statistics
+ *     description: Retrieve reservation status distribution and customer count for the shop
  *     tags: [Shop Management - Users]
  *     security:
  *       - bearerAuth: []
@@ -163,7 +190,7 @@ router.get('/',
  *         description: Shop ID
  *     responses:
  *       200:
- *         description: Roles retrieved successfully
+ *         description: Statistics retrieved successfully
  *         content:
  *           application/json:
  *             schema:
@@ -175,15 +202,22 @@ router.get('/',
  *                 data:
  *                   type: object
  *                   properties:
- *                     roles:
+ *                     statuses:
  *                       type: array
  *                       items:
  *                         type: object
  *                         properties:
- *                           role:
+ *                           status:
  *                             type: string
+ *                             enum: [requested, confirmed, cancelled, completed, no_show]
  *                           count:
  *                             type: integer
+ *                     totalReservations:
+ *                       type: integer
+ *                       description: Total number of reservations
+ *                     uniqueCustomers:
+ *                       type: integer
+ *                       description: Number of unique customers who made reservations
  *       401:
  *         description: Authentication required
  *       403:

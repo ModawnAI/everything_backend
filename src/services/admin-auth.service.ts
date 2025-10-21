@@ -456,9 +456,20 @@ export class AdminAuthService {
     // Get admin user data for JWT claims
     const { data: admin } = await this.supabase
       .from('users')
-      .select('user_role, shop_id')
+      .select('user_role')
       .eq('id', adminId)
       .single();
+
+    // If shop_owner, get their shop
+    let shopId = undefined;
+    if (admin?.user_role === 'shop_owner') {
+      const { data: shop } = await this.supabase
+        .from('shops')
+        .select('id')
+        .eq('owner_id', adminId)
+        .single();
+      shopId = shop?.id;
+    }
 
     // Generate tokens with proper JWT claims including shopId
     const token = jwt.sign(
@@ -466,7 +477,7 @@ export class AdminAuthService {
         sub: adminId,  // Standard JWT subject claim
         adminId,
         role: admin?.user_role,
-        shopId: admin?.shop_id || undefined,  // Include shopId for shop access validation
+        shopId: shopId,  // Include shopId for shop access validation
         type: 'admin_access',
         ipAddress: request.ipAddress,
         deviceId: request.deviceId,

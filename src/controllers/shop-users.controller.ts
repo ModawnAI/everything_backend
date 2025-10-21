@@ -4,17 +4,17 @@ import { getSupabaseClient } from '../config/database';
 import { ShopAccessRequest } from '../middleware/shop-access.middleware';
 
 export interface GetShopUsersQuery {
-  role?: string;
-  status?: string;
+  status?: string; // Reservation status filter
   sortBy?: string;
   sortOrder?: 'asc' | 'desc';
   page?: string;
   limit?: string;
+  search?: string; // Search by customer name or email
 }
 
 export class ShopUsersController {
   /**
-   * Get all users for a specific shop
+   * Get all customers who made reservations at a specific shop
    */
   async getShopUsers(
     req: ShopAccessRequest & { query: GetShopUsersQuery },
@@ -23,17 +23,17 @@ export class ShopUsersController {
     try {
       const { shopId } = req.params;
       const {
-        role,
         status,
-        sortBy = 'created_at',
+        sortBy = 'total_reservations',
         sortOrder = 'desc',
         page = '1',
-        limit = '20'
+        limit = '20',
+        search
       } = req.query;
 
-      logger.info('📋 [SHOP-USERS] Getting shop users REQUEST', {
+      logger.info('📋 [SHOP-USERS] Getting shop customers REQUEST', {
         shopId,
-        filters: { role, status },
+        filters: { status, search },
         sort: { sortBy, sortOrder },
         pagination: { page, limit }
       });
@@ -41,50 +41,37 @@ export class ShopUsersController {
       // Parse pagination
       const pageNum = Math.max(1, parseInt(page, 10));
       const limitNum = Math.min(100, Math.max(1, parseInt(limit, 10)));
-      const offset = (pageNum - 1) * limitNum;
 
-      // Build query
       const supabase = getSupabaseClient();
-      let query = supabase
-        .from('users')
-        .select('id, email, name, phone_number, user_role, user_status, shop_id, shop_name, profile_image_url, created_at, updated_at, last_login_at', { count: 'exact' })
+
+      // First, get all reservations for this shop with user info
+      let reservationsQuery = supabase
+        .from('reservations')
+        .select(`
+          user_id,
+          status,
+          total_amount,
+          created_at,
+          users!inner (
+            id,
+            email,
+            name,
+            phone_number,
+            profile_image_url
+          )
+        `)
         .eq('shop_id', shopId);
 
-      // Apply filters
-      if (role) {
-        query = query.eq('user_role', role);
-      }
-
+      // Apply status filter if provided
       if (status) {
-        query = query.eq('user_status', status);
+        reservationsQuery = reservationsQuery.eq('status', status);
       }
 
-      // Apply sorting - ensure we use actual database column names
-      logger.info('🔍 [SHOP-USERS-DEBUG] BEFORE transformation', {
-        sortBy: sortBy,
-        typeof: typeof sortBy,
-        value: JSON.stringify(sortBy)
-      });
+      const { data: reservations, error: reservationsError } = await reservationsQuery;
 
-      const dbSortColumn = sortBy.replace(/-/g, '_');
-
-      logger.info('🔍 [SHOP-USERS-DEBUG] AFTER transformation', {
-        dbSortColumn: dbSortColumn,
-        willUseForOrder: dbSortColumn,
-        sortOrder: sortOrder
-      });
-
-      query = query.order(dbSortColumn, { ascending: sortOrder === 'asc' });
-
-      // Apply pagination
-      query = query.range(offset, offset + limitNum - 1);
-
-      // Execute query
-      const { data: users, error, count } = await query;
-
-      if (error) {
-        logger.error('❌ [SHOP-USERS] Failed to fetch shop users', {
-          error: error.message,
+      if (reservationsError) {
+        logger.error('❌ [SHOP-USERS] Failed to fetch reservations', {
+          error: reservationsError.message,
           shopId
         });
 
@@ -92,28 +79,127 @@ export class ShopUsersController {
           success: false,
           error: {
             code: 'DATABASE_ERROR',
-            message: '사용자 조회 중 오류가 발생했습니다.',
-            details: error.message
+            message: '고객 조회 중 오류가 발생했습니다.',
+            details: reservationsError.message
           }
         });
         return;
       }
 
-      logger.info('✅ [SHOP-USERS] Shop users retrieved successfully', {
+      // Aggregate customer data
+      const customerMap = new Map<string, {
+        id: string;
+        email: string;
+        name: string;
+        phone_number: string | null;
+        profile_image_url: string | null;
+        total_reservations: number;
+        total_spent: number;
+        last_reservation_date: string;
+        reservation_statuses: Record<string, number>;
+      }>();
+
+      (reservations || []).forEach((reservation: any) => {
+        const user = reservation.users;
+        if (!user) return;
+
+        const userId = user.id;
+        const existing = customerMap.get(userId);
+
+        if (existing) {
+          existing.total_reservations += 1;
+          existing.total_spent += reservation.total_amount || 0;
+          existing.reservation_statuses[reservation.status] =
+            (existing.reservation_statuses[reservation.status] || 0) + 1;
+
+          // Update last reservation date if this one is more recent
+          if (new Date(reservation.created_at) > new Date(existing.last_reservation_date)) {
+            existing.last_reservation_date = reservation.created_at;
+          }
+        } else {
+          customerMap.set(userId, {
+            id: user.id,
+            email: user.email,
+            name: user.name,
+            phone_number: user.phone_number,
+            profile_image_url: user.profile_image_url,
+            total_reservations: 1,
+            total_spent: reservation.total_amount || 0,
+            last_reservation_date: reservation.created_at,
+            reservation_statuses: {
+              [reservation.status]: 1
+            }
+          });
+        }
+      });
+
+      // Convert map to array
+      let customers = Array.from(customerMap.values());
+
+      // Apply search filter
+      if (search) {
+        const searchLower = search.toLowerCase();
+        customers = customers.filter(customer =>
+          customer.name?.toLowerCase().includes(searchLower) ||
+          customer.email?.toLowerCase().includes(searchLower) ||
+          customer.phone_number?.toLowerCase().includes(searchLower)
+        );
+      }
+
+      // Apply sorting
+      customers.sort((a, b) => {
+        let aValue: any;
+        let bValue: any;
+
+        switch (sortBy) {
+          case 'total_reservations':
+            aValue = a.total_reservations;
+            bValue = b.total_reservations;
+            break;
+          case 'total_spent':
+            aValue = a.total_spent;
+            bValue = b.total_spent;
+            break;
+          case 'last_reservation_date':
+            aValue = new Date(a.last_reservation_date).getTime();
+            bValue = new Date(b.last_reservation_date).getTime();
+            break;
+          case 'name':
+            aValue = a.name?.toLowerCase() || '';
+            bValue = b.name?.toLowerCase() || '';
+            break;
+          default:
+            aValue = a.total_reservations;
+            bValue = b.total_reservations;
+        }
+
+        if (sortOrder === 'asc') {
+          return aValue > bValue ? 1 : -1;
+        } else {
+          return aValue < bValue ? 1 : -1;
+        }
+      });
+
+      // Apply pagination
+      const total = customers.length;
+      const offset = (pageNum - 1) * limitNum;
+      const paginatedCustomers = customers.slice(offset, offset + limitNum);
+
+      logger.info('✅ [SHOP-USERS] Shop customers retrieved successfully', {
         shopId,
-        count: users?.length || 0,
-        total: count
+        count: paginatedCustomers.length,
+        total: total
       });
 
       res.json({
         success: true,
         data: {
-          users: users || [],
+          customers: paginatedCustomers,
           pagination: {
-            total: count || 0,
+            total,
             page: pageNum,
             limit: limitNum,
-            totalPages: Math.ceil((count || 0) / limitNum)
+            totalPages: Math.ceil(total / limitNum)
           }
         }
       });
@@ -128,14 +214,14 @@ export class ShopUsersController {
         success: false,
         error: {
           code: 'INTERNAL_SERVER_ERROR',
-          message: '사용자 조회 중 예상치 못한 오류가 발생했습니다.'
+          message: '고객 조회 중 예상치 못한 오류가 발생했습니다.'
         }
       });
     }
   }
 
   /**
-   * Get user role distribution for a shop
+   * Get reservation status distribution for shop customers
    */
   async getShopUserRoles(
     req: ShopAccessRequest,
@@ -144,17 +230,17 @@ export class ShopUsersController {
     try {
       const { shopId } = req.params;
 
-      logger.info('📊 [SHOP-USERS] Getting shop user roles', { shopId });
+      logger.info('📊 [SHOP-USERS] Getting customer reservation status distribution', { shopId });
 
-      // Get role distribution
+      // Get all reservations for this shop
       const supabase = getSupabaseClient();
-      const { data: users, error } = await supabase
-        .from('users')
-        .select('user_role')
+      const { data: reservations, error } = await supabase
+        .from('reservations')
+        .select('status, user_id')
         .eq('shop_id', shopId);
 
       if (error) {
-        logger.error('❌ [SHOP-USERS] Failed to fetch shop user roles', {
+        logger.error('❌ [SHOP-USERS] Failed to fetch reservations', {
           error: error.message,
           shopId
         });
@@ -163,37 +249,42 @@ export class ShopUsersController {
           success: false,
           error: {
             code: 'DATABASE_ERROR',
-            message: '역할 조회 중 오류가 발생했습니다.',
+            message: '통계 조회 중 오류가 발생했습니다.',
             details: error.message
           }
         });
         return;
       }
 
-      // Count roles
-      const roleCounts = (users || []).reduce((acc, user) => {
-        const role = user.user_role || 'unknown';
-        acc[role] = (acc[role] || 0) + 1;
+      // Count reservation statuses
+      const statusCounts = (reservations || []).reduce((acc, reservation) => {
+        const status = reservation.status || 'unknown';
+        acc[status] = (acc[status] || 0) + 1;
         return acc;
       }, {} as Record<string, number>);
 
+      // Count unique customers
+      const uniqueCustomers = new Set((reservations || []).map(r => r.user_id));
+
       // Format response
-      const roles = Object.entries(roleCounts).map(([role, count]) => ({
-        role,
+      const statuses = Object.entries(statusCounts).map(([status, count]) => ({
+        status,
         count
       }));
 
-      logger.info('✅ [SHOP-USERS] Shop user roles retrieved successfully', {
+      logger.info('✅ [SHOP-USERS] Customer statistics retrieved successfully', {
         shopId,
-        roleCount: roles.length,
-        totalUsers: users?.length || 0
+        statusCount: statuses.length,
+        totalReservations: reservations?.length || 0,
+        uniqueCustomers: uniqueCustomers.size
       });
 
       res.json({
         success: true,
         data: {
-          roles,
-          totalUsers: users?.length || 0
+          statuses,
+          totalReservations: reservations?.length || 0,
+          uniqueCustomers: uniqueCustomers.size
         }
       });
     } catch (error) {
@@ -207,7 +298,7 @@ export class ShopUsersController {
         success: false,
         error: {
           code: 'INTERNAL_SERVER_ERROR',
-          message: '역할 조회 중 예상치 못한 오류가 발생했습니다.'
+          message: '통계 조회 중 예상치 못한 오류가 발생했습니다.'
         }
       });
     }
