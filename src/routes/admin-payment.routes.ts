@@ -900,7 +900,7 @@ router.get('/:paymentId',
  */
 router.post('/:paymentId/refund',
   authenticateJWT(),
-  requireRole('admin'),
+  requireRole(['admin', 'shop_owner']), // Shop owners can refund their own shops
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // 15 minutes, 20 requests (refund operations)
   (req, res) => adminPaymentController.processRefund(req, res)
 );
