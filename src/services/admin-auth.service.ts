@@ -39,8 +39,19 @@ export interface AdminAuthResponse {
     name: string;
     role: string;
     permissions: string[];
-    shopId?: string;  // Optional - for platform admins who own a shop
+    shopId?: string;  // Optional - for shop_owner role
     shopName?: string;  // Optional - shop display name for UI
+  };
+  shop?: {  // Optional - detailed shop information for shop_owner role
+    id: string;
+    name: string;
+    address: string;
+    detailedAddress?: string;
+    phoneNumber?: string;
+    email?: string;
+    shopType: string;
+    shopStatus: string;
+    verificationStatus: string;
   };
   session: {
     token: string;
@@ -118,10 +129,24 @@ export class AdminAuthService {
 
       // Get admin user FIRST (using service role, no RLS issues)
       // Allow both 'admin' and 'shop_owner' roles for unified login
+      // Join shops table for shop_owner role to get shop information
       logger.info('🔍 [DB-QUERY] Searching for admin/shop_owner user', { email: request.email });
       const { data: admin, error: adminError } = await this.supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          shops!owner_id (
+            id,
+            name,
+            address,
+            detailed_address,
+            phone_number,
+            email,
+            shop_type,
+            shop_status,
+            verification_status
+          )
+        `)
         .eq('email', request.email)
         .in('user_role', ['admin', 'shop_owner'])
         .eq('user_status', 'active')
@@ -265,6 +290,11 @@ export class AdminAuthService {
         email: admin.email
       });
 
+      // Extract shop information for shop_owner role
+      const shopData = admin.user_role === 'shop_owner' && Array.isArray(admin.shops) && admin.shops.length > 0
+        ? admin.shops[0]
+        : null;
+
       const response: AdminAuthResponse = {
         success: true,
         admin: {
@@ -273,10 +303,22 @@ export class AdminAuthService {
           name: admin.name,
           role: admin.user_role,
           permissions: await this.getAdminPermissions(admin.id),
-          // Include shopId and shopName for dashboard toggle feature
-          shopId: admin.shop_id || undefined,
-          shopName: admin.shop_name || undefined
+          // Include shopId and shopName for quick reference
+          shopId: shopData?.id || undefined,
+          shopName: shopData?.name || undefined
         },
+        // Include detailed shop information for shop_owner role
+        shop: shopData ? {
+          id: shopData.id,
+          name: shopData.name,
+          address: shopData.address,
+          detailedAddress: shopData.detailed_address || undefined,
+          phoneNumber: shopData.phone_number || undefined,
+          email: shopData.email || undefined,
+          shopType: shopData.shop_type,
+          shopStatus: shopData.shop_status,
+          verificationStatus: shopData.verification_status
+        } : undefined,
         session: {
           token: session.token,
           expiresAt: session.expiresAt,
@@ -762,11 +804,24 @@ export class AdminAuthService {
         throw new Error('Refresh token expired');
       }
 
-      // Get admin user
+      // Get admin user with shop information
       // Allow both 'admin' and 'shop_owner' roles for unified login
       const { data: admin, error: adminError } = await this.supabase
         .from('users')
-        .select('*')
+        .select(`
+          *,
+          shops!owner_id (
+            id,
+            name,
+            address,
+            detailed_address,
+            phone_number,
+            email,
+            shop_type,
+            shop_status,
+            verification_status
+          )
+        `)
         .eq('id', session.admin_id)
         .in('user_role', ['admin', 'shop_owner'])
         .eq('user_status', 'active')
@@ -789,6 +844,11 @@ export class AdminAuthService {
       // Revoke old session
       await this.revokeSession(session.id, 'Refreshed');
 
+      // Extract shop information for shop_owner role
+      const shopData = admin.user_role === 'shop_owner' && Array.isArray(admin.shops) && admin.shops.length > 0
+        ? admin.shops[0]
+        : null;
+
       return {
         success: true,
         admin: {
@@ -797,9 +857,20 @@ export class AdminAuthService {
           name: admin.name,
           role: admin.user_role,
           permissions: await this.getAdminPermissions(admin.id),
-          shopId: admin.shop_id || undefined,
-          shopName: admin.shop_name || undefined
+          shopId: shopData?.id || undefined,
+          shopName: shopData?.name || undefined
         },
+        shop: shopData ? {
+          id: shopData.id,
+          name: shopData.name,
+          address: shopData.address,
+          detailedAddress: shopData.detailed_address || undefined,
+          phoneNumber: shopData.phone_number || undefined,
+          email: shopData.email || undefined,
+          shopType: shopData.shop_type,
+          shopStatus: shopData.shop_status,
+          verificationStatus: shopData.verification_status
+        } : undefined,
         session: {
           token: newSession.token,
           expiresAt: newSession.expiresAt,
