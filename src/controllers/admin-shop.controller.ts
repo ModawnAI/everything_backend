@@ -849,6 +849,16 @@ export class AdminShopController {
       const { status, reason } = req.body;
       const adminId = (req as any).user?.id;
 
+      // Debug logging
+      logger.info('UpdateShopStatus called', {
+        shopId,
+        requestBody: req.body,
+        status,
+        reason,
+        bodyType: typeof req.body,
+        statusType: typeof status
+      });
+
       if (!adminId) {
         res.status(401).json({
           success: false,

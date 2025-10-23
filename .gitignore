@@ -343,3 +343,4 @@ dev-debug.log
 # Task files
 # tasks.json
 # tasks/ 
+test-shop-status-change.js

@@ -206,12 +206,12 @@ const approveShopSchema = Joi.object({
 
 const updateShopStatusSchema = Joi.object({
   status: Joi.string().valid(
-    'active', 'inactive', 'pending_approval', 'suspended', 'deleted', 'flagged', 'under_review', 'moderation_blocked'
+    'active', 'inactive', 'pending_approval', 'suspended', 'deleted'
   ).required().messages({
     'any.only': '유효하지 않은 샵 상태입니다.',
     'any.required': '샵 상태는 필수입니다.'
   }),
-  reason: Joi.string().max(500).optional().messages({
+  reason: Joi.string().max(500).optional().allow('').messages({
     'string.max': '사유는 최대 500자까지 입력 가능합니다.'
   })
 });
@@ -459,8 +459,8 @@ router.put(
  *
  * Request body:
  * {
- *   "status": "active" | "inactive" | "pending_approval" | "suspended" | "deleted" | "flagged" | "under_review" | "moderation_blocked",
- *   "reason": "Optional reason for status change"
+ *   "status": "active" | "inactive" | "pending_approval" | "suspended" | "deleted",
+ *   "reason": "Optional reason for status change (can be empty string)"
  * }
  */
 router.patch(
