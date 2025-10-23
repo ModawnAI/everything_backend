@@ -386,7 +386,7 @@ export class BookingValidationService {
     }
 
     // Check if user is active
-    if (user.status !== 'active') {
+    if (user.user_status !== 'active') {
       errors.push({
         code: 'USER_INACTIVE',
         field: 'userId',
@@ -496,7 +496,7 @@ export class BookingValidationService {
     }
 
     // Check if service is active
-    if (!service.is_active) {
+    if (!service.is_available) {
       errors.push({
         code: 'SERVICE_INACTIVE',
         field: 'serviceId',
@@ -506,7 +506,7 @@ export class BookingValidationService {
     }
 
     // Check if shop is active
-    if (!shop.is_active) {
+    if (shop.shop_status !== 'active') {
       errors.push({
         code: 'SHOP_INACTIVE',
         field: 'shopId',
@@ -955,7 +955,7 @@ export class BookingValidationService {
 
   private async getService(serviceId: string): Promise<any> {
     const { data, error } = await this.supabase
-      .from('services')
+      .from('shop_services')
       .select('*')
       .eq('id', serviceId)
       .single();

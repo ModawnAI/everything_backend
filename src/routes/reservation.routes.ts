@@ -365,7 +365,15 @@ router.get('/shops/:shopId/available-slots',
 router.post('/',
   authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // 20 requests per 15 minutes
+  (req, res, next) => {
+    console.log('🔍 [BEFORE-VALIDATION] Request body:', JSON.stringify(req.body, null, 2));
+    next();
+  },
   validateRequestBody(createReservationSchema),
+  (req, res, next) => {
+    console.log('✅ [AFTER-VALIDATION] Validation passed');
+    next();
+  },
   bookingValidationMiddleware.validateBookingRequest,
   async (req, res) => {
     try {

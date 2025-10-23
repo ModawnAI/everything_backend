@@ -204,6 +204,18 @@ const approveShopSchema = Joi.object({
   })
 });
 
+const updateShopStatusSchema = Joi.object({
+  status: Joi.string().valid(
+    'active', 'inactive', 'pending_approval', 'suspended', 'deleted', 'flagged', 'under_review', 'moderation_blocked'
+  ).required().messages({
+    'any.only': '유효하지 않은 샵 상태입니다.',
+    'any.required': '샵 상태는 필수입니다.'
+  }),
+  reason: Joi.string().max(500).optional().messages({
+    'string.max': '사유는 최대 500자까지 입력 가능합니다.'
+  })
+});
+
 // Rate limiting configuration
 const adminRateLimit = rateLimit({
   config: {
@@ -439,6 +451,23 @@ router.put(
   sensitiveRateLimit,
   validateRequestBody(approveShopSchema),
   adminShopController.approveShop
+);
+
+/**
+ * PATCH /api/admin/shops/:shopId/status
+ * Update shop status (Admin only)
+ *
+ * Request body:
+ * {
+ *   "status": "active" | "inactive" | "pending_approval" | "suspended" | "deleted" | "flagged" | "under_review" | "moderation_blocked",
+ *   "reason": "Optional reason for status change"
+ * }
+ */
+router.patch(
+  '/:shopId/status',
+  sensitiveRateLimit,
+  validateRequestBody(updateShopStatusSchema),
+  adminShopController.updateShopStatus
 );
 
 /**

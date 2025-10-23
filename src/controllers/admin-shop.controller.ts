@@ -840,6 +840,123 @@ export class AdminShopController {
   }
 
   /**
+   * PATCH /api/admin/shops/:shopId/status
+   * Update shop status (Admin only)
+   */
+  async updateShopStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const { status, reason } = req.body;
+      const adminId = (req as any).user?.id;
+
+      if (!adminId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '관리자 인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const client = getSupabaseClient();
+
+      // Check if shop exists
+      const { data: existingShop, error: fetchError } = await client
+        .from('shops')
+        .select('id, name, shop_status')
+        .eq('id', shopId)
+        .single();
+
+      if (fetchError || !existingShop) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '해당 샵을 찾을 수 없습니다.',
+            details: '샵이 존재하지 않습니다.'
+          }
+        });
+        return;
+      }
+
+      // Update shop status
+      const { data: updatedShop, error: updateError } = await client
+        .from('shops')
+        .update({
+          shop_status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', shopId)
+        .select()
+        .single();
+
+      if (updateError) {
+        logger.error('Failed to update shop status', {
+          error: updateError.message,
+          shopId,
+          status,
+          adminId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'STATUS_UPDATE_FAILED',
+            message: '샵 상태 변경에 실패했습니다.',
+            details: updateError.message
+          }
+        });
+        return;
+      }
+
+      logger.info('Shop status updated successfully', {
+        shopId,
+        adminId,
+        oldStatus: existingShop.shop_status,
+        newStatus: status,
+        reason
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          shopId: updatedShop.id,
+          shopName: updatedShop.name,
+          oldStatus: existingShop.shop_status,
+          newStatus: status,
+          updatedAt: updatedShop.updated_at
+        },
+        message: '샵 상태가 성공적으로 변경되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.updateShopStatus error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
    * PUT /api/admin/shops/:shopId
    * Update shop information (Admin only)
    */
