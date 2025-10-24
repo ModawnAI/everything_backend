@@ -22,7 +22,6 @@
  */
 
 import { Router } from 'express';
-import multer from 'multer';
 import { FeedController } from '../controllers/feed.controller';
 import {
   getPersonalizedFeed,
@@ -36,6 +35,12 @@ import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validateRequestBody } from '../middleware/validation.middleware';
 import { xssProtection } from '../middleware/xss-csrf-protection.middleware';
+import {
+  createPostLimiter,
+  interactionLimiter,
+  generalFeedLimiter
+} from '../middleware/feed-rate-limit.middleware';
+import { feedUploadErrorHandler } from '../middleware/feed-upload.middleware';
 import { SecurityValidationMiddleware } from '../middleware/security-validation.middleware';
 // import {
 //   feedSecurityMiddleware,
@@ -75,52 +80,22 @@ const securityValidator = new SecurityValidationMiddleware({
   maxThreatsPerRequest: 3
 });
 
-// Multer configuration for image uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 8 * 1024 * 1024, // 8MB per file
-    files: 10 // Maximum 10 files
-  },
-  fileFilter: (req, file, cb) => {
-    // Check file type
-    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.'));
-    }
-  }
-});
-
-// Rate limiting configurations
-const feedGeneralRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200, // limit each IP to 200 requests per windowMs for general feed operations
-    strategy: 'fixed_window'
-  }
-});
-
-const feedPostCreationRateLimit = rateLimit({
-  config: {
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 5, // limit each user to 5 post creations per hour
-    strategy: 'fixed_window',
-    keyGenerator: (req: any) => {
-      // Use user ID for authenticated requests, fall back to IP
-      return req.user?.id || req.ip;
-    }
-  }
-});
-
-const feedInteractionRateLimit = rateLimit({
-  config: {
-    windowMs: 5 * 60 * 1000, // 5 minutes
-    max: 100, // limit each user to 100 interactions (likes/comments) per 5 minutes
-    strategy: 'fixed_window'
-  }
-});
+// ========================================
+// STANDARDIZED RATE LIMITING & UPLOAD
+// ========================================
+// Using shared middleware from:
+// - /middleware/feed-rate-limit.middleware.ts
+// - /middleware/feed-upload.middleware.ts
+//
+// Rate Limiters:
+// - createPostLimiter: 5 posts per hour
+// - interactionLimiter: 100 interactions per 5 minutes
+// - generalFeedLimiter: 200 requests per 15 minutes
+//
+// Upload Configuration:
+// - feedUploadErrorHandler: Standardized multer with error handling
+// - 10MB per file, max 10 files
+// - Allowed: JPEG, PNG, WebP, GIF
 
 // Apply security middleware to all feed routes
 router.use(xssProtection());
@@ -302,11 +277,24 @@ router.use(authenticateJWT());
  *         description: Authentication required
  */
 
+// Debug middleware to log request before controller
+const logPostCreation = (req: any, res: any, next: any) => {
+  console.log('🔍 [FEED-ROUTE-DEBUG] POST /posts request:', {
+    hasBody: !!req.body,
+    bodyKeys: Object.keys(req.body || {}),
+    body: JSON.stringify(req.body, null, 2),
+    userId: req.user?.id,
+    hasImages: !!req.body.images && req.body.images.length > 0,
+  });
+  next();
+};
+
 router.post('/posts',
-  feedGeneralRateLimit,
-  feedPostCreationRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
+  createPostLimiter, // 5 posts per hour
+  logPostCreation, // Add debug logging
   // CSRF protection removed - JWT in Authorization header already provides CSRF protection
-  requireFeedPostPermission('create'),
+  // requireFeedPostPermission('create'), // REMOVED: All authenticated users can create posts
   // ...feedSecurityMiddleware(),
   // validateRequestBody(feedPostSchema),
   feedController.createPost.bind(feedController)
@@ -458,7 +446,7 @@ router.post('/posts',
  */
 
 router.get('/posts',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   requireFeedPostPermission('list'),
   feedController.getFeedPosts.bind(feedController)
 );
@@ -556,7 +544,7 @@ router.get('/posts',
  */
 
 router.get('/posts/:postId',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   requireFeedPostPermission('read'),
   feedController.getPostById.bind(feedController)
 );
@@ -692,7 +680,7 @@ router.get('/posts/:postId',
  */
 
 router.put('/posts/:postId',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   // CSRF protection removed - JWT provides protection
   requireFeedPostPermission('update'),
   // validateRequestBody(feedPostSchema),
@@ -759,7 +747,7 @@ router.put('/posts/:postId',
  *         description: Internal server error
  */
 router.delete('/posts/:postId',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   // CSRF protection removed - JWT provides protection
   requireFeedPostPermission('delete'),
   feedController.deletePost.bind(feedController)
@@ -863,8 +851,8 @@ router.delete('/posts/:postId',
  */
 
 router.post('/posts/:postId/like',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
   // CSRF protection removed - JWT provides protection
   requireFeedLikePermission('create'),
   feedController.likePost.bind(feedController)
@@ -997,8 +985,8 @@ router.post('/posts/:postId/like',
  */
 
 router.post('/posts/:postId/report',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
   // CSRF protection removed - JWT provides protection
   requireFeedReportPermission('create'),
   // validateRequestBody(reportSchema),
@@ -1110,8 +1098,8 @@ router.post('/posts/:postId/report',
  */
 
 router.post('/posts/:postId/comments',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
   // CSRF protection removed - JWT provides protection
   requireFeedCommentPermission('create'),
   // ...commentSecurityMiddleware(),
@@ -1243,7 +1231,7 @@ router.post('/posts/:postId/comments',
  */
 
 router.get('/posts/:postId/comments',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   requireFeedCommentPermission('list'),
   feedController.getComments.bind(feedController)
 );
@@ -1425,13 +1413,15 @@ router.get('/posts/:postId/comments',
  *         description: Authentication required
  */
 
+// Upload error handling now uses shared middleware:
+// feedUploadErrorHandler from /middleware/feed-upload.middleware.ts
+
 router.post('/upload-images',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit, // Use interaction rate limit for uploads
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
   // CSRF protection removed - JWT in Authorization header already provides CSRF protection
-  requireFeedPostPermission('create'), // Users need post creation permission to upload images
-  // imageSecurityMiddleware(),
-  upload.array('images', 10), // Accept up to 10 images
+  // RBAC removed - all authenticated users can upload images for posts
+  feedUploadErrorHandler, // Standardized multer upload with error handling
   feedController.uploadImages.bind(feedController)
 );
 
@@ -1694,7 +1684,7 @@ router.post('/upload-images',
  */
 
 router.post('/personalized',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   authenticateJWT,
   getPersonalizedFeed
 );
@@ -1953,7 +1943,7 @@ router.get('/trending',
  */
 
 router.post('/interactions',
-  feedInteractionRateLimit,
+  interactionLimiter, // 100 interactions per 5 minutes
   authenticateJWT,
   recordInteraction
 );
