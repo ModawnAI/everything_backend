@@ -509,6 +509,227 @@ export class ShopController {
   }
 
   /**
+   * GET /api/shops/popular
+   * Get popular shops using the official partner shop priority algorithm (PRD 2.1)
+   * Sorting: partnered shops (by newest partnership_started_at) → non-partnered shops
+   */
+  async getPopularShops(req: Request, res: Response): Promise<void> {
+    try {
+      const {
+        category,
+        limit = '50',
+        offset = '0'
+      } = req.query;
+
+      // Parse and validate limit and offset
+      const limitNum = parseInt(limit as string);
+      const offsetNum = parseInt(offset as string);
+
+      // Validate limit and offset
+      if (isNaN(limitNum) || limitNum < 1 || limitNum > 100) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_LIMIT',
+            message: '검색 결과 개수가 유효하지 않습니다.',
+            details: 'limit은 1~100 범위 내에서 입력해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (isNaN(offsetNum) || offsetNum < 0) {
+        res.status(400).json({
+          error: {
+            code: 'INVALID_OFFSET',
+            message: '페이지 오프셋이 유효하지 않습니다.',
+            details: 'offset은 0 이상의 값으로 입력해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Validate category if provided
+      if (category) {
+        try {
+          const categories = await shopCategoriesService.getAllCategories({ includeInactive: false, withServiceTypes: false });
+          const validCategories = categories.map(cat => cat.id as ServiceCategory);
+
+          if (!validCategories.includes(category as ServiceCategory)) {
+            res.status(400).json({
+              error: {
+                code: 'INVALID_CATEGORY',
+                message: '유효하지 않은 카테고리입니다.',
+                details: `유효한 카테고리: ${validCategories.join(', ')}`
+              }
+            });
+            return;
+          }
+        } catch (error) {
+          logger.error('Error validating category', { error, category });
+          const validCategories: ServiceCategory[] = ['nail', 'eyelash', 'waxing', 'eyebrow_tattoo', 'hair'];
+          if (!validCategories.includes(category as ServiceCategory)) {
+            res.status(400).json({
+              error: {
+                code: 'INVALID_CATEGORY',
+                message: '유효하지 않은 카테고리입니다.',
+                details: `유효한 카테고리: ${validCategories.join(', ')}`
+              }
+            });
+            return;
+          }
+        }
+      }
+
+      // Build query with PRD 2.1 algorithm: partnered shops first, sorted by partnership date
+      let query = getSupabaseClient()
+        .from('shops')
+        .select(`
+          id,
+          name,
+          address,
+          detailed_address,
+          latitude,
+          longitude,
+          shop_type,
+          shop_status,
+          main_category,
+          sub_categories,
+          is_featured,
+          featured_until,
+          partnership_started_at,
+          phone_number,
+          description,
+          operating_hours,
+          payment_methods,
+          total_bookings,
+          commission_rate
+        `)
+        .eq('shop_status', 'active')
+        .range(offsetNum, offsetNum + limitNum - 1)
+        .order('shop_type', { ascending: false }) // partnered (true) before non_partnered (false)
+        .order('partnership_started_at', { ascending: false, nullsFirst: false }) // newest first within partnered
+        .order('created_at', { ascending: false }); // fallback for non-partnered shops
+
+      // Apply category filter if provided
+      if (category) {
+        query = query.eq('main_category', category);
+      }
+
+      const { data: shops, error } = await query;
+
+      if (error) {
+        logger.error('Error fetching popular shops', {
+          error: error.message,
+          category,
+          limit: limitNum,
+          offset: offsetNum
+        });
+        throw error;
+      }
+
+      // Fetch contact methods for all shops
+      const shopIds = (shops || []).map(shop => shop.id);
+      const contactMethodsMap = new Map<string, any[]>();
+
+      if (shopIds.length > 0) {
+        try {
+          const { data: allContactMethods, error: contactError } = await getSupabaseClient()
+            .from('shop_contact_methods')
+            .select('*')
+            .in('shop_id', shopIds)
+            .eq('is_active', true)
+            .order('display_order', { ascending: true });
+
+          if (!contactError && allContactMethods) {
+            allContactMethods.forEach(contactMethod => {
+              if (!contactMethodsMap.has(contactMethod.shop_id)) {
+                contactMethodsMap.set(contactMethod.shop_id, []);
+              }
+              contactMethodsMap.get(contactMethod.shop_id)!.push(contactMethod);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch contact methods for popular shops', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
+      }
+
+      // Log successful search
+      logger.info('Popular shops search completed', {
+        category,
+        resultCount: shops?.length || 0,
+        limit: limitNum,
+        offset: offsetNum
+      });
+
+      // Enhanced response with PRD 2.1 algorithm metadata
+      const responseData = {
+        shops: (shops || []).map(shop => ({
+          id: shop.id,
+          name: shop.name,
+          address: shop.address,
+          detailed_address: shop.detailed_address,
+          latitude: shop.latitude,
+          longitude: shop.longitude,
+          shop_type: shop.shop_type,
+          shop_status: shop.shop_status,
+          main_category: shop.main_category,
+          sub_categories: shop.sub_categories || [],
+          is_featured: shop.is_featured,
+          featured_until: shop.featured_until,
+          partnership_started_at: shop.partnership_started_at,
+          phone_number: shop.phone_number,
+          description: shop.description,
+          operating_hours: shop.operating_hours,
+          payment_methods: shop.payment_methods || [],
+          total_bookings: shop.total_bookings || 0,
+          commission_rate: shop.commission_rate,
+          contact_methods: contactMethodsMap.get(shop.id) || []
+        })),
+        searchParams: {
+          category,
+          limit: limitNum,
+          offset: offsetNum
+        },
+        pagination: {
+          total: shops?.length || 0,
+          limit: limitNum,
+          offset: offsetNum,
+          hasMore: (shops?.length || 0) === limitNum,
+          currentPage: Math.floor(offsetNum / limitNum) + 1
+        },
+        performance: {
+          sortingAlgorithm: 'PRD 2.1: 입점 샵 우선 (최신 입점순) → 비입점 샵',
+          description: '공식 입점 샵을 최상단에 우선 노출하고, 입점 샵 그룹 내에서는 최신 입점 순서대로 정렬'
+        }
+      };
+
+      // Return successful response
+      res.status(200).json({
+        success: true,
+        data: responseData,
+        message: `인기 샵 ${shops?.length || 0}개를 찾았습니다.`
+      });
+
+    } catch (error) {
+      logger.error('Error in getPopularShops', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '인기 샵 조회 중 오류가 발생했습니다.',
+          details: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
    * GET /api/shops/bounds
    * Get shops within a bounding box (for map interfaces)
    */
