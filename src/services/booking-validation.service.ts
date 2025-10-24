@@ -495,8 +495,20 @@ export class BookingValidationService {
       return this.createValidationResult(false, errors, warnings, Date.now(), ['service_availability']);
     }
 
+    // Debug: Log actual data values
+    console.log('🔍 [DEBUG] Service data:', {
+      id: service.id,
+      is_available: service.is_available,
+      shop_id: service.shop_id
+    });
+    console.log('🔍 [DEBUG] Shop data:', {
+      id: shop.id,
+      shop_status: shop.shop_status
+    });
+
     // Check if service is active
     if (!service.is_available) {
+      console.log('❌ [DEBUG] Service is_available check failed:', service.is_available);
       errors.push({
         code: 'SERVICE_INACTIVE',
         field: 'serviceId',
@@ -507,6 +519,7 @@ export class BookingValidationService {
 
     // Check if shop is active
     if (shop.shop_status !== 'active') {
+      console.log('❌ [DEBUG] Shop status check failed:', shop.shop_status, '!== active');
       errors.push({
         code: 'SHOP_INACTIVE',
         field: 'shopId',
@@ -744,6 +757,18 @@ export class BookingValidationService {
     const timeDifference = bookingDateTime.getTime() - now.getTime();
     const hoursDifference = timeDifference / (1000 * 60 * 60);
 
+    console.log('🔍 [TIME-CHECK] Time comparison:', {
+      requestDate: request.date,
+      requestTime: request.timeSlot,
+      bookingDateTime: bookingDateTime.toISOString(),
+      bookingDateTimeLocal: bookingDateTime.toString(),
+      now: now.toISOString(),
+      nowLocal: now.toString(),
+      timeDifferenceMs: timeDifference,
+      hoursDifference: hoursDifference,
+      isInPast: hoursDifference < 0
+    });
+
     if (hoursDifference < 2) {
       errors.push({
         code: 'INSUFFICIENT_NOTICE',
@@ -785,48 +810,6 @@ export class BookingValidationService {
    */
   private initializeBusinessRules(): void {
     this.businessRules = [
-      {
-        id: 'premium_member_priority',
-        name: 'Premium Member Priority',
-        description: 'Premium members get priority booking for certain time slots',
-        enabled: true,
-        priority: 10,
-        validationFunction: async (request: BookingRequest, context: ValidationContext) => {
-          const errors: ValidationError[] = [];
-          const warnings: ValidationWarning[] = [];
-
-          if (context.user.membership_status === 'premium' || context.user.membership_status === 'vip') {
-            // Premium members can book premium slots
-            const isPremiumSlot = this.isPremiumTimeSlot(request.timeSlot);
-            if (isPremiumSlot) {
-              warnings.push({
-                code: 'PREMIUM_SLOT_BOOKING',
-                field: 'timeSlot',
-                message: 'Premium time slot booking - additional charges may apply',
-                details: { membershipStatus: context.user.membership_status }
-              });
-            }
-          } else {
-            // Non-premium members cannot book premium slots
-            const isPremiumSlot = this.isPremiumTimeSlot(request.timeSlot);
-            if (isPremiumSlot) {
-              errors.push({
-                code: 'PREMIUM_SLOT_RESTRICTED',
-                field: 'timeSlot',
-                message: 'Premium time slots are restricted to premium members',
-                severity: 'critical'
-              });
-            }
-          }
-
-          return {
-            isValid: errors.length === 0,
-            errors,
-            warnings,
-            metadata: {} as any
-          };
-        }
-      },
       {
         id: 'advance_booking_restrictions',
         name: 'Advance Booking Restrictions',
@@ -902,12 +885,6 @@ export class BookingValidationService {
         ...additionalMetadata
       }
     };
-  }
-
-  private isPremiumTimeSlot(timeSlot: string): boolean {
-    const hour = parseInt(timeSlot.split(':')[0]);
-    // Premium slots: 10:00-12:00 and 18:00-20:00
-    return (hour >= 10 && hour < 12) || (hour >= 18 && hour < 20);
   }
 
   private async isHoliday(date: string): Promise<string | null> {

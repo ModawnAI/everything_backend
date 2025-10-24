@@ -616,7 +616,7 @@ export class AdminShopServiceController {
         .from('reservations')
         .select('id')
         .eq('service_id', serviceId)
-        .in('status', ['pending', 'confirmed', 'in_progress'])
+        .in('status', ['requested', 'confirmed'])
         .limit(1);
 
       if (reservationError) {

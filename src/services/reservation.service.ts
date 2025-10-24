@@ -378,17 +378,19 @@ export class ReservationService {
           maxRetries
         });
 
+        // Calculate total_amount from deposit + remaining
+        const depositAmount = pricingInfo?.depositAmount || 0;
+        const remainingAmount = pricingInfo?.remainingAmount || 0;
+        const totalAmount = depositAmount + remainingAmount;
+
         const { data: reservation, error } = await this.supabase.rpc('create_reservation_with_lock', {
-          p_shop_id: shopId,
           p_user_id: userId,
+          p_shop_id: shopId,
           p_reservation_date: reservationDate,
           p_reservation_time: reservationTime,
-          p_special_requests: specialRequests,
-          p_points_used: pointsToUse || 0,
-          p_services: JSON.stringify(services),
-          p_lock_timeout: this.LOCK_TIMEOUT,
-          p_deposit_amount: pricingInfo?.depositAmount || null,
-          p_remaining_amount: pricingInfo?.remainingAmount || null
+          p_total_amount: totalAmount,
+          p_deposit_amount: depositAmount,
+          p_special_requests: specialRequests || null
         });
 
         if (error) {
@@ -429,6 +431,19 @@ export class ReservationService {
           } else if (error.message?.includes('INSUFFICIENT_AMOUNT')) {
             throw new Error('Points used cannot exceed total amount');
           } else {
+            console.log('❌ [RESERVATION-SERVICE] RPC Error Details:', {
+              error: error,
+              errorMessage: error.message,
+              errorCode: error.code,
+              errorDetails: error.details,
+              errorHint: error.hint,
+              shopId,
+              userId,
+              reservationDate,
+              reservationTime,
+              attempt
+            });
+
             logger.error('Reservation creation failed', {
               error: error.message,
               shopId,

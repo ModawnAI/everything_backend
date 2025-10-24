@@ -373,10 +373,21 @@ export class ReservationController {
       }
 
       // Extract request metadata from headers if not provided
+      const rawIpAddress = requestMetadata?.ipAddress || req.ip || req.connection.remoteAddress;
+
+      // Normalize IP address (convert IPv6 localhost to IPv4)
+      let normalizedIpAddress = rawIpAddress;
+      if (rawIpAddress === '::1' || rawIpAddress === '::ffff:127.0.0.1') {
+        normalizedIpAddress = '127.0.0.1';
+      } else if (rawIpAddress && rawIpAddress.startsWith('::ffff:')) {
+        // Convert IPv4-mapped IPv6 to IPv4
+        normalizedIpAddress = rawIpAddress.substring(7);
+      }
+
       const enhancedRequestMetadata = {
         ...requestMetadata,
         userAgent: requestMetadata?.userAgent || req.get('User-Agent'),
-        ipAddress: requestMetadata?.ipAddress || req.ip || req.connection.remoteAddress,
+        ipAddress: normalizedIpAddress,
         source: requestMetadata?.source || 'web_app' // Default to web_app if not specified
       };
 
@@ -394,8 +405,12 @@ export class ReservationController {
         notificationPreferences
       };
 
+      console.log('🔍 [CONTROLLER] Creating reservation with request:', JSON.stringify(reservationRequest, null, 2));
+
       // Create reservation with concurrent booking prevention and v3.1 flow
       const reservation = await reservationService.createReservation(reservationRequest);
+
+      console.log('✅ [CONTROLLER] Reservation created successfully:', reservation.id);
 
       logger.info('v3.1 flow reservation created successfully', {
         reservationId: reservation.id,
@@ -465,6 +480,12 @@ export class ReservationController {
       });
 
     } catch (error) {
+      console.log('❌ [CONTROLLER] Error caught:', {
+        errorType: error instanceof Error ? 'Error' : typeof error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
       logger.error('Error in createReservation', {
         error: error instanceof Error ? error.message : 'Unknown error',
         body: req.body

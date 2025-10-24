@@ -259,7 +259,7 @@ export class EnhancedAdvisoryLocksService {
         `)
         .eq('shop_id', shopId)
         .eq('reservation_date', reservationDate)
-        .in('status', ['requested', 'confirmed', 'in_progress']);
+        .in('status', ['requested', 'confirmed']);
 
       if (excludeReservationId) {
         query = query.neq('id', excludeReservationId);

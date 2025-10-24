@@ -277,6 +277,7 @@ export class TimeSlotService {
   /**
    * Get existing reservations for the shop on the specified date
    * Enhanced for v3.1 flow to properly handle both 'requested' and 'confirmed' statuses
+   * Only includes 'requested' reservations created within the last 15 minutes to prevent stale reservations from blocking slots
    */
   private async getExistingReservations(shopId: string, date: string): Promise<any[]> {
     try {
@@ -292,7 +293,7 @@ export class TimeSlotService {
           reservation_services (
             service_id,
             quantity,
-            services (
+            shop_services (
               duration_minutes,
               name
             )
@@ -300,7 +301,7 @@ export class TimeSlotService {
         `)
         .eq('shop_id', shopId)
         .eq('reservation_date', date)
-        .in('status', ['requested', 'confirmed', 'in_progress'])
+        .in('status', ['requested', 'confirmed'])
         .order('reservation_time', { ascending: true });
 
       if (error) {
@@ -308,17 +309,35 @@ export class TimeSlotService {
         throw error;
       }
 
-      // Filter out cancelled or completed reservations
-      const activeReservations = (reservations || []).filter(reservation => 
-        ['requested', 'confirmed', 'in_progress'].includes(reservation.status)
-      );
+      // Calculate cutoff time for requested reservations (15 minutes ago)
+      const fifteenMinutesAgo = new Date(Date.now() - 15 * 60 * 1000);
+
+      // Filter out cancelled, completed, or expired 'requested' reservations
+      const activeReservations = (reservations || []).filter(reservation => {
+        // Always include confirmed and in_progress reservations
+        if (reservation.status === 'confirmed' || reservation.status === 'in_progress') {
+          return true;
+        }
+
+        // For 'requested' status, only include if created within last 15 minutes
+        if (reservation.status === 'requested') {
+          const createdAt = new Date(reservation.created_at);
+          return createdAt > fifteenMinutesAgo;
+        }
+
+        return false;
+      });
+
+      const expiredCount = (reservations?.length || 0) - activeReservations.length;
 
       logger.debug('Retrieved existing reservations:', {
         shopId,
         date,
         totalReservations: reservations?.length || 0,
         activeReservations: activeReservations.length,
-        statuses: activeReservations.map(r => r.status)
+        expiredRequestedReservations: expiredCount,
+        statuses: activeReservations.map(r => r.status),
+        cutoffTime: fifteenMinutesAgo.toISOString()
       });
 
       return activeReservations;
@@ -454,9 +473,9 @@ export class TimeSlotService {
           // Get service duration from the nested service data or fallback to serviceDurations
           let serviceDuration = 0;
           let serviceBuffer = this.BUFFER_TIME;
-          
-          if (service.services && service.services.duration_minutes) {
-            serviceDuration = service.services.duration_minutes;
+
+          if (service.shop_services && service.shop_services.duration_minutes) {
+            serviceDuration = service.shop_services.duration_minutes;
           } else {
             const serviceDurationData = serviceDurations.find(s => s.serviceId === service.service_id);
             if (serviceDurationData) {
@@ -914,8 +933,23 @@ export class TimeSlotService {
       return result;
 
     } catch (error) {
+      // ❌ [DEBUG] Log full error details to console
+      console.log('❌ [TIME-SLOT-SERVICE] Caught error in validateSlotAvailability:', {
+        error: error,
+        errorType: error instanceof Error ? 'Error' : typeof error,
+        message: error instanceof Error ? error.message : String(error),
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined,
+        shopId,
+        date,
+        time,
+        serviceIds,
+        duration,
+        userId
+      });
+
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-      
+
       // Track error metrics
       monitoringService.trackError(
         'SLOT_VALIDATION_ERROR',
@@ -934,7 +968,7 @@ export class TimeSlotService {
         }
       );
 
-      logger.error('TimeSlotService.validateSlotAvailability error:', { 
+      logger.error('TimeSlotService.validateSlotAvailability error:', {
         shopId, date, time, serviceIds, error: errorMessage,
         validationTime: Date.now() - validationStartTime
       });
@@ -1562,7 +1596,7 @@ export class TimeSlotService {
       // Calculate reservation end time based on services
       let reservationDuration = 0;
       for (const service of reservation.reservation_services) {
-        reservationDuration += (service.services?.duration_minutes || 60) * service.quantity;
+        reservationDuration += (service.shop_services?.duration_minutes || 60) * service.quantity;
       }
       
       const reservationEnd = new Date(reservationStart.getTime() + reservationDuration * 60000);
@@ -1601,7 +1635,7 @@ export class TimeSlotService {
         // Calculate reservation end time
         let reservationDuration = 0;
         for (const service of reservation.reservation_services) {
-          reservationDuration += (service.services?.duration_minutes || 60) * service.quantity;
+          reservationDuration += (service.shop_services?.duration_minutes || 60) * service.quantity;
         }
         
         const reservationEnd = new Date(reservationStart.getTime() + reservationDuration * 60000);
