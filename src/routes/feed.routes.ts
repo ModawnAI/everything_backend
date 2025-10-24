@@ -305,7 +305,7 @@ router.use(authenticateJWT());
 router.post('/posts',
   feedGeneralRateLimit,
   feedPostCreationRateLimit,
-  createPostCSRFSanitization(),
+  // CSRF protection removed - JWT in Authorization header already provides CSRF protection
   requireFeedPostPermission('create'),
   // ...feedSecurityMiddleware(),
   // validateRequestBody(feedPostSchema),
@@ -693,7 +693,7 @@ router.get('/posts/:postId',
 
 router.put('/posts/:postId',
   feedGeneralRateLimit,
-  createPostCSRFSanitization(),
+  // CSRF protection removed - JWT provides protection
   requireFeedPostPermission('update'),
   // validateRequestBody(feedPostSchema),
   feedController.updatePost.bind(feedController)
@@ -760,7 +760,7 @@ router.put('/posts/:postId',
  */
 router.delete('/posts/:postId',
   feedGeneralRateLimit,
-  createPostCSRFSanitization(),
+  // CSRF protection removed - JWT provides protection
   requireFeedPostPermission('delete'),
   feedController.deletePost.bind(feedController)
 );
@@ -865,7 +865,7 @@ router.delete('/posts/:postId',
 router.post('/posts/:postId/like',
   feedGeneralRateLimit,
   feedInteractionRateLimit,
-  createPostCSRFSanitization(),
+  // CSRF protection removed - JWT provides protection
   requireFeedLikePermission('create'),
   feedController.likePost.bind(feedController)
 );
@@ -999,7 +999,7 @@ router.post('/posts/:postId/like',
 router.post('/posts/:postId/report',
   feedGeneralRateLimit,
   feedInteractionRateLimit,
-  createReportCSRFSanitization(),
+  // CSRF protection removed - JWT provides protection
   requireFeedReportPermission('create'),
   // validateRequestBody(reportSchema),
   feedController.reportPost.bind(feedController)
@@ -1112,7 +1112,7 @@ router.post('/posts/:postId/report',
 router.post('/posts/:postId/comments',
   feedGeneralRateLimit,
   feedInteractionRateLimit,
-  createCommentCSRFSanitization(),
+  // CSRF protection removed - JWT provides protection
   requireFeedCommentPermission('create'),
   // ...commentSecurityMiddleware(),
   // validateRequestBody(commentSchema),
@@ -1428,7 +1428,7 @@ router.get('/posts/:postId/comments',
 router.post('/upload-images',
   feedGeneralRateLimit,
   feedInteractionRateLimit, // Use interaction rate limit for uploads
-  createUploadCSRFSanitization(),
+  // CSRF protection removed - JWT in Authorization header already provides CSRF protection
   requireFeedPostPermission('create'), // Users need post creation permission to upload images
   // imageSecurityMiddleware(),
   upload.array('images', 10), // Accept up to 10 images

@@ -138,6 +138,7 @@ DROP POLICY IF EXISTS "Post owners can manage post images" ON public.post_images
 DROP POLICY IF EXISTS "Public can view post images" ON public.post_images;
 DROP POLICY IF EXISTS "Users can like active posts" ON public.post_likes;
 DROP POLICY IF EXISTS "Users can comment on active posts" ON public.post_comments;
+DROP POLICY IF EXISTS "Public can read active comments" ON public.post_comments;
 DROP POLICY IF EXISTS "Users can manage own comments" ON public.post_comments;
 DROP POLICY IF EXISTS "Users can delete own comments" ON public.post_comments;
 DROP POLICY IF EXISTS "Admins can manage all comments" ON public.post_comments;

@@ -62,53 +62,52 @@ export class ShopAnalyticsController {
           startDate.setDate(endDate.getDate() - 7);
       }
 
-      // Fetch reservations data
-      const { data: reservations, error: reservationsError } = await supabase
-        .from('reservations')
-        .select('id, status, total_price, created_at, reservation_date')
-        .eq('shop_id', shopId)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
+      // Optimized: Use database aggregations instead of fetching all rows
+      const [reservationsResult, paymentsResult] = await Promise.all([
+        supabase.rpc('get_shop_reservations_stats', {
+          p_shop_id: shopId,
+          p_start_date: startDate.toISOString(),
+          p_end_date: endDate.toISOString()
+        }),
+        supabase.rpc('get_shop_payments_stats', {
+          p_shop_id: shopId,
+          p_start_date: startDate.toISOString(),
+          p_end_date: endDate.toISOString()
+        })
+      ]);
 
-      if (reservationsError) {
-        logger.error('❌ [SHOP-ANALYTICS] Reservations query error', {
-          error: reservationsError.message,
+      if (reservationsResult.error) {
+        logger.error('❌ [SHOP-ANALYTICS] Reservations stats error', {
+          error: reservationsResult.error.message,
           shopId
         });
-        throw reservationsError;
+        throw reservationsResult.error;
       }
 
-      // Fetch payments data
-      const { data: payments, error: paymentsError } = await supabase
-        .from('payments')
-        .select('id, status, amount, created_at')
-        .eq('shop_id', shopId)
-        .gte('created_at', startDate.toISOString())
-        .lte('created_at', endDate.toISOString());
-
-      if (paymentsError) {
-        logger.error('❌ [SHOP-ANALYTICS] Payments query error', {
-          error: paymentsError.message,
+      if (paymentsResult.error) {
+        logger.error('❌ [SHOP-ANALYTICS] Payments stats error', {
+          error: paymentsResult.error.message,
           shopId
         });
-        throw paymentsError;
+        throw paymentsResult.error;
       }
 
-      // Calculate metrics
-      const totalReservations = reservations?.length || 0;
-      const confirmedReservations = reservations?.filter(r => r.status === 'confirmed').length || 0;
-      const completedReservations = reservations?.filter(r => r.status === 'completed').length || 0;
-      const cancelledReservations = reservations?.filter(r =>
-        r.status === 'cancelled_by_user' || r.status === 'cancelled_by_shop'
-      ).length || 0;
+      const reservationStats = reservationsResult.data || {};
+      const paymentStats = paymentsResult.data || {};
 
-      const totalRevenue = payments
-        ?.filter(p => p.status === 'paid' || p.status === 'completed')
-        .reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+      // Calculate metrics from aggregated data
+      const totalReservations = reservationStats.total || 0;
+      const confirmedReservations = reservationStats.confirmed || 0;
+      const completedReservations = reservationStats.completed || 0;
+      const cancelledReservations = (reservationStats.cancelled_by_user || 0) + (reservationStats.cancelled_by_shop || 0);
+      const requestedReservations = reservationStats.requested || 0;
+      const noShowReservations = reservationStats.no_show || 0;
 
-      const pendingPayments = payments?.filter(p => p.status === 'pending').length || 0;
-      const completedPayments = payments?.filter(p => p.status === 'paid' || p.status === 'completed').length || 0;
-      const failedPayments = payments?.filter(p => p.status === 'failed').length || 0;
+      const totalRevenue = paymentStats.total_revenue || 0;
+      const totalPayments = paymentStats.total_count || 0;
+      const pendingPayments = paymentStats.pending || 0;
+      const completedPayments = paymentStats.completed || 0;
+      const failedPayments = paymentStats.failed || 0;
 
       // Calculate conversion rate
       const conversionRate = totalReservations > 0
@@ -136,12 +135,12 @@ export class ShopAnalyticsController {
             confirmed: confirmedReservations,
             completed: completedReservations,
             cancelled: cancelledReservations,
-            requested: reservations?.filter(r => r.status === 'requested').length || 0,
-            no_show: reservations?.filter(r => r.status === 'no_show').length || 0
+            requested: requestedReservations,
+            no_show: noShowReservations
           }
         },
         payments: {
-          total: payments?.length || 0,
+          total: totalPayments,
           completed: completedPayments,
           pending: pendingPayments,
           failed: failedPayments,

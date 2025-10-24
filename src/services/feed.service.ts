@@ -29,8 +29,8 @@ export interface FeedPost {
   updated_at: string;
   author?: {
     id: string;
-    username: string;
-    display_name: string;
+    name: string;
+    nickname?: string;
     profile_image_url?: string;
     is_influencer: boolean;
   };
@@ -43,7 +43,7 @@ export interface FeedPost {
   tagged_shop?: {
     id: string;
     name: string;
-    category: string;
+    main_category: string;
   };
   is_liked?: boolean;
 }
@@ -59,8 +59,8 @@ export interface FeedComment {
   updated_at: string;
   author?: {
     id: string;
-    username: string;
-    display_name: string;
+    name: string;
+    nickname?: string;
     profile_image_url?: string;
   };
   is_liked?: boolean;
@@ -117,6 +117,7 @@ export class FeedService {
    * Create a new feed post
    */
   async createPost(postData: {
+    author_id: string;
     content: string;
     category?: string;
     location_tag?: string;
@@ -165,24 +166,31 @@ export class FeedService {
       const { data: post, error: postError } = await this.supabase
         .from('feed_posts')
         .insert({
+          author_id: postData.author_id,
           content: postData.content,
           category: postData.category,
           location_tag: postData.location_tag,
           tagged_shop_id: postData.tagged_shop_id,
           hashtags: postData.hashtags || [],
           status: 'active',
-          moderation_status: moderationResult.autoAction === 'flag' ? 'flagged' : 
+          moderation_status: moderationResult.autoAction === 'flag' ? 'flagged' :
                            moderationResult.autoAction === 'hide' ? 'hidden' : 'approved',
-          moderation_score: moderationResult.score,
-          is_hidden: moderationResult.autoAction === 'hide',
-          requires_review: moderationResult.requiresReview
+          is_hidden: moderationResult.autoAction === 'hide'
+          // NOTE: moderation_score and requires_review columns don't exist in database yet
         })
         .select()
         .single();
 
       if (postError) {
-        logger.error('Error creating feed post', { error: postError });
-        return { success: false, error: 'Failed to create post' };
+        logger.error('Error creating feed post', {
+          error: postError,
+          errorMessage: postError.message,
+          errorDetails: postError.details,
+          errorHint: postError.hint,
+          errorCode: postError.code,
+          postData
+        });
+        return { success: false, error: `Failed to create post: ${postError.message}` };
       }
 
       // Add images if provided
@@ -241,8 +249,8 @@ export class FeedService {
           *,
           author:users!feed_posts_author_id_fkey(
             id,
-            username,
-            display_name,
+            name,
+            nickname,
             profile_image_url,
             is_influencer
           ),
@@ -255,7 +263,7 @@ export class FeedService {
           tagged_shop:shops!feed_posts_tagged_shop_id_fkey(
             id,
             name,
-            category
+            main_category
           )
         `)
         .eq('status', 'active')
@@ -348,8 +356,8 @@ export class FeedService {
           *,
           author:users!feed_posts_author_id_fkey(
             id,
-            username,
-            display_name,
+            name,
+            nickname,
             profile_image_url,
             is_influencer
           ),
@@ -362,7 +370,7 @@ export class FeedService {
           tagged_shop:shops!feed_posts_tagged_shop_id_fkey(
             id,
             name,
-            category
+            main_category
           )
         `)
         .eq('id', postId)
@@ -595,8 +603,8 @@ export class FeedService {
           *,
           author:users!post_comments_author_id_fkey(
             id,
-            username,
-            display_name,
+            name,
+            nickname,
             profile_image_url
           )
         `)
@@ -637,8 +645,8 @@ export class FeedService {
           *,
           author:users!post_comments_author_id_fkey(
             id,
-            username,
-            display_name,
+            name,
+            nickname,
             profile_image_url
           )
         `)
@@ -709,8 +717,8 @@ export class FeedService {
           *,
           author:users!post_comments_author_id_fkey(
             id,
-            username,
-            display_name,
+            name,
+            nickname,
             profile_image_url
           )
         `)

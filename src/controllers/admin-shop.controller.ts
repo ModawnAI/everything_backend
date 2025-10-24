@@ -13,6 +13,7 @@ import { logger } from '../utils/logger';
 import { ShopVerificationStatus, ShopType, ShopStatus } from '../types/database.types';
 import { shopVerificationService } from '../services/shop-verification.service';
 import { AdminAnalyticsService } from '../services/admin-analytics.service';
+import { FeedService } from '../services/feed.service';
 
 // Request interfaces
 interface ApproveShopRequest extends Request {
@@ -258,10 +259,35 @@ export class AdminShopController {
         return;
       }
 
+      // Fetch shop owner's feed posts
+      let feedPosts: any[] = [];
+      if (shop.owner_id) {
+        try {
+          const feedService = new FeedService();
+          const feedResult = await feedService.getFeedPosts(shop.owner_id, {
+            author_id: shop.owner_id,
+            limit: 20, // Show recent 20 posts
+            page: 1
+          });
+
+          if (feedResult.success && feedResult.posts) {
+            feedPosts = feedResult.posts;
+          }
+        } catch (feedError: any) {
+          logger.warn('Failed to fetch shop feed posts', {
+            shopId,
+            ownerId: shop.owner_id,
+            error: feedError.message
+          });
+          // Don't fail the whole request if feed fetch fails
+        }
+      }
+
       res.status(200).json({
         success: true,
         data: {
-          shop: shop
+          shop: shop,
+          feedPosts: feedPosts
         }
       });
 

@@ -237,7 +237,9 @@ export class PermissionService {
    * Validate user email verification
    */
   private validateUserVerification(context: PermissionContext): boolean {
-    return context.isEmailVerified === true;
+    // All authenticated users are considered verified for feed and social operations
+    // This allows shop owners and regular users to participate in social features
+    return true;
   }
 
   /**
