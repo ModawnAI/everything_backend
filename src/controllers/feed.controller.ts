@@ -170,6 +170,116 @@ export class FeedController {
   }
 
   /**
+   * Get user's own posts (most recent 10)
+   * GET /api/user/feed/my-posts
+   */
+  async getMyPosts(req: Request, res: Response): Promise<void> {
+    const startTime = Date.now();
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const result = await feedService.getMyPosts(userId);
+
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+
+      // Log feed load performance
+      const duration = Date.now() - startTime;
+      feedLoggingService.logFeedLoad(
+        duration,
+        userId,
+        result.posts?.length || 0,
+        false,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: {
+          posts: result.posts || []
+        }
+      });
+
+    } catch (error) {
+      const userId = (req as any).user?.id;
+      const duration = Date.now() - startTime;
+
+      feedLoggingService.logFeedError(
+        error as Error,
+        {
+          userId,
+          operation: 'my_posts_load',
+          metadata: { duration }
+        },
+        req
+      );
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Get discover feed (posts from other users and shops)
+   * GET /api/user/feed/discover
+   */
+  async getDiscoverFeed(req: Request, res: Response): Promise<void> {
+    const startTime = Date.now();
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const result = await feedService.getDiscoverFeed(userId);
+
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+
+      // Log feed load performance
+      const duration = Date.now() - startTime;
+      feedLoggingService.logFeedLoad(
+        duration,
+        userId,
+        result.posts?.length || 0,
+        false,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: {
+          posts: result.posts || []
+        }
+      });
+
+    } catch (error) {
+      const userId = (req as any).user?.id;
+      const duration = Date.now() - startTime;
+
+      feedLoggingService.logFeedError(
+        error as Error,
+        {
+          userId,
+          operation: 'discover_feed_load',
+          metadata: { duration }
+        },
+        req
+      );
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
    * Get a specific feed post
    * GET /api/feed/posts/:postId
    */

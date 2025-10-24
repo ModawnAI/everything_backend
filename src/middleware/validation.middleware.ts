@@ -112,7 +112,8 @@ export function validateQueryParams(schema: Joi.Schema) {
       const { error, value } = schema.validate(req.query, {
         abortEarly: false,
         stripUnknown: true,
-        allowUnknown: false
+        allowUnknown: true, // Allow unknown parameters
+        convert: true // Enable type conversion from strings to numbers
       });
 
       if (error) {
@@ -124,6 +125,7 @@ export function validateQueryParams(schema: Joi.Schema) {
 
         logger.warn('Query parameters validation failed', {
           errors: validationErrors,
+          rawQuery: req.query,
           path: req.path,
           method: req.method,
           ip: req.ip

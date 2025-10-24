@@ -91,6 +91,7 @@ import adminModerationRoutes from './routes/admin-moderation.routes';
 import shopCategoriesRoutes from './routes/shop-categories.routes';
 import serviceCatalogRoutes from './routes/service-catalog.routes';
 import feedRoutes from './routes/feed.routes';
+import userFeedRoutes from './routes/user-feed.routes';
 import csrfRoutes from './routes/csrf.routes';
 import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
@@ -453,6 +454,7 @@ app.use('/api/admin/audit', auditTrailRoutes);
 app.use('/api/admin/automation', automaticStateProgressionRoutes);
 app.use('/api/users', userSettingsRoutes);
 app.use('/api/feed', feedRoutes);
+app.use('/api/user/feed', userFeedRoutes);
 app.use('/api/csrf', csrfRoutes);
 // Catch-all /api/shop routes LAST (after all specific /api/shop/* routes above)
 app.use('/api/shop', shopContactMethodsRoutes);

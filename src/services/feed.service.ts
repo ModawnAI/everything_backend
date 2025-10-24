@@ -346,6 +346,110 @@ export class FeedService {
   }
 
   /**
+   * Get user's own posts (most recent 10)
+   */
+  async getMyPosts(userId: string): Promise<FeedResult> {
+    try {
+      const { data: posts, error } = await this.supabase
+        .from('feed_posts')
+        .select(`
+          *,
+          author:users!feed_posts_author_id_fkey(
+            id,
+            name,
+            nickname,
+            profile_image_url,
+            is_influencer
+          ),
+          images:post_images(
+            id,
+            image_url,
+            alt_text,
+            display_order
+          ),
+          tagged_shop:shops!feed_posts_tagged_shop_id_fkey(
+            id,
+            name,
+            main_category
+          )
+        `)
+        .eq('status', 'active')
+        .eq('author_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        logger.error('Error fetching user posts', { error });
+        return { success: false, error: 'Failed to fetch user posts' };
+      }
+
+      const postsWithUserData = await this.addUserSpecificData(posts || [], userId);
+
+      return {
+        success: true,
+        posts: postsWithUserData,
+        hasMore: false
+      };
+
+    } catch (error) {
+      logger.error('Error in getMyPosts', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Get discover feed (posts from other users and shops, excluding own posts)
+   */
+  async getDiscoverFeed(userId: string): Promise<FeedResult> {
+    try {
+      const { data: posts, error } = await this.supabase
+        .from('feed_posts')
+        .select(`
+          *,
+          author:users!feed_posts_author_id_fkey(
+            id,
+            name,
+            nickname,
+            profile_image_url,
+            is_influencer
+          ),
+          images:post_images(
+            id,
+            image_url,
+            alt_text,
+            display_order
+          ),
+          tagged_shop:shops!feed_posts_tagged_shop_id_fkey(
+            id,
+            name,
+            main_category
+          )
+        `)
+        .eq('status', 'active')
+        .neq('author_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (error) {
+        logger.error('Error fetching discover feed', { error });
+        return { success: false, error: 'Failed to fetch discover feed' };
+      }
+
+      const postsWithUserData = await this.addUserSpecificData(posts || [], userId);
+
+      return {
+        success: true,
+        posts: postsWithUserData,
+        hasMore: false
+      };
+
+    } catch (error) {
+      logger.error('Error in getDiscoverFeed', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
    * Get a specific post by ID
    */
   async getPostById(postId: string, userId: string): Promise<{ success: boolean; post?: FeedPost; error?: string }> {
