@@ -9,6 +9,7 @@ import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { config } from '../config/environment';
 import sharp from 'sharp';
+import { normalizeSupabaseUrl } from '../utils/supabase-url';
 
 export interface StorageBucket {
   id: string;
@@ -346,7 +347,7 @@ export class StorageService {
         const { data: urlData } = this.supabase.storage
           .from(bucketId)
           .getPublicUrl(filePath);
-        fileUrl = urlData.publicUrl;
+        fileUrl = normalizeSupabaseUrl(urlData.publicUrl);
       }
 
       logger.info('File uploaded successfully:', { bucketId, filePath, size: processedBuffer.length });
@@ -507,7 +508,10 @@ export class StorageService {
         .getPublicUrl(filePath);
 
       return {
-        metadata: data
+        metadata: {
+          ...data,
+          publicUrl: normalizeSupabaseUrl(data.publicUrl)
+        }
       };
 
     } catch (error) {

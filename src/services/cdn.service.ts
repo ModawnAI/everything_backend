@@ -8,6 +8,7 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { config } from '../config/environment';
+import { normalizeSupabaseUrl } from '../utils/supabase-url';
 
 export interface CDNConfig {
   enabled: boolean;
@@ -610,9 +611,11 @@ export class CDNService {
       .from(bucket)
       .getPublicUrl(filePath);
 
+    const normalizedUrl = normalizeSupabaseUrl(urlData.publicUrl);
+
     return {
-      url: urlData.publicUrl,
-      cdnUrl: urlData.publicUrl,
+      url: normalizedUrl,
+      cdnUrl: normalizedUrl,
       cacheHeaders: this.generateCacheHeaders(),
     };
   }

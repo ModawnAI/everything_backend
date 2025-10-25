@@ -10,6 +10,7 @@
 
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
+import { normalizeSupabaseUrl } from '../utils/supabase-url';
 
 // File upload configuration
 const UPLOAD_CONFIG = {
@@ -118,7 +119,7 @@ export class DocumentUploadService {
 
       return {
         success: true,
-        url: publicUrlData.publicUrl,
+        url: normalizeSupabaseUrl(publicUrlData.publicUrl),
         path: filePath,
         metadata: {
           size: fileBuffer.length,
