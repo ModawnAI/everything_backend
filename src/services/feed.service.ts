@@ -130,17 +130,50 @@ export class FeedService {
     }>;
   }): Promise<{ success: boolean; post?: FeedPost; error?: string }> {
     try {
+      // [DEBUG] Log incoming data structure
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('🔍 [FEED-SERVICE-DEBUG] createPost called with:', {
+          author_id: postData.author_id,
+          content_length: postData.content?.length || 0,
+          category: postData.category,
+          location_tag: postData.location_tag,
+          tagged_shop_id: postData.tagged_shop_id,
+          hashtags_count: postData.hashtags?.length || 0,
+          hashtags: postData.hashtags,
+          images_count: postData.images?.length || 0,
+          images_structure: postData.images?.map(img => ({
+            has_image_url: !!img.image_url,
+            image_url_length: img.image_url?.length || 0,
+            has_alt_text: !!img.alt_text,
+            display_order: img.display_order,
+            keys: Object.keys(img)
+          }))
+        });
+      }
+
       // Validate hashtags (max 10)
       if (postData.hashtags && postData.hashtags.length > 10) {
+        logger.warn('🚫 [FEED-SERVICE-DEBUG] Hashtag validation failed', {
+          count: postData.hashtags.length,
+          max: 10
+        });
         return { success: false, error: 'Maximum 10 hashtags allowed' };
       }
 
       // Validate content length (max 2000 characters)
       if (postData.content.length > 2000) {
+        logger.warn('🚫 [FEED-SERVICE-DEBUG] Content length validation failed', {
+          length: postData.content.length,
+          max: 2000
+        });
         return { success: false, error: 'Content exceeds maximum length of 2000 characters' };
       }
 
       // Content moderation analysis
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('🔎 [FEED-SERVICE-DEBUG] Starting content moderation');
+      }
+
       const moderationResult = await contentModerator.analyzeFeedPost({
         content: postData.content,
         hashtags: postData.hashtags,
@@ -149,48 +182,77 @@ export class FeedService {
         category: postData.category
       });
 
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('✅ [FEED-SERVICE-DEBUG] Moderation completed', {
+          autoAction: moderationResult.autoAction,
+          score: moderationResult.score,
+          severity: moderationResult.severity
+        });
+      }
+
       // Handle critical violations
       if (moderationResult.autoAction === 'remove') {
-        logger.warn('Post creation blocked due to content violations', {
+        logger.warn('🚫 [FEED-SERVICE-DEBUG] Post creation blocked due to content violations', {
           score: moderationResult.score,
           severity: moderationResult.severity,
           violations: moderationResult.violations.map(v => v.type)
         });
-        return { 
-          success: false, 
-          error: 'Content violates community guidelines and cannot be posted' 
+        return {
+          success: false,
+          error: 'Content violates community guidelines and cannot be posted'
         };
+      }
+
+      // Prepare data for database insertion
+      const dbInsertData = {
+        author_id: postData.author_id,
+        content: postData.content,
+        category: postData.category,
+        location_tag: postData.location_tag,
+        tagged_shop_id: postData.tagged_shop_id,
+        hashtags: postData.hashtags || [],
+        status: 'active',
+        moderation_status: moderationResult.autoAction === 'flag' ? 'flagged' :
+                         moderationResult.autoAction === 'hide' ? 'hidden' : 'approved',
+        is_hidden: moderationResult.autoAction === 'hide'
+      };
+
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('💾 [FEED-SERVICE-DEBUG] Attempting database INSERT with:', {
+          ...dbInsertData,
+          content: `${dbInsertData.content.substring(0, 50)}...`,
+          hashtags_type: typeof dbInsertData.hashtags,
+          hashtags_isArray: Array.isArray(dbInsertData.hashtags)
+        });
       }
 
       // Create post
       const { data: post, error: postError } = await this.supabase
         .from('feed_posts')
-        .insert({
-          author_id: postData.author_id,
-          content: postData.content,
-          category: postData.category,
-          location_tag: postData.location_tag,
-          tagged_shop_id: postData.tagged_shop_id,
-          hashtags: postData.hashtags || [],
-          status: 'active',
-          moderation_status: moderationResult.autoAction === 'flag' ? 'flagged' :
-                           moderationResult.autoAction === 'hide' ? 'hidden' : 'approved',
-          is_hidden: moderationResult.autoAction === 'hide'
-          // NOTE: moderation_score and requires_review columns don't exist in database yet
-        })
+        .insert(dbInsertData)
         .select()
         .single();
 
       if (postError) {
-        logger.error('Error creating feed post', {
+        logger.error('💥 [FEED-SERVICE-DEBUG] Database INSERT failed!', {
           error: postError,
           errorMessage: postError.message,
           errorDetails: postError.details,
           errorHint: postError.hint,
           errorCode: postError.code,
-          postData
+          insertData: {
+            ...dbInsertData,
+            content: `${dbInsertData.content.substring(0, 50)}...`
+          }
         });
         return { success: false, error: `Failed to create post: ${postError.message}` };
+      }
+
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('✅ [FEED-SERVICE-DEBUG] feed_posts INSERT successful', {
+          post_id: post.id,
+          has_images_to_add: !!(postData.images && postData.images.length > 0)
+        });
       }
 
       // Add images if provided
@@ -202,13 +264,37 @@ export class FeedService {
           display_order: img.display_order
         }));
 
+        if (process.env.NODE_ENV === 'development') {
+          logger.info('🖼️ [FEED-SERVICE-DEBUG] Adding post images to post_images table', {
+            post_id: post.id,
+            image_count: imageData.length,
+            images: imageData.map(img => ({
+              image_url: img.image_url,
+              has_alt_text: !!img.alt_text,
+              display_order: img.display_order
+            }))
+          });
+        }
+
         const { error: imageError } = await this.supabase
           .from('post_images')
           .insert(imageData);
 
         if (imageError) {
-          logger.error('Error adding post images', { error: imageError });
+          logger.error('💥 [FEED-SERVICE-DEBUG] post_images INSERT failed!', {
+            error: imageError,
+            errorMessage: imageError.message,
+            errorDetails: imageError.details,
+            errorHint: imageError.hint,
+            errorCode: imageError.code,
+            imageData
+          });
           // Continue without failing the post creation
+        } else if (process.env.NODE_ENV === 'development') {
+          logger.info('✅ [FEED-SERVICE-DEBUG] post_images INSERT successful', {
+            post_id: post.id,
+            images_added: imageData.length
+          });
         }
       }
 
@@ -699,13 +785,13 @@ export class FeedService {
         .from('post_comments')
         .insert({
           post_id: postId,
-          author_id: userId,
+          user_id: userId,
           content: commentData.content,
           parent_comment_id: commentData.parent_comment_id
         })
         .select(`
           *,
-          author:users!post_comments_author_id_fkey(
+          author:users!post_comments_user_id_fkey(
             id,
             name,
             nickname,
@@ -747,7 +833,7 @@ export class FeedService {
         .from('post_comments')
         .select(`
           *,
-          author:users!post_comments_author_id_fkey(
+          author:users!post_comments_user_id_fkey(
             id,
             name,
             nickname,
@@ -760,8 +846,20 @@ export class FeedService {
         .range(offset, offset + limit - 1);
 
       if (error) {
-        logger.error('Error fetching comments', { error });
-        return { success: false, error: 'Failed to fetch comments' };
+        logger.error('Error fetching comments from Supabase', {
+          error,
+          postId,
+          page,
+          limit,
+          offset,
+          errorMessage: error.message,
+          errorDetails: error.details,
+          errorHint: error.hint
+        });
+        return {
+          success: false,
+          error: `Failed to fetch comments: ${error.message || 'Unknown database error'}`
+        };
       }
 
       return {
@@ -792,7 +890,7 @@ export class FeedService {
       // Check if user owns the comment
       const { data: existingComment, error: checkError } = await this.supabase
         .from('post_comments')
-        .select('author_id')
+        .select('user_id')
         .eq('id', commentId)
         .single();
 
@@ -800,7 +898,7 @@ export class FeedService {
         return { success: false, error: 'Comment not found' };
       }
 
-      if (existingComment.author_id !== userId) {
+      if (existingComment.user_id !== userId) {
         return { success: false, error: 'Not authorized to update this comment' };
       }
 
@@ -819,7 +917,7 @@ export class FeedService {
         .eq('id', commentId)
         .select(`
           *,
-          author:users!post_comments_author_id_fkey(
+          author:users!post_comments_user_id_fkey(
             id,
             name,
             nickname,
@@ -849,7 +947,7 @@ export class FeedService {
       // Check if user owns the comment
       const { data: existingComment, error: checkError } = await this.supabase
         .from('post_comments')
-        .select('author_id')
+        .select('user_id')
         .eq('id', commentId)
         .single();
 
@@ -857,7 +955,7 @@ export class FeedService {
         return { success: false, error: 'Comment not found' };
       }
 
-      if (existingComment.author_id !== userId) {
+      if (existingComment.user_id !== userId) {
         return { success: false, error: 'Not authorized to delete this comment' };
       }
 

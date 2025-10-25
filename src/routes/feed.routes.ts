@@ -159,9 +159,9 @@ router.use(authenticateJWT());
  *                 example: "Just had an amazing nail service at this salon! 💅 #nails #beauty"
  *               category:
  *                 type: string
- *                 enum: [beauty, lifestyle, review, promotion, general]
- *                 description: Post category
- *                 example: "beauty"
+ *                 enum: [nail, eyelash, waxing, eyebrow_tattoo, hair, review, tutorial, before_after, promotion, news, question, general]
+ *                 description: Post category (optional - service or content type)
+ *                 example: "review"
  *               location_tag:
  *                 type: string
  *                 maxLength: 100
@@ -352,9 +352,9 @@ router.post('/posts',
  *         name: category
  *         schema:
  *           type: string
- *           enum: [beauty, lifestyle, review, promotion, general]
+ *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair, review, tutorial, before_after, promotion, news, question, general]
  *         description: Filter posts by category
- *         example: "beauty"
+ *         example: "review"
  *       - in: query
  *         name: hashtag
  *         schema:
@@ -1560,7 +1560,7 @@ router.post('/upload-images',
  *                             example: "Amazing nail art design! 💅✨"
  *                           category:
  *                             type: string
- *                             example: "beauty"
+ *                             example: "nail"
  *                           location_tag:
  *                             type: string
  *                             example: "Gangnam-gu, Seoul"
@@ -1770,7 +1770,7 @@ router.post('/personalized',
  *                             example: 85.7
  *                           category:
  *                             type: string
- *                             example: "beauty"
+ *                             example: "tutorial"
  *                           location:
  *                             type: string
  *                             example: "Gangnam-gu, Seoul"
@@ -1890,7 +1890,7 @@ router.get('/trending',
  *                   type: string
  *                   maxLength: 50
  *                   description: Post category (optional)
- *                   example: "beauty"
+ *                   example: "promotion"
  *                 authorId:
  *                   type: string
  *                   format: uuid

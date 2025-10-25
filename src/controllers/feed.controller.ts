@@ -29,19 +29,65 @@ export class FeedController {
         return;
       }
 
+      // [DEBUG] Log complete request body in development
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('📦 [FEED-DEBUG] createPost request body:', {
+          body: req.body,
+          bodyKeys: Object.keys(req.body || {}),
+          hasImages: !!req.body.images,
+          imagesCount: req.body.images?.length || 0,
+          imagesStructure: req.body.images?.map((img: any) => ({
+            hasImageUrl: !!img.imageUrl,
+            hasImage_url: !!img.image_url,
+            hasAltText: !!img.altText,
+            hasAlt_text: !!img.alt_text,
+            hasDisplayOrder: !!img.displayOrder,
+            hasDisplay_order: !!img.display_order,
+            keys: Object.keys(img)
+          }))
+        });
+      }
+
       // Validate request body
       // const { error, value } = validateFeedPost(req.body);
       // if (error) {
-      //   res.status(400).json({ 
-      //     error: 'Validation failed', 
-      //     details: error.details.map(d => d.message) 
+      //   res.status(400).json({
+      //     error: 'Validation failed',
+      //     details: error.details.map(d => d.message)
       //   });
       //   return;
       // }
       const value = req.body;
 
+      // Normalize field names (camelCase → snake_case for database compatibility)
+      const normalizedValue = {
+        content: value.content,
+        category: value.category,
+        location_tag: value.location_tag || value.locationTag,
+        tagged_shop_id: value.tagged_shop_id || value.taggedShopId,
+        hashtags: value.hashtags,
+        images: value.images?.map((img: any) => ({
+          image_url: img.image_url || img.imageUrl,
+          alt_text: img.alt_text || img.altText,
+          display_order: img.display_order || img.displayOrder
+        }))
+      };
+
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('🔄 [FEED-DEBUG] Normalized data for service:', {
+          original_has_images: !!value.images,
+          normalized_has_images: !!normalizedValue.images,
+          normalized_images_count: normalizedValue.images?.length || 0,
+          normalized_images: normalizedValue.images?.map((img: any) => ({
+            has_image_url: !!img.image_url,
+            image_url: img.image_url,
+            display_order: img.display_order
+          }))
+        });
+      }
+
       const postData = {
-        ...value,
+        ...normalizedValue,
         author_id: userId
       };
 
@@ -528,7 +574,7 @@ export class FeedController {
   async getComments(req: Request, res: Response): Promise<void> {
     try {
       const { postId } = req.params;
-      const { page = 1, limit = 20 } = req.query;
+      const { page = '1', limit = '20' } = req.query;
       const userId = (req as any).user?.id;
 
       if (!userId) {
@@ -536,12 +582,34 @@ export class FeedController {
         return;
       }
 
+      // Parse and validate pagination parameters
+      const parsedPage = parseInt(page as string, 10);
+      const parsedLimit = parseInt(limit as string, 10);
+
+      // Validate parsed values
+      if (isNaN(parsedPage) || parsedPage < 1) {
+        res.status(400).json({ error: 'Invalid page parameter' });
+        return;
+      }
+
+      if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
+        res.status(400).json({ error: 'Invalid limit parameter (must be between 1 and 50)' });
+        return;
+      }
+
       const result = await feedService.getComments(postId, {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string)
+        page: parsedPage,
+        limit: parsedLimit
       });
-      
+
       if (!result.success) {
+        logger.error('getComments service error', {
+          postId,
+          userId,
+          error: result.error,
+          page: parsedPage,
+          limit: parsedLimit
+        });
         res.status(400).json({ error: result.error });
         return;
       }

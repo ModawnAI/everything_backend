@@ -4,6 +4,9 @@
 // Point system policies and constants
 export * from './point-policies';
 
+// Feed system constants
+export * from './feed-categories';
+
 // Example:
 // export * from './errorCodes';
 // export * from './httpStatus';

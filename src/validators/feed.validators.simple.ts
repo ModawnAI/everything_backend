@@ -4,6 +4,7 @@
  */
 
 import * as Joi from 'joi';
+import { VALID_FEED_CATEGORIES } from '../constants/feed-categories';
 
 /**
  * Basic Feed Post Validation Schema
@@ -20,9 +21,9 @@ export const feedPostSchema = Joi.object({
     }),
   category: Joi.string()
     .optional()
-    .valid('beauty', 'lifestyle', 'review', 'promotion', 'general')
+    .valid(...VALID_FEED_CATEGORIES)
     .messages({
-      'any.only': 'Category must be one of: beauty, lifestyle, review, promotion, general'
+      'any.only': `Category must be one of: ${VALID_FEED_CATEGORIES.join(', ')}`
     }),
   location_tag: Joi.string()
     .max(100)
@@ -48,17 +49,23 @@ export const feedPostSchema = Joi.object({
     }),
   images: Joi.array()
     .items(Joi.object({
-      image_url: Joi.string().required(),
+      // Support both camelCase and snake_case (backend normalizes)
+      image_url: Joi.string().optional(),
+      imageUrl: Joi.string().optional(),
       alt_text: Joi.string().max(200).optional(),
-      display_order: Joi.number().integer().min(1).max(10).required()
-    }))
+      altText: Joi.string().max(200).optional(),
+      display_order: Joi.number().integer().min(1).max(10).optional(),
+      displayOrder: Joi.number().integer().min(1).max(10).optional()
+    }).or('image_url', 'imageUrl') // At least one of these must be present
+      .or('display_order', 'displayOrder')) // At least one of these must be present
     .max(10)
     .optional()
     .messages({
       'array.max': 'Maximum 10 images allowed',
       'string.max': 'Alt text must not exceed 200 characters',
       'number.min': 'Display order must be at least 1',
-      'number.max': 'Display order must be at most 10'
+      'number.max': 'Display order must be at most 10',
+      'object.missing': 'Each image must have imageUrl (or image_url) and displayOrder (or display_order)'
     })
 });
 
