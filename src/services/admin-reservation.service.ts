@@ -456,6 +456,11 @@ export class AdminReservationService {
         updateData.confirmed_at = new Date().toISOString();
       } else if (request.status === 'completed') {
         updateData.completed_at = new Date().toISOString();
+        // Auto-set confirmed_at if not already set (database constraint requirement)
+        if (!reservation.confirmed_at) {
+          updateData.confirmed_at = new Date().toISOString();
+          logger.info('Auto-setting confirmed_at for completed reservation', { reservationId });
+        }
       } else if (request.status === 'cancelled_by_user' || request.status === 'cancelled_by_shop') {
         updateData.cancelled_at = new Date().toISOString();
         if (request.reason) {

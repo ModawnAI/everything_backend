@@ -247,17 +247,31 @@ export class AdminReservationController {
         data: result
       });
     } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
       logger.error('Admin reservation status update failed', {
-        error: error instanceof Error ? error.message : 'Unknown error',
+        error: errorMessage,
         reservationId: req.params.id,
         ipAddress: req.ip
       });
 
-      const errorMessage = error instanceof Error ? error.message : 'Failed to update reservation status';
-      
-      res.status(500).json({
+      // Determine appropriate HTTP status code based on error type
+      let statusCode = 500;
+      let clientError = errorMessage;
+
+      if (errorMessage.includes('Reservation not found')) {
+        statusCode = 404;
+        clientError = '예약을 찾을 수 없습니다.';
+      } else if (errorMessage.includes('Invalid status transition')) {
+        statusCode = 400;
+        clientError = errorMessage; // Return actual transition error
+      } else if (errorMessage.includes('not allowed') || errorMessage.includes('validation')) {
+        statusCode = 400;
+      }
+
+      res.status(statusCode).json({
         success: false,
-        error: errorMessage.includes('Reservation not found') ? 'Reservation not found' : 'Failed to update reservation status'
+        error: clientError
       });
     }
   }

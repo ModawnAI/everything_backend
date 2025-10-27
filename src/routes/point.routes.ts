@@ -19,23 +19,23 @@ const pointController = new PointController();
 // =============================================
 
 /**
- * GET /api/users/:userId/points/balance
- * Get user's point balance
+ * GET /api/points/balance
+ * Get authenticated user's point balance
  */
 router.get(
-  '/users/:userId/points/balance',
-  authenticateJWT,
-  pointController.getUserPointBalance.bind(pointController)
+  '/balance',
+  authenticateJWT(),
+  pointController.getMyPointBalance.bind(pointController)
 );
 
 /**
- * GET /api/users/:userId/points/history
- * Get user's point transaction history
+ * GET /api/points/history
+ * Get authenticated user's point transaction history
  */
 router.get(
-  '/users/:userId/points/history',
-  authenticateJWT,
-  pointController.getUserTransactionHistory.bind(pointController)
+  '/history',
+  authenticateJWT(),
+  pointController.getMyTransactionHistory.bind(pointController)
 );
 
 /**
@@ -43,8 +43,8 @@ router.get(
  * Use points for service payment
  */
 router.post(
-  '/points/use',
-  authenticateJWT,
+  '/use',
+  authenticateJWT(),
   pointController.usePoints.bind(pointController)
 );
 
@@ -58,8 +58,8 @@ router.post(
  * This endpoint is used internally by the system to award points
  */
 router.post(
-  '/points/earn',
-  authenticateJWT,
+  '/earn',
+  authenticateJWT(),
   pointController.earnPoints.bind(pointController)
 );
 
@@ -68,12 +68,12 @@ router.post(
 // =============================================
 
 /**
- * POST /api/admin/points/adjust
+ * POST /api/points/adjust
  * Admin point adjustment (admin only)
  */
 router.post(
-  '/admin/points/adjust',
-  authenticateJWT,
+  '/adjust',
+  authenticateJWT(),
   pointController.adjustPoints.bind(pointController)
 );
 

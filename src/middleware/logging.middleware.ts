@@ -41,6 +41,7 @@ function generateCorrelationId(): string {
 
 /**
  * Custom Morgan format that integrates with Winston
+ * Note: immediate option is set to false (default) to ensure status code is captured
  */
 export const morganFormat = morgan((tokens, req: Request, res: Response) => {
   const correlationId = (req as any).correlationId || 'unknown';
@@ -48,7 +49,7 @@ export const morganFormat = morgan((tokens, req: Request, res: Response) => {
   const userAgent = tokens['user-agent']?.(req, res) || 'unknown';
   const method = tokens.method?.(req, res) || 'unknown';
   const url = tokens.url?.(req, res) || 'unknown';
-  const status = tokens.status?.(req, res) || 'unknown';
+  const status = tokens.status?.(req, res) || res.statusCode?.toString() || 'unknown';
   const responseTime = tokens['response-time']?.(req, res) || '0';
   const contentLength = tokens.res?.(req, res, 'content-length') || '0';
   const remoteAddr = tokens['remote-addr']?.(req, res) || 'unknown';
@@ -58,16 +59,19 @@ export const morganFormat = morgan((tokens, req: Request, res: Response) => {
     return null;
   }
 
+  // Ensure status is a valid number
+  const statusCode = status === 'unknown' ? res.statusCode || 0 : parseInt(status);
+
   // Create structured log entry
   const logEntry = {
     timestamp: new Date().toISOString(),
-    level: getLogLevel(parseInt(status)),
-    message: `${method} ${url} ${status}`,
+    level: getLogLevel(statusCode),
+    message: `${method} ${url} ${statusCode}`,
     correlationId,
     userId,
     method,
     url,
-    status: parseInt(status),
+    status: statusCode,
     responseTime: parseFloat(responseTime),
     contentLength: parseInt(contentLength),
     remoteAddr,
@@ -76,17 +80,23 @@ export const morganFormat = morgan((tokens, req: Request, res: Response) => {
   };
 
   // Log directly to console to bypass Winston filtering
-  const logMessage = `[${logEntry.timestamp}] ${method} ${url} ${status} - ${responseTime}ms - ${remoteAddr}`;
+  const logMessage = `[${logEntry.timestamp}] ${method} ${url} ${statusCode} - ${responseTime}ms - ${remoteAddr}`;
 
-  if (parseInt(status) >= 400) {
+  if (statusCode >= 400) {
     console.log(`❌ ${logMessage}`);
-  } else if (parseInt(status) >= 300) {
+  } else if (statusCode >= 300) {
     console.log(`↪️  ${logMessage}`);
-  } else {
+  } else if (statusCode >= 200) {
     console.log(`✅ ${logMessage}`);
+  } else {
+    // For incomplete responses or errors (status code 0 or unknown)
+    console.log(`⚠️  ${logMessage}`);
   }
 
   return null; // Don't use Morgan's default output
+}, {
+  // Wait for response to finish before logging (ensures status code is available)
+  immediate: false
 });
 
 /**
