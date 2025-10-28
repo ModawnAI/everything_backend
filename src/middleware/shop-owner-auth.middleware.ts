@@ -187,19 +187,24 @@ export function requireShopOwnership() {
         });
 
         // Log security event for shop access attempt without ownership
-        await securityMonitoringService.logSecurityEvent({
-          event_type: 'auth_failure',
-          user_id: req.user.id,
-          source_ip: req.ip || 'unknown',
-          user_agent: req.headers['user-agent'] || 'unknown',
-          endpoint: req.path,
-          severity: 'low',
-          details: {
-            activity_type: 'shop_access_without_ownership',
-            errorCode: error?.code || 'NO_SHOP_FOUND',
-            userRole: req.user.role
-          }
-        });
+        try {
+          await securityMonitoringService.logSecurityEvent({
+            event_type: 'auth_failure',
+            user_id: req.user.id,
+            source_ip: req.ip || 'unknown',
+            user_agent: req.headers['user-agent'] || 'unknown',
+            endpoint: req.path,
+            severity: 'low',
+            details: {
+              activity_type: 'shop_access_without_ownership',
+              errorCode: error?.code || 'NO_SHOP_FOUND',
+              userRole: req.user.role
+            }
+          });
+        } catch (securityError) {
+          // Silently fail if security_events table doesn't exist
+          logger.debug('Security monitoring failed', { error: securityError instanceof Error ? securityError.message : 'Unknown error' });
+        }
 
         res.status(404).json({
           success: false,
@@ -224,19 +229,24 @@ export function requireShopOwnership() {
         });
 
         // Log security event for inactive shop access attempt
-        await securityMonitoringService.logSecurityEvent({
-          event_type: 'auth_failure',
-          user_id: req.user.id,
-          source_ip: req.ip || 'unknown',
-          user_agent: req.headers['user-agent'] || 'unknown',
-          endpoint: req.path,
-          severity: 'low',
-          details: {
-            activity_type: 'inactive_shop_access',
-            shopId: shop.id,
-            shopStatus: shop.shop_status
-          }
-        });
+        try {
+          await securityMonitoringService.logSecurityEvent({
+            event_type: 'auth_failure',
+            user_id: req.user.id,
+            source_ip: req.ip || 'unknown',
+            user_agent: req.headers['user-agent'] || 'unknown',
+            endpoint: req.path,
+            severity: 'low',
+            details: {
+              activity_type: 'inactive_shop_access',
+              shopId: shop.id,
+              shopStatus: shop.shop_status
+            }
+          });
+        } catch (securityError) {
+          // Silently fail if security_events table doesn't exist
+          logger.debug('Security monitoring failed', { error: securityError instanceof Error ? securityError.message : 'Unknown error' });
+        }
 
         res.status(403).json({
           success: false,
@@ -359,20 +369,25 @@ export function requireSpecificShopOwnership(shopIdSource: 'params' | 'body' = '
         });
 
         // Log security event for unauthorized shop access attempt
-        await securityMonitoringService.logSecurityEvent({
-          event_type: 'auth_failure',
-          user_id: req.user.id,
-          source_ip: req.ip || 'unknown',
-          user_agent: req.headers['user-agent'] || 'unknown',
-          endpoint: req.path,
-          severity: isAdmin ? 'low' : 'high',
-          details: {
-            activity_type: isAdmin ? 'shop_not_found' : 'unauthorized_shop_access',
-            targetShopId: shopId,
-            errorCode: error?.code || 'SHOP_NOT_FOUND',
-            userRole: req.user.role
-          }
-        });
+        try {
+          await securityMonitoringService.logSecurityEvent({
+            event_type: 'auth_failure',
+            user_id: req.user.id,
+            source_ip: req.ip || 'unknown',
+            user_agent: req.headers['user-agent'] || 'unknown',
+            endpoint: req.path,
+            severity: isAdmin ? 'low' : 'high',
+            details: {
+              activity_type: isAdmin ? 'shop_not_found' : 'unauthorized_shop_access',
+              targetShopId: shopId,
+              errorCode: error?.code || 'SHOP_NOT_FOUND',
+              userRole: req.user.role
+            }
+          });
+        } catch (securityError) {
+          // Silently fail if security_events table doesn't exist
+          logger.debug('Security monitoring failed', { error: securityError instanceof Error ? securityError.message : 'Unknown error' });
+        }
 
         res.status(isAdmin ? 404 : 403).json({
           success: false,
@@ -504,19 +519,24 @@ export function requireServiceOwnership() {
         });
 
         // Log security event for unauthorized service access attempt
-        await securityMonitoringService.logSecurityEvent({
-          event_type: 'auth_failure',
-          user_id: req.user.id,
-          source_ip: req.ip || 'unknown',
-          user_agent: req.headers['user-agent'] || 'unknown',
-          endpoint: req.path,
-          severity: 'medium',
-          details: {
-            activity_type: 'unauthorized_service_access',
-            targetServiceId: serviceId,
-            errorCode: error?.code || 'SERVICE_NOT_FOUND'
-          }
-        });
+        try {
+          await securityMonitoringService.logSecurityEvent({
+            event_type: 'auth_failure',
+            user_id: req.user.id,
+            source_ip: req.ip || 'unknown',
+            user_agent: req.headers['user-agent'] || 'unknown',
+            endpoint: req.path,
+            severity: 'medium',
+            details: {
+              activity_type: 'unauthorized_service_access',
+              targetServiceId: serviceId,
+              errorCode: error?.code || 'SERVICE_NOT_FOUND'
+            }
+          });
+        } catch (securityError) {
+          // Silently fail if security_events table doesn't exist
+          logger.debug('Security monitoring failed', { error: securityError instanceof Error ? securityError.message : 'Unknown error' });
+        }
 
         res.status(403).json({
           success: false,
