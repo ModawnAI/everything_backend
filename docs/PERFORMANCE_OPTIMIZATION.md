@@ -91,6 +91,25 @@ try {
 }
 ```
 
+### 5. Redis Fast-Fail Optimization
+
+Redis가 비활성화되어 있을 때 불필요한 연결 시도 제거:
+
+```typescript
+// Before: Redis 연결 시도 후 실패 (~1-2초 지연)
+const client = await this.ensureConnection(); // 타임아웃까지 대기
+
+// After: 즉시 in-memory store 사용 (~0ms)
+if (!config.redis.enabled) {
+  return this.mockStore.get(key); // 즉시 반환
+}
+```
+
+**최적화 내용**:
+- Redis 비활성화 시 모든 rate limit 연산을 in-memory로 즉시 처리
+- 연결 시도 타임아웃 제거로 1-2초 절감
+- `get()`, `set()`, `increment()`, `reset()`, `cleanup()` 모든 메소드에 적용
+
 ## Performance Improvements
 
 ### Expected Results
@@ -129,13 +148,19 @@ Total: < 1,000ms
 
 ### Environment Variables
 
-새로운 환경 변수:
+새로운/변경된 환경 변수:
 
 ```env
 # Supabase request timeout (milliseconds)
 # Default: 5000 (5 seconds)
 SUPABASE_TIMEOUT_MS=5000
+
+# Redis configuration
+# Default: false (disabled for better performance)
+REDIS_ENABLED=false
 ```
+
+**참고**: Redis가 비활성화되어 있으면 rate limiting이 in-memory로 동작하며, 서버 재시작 시 rate limit 카운터가 초기화됩니다. 프로덕션 환경에서 분산 시스템이 필요한 경우에만 Redis를 활성화하세요.
 
 ### Critical Endpoints
 
