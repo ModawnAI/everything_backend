@@ -1147,49 +1147,79 @@ export function authenticateJWT() {
       let userData: any;
       let sessionInfo: any;
 
-      if (isAnalyticsEndpoint) {
+      // Performance optimization: Use token data directly for most endpoints
+      // Only fetch full user data for critical operations
+      const isCriticalEndpoint = req.path.startsWith('/payment') ||
+                                 req.path.includes('/cancel') ||
+                                 req.path.includes('/refund') ||
+                                 req.method === 'DELETE';
 
-        // Use token data directly without database lookup
+      if (isAnalyticsEndpoint || !isCriticalEndpoint) {
+        // Use token data directly without database lookup for better performance
         userData = {
           id: tokenPayload.sub,
           email: tokenPayload.email,
-          user_role: tokenPayload.role || 'admin',
+          user_role: tokenPayload.role || 'user',
           user_status: 'active', // Token wouldn't be valid if user was inactive
           name: tokenPayload.user_metadata?.name || tokenPayload.email,
-          is_influencer: false,
+          is_influencer: tokenPayload.user_metadata?.is_influencer || false,
           phone_verified: !!tokenPayload.phone_confirmed_at,
         };
 
-        // Minimal session tracking for analytics endpoints
+        // Minimal session tracking
         sessionInfo = {
-          sessionId: tokenPayload.session_id || 'analytics-session',
-          deviceId: 'analytics-device',
+          sessionId: tokenPayload.session_id || crypto.randomUUID(),
+          deviceId: 'fast-track',
           deviceFingerprint: undefined,
           isNewDevice: false
         };
-      } else {
-        console.log('[AUTH-DEBUG-10] Fetching user from database');
-        logger.info('[AUTH] Fetching user from database');
-        // Get user data from database for non-analytics endpoints
-        userData = await getUserFromToken(tokenPayload);
-        console.log('[AUTH-DEBUG-11] User data retrieved:', {
-          id: userData.id,
-          email: userData.email,
-          user_role: userData.user_role,
-          user_status: userData.user_status,
-        });
-        logger.info('[AUTH] User data retrieved successfully');
 
-        // Validate and track session with device fingerprinting
-        console.log('[AUTH-DEBUG-12] Validating and tracking session');
-        sessionInfo = await validateAndTrackSession(userData.id, token, req);
-        console.log('[AUTH-DEBUG-13] Session validated');
+        console.log('[AUTH-DEBUG-FAST] Using fast token-only authentication');
+      } else {
+        console.log('[AUTH-DEBUG-10] Fetching user from database (critical endpoint)');
+        logger.info('[AUTH] Fetching user from database');
+
+        try {
+          // Get user data from database for critical endpoints
+          userData = await getUserFromToken(tokenPayload);
+          console.log('[AUTH-DEBUG-11] User data retrieved:', {
+            id: userData.id,
+            email: userData.email,
+            user_role: userData.user_role,
+            user_status: userData.user_status,
+          });
+          logger.info('[AUTH] User data retrieved successfully');
+
+          // Validate and track session with device fingerprinting
+          console.log('[AUTH-DEBUG-12] Validating and tracking session');
+          sessionInfo = await validateAndTrackSession(userData.id, token, req);
+          console.log('[AUTH-DEBUG-13] Session validated');
+        } catch (dbError) {
+          // Fallback to token data if database query fails
+          console.log('[AUTH-DEBUG-DB-ERROR] Database query failed, using token data:', dbError instanceof Error ? dbError.message : 'Unknown');
+          userData = {
+            id: tokenPayload.sub,
+            email: tokenPayload.email,
+            user_role: tokenPayload.role || 'user',
+            user_status: 'active',
+            name: tokenPayload.user_metadata?.name || tokenPayload.email,
+            is_influencer: tokenPayload.user_metadata?.is_influencer || false,
+            phone_verified: !!tokenPayload.phone_confirmed_at,
+          };
+          sessionInfo = {
+            sessionId: tokenPayload.session_id || crypto.randomUUID(),
+            deviceId: 'fallback',
+            deviceFingerprint: undefined,
+            isNewDevice: false
+          };
+        }
       }
 
 
-      // Log authentication event for security monitoring (skip for analytics endpoints)
+      // Log authentication event for security monitoring (non-blocking, fire-and-forget)
+      // Don't await this to prevent blocking the request
       if (!isAnalyticsEndpoint) {
-        await securityMonitoringService.logSecurityEvent({
+        securityMonitoringService.logSecurityEvent({
           event_type: 'auth_success',
           user_id: userData.id,
           source_ip: req.ip || 'unknown',
@@ -1201,6 +1231,9 @@ export function authenticateJWT() {
             isNewDevice: sessionInfo.isNewDevice,
             sessionId: sessionInfo.sessionId
           }
+        }).catch(err => {
+          // Silent failure for security logging to not block authentication
+          logger.debug('Security event logging failed (non-critical)', { error: err instanceof Error ? err.message : 'Unknown' });
         });
       }
 

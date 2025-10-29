@@ -22,9 +22,10 @@ const CONNECTION_POOL_CONFIG = {
       'X-Client-Info': 'ebeautything-backend',
     },
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
-      // Add timeout to all requests
+      // Add timeout to all requests - use env variable or default to 5 seconds
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutMs = parseInt(process.env.SUPABASE_TIMEOUT_MS || '5000', 10);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       return fetch(url, {
         ...options,
