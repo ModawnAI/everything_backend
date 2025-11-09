@@ -11,6 +11,41 @@
 				"-y",
 				"@portone/mcp-server@latest"
 			]
-		}
+		},
+		"playwright": {
+			"type": "stdio",
+			"command": "npx",
+			"args": [
+				"-y",
+				"@playwright/mcp@latest"
+			]
+		},
+		"shadcn": {
+			"command": "npx",
+			"args": [
+				"shadcn@latest",
+				"mcp"
+			]
+		},
+		"next-devtools": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"next-devtools-mcp@latest"
+			]
+		},
+		"lucide-icons": {
+			"command": "npx",
+			"args": [
+				"lucide-icons-mcp",
+				"--stdio"
+			]
+		},
+		"playwright-mcp": {	
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    }
 	}
 }
