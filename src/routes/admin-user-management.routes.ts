@@ -1211,6 +1211,43 @@ router.get('/audit/search', adminUserManagementController.searchAuditLogs);
 router.get('/:userId/audit', adminUserManagementController.getUserAuditLogs);
 
 /**
+ * GET /api/admin/users/:id/referrals
+ * Get user's referral list with first payment status
+ *
+ * Parameters:
+ * - id: User UUID
+ *
+ * Headers:
+ * Authorization: Bearer <admin-jwt-token>
+ *
+ * Response:
+ * {
+ *   "success": true,
+ *   "data": {
+ *     "referrals": [
+ *       {
+ *         "id": "uuid",
+ *         "referredId": "uuid",
+ *         "referredUserName": "User Name (masked)",
+ *         "referredUserEmail": "u***@example.com",
+ *         "status": "completed",
+ *         "hasFirstPayment": true,
+ *         "firstPaymentDate": "2024-01-01T10:00:00Z",
+ *         "firstPaymentAmount": 50000,
+ *         "bonusPaid": true,
+ *         "bonusAmount": 5000,
+ *         "createdAt": "2024-01-01T00:00:00Z"
+ *       }
+ *     ],
+ *     "totalReferrals": 50,
+ *     "completedReferrals": 50,
+ *     "referralsWithFirstPayment": 50
+ *   }
+ * }
+ */
+router.get('/:id/referrals', adminUserManagementController.getUserReferrals);
+
+/**
  * POST /api/admin/audit/export
  * Export audit logs in various formats
  * 

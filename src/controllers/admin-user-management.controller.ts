@@ -978,6 +978,51 @@ export class AdminUserManagementController {
       });
     }
   }
+
+  /**
+   * GET /api/admin/users/:id/referrals
+   * Get user's referral list with first payment status
+   */
+  async getUserReferrals(req: Request, res: Response): Promise<void> {
+    try {
+      const user = (req as any).user;
+      const { id } = req.params;
+
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          error: 'Authentication required'
+        });
+        return;
+      }
+
+      if (!id) {
+        res.status(400).json({
+          success: false,
+          error: 'User ID is required'
+        });
+        return;
+      }
+
+      const result = await adminUserManagementService.getUserReferrals(id, user.id);
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Get user referrals failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.params.id,
+        ipAddress: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get user referrals'
+      });
+    }
+  }
 }
 
 export const adminUserManagementController = new AdminUserManagementController(); 

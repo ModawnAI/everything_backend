@@ -39,6 +39,7 @@ import reservationReschedulingRoutes from './routes/reservation-rescheduling.rou
 import conflictResolutionRoutes from './routes/conflict-resolution.routes';
 import paymentRoutes from './routes/payment.routes';
 import splitPaymentRoutes from './routes/split-payment.routes';
+import identityVerificationRoutes from './routes/identity-verification.routes';
 import pointRoutes from './routes/point.routes';
 import pointBalanceRoutes from './routes/point-balance.routes';
 import pointProcessingRoutes from './routes/point-processing.routes';
@@ -96,6 +97,9 @@ import csrfRoutes from './routes/csrf.routes';
 import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
 import adminTicketRoutes from './routes/admin-ticket.routes';
+import adminPointPolicyRoutes from './routes/admin-point-policy.routes';
+import adminAnnouncementRoutes from './routes/admin-announcement.routes';
+import adminPushNotificationRoutes from './routes/admin-push-notification.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import { testDashboardRoutes } from './routes/test-dashboard.routes';
 import shopReservationsRoutes from './routes/shop-reservations.routes';
@@ -403,6 +407,9 @@ app.use('/api/shops/:shopId/users', shopUsersRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/webhooks', paymentRoutes);
 app.use('/api/split-payments', splitPaymentRoutes);
+
+// Identity Verification routes (PortOne V2)
+app.use('/api/identity-verification', identityVerificationRoutes);
 app.use('/api/payment-security', paymentSecurityRoutes);
 app.use('/api/points', pointRoutes);
 
@@ -412,6 +419,9 @@ app.use('/api/admin/point-processing', pointProcessingRoutes);
 app.use('/api/admin/adjustments', adminAdjustmentRoutes);
 app.use('/api/admin/influencer-bonus', influencerBonusRoutes);
 app.use('/api/admin', adminModerationRoutes);
+app.use('/api/admin/points', adminPointPolicyRoutes);
+app.use('/api/admin/announcements', adminAnnouncementRoutes);
+app.use('/api/admin/push', adminPushNotificationRoutes);
 
 // General /api routes (order matters less since paths are unique)
 app.use('/api', favoritesRoutes);
