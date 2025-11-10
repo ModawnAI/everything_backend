@@ -445,32 +445,26 @@ export class ShopOwnerController {
         return;
       }
 
-      // Format response
+      // Format response - use snake_case to match frontend expectations
       const formattedReservations = reservations?.map(reservation => ({
         id: reservation.id,
-        reservationDate: reservation.reservation_date,
-        reservationTime: reservation.reservation_time,
+        user_id: reservation.user_id,
+        shop_id: reservation.shop_id,
+        reservation_date: reservation.reservation_date,
+        reservation_time: reservation.reservation_time,
         status: reservation.status,
-        totalAmount: reservation.total_amount,
-        depositAmount: reservation.deposit_amount,
-        pointsUsed: reservation.points_used,
-        pointsEarned: reservation.points_earned,
-        specialRequests: reservation.special_requests,
-        customer: {
-          name: reservation.users?.name,
-          phoneNumber: reservation.users?.phone_number
-        },
-        shop: {
-          name: reservation.shops?.name
-        },
-        services: reservation.reservation_services?.map(rs => ({
-          name: rs.shop_services?.name,
-          quantity: rs.quantity,
-          unitPrice: rs.unit_price,
-          totalPrice: rs.total_price
-        })) || [],
-        createdAt: reservation.created_at,
-        updatedAt: reservation.updated_at
+        total_amount: reservation.total_amount,
+        deposit_amount: reservation.deposit_amount,
+        remaining_amount: reservation.remaining_amount || 0,
+        points_used: reservation.points_used,
+        points_earned: reservation.points_earned,
+        special_requests: reservation.special_requests,
+        customer_name: reservation.users?.name,
+        customer_phone: reservation.users?.phone_number,
+        service_name: reservation.reservation_services?.[0]?.shop_services?.name || 'Multiple Services',
+        notes: reservation.special_requests,
+        created_at: reservation.created_at,
+        updated_at: reservation.updated_at
       })) || [];
 
       logger.info('Shop reservations retrieved', { 
@@ -480,10 +474,21 @@ export class ShopOwnerController {
         limit: limitNum
       });
 
+      // 🔍 DEBUG: Log the response data
+      console.log('🔍 [RESERVATIONS-RESPONSE] Sending response:', {
+        itemsCount: formattedReservations.length,
+        total: count,
+        firstItem: formattedReservations[0] ? {
+          id: formattedReservations[0].id,
+          customer_name: formattedReservations[0].customer_name,
+          status: formattedReservations[0].status
+        } : 'no items'
+      });
+
       res.status(200).json({
         success: true,
         data: {
-          reservations: formattedReservations,
+          items: formattedReservations,  // ✅ Changed from 'reservations' to 'items'
           pagination: {
             page: pageNum,
             limit: limitNum,

@@ -197,16 +197,18 @@ export class ShopOwnerAuthService {
         throw new Error('Account locked due to multiple failed login attempts');
       }
 
-      // Get shop information
+      // Get shop information (prefer verified shops, then order by creation date)
       logger.info('🏪 [SHOP-QUERY] Getting shop information for owner');
-      const { data: shop, error: shopError } = await this.supabase
+      const { data: shops, error: shopError } = await this.supabase
         .from('shops')
         .select('*')
         .eq('owner_id', shopOwner.id)
         .eq('shop_status', 'active')
-        .maybeSingle();
+        .order('verification_status', { ascending: false }) // verified first
+        .order('created_at', { ascending: true })
+        .limit(1);
 
-      if (shopError || !shop) {
+      if (shopError || !shops || shops.length === 0) {
         logger.error('❌ [SHOP-NOT-FOUND] No active shop found for this owner', {
           ownerId: shopOwner.id,
           error: shopError?.message
@@ -214,6 +216,8 @@ export class ShopOwnerAuthService {
         await this.logFailedLoginAttempt(request.email, request.ipAddress, 'Shop not found', 'shop_not_found');
         throw new Error('No active shop associated with this account');
       }
+
+      const shop = shops[0];
 
       logger.info('✅ [SHOP-FOUND] Shop found for owner', {
         shopId: shop.id,
@@ -743,13 +747,28 @@ export class ShopOwnerAuthService {
    */
   async refreshShopOwnerSession(refreshToken: string, ipAddress: string): Promise<ShopOwnerAuthResponse> {
     try {
+      logger.info('🔄 [REFRESH-SERVICE] Starting shop owner session refresh', {
+        ipAddress,
+        refreshTokenPrefix: refreshToken.substring(0, 20) + '...'
+      });
+
       const decoded = jwt.verify(refreshToken, config.auth.jwtSecret) as any;
+      logger.info('🔑 [REFRESH-SERVICE] Token decoded successfully', {
+        type: decoded.type,
+        shopOwnerId: decoded.shopOwnerId,
+        shopId: decoded.shopId
+      });
 
       if (decoded.type !== 'shop_owner_refresh') {
+        logger.error('❌ [REFRESH-SERVICE] Invalid token type', {
+          expected: 'shop_owner_refresh',
+          actual: decoded.type
+        });
         throw new Error('Invalid refresh token type');
       }
 
       // Get session by refresh token
+      logger.info('🔍 [REFRESH-SERVICE] Looking up session by refresh token');
       const { data: session, error: sessionError } = await this.supabase
         .from('shop_owner_sessions')
         .select('*')
@@ -758,8 +777,20 @@ export class ShopOwnerAuthService {
         .single();
 
       if (sessionError || !session) {
+        logger.error('❌ [REFRESH-SERVICE] Session not found or inactive', {
+          error: sessionError?.message,
+          hasSession: !!session,
+          shopOwnerId: decoded.shopOwnerId
+        });
         throw new Error('Invalid or expired refresh token');
       }
+
+      logger.info('✅ [REFRESH-SERVICE] Session found', {
+        sessionId: session.id,
+        shopOwnerId: session.shop_owner_id,
+        shopId: session.shop_id,
+        createdAt: session.created_at
+      });
 
       // Get shop owner user
       const { data: shopOwner, error: shopOwnerError } = await this.supabase

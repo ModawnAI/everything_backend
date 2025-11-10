@@ -146,6 +146,13 @@ export function requireShopOwnership() {
       const supabase = getSupabaseClient();
       const isAdmin = req.user.role === 'admin';
 
+      console.log('🔍 [SHOP-MIDDLEWARE-DEBUG] requireShopOwnership called', {
+        userId: req.user.id,
+        userRole: req.user.role,
+        isAdmin,
+        path: req.path
+      });
+
       // For admin, get the first active shop or any shop if shopId is in params
       let query = supabase
         .from('shops')
@@ -163,17 +170,31 @@ export function requireShopOwnership() {
       const shopIdFromToken = (req.user as any).shopId;
       const shopIdFromRequest = req.params.shopId || req.params.id || req.body.shopId || (req.query.shopId as string) || shopIdFromToken;
 
-      if (isAdmin && shopIdFromRequest) {
+      if (shopIdFromRequest) {
+        // Use specific shopId from token, params, body, or query (for both admin and shop_owner)
         query = query.eq('id', shopIdFromRequest);
+        if (!isAdmin) {
+          // Non-admin must own the shop
+          query = query.eq('owner_id', req.user.id);
+        }
       } else if (isAdmin) {
         // Admin without specific shopId: get first active shop
         query = query.eq('shop_status', 'active').limit(1);
       } else {
-        // Regular shop_owner: must own the shop
-        query = query.eq('owner_id', req.user.id);
+        // Regular shop_owner without shopId: get first owned active shop
+        query = query.eq('owner_id', req.user.id).eq('shop_status', 'active').limit(1);
       }
 
       const { data: shop, error } = await query.single();
+
+      console.log('🔍 [SHOP-MIDDLEWARE-DEBUG] Query result', {
+        hasShop: !!shop,
+        hasError: !!error,
+        error: error?.message,
+        errorCode: error?.code,
+        shopId: shop?.id,
+        ownerId: shop?.owner_id
+      });
 
       if (error || !shop) {
         logger.warn('User has no registered shop', {

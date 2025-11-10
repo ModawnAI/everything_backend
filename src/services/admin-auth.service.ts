@@ -491,6 +491,7 @@ export class AdminAuthService {
    * Create admin session with enhanced security
    */
   private async createAdminSession(adminId: string, request: AdminAuthRequest): Promise<AdminSession> {
+    logger.info('🚨🚨🚨 [METHOD-ENTRY] createAdminSession called!', { adminId });
     const now = new Date();
     const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000); // 24 hours for admin
     const refreshExpiresAt = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -504,13 +505,29 @@ export class AdminAuthService {
 
     // If shop_owner, get their shop
     let shopId = undefined;
+    logger.info('🔍🔍🔍 [TEST-MARKER] createAdminSession executing!', { adminId, userRole: admin?.user_role });
     if (admin?.user_role === 'shop_owner') {
-      const { data: shop } = await this.supabase
+      logger.info('🏪 [SHOP-LOOKUP] Querying shop for shop_owner', { adminId, owner_id: adminId });
+      const { data: shop, error: shopError } = await this.supabase
         .from('shops')
         .select('id')
         .eq('owner_id', adminId)
-        .single();
-      shopId = shop?.id;
+        .maybeSingle();
+
+      if (shopError) {
+        logger.error('❌ [SHOP-LOOKUP-ERROR] Failed to query shop', {
+          adminId,
+          error: shopError.message,
+          code: shopError.code,
+          details: shopError.details,
+          hint: shopError.hint
+        });
+      } else if (!shop) {
+        logger.warn('⚠️ [SHOP-NOT-FOUND] No shop found for shop_owner', { adminId, owner_id: adminId });
+      } else {
+        shopId = shop.id;
+        logger.info('✅ [SHOP-FOUND] Shop found for shop_owner', { adminId, shopId });
+      }
     }
 
     // Generate tokens with proper JWT claims including shopId
@@ -780,13 +797,27 @@ export class AdminAuthService {
    */
   async refreshAdminSession(refreshToken: string, ipAddress: string): Promise<AdminAuthResponse> {
     try {
+      logger.info('🔄 [REFRESH-SERVICE] Starting admin session refresh', {
+        ipAddress,
+        refreshTokenPrefix: refreshToken.substring(0, 20) + '...'
+      });
+
       const decoded = jwt.verify(refreshToken, config.auth.jwtSecret) as any;
-      
+      logger.info('🔑 [REFRESH-SERVICE] Token decoded successfully', {
+        type: decoded.type,
+        adminId: decoded.adminId
+      });
+
       if (decoded.type !== 'admin_refresh') {
+        logger.error('❌ [REFRESH-SERVICE] Invalid token type', {
+          expected: 'admin_refresh',
+          actual: decoded.type
+        });
         throw new Error('Invalid refresh token type');
       }
 
       // Get session by refresh token
+      logger.info('🔍 [REFRESH-SERVICE] Looking up session by refresh token');
       const { data: session, error: sessionError } = await this.supabase
         .from('admin_sessions')
         .select('*')
@@ -795,14 +826,32 @@ export class AdminAuthService {
         .single();
 
       if (sessionError || !session) {
+        logger.error('❌ [REFRESH-SERVICE] Session not found or inactive', {
+          error: sessionError?.message,
+          hasSession: !!session,
+          adminId: decoded.adminId
+        });
         throw new Error('Invalid or expired refresh token');
       }
 
+      logger.info('✅ [REFRESH-SERVICE] Session found', {
+        sessionId: session.id,
+        adminId: session.admin_id,
+        createdAt: session.created_at
+      });
+
       // Check if refresh token is expired
       if (new Date(session.refresh_expires_at) < new Date()) {
+        logger.error('❌ [REFRESH-SERVICE] Refresh token expired', {
+          sessionId: session.id,
+          expiresAt: session.refresh_expires_at,
+          now: new Date().toISOString()
+        });
         await this.revokeSession(session.id, 'Refresh token expired');
         throw new Error('Refresh token expired');
       }
+
+      logger.info('✅ [REFRESH-SERVICE] Refresh token is valid and not expired');
 
       // Get admin user with shop information
       // Allow both 'admin' and 'shop_owner' roles for unified login

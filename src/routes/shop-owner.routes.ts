@@ -10,6 +10,12 @@
 
 import { Router } from 'express';
 import { shopOwnerController } from '../controllers/shop-owner.controller';
+import { ShopUsersController } from '../controllers/shop-users.controller';
+import { ShopPaymentsController } from '../controllers/shop-payments.controller';
+
+// Initialize controller instances for customers and payments
+const shopUsersController = new ShopUsersController();
+const shopPaymentsController = new ShopPaymentsController();
 import { validateRequestBody } from '../middleware/validation.middleware';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
@@ -728,6 +734,132 @@ router.get('/profile',
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '프로필 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/customers
+ * Get shop customers (users who made reservations at this shop)
+ *
+ * Query Parameters:
+ * - status: Filter by reservation status
+ * - search: Search by name, email, or phone
+ * - sortBy: Sort field (total_reservations, total_spent, last_reservation_date, name)
+ * - sortOrder: Sort order (asc, desc)
+ * - page: Page number
+ * - limit: Page size
+ *
+ * Returns:
+ * - List of customers with reservation statistics
+ * - Pagination information
+ */
+router.get('/customers',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      // Extract shopId from shop object (added by requireShopOwnerWithShop middleware)
+      const shopId = (req as any).shop?.id;
+
+      // Set shopId in params for controller to access
+      (req as any).params = { ...(req as any).params, shopId };
+
+      // Forward to shop-users controller
+      await shopUsersController.getShopUsers(req as any, res);
+    } catch (error) {
+      logger.error('Error in customers route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '고객 목록 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/customers/stats
+ * Get customer statistics for the shop
+ *
+ * Returns:
+ * - Total customers count
+ * - Reservation status breakdown
+ * - Customer engagement metrics
+ */
+router.get('/customers/stats',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      const shopId = (req as any).shop?.id;
+
+      // Set shopId in params for controller to access
+      (req as any).params = { ...(req as any).params, shopId };
+
+      await shopUsersController.getShopUserRoles(req as any, res);
+    } catch (error) {
+      logger.error('Error in customer stats route', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '고객 통계 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/payments
+ * Get payment records for shop owner's shop
+ *
+ * Query Parameters:
+ * - status: Filter by payment status
+ * - paymentMethod: Filter by payment method
+ * - startDate: Filter by start date
+ * - endDate: Filter by end date
+ * - page: Page number
+ * - limit: Page size
+ *
+ * Returns:
+ * - List of payments with reservation details
+ * - Pagination information
+ */
+router.get('/payments',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      const shopId = (req as any).shop?.id;
+
+      // Set shopId in params for controller to access
+      (req as any).params = { ...(req as any).params, shopId };
+
+      await shopPaymentsController.getShopPayments(req as any, res);
+    } catch (error) {
+      logger.error('Error in payments route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '결제 내역 조회 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });
