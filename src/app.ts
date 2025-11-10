@@ -452,7 +452,7 @@ app.use('/api/shutdown', shutdownRoutes);
 app.use('/api/user/sessions', userSessionsRoutes);
 app.use('/api/admin/security', adminSecurityRoutes);
 app.use('/api/admin/security-enhanced', adminSecurityEnhancedRoutes);
-app.use('/api/admin/security-events', adminSecurityEventsRoutes);
+app.use('/api/admin/security/events', adminSecurityEventsRoutes);
 app.use('/api/analytics/auth', authAnalyticsRoutes);
 app.use('/api/referral-codes', referralCodeRoutes);
 app.use('/api/referral-relationships', referralRelationshipRoutes);
