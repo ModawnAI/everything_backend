@@ -319,7 +319,6 @@ export class ShopReservationsController {
 
       if (status === 'cancelled_by_shop') {
         updateData.cancelled_at = new Date().toISOString();
-        updateData.cancelled_by = userId;
       }
 
       if (status === 'completed') {
