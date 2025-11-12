@@ -119,7 +119,7 @@ const PORT = config.server.port;
 // CORS Configuration - Must be before other middleware
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:5173'];
 
 app.use(cors({
   origin: (origin, callback) => {
