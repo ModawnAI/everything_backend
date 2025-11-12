@@ -203,6 +203,12 @@ export class UserPaymentMethodsService {
         .order('created_at', { ascending: false });
 
       if (error) {
+        // Handle table not found gracefully (migration not run yet)
+        if (error.message?.includes('relation') && error.message?.includes('does not exist')) {
+          logger.warn('user_payment_methods table does not exist - migration not run yet', { userId });
+          return []; // Return empty array instead of crashing
+        }
+
         logger.error('Failed to fetch payment methods', {
           error: error.message,
           userId,
@@ -213,6 +219,12 @@ export class UserPaymentMethodsService {
       return (data || []).map(pm => this.mapToPaymentMethodInfo(pm));
 
     } catch (error) {
+      // Gracefully handle table not found
+      if (error instanceof Error && error.message?.includes('does not exist')) {
+        logger.warn('Gracefully handling missing user_payment_methods table', { userId });
+        return [];
+      }
+
       logger.error('Error in getUserPaymentMethods', {
         error: error instanceof Error ? error.message : 'Unknown error',
         userId,
