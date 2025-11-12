@@ -628,13 +628,7 @@ export class ShopController {
           operating_hours,
           payment_methods,
           total_bookings,
-          commission_rate,
-          shop_images(
-            id,
-            url,
-            is_main,
-            display_order
-          )
+          commission_rate
         `)
         .eq('shop_status', 'active')
         .range(offsetNum, offsetNum + limitNum - 1)
@@ -660,9 +654,10 @@ export class ShopController {
         throw error;
       }
 
-      // Fetch contact methods for all shops
+      // Fetch contact methods and shop images for all shops
       const shopIds = (shops || []).map(shop => shop.id);
       const contactMethodsMap = new Map<string, any[]>();
+      const shopImagesMap = new Map<string, any[]>();
 
       if (shopIds.length > 0) {
         try {
@@ -683,6 +678,30 @@ export class ShopController {
           }
         } catch (error) {
           logger.error('Failed to fetch contact methods for popular shops', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
+
+        // Fetch shop images
+        try {
+          const { data: allShopImages, error: imagesError } = await getSupabaseClient()
+            .from('shop_images')
+            .select('*')
+            .in('shop_id', shopIds)
+            .order('is_main', { ascending: false })
+            .order('display_order', { ascending: true });
+
+          if (!imagesError && allShopImages) {
+            allShopImages.forEach(image => {
+              if (!shopImagesMap.has(image.shop_id)) {
+                shopImagesMap.set(image.shop_id, []);
+              }
+              shopImagesMap.get(image.shop_id)!.push(image);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch shop images for popular shops', {
             error: error instanceof Error ? error.message : 'Unknown error',
             shopIds
           });
@@ -720,11 +739,7 @@ export class ShopController {
           total_bookings: shop.total_bookings || 0,
           commission_rate: shop.commission_rate,
           contact_methods: contactMethodsMap.get(shop.id) || [],
-          shop_images: (shop.shop_images || []).sort((a: any, b: any) => {
-            // Sort by is_main first (true before false), then by display_order
-            if (a.is_main !== b.is_main) return a.is_main ? -1 : 1;
-            return (a.display_order || 0) - (b.display_order || 0);
-          })
+          shop_images: shopImagesMap.get(shop.id) || []
         })),
         searchParams: {
           category,
@@ -1074,15 +1089,7 @@ export class ShopController {
       } = req.query;
 
       const client = getSupabaseClient();
-      let query = client.from('shops').select(`
-        *,
-        shop_images(
-          id,
-          url,
-          is_main,
-          display_order
-        )
-      `);
+      let query = client.from('shops').select('*');
 
       // Apply filters
       if (status) {
@@ -1122,10 +1129,11 @@ export class ShopController {
         return;
       }
 
-      // Fetch contact methods for all shops
+      // Fetch contact methods and shop images for all shops
       const shopIds = shops?.map(shop => shop.id) || [];
       const contactMethodsMap = new Map<string, any[]>();
-      
+      const shopImagesMap = new Map<string, any[]>();
+
       if (shopIds.length > 0) {
         try {
           const { data: allContactMethods, error: contactError } = await client
@@ -1149,17 +1157,37 @@ export class ShopController {
             shopIds
           });
         }
+
+        // Fetch shop images
+        try {
+          const { data: allShopImages, error: imagesError} = await client
+            .from('shop_images')
+            .select('*')
+            .in('shop_id', shopIds)
+            .order('is_main', { ascending: false })
+            .order('display_order', { ascending: true });
+
+          if (!imagesError && allShopImages) {
+            allShopImages.forEach(image => {
+              if (!shopImagesMap.has(image.shop_id)) {
+                shopImagesMap.set(image.shop_id, []);
+              }
+              shopImagesMap.get(image.shop_id)!.push(image);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch shop images for shops', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
       }
 
-      // Add contact methods and sort shop images
+      // Add contact methods and shop images
       const shopsWithContactMethods = (shops || []).map(shop => ({
         ...shop,
         contact_methods: contactMethodsMap.get(shop.id) || [],
-        shop_images: (shop.shop_images || []).sort((a: any, b: any) => {
-          // Sort by is_main first (true before false), then by display_order
-          if (a.is_main !== b.is_main) return a.is_main ? -1 : 1;
-          return (a.display_order || 0) - (b.display_order || 0);
-        })
+        shop_images: shopImagesMap.get(shop.id) || []
       }));
 
       logger.info('Shops retrieved successfully', {
