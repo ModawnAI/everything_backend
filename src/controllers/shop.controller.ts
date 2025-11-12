@@ -400,10 +400,11 @@ export class ShopController {
         offset: offsetNum
       });
 
-      // Fetch contact methods for all shops
+      // Fetch contact methods and shop images for all shops
       const shopIds = nearbyShops.map(shop => shop.id);
       const contactMethodsMap = new Map<string, any[]>();
-      
+      const shopImagesMap = new Map<string, any[]>();
+
       if (shopIds.length > 0) {
         try {
           const { data: allContactMethods, error: contactError } = await getSupabaseClient()
@@ -423,6 +424,30 @@ export class ShopController {
           }
         } catch (error) {
           logger.error('Failed to fetch contact methods for nearby shops', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
+
+        // Fetch shop images
+        try {
+          const { data: allShopImages, error: imagesError } = await getSupabaseClient()
+            .from('shop_images')
+            .select('*')
+            .in('shop_id', shopIds)
+            .order('is_main', { ascending: false })
+            .order('display_order', { ascending: true });
+
+          if (!imagesError && allShopImages) {
+            allShopImages.forEach(image => {
+              if (!shopImagesMap.has(image.shop_id)) {
+                shopImagesMap.set(image.shop_id, []);
+              }
+              shopImagesMap.get(image.shop_id)!.push(image);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch shop images for nearby shops', {
             error: error instanceof Error ? error.message : 'Unknown error',
             shopIds
           });
@@ -455,7 +480,8 @@ export class ShopController {
           payment_methods: shop.payment_methods || [],
           total_bookings: shop.total_bookings || 0,
           commission_rate: shop.commission_rate,
-          contact_methods: contactMethodsMap.get(shop.id) || []
+          contact_methods: contactMethodsMap.get(shop.id) || [],
+          shop_images: shopImagesMap.get(shop.id) || []
         })),
         searchParams: {
           latitude: lat,
@@ -602,10 +628,17 @@ export class ShopController {
           operating_hours,
           payment_methods,
           total_bookings,
-          commission_rate
+          commission_rate,
+          shop_images(
+            id,
+            url,
+            is_main,
+            display_order
+          )
         `)
         .eq('shop_status', 'active')
         .range(offsetNum, offsetNum + limitNum - 1)
+        .order('is_featured', { ascending: false, nullsFirst: false }) // featured shops first
         .order('shop_type', { ascending: false }) // partnered (true) before non_partnered (false)
         .order('partnership_started_at', { ascending: false, nullsFirst: false }) // newest first within partnered
         .order('created_at', { ascending: false }); // fallback for non-partnered shops
@@ -686,7 +719,12 @@ export class ShopController {
           payment_methods: shop.payment_methods || [],
           total_bookings: shop.total_bookings || 0,
           commission_rate: shop.commission_rate,
-          contact_methods: contactMethodsMap.get(shop.id) || []
+          contact_methods: contactMethodsMap.get(shop.id) || [],
+          shop_images: (shop.shop_images || []).sort((a: any, b: any) => {
+            // Sort by is_main first (true before false), then by display_order
+            if (a.is_main !== b.is_main) return a.is_main ? -1 : 1;
+            return (a.display_order || 0) - (b.display_order || 0);
+          })
         })),
         searchParams: {
           category,
@@ -1036,7 +1074,15 @@ export class ShopController {
       } = req.query;
 
       const client = getSupabaseClient();
-      let query = client.from('shops').select('*');
+      let query = client.from('shops').select(`
+        *,
+        shop_images(
+          id,
+          url,
+          is_main,
+          display_order
+        )
+      `);
 
       // Apply filters
       if (status) {
@@ -1105,10 +1151,15 @@ export class ShopController {
         }
       }
 
-      // Add contact methods to each shop
+      // Add contact methods and sort shop images
       const shopsWithContactMethods = (shops || []).map(shop => ({
         ...shop,
-        contact_methods: contactMethodsMap.get(shop.id) || []
+        contact_methods: contactMethodsMap.get(shop.id) || [],
+        shop_images: (shop.shop_images || []).sort((a: any, b: any) => {
+          // Sort by is_main first (true before false), then by display_order
+          if (a.is_main !== b.is_main) return a.is_main ? -1 : 1;
+          return (a.display_order || 0) - (b.display_order || 0);
+        })
       }));
 
       logger.info('Shops retrieved successfully', {
