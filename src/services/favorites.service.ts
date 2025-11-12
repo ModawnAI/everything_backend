@@ -407,6 +407,35 @@ export class FavoritesService {
             throw error;
           }
 
+          // Fetch shop images for all favorited shops
+          const shopIds = favorites?.map(fav => fav.shop_id).filter(Boolean) || [];
+          const shopImagesMap = new Map<string, any[]>();
+
+          if (shopIds.length > 0) {
+            try {
+              const { data: allShopImages, error: imagesError } = await this.supabase
+                .from('shop_images')
+                .select('*')
+                .in('shop_id', shopIds)
+                .order('is_main', { ascending: false })
+                .order('display_order', { ascending: true });
+
+              if (!imagesError && allShopImages) {
+                allShopImages.forEach(image => {
+                  if (!shopImagesMap.has(image.shop_id)) {
+                    shopImagesMap.set(image.shop_id, []);
+                  }
+                  shopImagesMap.get(image.shop_id)!.push(image);
+                });
+              }
+            } catch (error) {
+              logger.error('Failed to fetch shop images for favorites', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                shopIds
+              });
+            }
+          }
+
           const formattedFavorites: FavoriteShop[] = favorites?.map(fav => ({
             id: fav.id,
             shopId: fav.shop_id,
@@ -425,7 +454,8 @@ export class FavoritesService {
               featuredUntil: fav.shops?.[0]?.featured_until,
               commissionRate: fav.shops?.[0]?.commission_rate || 0,
               createdAt: fav.shops?.[0]?.created_at,
-              updatedAt: fav.shops?.[0]?.updated_at
+              updatedAt: fav.shops?.[0]?.updated_at,
+              shopImages: shopImagesMap.get(fav.shop_id) || []
             },
             addedAt: fav.created_at
           })) || [];
