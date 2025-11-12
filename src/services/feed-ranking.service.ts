@@ -10,6 +10,7 @@ import { logger } from '../utils/logger';
 import { getSupabaseClient } from '../config/database';
 import { FeedPost, User } from '../types/database.types';
 import { createClient } from 'redis';
+import { performance } from 'perf_hooks';
 
 export interface FeedRankingWeights {
   recency: number;      // 40% - How recent the post is
@@ -95,6 +96,23 @@ class FeedRankingService {
     relevance: 0.20,    // Personalized content performs better
     authorInfluence: 0.10 // Influencer content gets slight boost
   };
+
+  // Performance monitoring metrics
+  private performanceMetrics = {
+    totalCalls: 0,
+    cacheHits: 0,
+    cacheMisses: 0,
+    avgExecutionTime: 0,
+    maxExecutionTime: 0,
+    minExecutionTime: Infinity,
+    slowQueryCount: 0,  // Queries > 1000ms
+    executionTimes: [] as number[]
+  };
+
+  // Performance thresholds
+  private readonly SLOW_QUERY_THRESHOLD_MS = 1000;
+  private readonly VERY_SLOW_QUERY_THRESHOLD_MS = 3000;
+  private readonly MAX_EXECUTION_TIME_SAMPLES = 100;
 
   // Cache TTL configurations
   private cacheTTL = {
