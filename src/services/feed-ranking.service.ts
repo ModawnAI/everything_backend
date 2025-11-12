@@ -1084,16 +1084,153 @@ class FeedRankingService {
     topCategories: Array<{ category: string; count: number }>;
     engagementTrends: Array<{ date: string; engagement: number }>;
     personalizedScore: number;
+    totalLikes?: number;
+    avgLikes?: number;
+    totalComments?: number;
+    avgComments?: number;
+    totalViews?: number;
+    avgViews?: number;
   }> {
     try {
-      // This would implement comprehensive feed analytics
-      // For now, return mock data structure
+      // Calculate date range based on timeframe
+      const now = Date.now();
+      const timeWindows = {
+        day: 24,
+        week: 24 * 7,
+        month: 24 * 30
+      };
+
+      const hoursAgo = timeWindows[timeframe];
+      const cutoffTime = new Date(now - hoursAgo * 60 * 60 * 1000).toISOString();
+
+      // Check if user is a shop owner
+      const { data: user } = await this.supabase
+        .from('users')
+        .select('id, user_role, shops!inner(id, name)')
+        .eq('id', userId)
+        .single();
+
+      let query = this.supabase
+        .from('feed_posts')
+        .select('id, category, like_count, comment_count, share_count, view_count, created_at')
+        .eq('status', 'published')
+        .neq('status', 'deleted')
+        .eq('is_hidden', false)
+        .gte('created_at', cutoffTime);
+
+      // If user is a shop owner, get posts tagged with their shop
+      if (user?.user_role === 'shop_owner' && user.shops && user.shops.length > 0) {
+        const shopId = user.shops[0].id;
+        query = query.eq('tagged_shop_id', shopId);
+      } else {
+        // For regular users, get their own posts
+        query = query.eq('author_id', userId);
+      }
+
+      const { data: posts, error } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch posts for analytics', { userId, error });
+        throw error;
+      }
+
+      const totalPosts = posts?.length || 0;
+
+      if (totalPosts === 0) {
+        return {
+          totalPosts: 0,
+          avgEngagementRate: 0,
+          topCategories: [],
+          engagementTrends: [],
+          personalizedScore: 0,
+          totalLikes: 0,
+          avgLikes: 0,
+          totalComments: 0,
+          avgComments: 0,
+          totalViews: 0,
+          avgViews: 0
+        };
+      }
+
+      // Calculate metrics using SINGULAR field names (like_count, not likes_count)
+      const totalLikes = posts?.reduce((sum, p) => sum + (p.like_count || 0), 0) || 0;
+      const totalComments = posts?.reduce((sum, p) => sum + (p.comment_count || 0), 0) || 0;
+      const totalShares = posts?.reduce((sum, p) => sum + (p.share_count || 0), 0) || 0;
+      const totalViews = posts?.reduce((sum, p) => sum + (p.view_count || 0), 0) || 0;
+
+      const avgLikes = totalPosts > 0 ? totalLikes / totalPosts : 0;
+      const avgComments = totalPosts > 0 ? totalComments / totalPosts : 0;
+      const avgViews = totalPosts > 0 ? totalViews / totalPosts : 0;
+
+      // Calculate engagement rate
+      const totalEngagement = totalLikes + totalComments + totalShares;
+      const avgEngagementRate = totalViews > 0 ? totalEngagement / totalViews : 0;
+
+      // Group by category
+      const categoryMap = new Map<string, number>();
+      posts?.forEach(post => {
+        const category = post.category || 'general';
+        categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+      });
+
+      const topCategories = Array.from(categoryMap.entries())
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 5);
+
+      // Calculate engagement trends by date
+      const dateMap = new Map<string, { likes: number; comments: number; shares: number; views: number; count: number }>();
+      posts?.forEach(post => {
+        const date = new Date(post.created_at).toISOString().split('T')[0];
+        const existing = dateMap.get(date) || { likes: 0, comments: 0, shares: 0, views: 0, count: 0 };
+
+        existing.likes += post.like_count || 0;
+        existing.comments += post.comment_count || 0;
+        existing.shares += post.share_count || 0;
+        existing.views += post.view_count || 0;
+        existing.count++;
+
+        dateMap.set(date, existing);
+      });
+
+      const engagementTrends = Array.from(dateMap.entries())
+        .map(([date, stats]) => {
+          const totalEng = stats.likes + stats.comments + stats.shares;
+          const engagement = stats.views > 0 ? totalEng / stats.views : 0;
+          return { date, engagement };
+        })
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // Calculate personalized score (quality metric)
+      const personalizedScore = Math.min(100, Math.round(
+        (avgEngagementRate * 50) +
+        (avgLikes / 10) +
+        (avgComments / 5) +
+        (totalPosts * 2)
+      ));
+
+      logger.info('Feed analytics calculated', {
+        userId,
+        timeframe,
+        totalPosts,
+        totalLikes,
+        totalComments,
+        totalViews,
+        avgEngagementRate
+      });
+
       return {
-        totalPosts: 0,
-        avgEngagementRate: 0,
-        topCategories: [],
-        engagementTrends: [],
-        personalizedScore: 0
+        totalPosts,
+        avgEngagementRate,
+        topCategories,
+        engagementTrends,
+        personalizedScore,
+        totalLikes,
+        avgLikes: Math.round(avgLikes * 100) / 100, // Round to 2 decimals
+        totalComments,
+        avgComments: Math.round(avgComments * 100) / 100,
+        totalViews,
+        avgViews: Math.round(avgViews * 100) / 100
       };
 
     } catch (error) {

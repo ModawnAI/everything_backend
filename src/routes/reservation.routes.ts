@@ -717,6 +717,83 @@ const cancelReservationSchema = Joi.object({
  *         description: Authentication required
  */
 
+/**
+ * @swagger
+ * /api/reservations/{id}/refund-preview:
+ *   get:
+ *     summary: Get refund preview for cancellation
+ *     description: Calculate and return the estimated refund amount before actually cancelling
+ *     tags: [Reservations]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Reservation ID
+ *       - in: query
+ *         name: cancellationType
+ *         schema:
+ *           type: string
+ *           enum: [user_request, shop_request]
+ *           default: user_request
+ *         description: Type of cancellation
+ *     responses:
+ *       200:
+ *         description: Refund preview calculated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     refundAmount:
+ *                       type: number
+ *                     refundPercentage:
+ *                       type: number
+ *                     cancellationFee:
+ *                       type: number
+ *                     cancellationWindow:
+ *                       type: string
+ *                     isEligible:
+ *                       type: boolean
+ *                     reason:
+ *                       type: string
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: Reservation not found
+ */
+router.get('/:id/refund-preview',
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 30 } }), // 30 requests per 15 minutes
+  async (req, res) => {
+    try {
+      await reservationController.getRefundPreview(req, res);
+    } catch (error) {
+      logger.error('Error in refund preview route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '환불 금액 계산 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
 router.put('/:id/cancel',
   authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // 10 requests per 15 minutes

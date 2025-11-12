@@ -40,6 +40,7 @@ export interface ShopOwnerAuthResponse {
     email: string;
     name: string;
     role: string;
+    permissions: string[];
     shop: {
       id: string;
       name: string;
@@ -266,6 +267,14 @@ export class ShopOwnerAuthService {
           email: shopOwner.email,
           name: shopOwner.name,
           role: shopOwner.user_role,
+          permissions: [
+            'shop.dashboard.view',
+            'shop.analytics.view',
+            'shop.operations.manage',
+            'shop.feed.manage',
+            'shop.financial.view',
+            'shop.settings.manage'
+          ],
           shop: {
             id: shop.id,
             name: shop.name,

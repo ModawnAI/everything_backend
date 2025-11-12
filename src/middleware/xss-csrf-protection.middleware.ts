@@ -428,6 +428,7 @@ class CSRFProtectionService {
     if (req.method === 'GET' ||
         req.path.startsWith('/api/health') ||
         req.path.startsWith('/api/admin/auth') ||
+        req.path.startsWith('/api/shop-owner/auth') ||
         req.path.startsWith('/api/security/csp-report') ||
         req.path.startsWith('/api/security/ct-report') ||
         process.env.NODE_ENV === 'test' ||

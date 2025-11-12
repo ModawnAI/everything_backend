@@ -732,12 +732,137 @@ export class ReservationController {
   }
 
   /**
-   * PUT /api/reservations/:id/cancel
-   * Cancel a reservation with comprehensive v3.2 cancellation system
-   * 
+   * GET /api/reservations/:id/refund-preview
+   * Get refund preview for a reservation cancellation
+   *
+   * Returns the estimated refund amount and percentage based on the cancellation window
+   * without actually cancelling the reservation.
+   *
    * Path Parameters:
    * - id: Reservation UUID
-   * 
+   *
+   * Query Parameters:
+   * - cancellationType: Optional cancellation type (default: 'user_request')
+   *
+   * Response:
+   * - refundAmount: Amount to be refunded
+   * - refundPercentage: Percentage of deposit to be refunded
+   * - cancellationFee: Cancellation fee percentage
+   * - cancellationWindow: Time window classification (48h, 24h, 2h, etc.)
+   * - isEligible: Whether refund is eligible
+   * - reason: Explanation of refund calculation
+   */
+  async getRefundPreview(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const { id } = req.params;
+      const cancellationType = (req.query.cancellationType as string) || 'user_request';
+
+      if (!id) {
+        res.status(400).json({
+          error: {
+            code: 'MISSING_RESERVATION_ID',
+            message: '예약 ID가 필요합니다.',
+            details: '예약 ID를 제공해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Import refund calculation service
+      const { timezoneRefundService } = await import('../services/timezone-refund.service');
+
+      // Calculate refund amount
+      const refundCalculation = await timezoneRefundService.calculateRefundAmount({
+        reservationId: id,
+        userId,
+        cancellationType: cancellationType as any,
+        cancellationReason: 'Preview calculation'
+      });
+
+      // Format response
+      const response = {
+        refundAmount: refundCalculation.refundAmount || 0,
+        refundPercentage: refundCalculation.refundPercentage || 0,
+        cancellationFee: 100 - (refundCalculation.refundPercentage || 0),
+        cancellationWindow: refundCalculation.cancellationWindow || 'unknown',
+        isEligible: refundCalculation.isEligible || false,
+        reason: refundCalculation.reason || 'Refund calculation completed',
+        reservationDate: refundCalculation.reservationDate,
+        hoursUntilReservation: refundCalculation.hoursUntilReservation
+      };
+
+      logger.info('Refund preview calculated', {
+        reservationId: id,
+        userId,
+        refundAmount: response.refundAmount,
+        refundPercentage: response.refundPercentage
+      });
+
+      res.status(200).json({
+        success: true,
+        data: response
+      });
+
+    } catch (error) {
+      logger.error('Error in getRefundPreview', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.id
+      });
+
+      // Handle specific error types
+      if (error instanceof Error) {
+        if (error.message.includes('Reservation not found') || error.message.includes('not found')) {
+          res.status(404).json({
+            error: {
+              code: 'RESERVATION_NOT_FOUND',
+              message: '예약을 찾을 수 없습니다.',
+              details: '존재하지 않는 예약입니다.'
+            }
+          });
+          return;
+        }
+
+        if (error.message.includes('Unauthorized') || error.message.includes('권한')) {
+          res.status(403).json({
+            error: {
+              code: 'FORBIDDEN',
+              message: '권한이 없습니다.',
+              details: '본인의 예약만 조회할 수 있습니다.'
+            }
+          });
+          return;
+        }
+      }
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '환불 금액 계산 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * PUT /api/reservations/:id/cancel
+   * Cancel a reservation with comprehensive v3.2 cancellation system
+   *
+   * Path Parameters:
+   * - id: Reservation UUID
+   *
    * Request Body:
    * - reason: Optional cancellation reason (max 500 characters)
    * - cancellationType: Optional cancellation type (user_request, shop_request, no_show, admin_force)

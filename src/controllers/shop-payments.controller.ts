@@ -72,7 +72,8 @@ export class ShopPaymentsController {
 
       const supabase = getSupabaseClient();
 
-      // Get payments from database with shop_id filter
+      // Get payments from database - join through reservations to filter by shop_id
+      // Note: payments table doesn't have shop_id, must join through reservations
       let query = supabase
         .from('payments')
         .select(`
@@ -82,18 +83,19 @@ export class ShopPaymentsController {
             name,
             email
           ),
-          reservations:reservation_id (
+          reservations:reservation_id!inner (
             id,
             reservation_date,
             reservation_time,
-            status
-          ),
-          shops:shop_id (
-            id,
-            name
+            status,
+            shop_id,
+            shops (
+              id,
+              name
+            )
           )
         `, { count: 'exact' })
-        .eq('shop_id', shopId)
+        .eq('reservations.shop_id', shopId)
         .order('created_at', { ascending: false });
 
       // Apply filters
@@ -136,14 +138,20 @@ export class ShopPaymentsController {
         throw error;
       }
 
-      // Calculate summary statistics
-      const summaryQuery = supabase
+      // Calculate summary statistics - join through reservations to filter by shop_id
+      let summaryFilteredQuery = supabase
         .from('payments')
-        .select('amount, refund_amount, status')
-        .eq('shop_id', shopId);
+        .select(`
+          amount,
+          refund_amount,
+          status,
+          reservations!inner (
+            shop_id
+          )
+        `)
+        .eq('reservations.shop_id', shopId);
 
       // Apply same filters for summary
-      let summaryFilteredQuery = summaryQuery;
       if (filters.status) summaryFilteredQuery = summaryFilteredQuery.eq('status', filters.status);
       if (filters.paymentMethod) summaryFilteredQuery = summaryFilteredQuery.eq('payment_method', filters.paymentMethod);
       if (filters.startDate) summaryFilteredQuery = summaryFilteredQuery.gte('created_at', filters.startDate);
@@ -244,7 +252,8 @@ export class ShopPaymentsController {
 
       const supabase = getSupabaseClient();
 
-      // Get payment with shop_id filter for security
+      // Get payment - join through reservations to filter by shop_id
+      // Note: payments table doesn't have shop_id, must join through reservations
       const { data: payment, error } = await supabase
         .from('payments')
         .select(`
@@ -255,7 +264,7 @@ export class ShopPaymentsController {
             email,
             phone
           ),
-          reservations:reservation_id (
+          reservations:reservation_id!inner (
             id,
             reservation_date,
             reservation_time,
@@ -263,17 +272,18 @@ export class ShopPaymentsController {
             total_amount,
             deposit_amount,
             remaining_amount,
-            special_requests
-          ),
-          shops:shop_id (
-            id,
-            name,
-            phone,
-            address
+            special_requests,
+            shop_id,
+            shops (
+              id,
+              name,
+              phone,
+              address
+            )
           )
         `)
         .eq('id', paymentId)
-        .eq('shop_id', shopId)
+        .eq('reservations.shop_id', shopId)
         .single();
 
       if (error || !payment) {

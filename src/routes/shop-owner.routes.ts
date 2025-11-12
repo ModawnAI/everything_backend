@@ -12,14 +12,18 @@ import { Router } from 'express';
 import { shopOwnerController } from '../controllers/shop-owner.controller';
 import { ShopUsersController } from '../controllers/shop-users.controller';
 import { ShopPaymentsController } from '../controllers/shop-payments.controller';
+import { ShopController } from '../controllers/shop.controller';
+import { ShopOperatingHoursController } from '../controllers/shop-operating-hours.controller';
 
 // Initialize controller instances for customers and payments
 const shopUsersController = new ShopUsersController();
 const shopPaymentsController = new ShopPaymentsController();
+const shopController = new ShopController();
+const shopOperatingHoursController = new ShopOperatingHoursController();
 import { validateRequestBody } from '../middleware/validation.middleware';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
-import { requireShopOwnerWithShop } from '../middleware/shop-owner-auth.middleware';
+import { requireShopOwnerWithShop, requireSpecificShopOwnership } from '../middleware/shop-owner-auth.middleware';
 import { logger } from '../utils/logger';
 
 // Validation schemas
@@ -734,6 +738,135 @@ router.get('/profile',
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '프로필 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/shops/:id
+ * Get specific shop details by shop ID (with ownership verification)
+ *
+ * Path Parameters:
+ * - id: Shop UUID (required)
+ *
+ * Returns:
+ * - Shop details including images, services, and statistics
+ * - Only returns shop if the authenticated user owns it
+ *
+ * Example: GET /api/shop-owner/shops/22222222-2222-2222-2222-222222222222
+ */
+router.get('/shops/:id',
+  requireSpecificShopOwnership('params', 'id'),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopController.getShopById(req, res);
+    } catch (error) {
+      logger.error('Error in get shop by id route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId: req.params.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '샵 정보 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/shops/:id/operating-hours
+ * Get shop operating hours by shop ID (with ownership verification)
+ *
+ * Path Parameters:
+ * - id: Shop UUID (required)
+ *
+ * Returns:
+ * - Shop operating hours schedule
+ * - Current shop status (open/closed)
+ * - Only returns if the authenticated user owns the shop
+ *
+ * Example: GET /api/shop-owner/shops/22222222-2222-2222-2222-222222222222/operating-hours
+ */
+router.get('/shops/:id/operating-hours',
+  requireSpecificShopOwnership('params', 'id'),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      // The middleware already loaded shop and verified ownership
+      // Get the shop operating hours from req.shop
+      const shop = (req as any).shop;
+
+      if (!shop) {
+        res.status(404).json({
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '샵을 찾을 수 없습니다.',
+            details: '샵이 존재하지 않거나 접근 권한이 없습니다.'
+          }
+        });
+        return;
+      }
+
+      const supabase = require('../config/database').getSupabaseClient();
+
+      // Get full shop data with operating hours
+      const { data: shopData, error: shopError } = await supabase
+        .from('shops')
+        .select('id, operating_hours')
+        .eq('id', shop.id)
+        .single();
+
+      if (shopError || !shopData) {
+        logger.error('Failed to fetch shop operating hours', {
+          error: shopError?.message,
+          shopId: shop.id
+        });
+
+        res.status(500).json({
+          error: {
+            code: 'DATABASE_ERROR',
+            message: '영업시간 조회 중 오류가 발생했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Calculate current status
+      const currentStatus = shopOperatingHoursController['getCurrentStatus'](shopData.operating_hours);
+
+      logger.info('Shop operating hours retrieved successfully', {
+        userId: (req as any).user?.id,
+        shopId: shop.id,
+        hasOperatingHours: !!shopData.operating_hours
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          operating_hours: shopData.operating_hours || shopOperatingHoursController['getDefaultOperatingHours'](),
+          current_status: currentStatus
+        },
+        message: '영업시간을 성공적으로 조회했습니다.'
+      });
+    } catch (error) {
+      logger.error('Error in get shop operating hours route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId: req.params.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '영업시간 조회 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });
