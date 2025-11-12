@@ -1570,4 +1570,74 @@ export interface BulkOperationResult<T = any> {
     failed: number;
     executionTime: number;
   };
-} 
+}
+
+// =============================================
+// USER PAYMENT METHODS (Billing Keys)
+// =============================================
+
+/**
+ * User Payment Method Type
+ * Represents a saved payment method (billing key) from PortOne
+ */
+export interface UserPaymentMethod {
+  id: string;
+  user_id: string;
+
+  // PortOne billing key info
+  billing_key: string;
+  portone_customer_id: string | null;
+  issue_id: string | null;
+  issue_name: string | null;
+
+  // Payment method details
+  payment_method_type: 'CARD' | 'MOBILE' | 'EASY_PAY';
+
+  // Card-specific info
+  card_company: string | null;
+  card_type: 'CREDIT' | 'DEBIT' | 'GIFT' | null;
+  card_number_masked: string | null;
+  card_number_last4: string | null;
+  card_brand: string | null;
+
+  // Display
+  nickname: string | null;
+
+  // Settings
+  is_default: boolean;
+  is_active: boolean;
+
+  // Metadata
+  issued_at: string | null;
+  expires_at: string | null;
+  last_used_at: string | null;
+  usage_count: number;
+  portone_metadata: any;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+/**
+ * Card Type Enum
+ */
+export type CardType = 'CREDIT' | 'DEBIT' | 'GIFT';
+
+/**
+ * Card Brand Enum
+ */
+export type CardBrand =
+  | 'VISA'
+  | 'MASTERCARD'
+  | 'JCB'
+  | 'AMEX'
+  | 'DINERS'
+  | 'UNIONPAY'
+  | 'LOCAL';
+
+/**
+ * Payment Method Type for user_payment_methods table
+ */
+export type UserPaymentMethodType = 'CARD' | 'MOBILE' | 'EASY_PAY'; 
