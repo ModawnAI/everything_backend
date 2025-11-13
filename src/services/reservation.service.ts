@@ -9,8 +9,10 @@ import { getSupabaseClient } from '../config/database';
 import { timeSlotService } from './time-slot.service';
 import { logger } from '../utils/logger';
 import { shopOwnerNotificationService, ShopOwnerNotificationPayload } from './shop-owner-notification.service';
+import { customerNotificationService } from './customer-notification.service';
 import { queryCacheService } from './query-cache.service';
 import { batchQueryService } from './batch-query.service';
+import { websocketService, ReservationUpdate } from './websocket.service';
 
 export interface CreateReservationRequest {
   shopId: string;
@@ -111,6 +113,42 @@ export class ReservationService {
     // Validate inputs with v3.1 flow support
     this.validateCreateReservationRequest(request);
 
+    // Fetch and validate user's booking preferences (REQUIRED for reservation)
+    const { data: userData, error: userError } = await this.supabase
+      .from('users')
+      .select('booking_preferences')
+      .eq('id', userId)
+      .single();
+
+    if (userError) {
+      logger.error('Failed to fetch user booking preferences', {
+        userId,
+        error: userError.message
+      });
+      throw new Error('Failed to verify user profile information');
+    }
+
+    const bookingPreferences = userData?.booking_preferences || {};
+
+    // Validate that user has filled out required booking preferences
+    if (!bookingPreferences.skinType || !bookingPreferences.allergyInfo) {
+      logger.warn('User attempted reservation without complete booking preferences', {
+        userId,
+        hasPreferences: !!userData?.booking_preferences,
+        hasSkinType: !!bookingPreferences.skinType,
+        hasAllergyInfo: !!bookingPreferences.allergyInfo
+      });
+      throw new Error('Please complete your profile (skin type and allergy information) before making a reservation');
+    }
+
+    logger.info('User booking preferences validated', {
+      userId,
+      skinType: bookingPreferences.skinType,
+      hasAllergyInfo: !!bookingPreferences.allergyInfo,
+      hasPreferredStylist: !!bookingPreferences.preferredStylist,
+      hasSpecialRequests: !!bookingPreferences.specialRequests
+    });
+
     // Check if slot is still available using enhanced validation
     const slotValidation = await timeSlotService.validateSlotAvailability(
       shopId,
@@ -146,7 +184,7 @@ export class ReservationService {
 
     // Acquire lock and create reservation with enhanced retry logic
     const reservation = await this.withEnhancedRetry(async () => {
-      return await this.createReservationWithLock(request, pricingInfo);
+      return await this.createReservationWithLock(request, pricingInfo, bookingPreferences);
     });
 
     // Log successful v3.1 flow reservation creation
@@ -167,6 +205,120 @@ export class ReservationService {
       // Log notification error but don't fail the reservation creation
       logger.error('Failed to send shop owner notification', {
         error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+        reservationId: reservation.id,
+        shopId
+      });
+    }
+
+    // Send notification to customer for new reservation (v3.1 flow)
+    try {
+      // Fetch shop details for the notification
+      const { data: shopData } = await this.supabase
+        .from('shops')
+        .select('id, name')
+        .eq('id', shopId)
+        .single();
+
+      // Fetch service details from reservation_services
+      const { data: reservationServices } = await this.supabase
+        .from('reservation_services')
+        .select(`
+          quantity,
+          unit_price,
+          total_price,
+          shop_services(name)
+        `)
+        .eq('reservation_id', reservation.id);
+
+      // Prepare service details for notification
+      const serviceDetails = (reservationServices || []).map((rs: any) => ({
+        serviceName: rs.shop_services?.name || 'Service',
+        quantity: rs.quantity || 1,
+        unitPrice: rs.unit_price || 0,
+        totalPrice: rs.total_price || 0
+      }));
+
+      await customerNotificationService.notifyCustomerOfReservationUpdate({
+        customerId: userId,
+        reservationId: reservation.id,
+        shopName: shopData?.name || 'Unknown Shop',
+        reservationDate: reservationDate,
+        reservationTime: reservationTime,
+        totalAmount: pricingInfo.totalAmount,
+        depositAmount: pricingInfo.depositAmount || 0,
+        remainingAmount: pricingInfo.remainingAmount || pricingInfo.totalAmount,
+        services: serviceDetails,
+        specialRequests: specialRequests,
+        notificationType: 'reservation_confirmed',
+        additionalData: {
+          confirmationNotes: `Reservation status: ${reservation.status}. Awaiting shop confirmation.`
+        }
+      });
+
+      logger.info('Customer notification sent for new reservation', {
+        reservationId: reservation.id,
+        customerId: userId,
+        shopId,
+        shopName: shopData?.name
+      });
+    } catch (customerNotificationError) {
+      // Log error but don't fail the reservation
+      logger.error('Failed to send customer notification', {
+        error: customerNotificationError instanceof Error ? customerNotificationError.message : 'Unknown error',
+        reservationId: reservation.id,
+        customerId: userId,
+        shopId
+      });
+    }
+
+    // Send real-time WebSocket notification to shop owner
+    try {
+      if (websocketService) {
+        // Fetch customer details for the notification
+        const { data: customer } = await this.supabase
+          .from('users')
+          .select('id, name, nickname, email, phone_number, profile_image_url')
+          .eq('id', reservation.userId)
+          .single();
+
+        const reservationUpdate: ReservationUpdate = {
+          reservationId: reservation.id,
+          status: reservation.status,
+          shopId: reservation.shopId,
+          userId: reservation.userId,
+          updateType: 'created',
+          timestamp: new Date().toISOString(),
+          data: {
+            reservationDate: reservation.reservationDate,
+            reservationTime: reservation.reservationTime,
+            totalAmount: reservation.totalAmount,
+            depositAmount: pricingInfo?.depositAmount,
+            remainingAmount: pricingInfo?.remainingAmount,
+            specialRequests: reservation.specialRequests,
+            services: request.services,
+            customer: customer ? {
+              id: customer.id,
+              name: customer.name || customer.nickname || 'Unknown',
+              nickname: customer.nickname,
+              email: customer.email,
+              phoneNumber: customer.phone_number,
+              profileImageUrl: customer.profile_image_url
+            } : undefined
+          }
+        };
+
+        websocketService.broadcastReservationUpdate(reservationUpdate);
+
+        logger.info('Real-time WebSocket notification sent to shop owner with customer info', {
+          reservationId: reservation.id,
+          shopId: reservation.shopId,
+          customerName: customer?.name || customer?.nickname
+        });
+      }
+    } catch (wsError) {
+      // Log WebSocket error but don't fail the reservation creation
+      logger.error('Failed to send WebSocket notification', {
+        error: wsError instanceof Error ? wsError.message : 'Unknown error',
         reservationId: reservation.id,
         shopId
       });
@@ -384,7 +536,7 @@ export class ReservationService {
   /**
    * Create reservation with enhanced database locking and v3.1 flow support
    */
-  private async createReservationWithLock(request: CreateReservationRequest, pricingInfo?: any): Promise<Reservation> {
+  private async createReservationWithLock(request: CreateReservationRequest, pricingInfo?: any, bookingPreferences?: any): Promise<Reservation> {
     const { shopId, userId, services, reservationDate, reservationTime, specialRequests, pointsToUse = 0 } = request;
 
     // Enhanced timeout handling with retry logic
@@ -491,6 +643,30 @@ export class ReservationService {
           reservationDate,
           reservationTime
         });
+
+        // Update reservation with booking preferences snapshot
+        if (bookingPreferences && Object.keys(bookingPreferences).length > 0) {
+          const { error: updateError } = await this.supabase
+            .from('reservations')
+            .update({ booking_preferences: bookingPreferences })
+            .eq('id', reservation.id);
+
+          if (updateError) {
+            logger.error('Failed to store booking preferences with reservation', {
+              reservationId: reservation.id,
+              error: updateError.message
+            });
+            // Don't fail the reservation, just log the error
+          } else {
+            logger.info('Booking preferences stored with reservation', {
+              reservationId: reservation.id,
+              skinType: bookingPreferences.skinType,
+              hasAllergyInfo: !!bookingPreferences.allergyInfo
+            });
+            // Add booking_preferences to the returned reservation object
+            (reservation as any).booking_preferences = bookingPreferences;
+          }
+        }
 
         return reservation as Reservation;
 
@@ -795,7 +971,7 @@ export class ReservationService {
    * Get reservation by ID
    * Optimized: Added caching for frequently accessed reservations
    */
-  async getReservationById(reservationId: string): Promise<Reservation | null> {
+  async getReservationById(reservationId: string): Promise<any | null> {
     try {
       const reservation = await queryCacheService.getCachedQuery(
         `${reservationId}`,
@@ -814,8 +990,45 @@ export class ReservationService {
               remaining_amount,
               points_used,
               special_requests,
+              booking_preferences,
               created_at,
-              updated_at
+              updated_at,
+              shops(
+                id,
+                name,
+                description,
+                phone_number,
+                email,
+                address,
+                detailed_address,
+                postal_code,
+                latitude,
+                longitude,
+                main_category,
+                operating_hours,
+                kakao_channel_url
+              ),
+              reservation_services(
+                id,
+                quantity,
+                unit_price,
+                total_price,
+                shop_services(
+                  id,
+                  name,
+                  description,
+                  category,
+                  duration_minutes
+                )
+              ),
+              reservation_payments(
+                id,
+                amount,
+                payment_method,
+                payment_status,
+                paid_at,
+                transaction_id
+              )
             `)
             .eq('id', reservationId)
             .single();
@@ -841,8 +1054,49 @@ export class ReservationService {
             remainingAmount: data.remaining_amount,
             pointsUsed: data.points_used,
             specialRequests: data.special_requests,
+            bookingPreferences: data.booking_preferences,
             createdAt: data.created_at,
-            updatedAt: data.updated_at
+            updatedAt: data.updated_at,
+
+            // Shop details
+            shop: data.shops && !Array.isArray(data.shops) ? {
+              id: data.shops.id,
+              name: data.shops.name,
+              description: data.shops.description,
+              phoneNumber: data.shops.phone_number,
+              email: data.shops.email,
+              address: data.shops.address,
+              detailedAddress: data.shops.detailed_address,
+              postalCode: data.shops.postal_code,
+              latitude: data.shops.latitude,
+              longitude: data.shops.longitude,
+              mainCategory: data.shops.main_category,
+              operatingHours: data.shops.operating_hours,
+              kakaoChannelUrl: data.shops.kakao_channel_url
+            } : null,
+
+            // Services details
+            services: data.reservation_services?.map((rs: any) => ({
+              id: rs.id,
+              serviceId: rs.shop_services?.id,
+              serviceName: rs.shop_services?.name,
+              description: rs.shop_services?.description,
+              category: rs.shop_services?.category,
+              durationMinutes: rs.shop_services?.duration_minutes,
+              quantity: rs.quantity,
+              unitPrice: rs.unit_price,
+              totalPrice: rs.total_price
+            })) || [],
+
+            // Payment details
+            payments: data.reservation_payments?.map((p: any) => ({
+              id: p.id,
+              amount: p.amount,
+              paymentMethod: p.payment_method,
+              paymentStatus: p.payment_status,
+              paidAt: p.paid_at,
+              transactionId: p.transaction_id
+            })) || []
           };
         },
         {
@@ -903,6 +1157,7 @@ export class ReservationService {
               remaining_amount,
               points_used,
               special_requests,
+              booking_preferences,
               created_at,
               updated_at
             `, { count: 'planned' })
@@ -988,6 +1243,7 @@ export class ReservationService {
             remainingAmount: reservation.remaining_amount,
             pointsUsed: reservation.points_used,
             specialRequests: reservation.special_requests,
+            bookingPreferences: reservation.booking_preferences,
             createdAt: reservation.created_at,
             updatedAt: reservation.updated_at
           })) || [];

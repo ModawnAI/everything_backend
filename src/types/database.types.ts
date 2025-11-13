@@ -153,6 +153,13 @@ export type RetryStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'c
 // TABLE INTERFACES
 // =============================================
 
+export interface BookingPreferences {
+  skinType?: 'normal' | 'dry' | 'oily' | 'combination' | 'sensitive';
+  allergyInfo?: string;
+  preferredStylist?: string;
+  specialRequests?: string;
+}
+
 export interface User {
   id: string; // UUID, references auth.users(id)
   email?: string;
@@ -163,6 +170,7 @@ export interface User {
   gender?: UserGender;
   birth_date?: string; // Date string
   profile_image_url?: string;
+  booking_preferences?: BookingPreferences; // JSONB field
   user_role: UserRole;
   user_status: UserStatus;
   is_influencer: boolean;
@@ -282,6 +290,7 @@ export interface Reservation {
   points_used: number;
   points_earned: number;
   special_requests?: string;
+  booking_preferences?: BookingPreferences; // JSONB field - snapshot of user's preferences at time of booking
   cancellation_reason?: string;
   no_show_reason?: string;
   confirmed_at?: string; // Timestamp

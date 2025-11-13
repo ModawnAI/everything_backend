@@ -42,6 +42,12 @@ export interface ProfileUpdateRequest {
   birth_date?: string;
   profile_image_url?: string;
   marketing_consent?: boolean;
+  booking_preferences?: {
+    skinType?: 'normal' | 'dry' | 'oily' | 'combination' | 'sensitive';
+    allergyInfo?: string;
+    preferredStylist?: string;
+    specialRequests?: string;
+  };
 }
 
 export interface PrivacySettingsUpdateRequest {
