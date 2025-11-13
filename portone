@@ -1,0 +1,702 @@
+
+● COMPLETE PortOne Payment Implementation Plan for App Users
+
+  Current Status: What's Already Implemented ✅
+
+  Your backend ALREADY HAS these endpoints:
+
+  // ✅ EXISTING ENDPOINTS
+  POST   /api/payments/portone/prepare        // Initialize 
+  payment
+  POST   /api/payments/portone/confirm        // Confirm payment
+  POST   /api/payments/deposit/prepare        // Prepare deposit 
+  (20-30%)
+  POST   /api/payments/final/prepare          // Prepare final 
+  payment
+  GET    /api/payments/status/:reservationId  // Get payment 
+  status
+  POST   /api/webhooks/portone                // Handle webhooks
+  GET    /api/payments/:paymentId             // Get payment 
+  details
+  GET    /api/payments/user/:userId           // Get user payment
+   history
+  GET    /api/payments/success                // Success redirect
+  GET    /api/payments/fail                   // Fail redirect
+
+  Services Implemented:
+  - ✅ portone.service.ts - PortOne V2 SDK integration
+  - ✅ payment-confirmation.service.ts - Payment verification
+  - ✅ two-stage-payment.service.ts - Deposit + final payment
+  - ✅ payment.service.ts - Core payment logic
+
+  ---
+  What's MISSING: Billing Key (Payment Method Registration) ❌
+
+  // ❌ NEED TO IMPLEMENT
+  POST   /api/user/payment-methods             // Register new 
+  payment method (billing key)
+  GET    /api/user/payment-methods             // List user's 
+  payment methods
+  DELETE /api/user/payment-methods/:id         // Remove payment 
+  method
+  PATCH  /api/user/payment-methods/:id/default // Set as default
+  POST   /api/payments/billing-key             // Pay with saved 
+  billing key
+  POST   /api/webhooks/portone/billing-key     // Billing key 
+  webhook
+
+  ---
+  COMPLETE IMPLEMENTATION PLAN
+
+  Phase 1: Database Schema (Add Missing Table)
+
+  -- Create user_payment_methods table
+  CREATE TABLE IF NOT EXISTS public.user_payment_methods (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE
+  CASCADE,
+
+    -- PortOne billing key
+    billing_key TEXT NOT NULL UNIQUE,
+    portone_customer_id TEXT, -- PortOne customer ID
+
+    -- Payment method info
+    payment_method_type TEXT NOT NULL, -- 'CARD', 'MOBILE', 
+  'EASY_PAY'
+    card_company TEXT,                  -- '신한카드', 
+  'KB국민카드' etc.
+    card_type TEXT,                     -- 'CREDIT', 'DEBIT', 
+  'GIFT'
+    card_number_masked TEXT,            -- '1234-****-****-5678'
+    card_number_last4 TEXT,             -- '5678'
+
+    -- Display info
+    nickname TEXT,                      -- User's custom name for
+   this card
+    is_default BOOLEAN DEFAULT false,
+    is_active BOOLEAN DEFAULT true,
+
+    -- Metadata
+    issued_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    expires_at TIMESTAMP WITH TIME ZONE, -- Card expiry if 
+  applicable
+    last_used_at TIMESTAMP WITH TIME ZONE,
+
+    -- Timestamps
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+    deleted_at TIMESTAMP WITH TIME ZONE,
+
+    CONSTRAINT unique_user_billing_key UNIQUE(user_id,
+  billing_key)
+  );
+
+  -- Indexes
+  CREATE INDEX idx_user_payment_methods_user_id
+    ON user_payment_methods(user_id)
+    WHERE is_active = true;
+
+  CREATE INDEX idx_user_payment_methods_billing_key
+    ON user_payment_methods(billing_key)
+    WHERE is_active = true;
+
+  -- Only one default payment method per user
+  CREATE UNIQUE INDEX idx_user_default_payment_method
+    ON user_payment_methods(user_id)
+    WHERE is_default = true AND is_active = true;
+
+  -- RLS Policies
+  ALTER TABLE user_payment_methods ENABLE ROW LEVEL SECURITY;
+
+  CREATE POLICY "Users can view their own payment methods"
+    ON user_payment_methods FOR SELECT
+    USING (auth.uid() = user_id);
+
+  CREATE POLICY "Users can insert their own payment methods"
+    ON user_payment_methods FOR INSERT
+    WITH CHECK (auth.uid() = user_id);
+
+  CREATE POLICY "Users can update their own payment methods"
+    ON user_payment_methods FOR UPDATE
+    USING (auth.uid() = user_id);
+
+  CREATE POLICY "Users can delete their own payment methods"
+    ON user_payment_methods FOR DELETE
+    USING (auth.uid() = user_id);
+
+  ---
+  Phase 2: Backend Implementation
+
+  2.1: Create Routes (src/routes/user-payment-methods.routes.ts)
+
+  import { Router } from 'express';
+  import { UserPaymentMethodsController } from
+  '../controllers/user-payment-methods.controller';
+  import { authenticateJWT } from
+  '../middleware/auth.middleware';
+  import { rateLimit } from
+  '../middleware/rate-limit.middleware';
+
+  const router = Router();
+  const controller = new UserPaymentMethodsController();
+
+  // Register new payment method (save billing key from PortOne)
+  router.post('/',
+    authenticateJWT,
+    rateLimit({ windowMs: 15 * 60 * 1000, max: 10 }),
+    controller.registerPaymentMethod.bind(controller)
+  );
+
+  // List user's payment methods
+  router.get('/',
+    authenticateJWT,
+    controller.getPaymentMethods.bind(controller)
+  );
+
+  // Set default payment method
+  router.patch('/:id/default',
+    authenticateJWT,
+    controller.setDefaultPaymentMethod.bind(controller)
+  );
+
+  // Delete payment method
+  router.delete('/:id',
+    authenticateJWT,
+    controller.deletePaymentMethod.bind(controller)
+  );
+
+  export default router;
+
+  2.2: Create Controller 
+  (src/controllers/user-payment-methods.controller.ts)
+
+  import { Request, Response } from 'express';
+  import { AuthenticatedRequest } from
+  '../middleware/auth.middleware';
+  import { userPaymentMethodsService } from
+  '../services/user-payment-methods.service';
+  import { logger } from '../utils/logger';
+
+  export class UserPaymentMethodsController {
+    /**
+     * POST /api/user/payment-methods
+     * Register new payment method (save billing key)
+     */
+    async registerPaymentMethod(req: AuthenticatedRequest, res: 
+  Response) {
+      try {
+        const userId = req.user!.id;
+        const { billingKey, nickname } = req.body;
+
+        if (!billingKey) {
+          return res.status(400).json({
+            success: false,
+            error: {
+              code: 'MISSING_BILLING_KEY',
+              message: '빌링키가 필요합니다.',
+            },
+          });
+        }
+
+        const paymentMethod = await
+  userPaymentMethodsService.registerPaymentMethod({
+          userId,
+          billingKey,
+          nickname,
+        });
+
+        res.status(201).json({
+          success: true,
+          data: { paymentMethod },
+          message: '결제 수단이 등록되었습니다.',
+        });
+
+      } catch (error) {
+        logger.error('Error registering payment method', { error
+  });
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'PAYMENT_METHOD_REGISTRATION_FAILED',
+            message: '결제 수단 등록에 실패했습니다.',
+          },
+        });
+      }
+    }
+
+    /**
+     * GET /api/user/payment-methods
+     * List user's payment methods
+     */
+    async getPaymentMethods(req: AuthenticatedRequest, res: 
+  Response) {
+      try {
+        const userId = req.user!.id;
+
+        const paymentMethods = await
+  userPaymentMethodsService.getUserPaymentMethods(userId);
+
+        res.status(200).json({
+          success: true,
+          data: { paymentMethods },
+        });
+
+      } catch (error) {
+        logger.error('Error fetching payment methods', { error
+  });
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'FETCH_FAILED',
+            message: '결제 수단 조회에 실패했습니다.',
+          },
+        });
+      }
+    }
+
+    // ... other methods (setDefault, delete)
+  }
+
+  2.3: Create Service 
+  (src/services/user-payment-methods.service.ts)
+
+  import { getSupabaseClient } from '../config/database';
+  import { PortOneClient } from '@portone/server-sdk';
+  import { config } from '../config/environment';
+  import { logger } from '../utils/logger';
+
+  export class UserPaymentMethodsService {
+    private supabase = getSupabaseClient();
+    private portoneClient = PortOneClient({ secret:
+  config.payments.portone.v2.apiSecret! });
+
+    /**
+     * Register new payment method by verifying and saving 
+  billing key
+     */
+    async registerPaymentMethod(params: {
+      userId: string;
+      billingKey: string;
+      nickname?: string;
+    }) {
+      // 1. Verify billing key with PortOne API
+      const billingKeyInfo = await
+  this.portoneClient.billingKey.getBillingKeyInfo({
+        billingKey: params.billingKey
+      });
+
+      if (!billingKeyInfo || billingKeyInfo.status === 'DELETED')
+   {
+        throw new Error('Invalid or deleted billing key');
+      }
+
+      // 2. Extract card info
+      const cardInfo = billingKeyInfo.methods?.[0]; // Get 
+  primary payment method
+
+      // 3. Save to database
+      const { data, error } = await this.supabase
+        .from('user_payment_methods')
+        .insert({
+          user_id: params.userId,
+          billing_key: params.billingKey,
+          portone_customer_id: billingKeyInfo.customer?.id,
+          payment_method_type: cardInfo?.type || 'CARD',
+          card_company: cardInfo?.card?.publisher?.name,
+          card_type: cardInfo?.card?.type,
+          card_number_masked:
+  this.maskCardNumber(cardInfo?.card?.number),
+          card_number_last4: cardInfo?.card?.number?.slice(-4),
+          nickname: params.nickname ||
+  `${cardInfo?.card?.publisher?.name} 
+  (${cardInfo?.card?.number?.slice(-4)})`,
+          is_default: false, // First card can be set as default 
+  later
+          issued_at: billingKeyInfo.issuedAt,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      logger.info('Payment method registered', {
+        userId: params.userId,
+        paymentMethodId: data.id,
+      });
+
+      return data;
+    }
+
+    /**
+     * Get user's active payment methods
+     */
+    async getUserPaymentMethods(userId: string) {
+      const { data, error } = await this.supabase
+        .from('user_payment_methods')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('is_default', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      return data;
+    }
+
+    private maskCardNumber(cardNumber?: string): string {
+      if (!cardNumber) return '';
+      const first4 = cardNumber.slice(0, 4);
+      const last4 = cardNumber.slice(-4);
+      return `${first4}-****-****-${last4}`;
+    }
+  }
+
+  export const userPaymentMethodsService = new
+  UserPaymentMethodsService();
+
+  ---
+  Phase 3: Complete User Flow Implementation
+
+  Flow 1: Register Payment Method (First-time users)
+
+  // ===================================
+  // FRONTEND: Register Payment Method
+  // ===================================
+  import * as PortOne from "@portone/browser-sdk/v2";
+
+  async function registerPaymentMethod() {
+    try {
+      // 1. Call PortOne SDK to open billing key issuance window
+      const result = await PortOne.requestIssueBillingKey({
+        storeId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID!,
+        channelKey: process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY!,
+        billingKeyMethod: "CARD",
+        customer: {
+          customerId: currentUser.id,
+          fullName: currentUser.name,
+          phoneNumber: currentUser.phone,
+          email: currentUser.email,
+        },
+        noticeUrls:
+  [`${API_URL}/api/webhooks/portone/billing-key`],
+      });
+
+      // 2. Check for errors
+      if (result.code) {
+        throw new Error(result.message);
+      }
+
+      // 3. Save billing key to YOUR backend
+      const response = await
+  fetch(`${API_URL}/api/user/payment-methods`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          billingKey: result.billingKey,
+          nickname: `내 카드 (${new 
+  Date().toLocaleDateString()})`,
+        }),
+      });
+
+      if (!response.ok) throw new Error("Failed to save payment 
+  method");
+
+      alert("결제 수단이 등록되었습니다!");
+      // Refresh payment methods list
+
+    } catch (error) {
+      console.error("Payment method registration failed:",
+  error);
+      alert("결제 수단 등록에 실패했습니다.");
+    }
+  }
+
+  // ===================================
+  // BACKEND: Save Billing Key
+  // ===================================
+  // POST /api/user/payment-methods
+  router.post('/', authenticateJWT, async (req, res) => {
+    const userId = req.user.id;
+    const { billingKey, nickname } = req.body;
+
+    const paymentMethod = await
+  userPaymentMethodsService.registerPaymentMethod({
+      userId,
+      billingKey,
+      nickname,
+    });
+
+    res.status(201).json({ success: true, data: { paymentMethod }
+   });
+  });
+
+  ---
+  Flow 2: Pay for Reservation (Deposit)
+
+  // ===================================
+  // FRONTEND: Pay with Saved Card
+  // ===================================
+  async function payReservationDeposit(reservationId: string) {
+    try {
+      // Option A: Use saved billing key (NO payment window!)
+      const response = await
+  fetch(`${API_URL}/api/payments/billing-key`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${authToken}`,
+        },
+        body: JSON.stringify({
+          reservationId: reservationId,
+          paymentMethodId: selectedPaymentMethod.id, // User's 
+  saved card
+          amount: depositAmount,
+          paymentType: "deposit",
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        alert("예약금이 결제되었습니다!");
+        router.push(`/reservations/${reservationId}`);
+      }
+
+    } catch (error) {
+      console.error("Payment failed:", error);
+    }
+  }
+
+  // Option B: One-time payment (with payment window - EXISTING)
+  async function payWithPaymentWindow(reservationId: string) {
+    // 1. Prepare payment
+    const prepareResponse = await
+  fetch(`${API_URL}/api/payments/deposit/prepare`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({
+        reservationId,
+        amount: depositAmount,
+      }),
+    });
+
+    const { paymentId, orderId } = await prepareResponse.json();
+
+    // 2. Open PortOne payment window
+    const result = await PortOne.requestPayment({
+      storeId: process.env.NEXT_PUBLIC_PORTONE_STORE_ID!,
+      channelKey: process.env.NEXT_PUBLIC_PORTONE_CHANNEL_KEY!,
+      paymentId: orderId,
+      orderName: "에뷰리띵 예약금",
+      totalAmount: depositAmount,
+      currency: "KRW",
+      payMethod: "CARD",
+    });
+
+    if (result.code) throw new Error(result.message);
+
+    // 3. Confirm payment
+    await fetch(`${API_URL}/api/payments/portone/confirm`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json",
+  Authorization: `Bearer ${authToken}` },
+      body: JSON.stringify({
+        paymentKey: result.paymentId,
+        orderId: result.orderName,
+        amount: depositAmount,
+      }),
+    });
+  }
+
+  // ===================================
+  // BACKEND: Pay with Billing Key
+  // ===================================
+  // POST /api/payments/billing-key (NEW ENDPOINT NEEDED)
+  router.post('/billing-key', authenticateJWT, async (req, res)
+  => {
+    const userId = req.user.id;
+    const { reservationId, paymentMethodId, amount, paymentType }
+   = req.body;
+
+    // 1. Get user's saved payment method
+    const paymentMethod = await
+  userPaymentMethodsService.getPaymentMethod(paymentMethodId,
+  userId);
+    if (!paymentMethod) {
+      return res.status(404).json({ error: 'Payment method not 
+  found' });
+    }
+
+    // 2. Generate unique payment ID
+    const paymentId =
+  `pay_${reservationId}_${paymentType}_${Date.now()}`;
+
+    // 3. Call PortOne billing key payment API
+    const portoneResponse = await fetch(
+      `https://api.portone.io/payments/${paymentId}/billing-key`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `PortOne 
+  ${process.env.PORTONE_API_SECRET}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          billingKey: paymentMethod.billing_key,
+          orderName: paymentType === 'deposit' ? '예약금' : '최종
+   결제',
+          amount: { total: amount },
+          currency: "KRW",
+        }),
+      }
+    );
+
+    if (!portoneResponse.ok) {
+      const error = await portoneResponse.json();
+      return res.status(400).json({ success: false, error });
+    }
+
+    const paymentResult = await portoneResponse.json();
+
+    // 4. Save payment record
+    await supabase.from('payments').insert({
+      reservation_id: reservationId,
+      user_id: userId,
+      payment_method: 'card',
+      payment_status: 'fully_paid',
+      amount,
+      provider_transaction_id: paymentResult.transactionId,
+      paid_at: new Date().toISOString(),
+    });
+
+    // 5. Update payment method last used
+    await supabase
+      .from('user_payment_methods')
+      .update({ last_used_at: new Date().toISOString() })
+      .eq('id', paymentMethodId);
+
+    res.status(200).json({
+      success: true,
+      data: { paymentId, transactionId:
+  paymentResult.transactionId },
+      message: '결제가 완료되었습니다.',
+    });
+  });
+
+  ---
+  Phase 4: Complete User Journey
+
+  ┌─────────────────────────────────────────────────────┐
+  │         USER APP PAYMENT FLOW                       │
+  └─────────────────────────────────────────────────────┘
+
+  1️⃣ FIRST-TIME USER (Register Payment Method)
+     ┌──────────────────────────────────────┐
+     │ User clicks "Add Payment Method"     │
+     └──────────────────┬───────────────────┘
+                        │
+     ┌──────────────────▼───────────────────┐
+     │ Frontend: PortOne.requestIssueBillingKey() │
+     │  - Opens card input form (PG window) │
+     │  - User enters card info            │
+     │  - PortOne validates & issues key   │
+     └──────────────────┬───────────────────┘
+                        │
+     ┌──────────────────▼───────────────────┐
+     │ Returns: { billingKey: "billing_key_xxx" } │
+     └──────────────────┬───────────────────┘
+                        │
+     ┌──────────────────▼───────────────────┐
+     │ Frontend → Backend:                  │
+     │ POST /api/user/payment-methods       │
+     │ { billingKey: "xxx", nickname: "My Card" } │
+     └──────────────────┬───────────────────┘
+                        │
+     ┌──────────────────▼───────────────────┐
+     │ Backend:                             │
+     │ 1. Verify with PortOne API          │
+     │ 2. Get card info (last 4, issuer)   │
+     │ 3. Save to user_payment_methods     │
+     └──────────────────┬───────────────────┘
+                        │
+                        ✅ Card saved!
+
+  2️⃣ MAKING RESERVATION + DEPOSIT PAYMENT
+     ┌──────────────────────────────────────┐
+     │ User creates reservation             │
+     └──────────────────┬───────────────────┘
+                        │
+     ┌──────────────────▼───────────────────┐
+     │ User selects saved card OR           │
+     │ "Pay with new card"                  │
+     └──────────────────┬───────────────────┘
+                        │
+           ┌────────────┴────────────┐
+           │                         │
+      SAVED CARD                 NEW CARD
+           │                         │
+     ┌─────▼──────┐         ┌───────▼────────┐
+     │ Backend:   │         │ PortOne SDK:   │
+     │ POST       │         │ requestPayment │
+     │ /payments/ │         │ (payment       │
+     │ billing-key│         │  window)       │
+     └─────┬──────┘         └───────┬────────┘
+           │                         │
+     ┌─────▼─────────────────────────▼────────┐
+     │ PortOne processes payment               │
+     │ (instant with saved card OR             │
+     │  after user input with new card)        │
+     └─────────────────┬───────────────────────┘
+                       │
+     ┌─────────────────▼───────────────────────┐
+     │ Webhook → /api/webhooks/portone         │
+     │ Updates payment status                  │
+     └─────────────────┬───────────────────────┘
+                       │
+                       ✅ Deposit paid!
+
+  3️⃣ FINAL PAYMENT (After Service)
+     (Same flow as deposit, but different amount)
+
+  ---
+  Exact PortOne API Endpoints Used
+
+  // PortOne V2 API Endpoints (called from YOUR backend)
+  POST   https://api.portone.io/billing-keys
+    → Issue billing key (API method, without window)
+
+  GET    https://api.portone.io/billing-keys/{billingKey}
+    → Get billing key info
+
+  DELETE https://api.portone.io/billing-keys/{billingKey}
+    → Delete billing key
+
+  POST   https://api.portone.io/payments/{paymentId}/billing-key
+    → Pay with billing key (instant payment!)
+
+  GET    https://api.portone.io/payments/{paymentId}
+    → Get payment info
+
+  POST   https://api.portone.io/payments/{paymentId}/cancel
+    → Cancel/refund payment
+
+  ---
+  Summary: Implementation Checklist
+
+  - Payment window flow (ALREADY IMPLEMENTED)
+  - Webhook handling (ALREADY IMPLEMENTED)
+  - User payment methods table (NEED TO CREATE)
+  - Billing key registration endpoint (NEED TO ADD)
+  - Billing key payment endpoint (NEED TO ADD)
+  - Payment methods list endpoint (NEED TO ADD)
+  - Delete payment method endpoint (NEED TO ADD)
+
+  Your backend has 70% of payment infrastructure ready! You just
+  need to add billing key management endpoints.

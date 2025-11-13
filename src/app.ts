@@ -53,6 +53,7 @@ import adminAnalyticsRoutes from './routes/admin-analytics.routes';
 import ipBlockingRoutes from './routes/admin/ip-blocking.routes';
 import securityRoutes from './routes/security.routes';
 import notificationRoutes from './routes/notification.routes';
+import userNotificationsRoutes from './routes/user-notifications.routes';
 import websocketRoutes from './routes/websocket.routes';
 import testErrorRoutes from './routes/test-error.routes';
 import healthRoutes from './routes/health.routes';
@@ -80,6 +81,7 @@ import referralAnalyticsRoutes from './routes/referral-analytics.routes';
 import { userSettingsRoutes } from './routes/user-settings.routes';
 import shopRegistrationRoutes from './routes/shop-registration.routes';
 import shopSearchRoutes from './routes/shop-search.routes';
+import searchRoutes from './routes/search.routes';
 import shopProfileRoutes from './routes/shop-profile.routes';
 import shopServiceRoutes from './routes/shop-service.routes';
 import shopOperatingHoursRoutes from './routes/shop-operating-hours.routes';
@@ -119,7 +121,7 @@ const PORT = config.server.port;
 // CORS Configuration - Must be before other middleware
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:5173'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:5173'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -383,6 +385,7 @@ app.use('/api/storage', storageRoutes);
 app.use('/api/shops/categories', shopCategoriesRoutes);
 app.use('/api/service-catalog', serviceCatalogRoutes);
 app.use('/api/shops/search', shopSearchRoutes);
+app.use('/api/search', searchRoutes); // General search (suggestions, autocomplete)
 app.use('/api/shops', shopRoutes);
 app.use('/api/shops/images', shopImageRoutes);
 app.use('/api/shop/register', shopRegistrationRoutes);
@@ -451,6 +454,7 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/monitoring', monitoringDashboardRoutes);
 app.use('/api/shutdown', shutdownRoutes);
 app.use('/api/user/sessions', userSessionsRoutes);
+app.use('/api/user/notifications', userNotificationsRoutes);
 app.use('/api/admin/security', adminSecurityRoutes);
 app.use('/api/admin/security-enhanced', adminSecurityEnhancedRoutes);
 app.use('/api/admin/security/events', adminSecurityEventsRoutes);
@@ -463,7 +467,9 @@ app.use('/api/referral-analytics', referralAnalyticsRoutes);
 app.use('/api/referrals', referralRoutes);
 app.use('/api/admin/audit', auditTrailRoutes);
 app.use('/api/admin/automation', automaticStateProgressionRoutes);
-app.use('/api/users', userSettingsRoutes);
+// ⚠️ FIXED: Route collision - userSettingsRoutes conflicted with userProfileRoutes on same path
+// Solution: Mount advanced settings on dedicated path /api/user/settings instead
+app.use('/api/user/settings', userSettingsRoutes);
 app.use('/api/user/payment-methods', userPaymentMethodsRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/user/feed', userFeedRoutes);

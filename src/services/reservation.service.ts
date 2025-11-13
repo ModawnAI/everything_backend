@@ -131,14 +131,17 @@ export class ReservationService {
     const bookingPreferences = userData?.booking_preferences || {};
 
     // Validate that user has filled out required booking preferences
+    // UPDATED: Make skin type and allergy info optional (not everyone needs to provide this)
     if (!bookingPreferences.skinType || !bookingPreferences.allergyInfo) {
-      logger.warn('User attempted reservation without complete booking preferences', {
+      logger.info('User booking preferences incomplete but allowing reservation', {
         userId,
         hasPreferences: !!userData?.booking_preferences,
         hasSkinType: !!bookingPreferences.skinType,
-        hasAllergyInfo: !!bookingPreferences.allergyInfo
+        hasAllergyInfo: !!bookingPreferences.allergyInfo,
+        note: 'Skin type and allergy info are optional - proceeding with reservation'
       });
-      throw new Error('Please complete your profile (skin type and allergy information) before making a reservation');
+      // Don't throw error - these fields are now optional
+      // Users can still make reservations without this info
     }
 
     logger.info('User booking preferences validated', {

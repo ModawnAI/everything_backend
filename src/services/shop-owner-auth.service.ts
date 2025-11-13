@@ -851,6 +851,7 @@ export class ShopOwnerAuthService {
           email: shopOwner.email,
           name: shopOwner.name,
           role: shopOwner.user_role,
+          permissions: this.getShopOwnerPermissions(),
           shop: {
             id: shop.id,
             name: shop.name,

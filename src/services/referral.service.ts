@@ -297,7 +297,7 @@ class ReferralServiceImpl {
       // Get referral statistics
       const { data: referrals, error: referralsError } = await this.supabase
         .from('referrals')
-        .select('status, bonus_amount, bonus_paid, created_at, completed_at')
+        .select('status, bonus_amount, bonus_paid, created_at, updated_at')
         .eq('referrer_id', userId);
 
       if (referralsError) {
@@ -371,20 +371,12 @@ class ReferralServiceImpl {
         .from('referrals')
         .select(`
           id,
+          referred_id,
           status,
           bonus_amount,
-          bonus_type,
           bonus_paid,
-          bonus_paid_at,
           created_at,
-          completed_at,
-          expires_at,
-          referred_users!inner(
-            id,
-            name,
-            email,
-            phone_number
-          )
+          updated_at
         `)
         .eq('referrer_id', userId)
         .order('created_at', { ascending: false })
@@ -398,24 +390,42 @@ class ReferralServiceImpl {
         );
       }
 
-      const referralHistory: ReferralHistoryItem[] = (referrals || []).map(ref => ({
-        id: ref.id,
-        referredUser: {
-          id: ref.referred_users[0]?.id,
-          name: ref.referred_users[0]?.name,
-          email: ref.referred_users[0]?.email,
-          phone: ref.referred_users[0]?.phone_number,
-          joinedAt: ref.created_at
-        },
-        status: ref.status,
-        bonusAmount: ref.bonus_amount,
-        bonusType: ref.bonus_type,
-        bonusPaid: ref.bonus_paid,
-        bonusPaidAt: ref.bonus_paid_at,
-        createdAt: ref.created_at,
-        completedAt: ref.completed_at,
-        expiresAt: ref.expires_at
-      }));
+      // Fetch referred user details separately
+      const referredUserIds = (referrals || []).map(r => r.referred_id);
+      const usersMap = new Map();
+
+      if (referredUserIds.length > 0) {
+        const { data: users } = await this.supabase
+          .from('users')
+          .select('id, name, nickname, email, phone_number')
+          .in('id', referredUserIds);
+
+        users?.forEach(user => {
+          usersMap.set(user.id, user);
+        });
+      }
+
+      const referralHistory: ReferralHistoryItem[] = (referrals || []).map(ref => {
+        const user = usersMap.get(ref.referred_id);
+        return {
+          id: ref.id,
+          referredUser: {
+            id: ref.referred_id,
+            name: user?.name || user?.nickname || 'Unknown User',
+            email: user?.email || '',
+            phone: user?.phone_number || '',
+            joinedAt: ref.created_at
+          },
+          status: ref.status,
+          bonusAmount: ref.bonus_amount,
+          bonusType: 'points', // Default type since column doesn't exist
+          bonusPaid: ref.bonus_paid,
+          bonusPaidAt: null, // Column doesn't exist in table
+          createdAt: ref.created_at,
+          completedAt: ref.status === 'completed' ? ref.updated_at : null,
+          expiresAt: null // Column doesn't exist in table
+        };
+      });
 
       const pagination = {
         page,

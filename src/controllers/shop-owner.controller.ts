@@ -397,12 +397,23 @@ export class ShopOwnerController {
       const limitNum = parseInt(limit as string) || 20;
       const offset = (pageNum - 1) * limitNum;
 
-      // Build query
+      // Build query with detailed customer information
       let query = this.supabase
         .from('reservations')
         .select(`
           *,
-          users!inner(name, phone_number),
+          users!inner(
+            id,
+            name,
+            nickname,
+            email,
+            phone_number,
+            profile_image_url,
+            gender,
+            birth_date,
+            total_points,
+            user_status
+          ),
           shops!inner(name),
           reservation_services(
             quantity,
@@ -445,7 +456,7 @@ export class ShopOwnerController {
         return;
       }
 
-      // Format response - use snake_case to match frontend expectations
+      // Format response with detailed customer information
       const formattedReservations = reservations?.map(reservation => ({
         id: reservation.id,
         user_id: reservation.user_id,
@@ -459,10 +470,35 @@ export class ShopOwnerController {
         points_used: reservation.points_used,
         points_earned: reservation.points_earned,
         special_requests: reservation.special_requests,
+
+        // Detailed customer information
+        customer: {
+          id: reservation.users?.id,
+          name: reservation.users?.name,
+          nickname: reservation.users?.nickname,
+          email: reservation.users?.email,
+          phone_number: reservation.users?.phone_number,
+          profile_image_url: reservation.users?.profile_image_url,
+          gender: reservation.users?.gender,
+          birth_date: reservation.users?.birth_date,
+          total_points: reservation.users?.total_points,
+          user_status: reservation.users?.user_status
+        },
+
+        // Services details
+        services: reservation.reservation_services?.map((rs: any) => ({
+          name: rs.shop_services?.name,
+          quantity: rs.quantity,
+          unit_price: rs.unit_price,
+          total_price: rs.total_price
+        })) || [],
+
+        // Backward compatibility fields
         customer_name: reservation.users?.name,
         customer_phone: reservation.users?.phone_number,
         service_name: reservation.reservation_services?.[0]?.shop_services?.name || 'Multiple Services',
         notes: reservation.special_requests,
+
         created_at: reservation.created_at,
         updated_at: reservation.updated_at
       })) || [];

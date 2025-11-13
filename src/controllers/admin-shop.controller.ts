@@ -106,6 +106,13 @@ export class AdminShopController {
             is_available,
             display_order
           ),
+          shop_images(
+            id,
+            image_url,
+            alt_text,
+            is_primary,
+            display_order
+          ),
           owner:users!shops_owner_id_fkey(
             id,
             name,

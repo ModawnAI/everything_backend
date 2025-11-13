@@ -435,7 +435,7 @@ export class ShopController {
             .from('shop_images')
             .select('*')
             .in('shop_id', shopIds)
-            .order('is_main', { ascending: false })
+            .order('is_primary', { ascending: false })
             .order('display_order', { ascending: true });
 
           if (!imagesError && allShopImages) {
@@ -689,8 +689,16 @@ export class ShopController {
             .from('shop_images')
             .select('*')
             .in('shop_id', shopIds)
-            .order('is_main', { ascending: false })
+            .order('is_primary', { ascending: false })
             .order('display_order', { ascending: true });
+
+          console.log('[DEBUG] Fetched shop images for popular shops:', {
+            shopIdsCount: shopIds.length,
+            shopIds: shopIds.slice(0, 3),
+            imagesCount: allShopImages?.length || 0,
+            sampleImage: allShopImages?.[0],
+            error: imagesError
+          });
 
           if (!imagesError && allShopImages) {
             allShopImages.forEach(image => {
@@ -699,6 +707,7 @@ export class ShopController {
               }
               shopImagesMap.get(image.shop_id)!.push(image);
             });
+            console.log('[DEBUG] Shop images map size:', shopImagesMap.size);
           }
         } catch (error) {
           logger.error('Failed to fetch shop images for popular shops', {
@@ -893,10 +902,11 @@ export class ShopController {
 
       const shopsInBounds = await getShopsInBounds(northEast, southWest, filters);
 
-      // Fetch contact methods for all shops
+      // Fetch contact methods and shop images for all shops
       const shopIds = shopsInBounds.map(shop => shop.id);
       const contactMethodsMap = new Map<string, any[]>();
-      
+      const shopImagesMap = new Map<string, any[]>();
+
       if (shopIds.length > 0) {
         try {
           const { data: allContactMethods, error: contactError } = await getSupabaseClient()
@@ -920,12 +930,37 @@ export class ShopController {
             shopIds
           });
         }
+
+        // Fetch shop images
+        try {
+          const { data: allShopImages, error: imagesError } = await getSupabaseClient()
+            .from('shop_images')
+            .select('*')
+            .in('shop_id', shopIds)
+            .order('is_primary', { ascending: false })
+            .order('display_order', { ascending: true });
+
+          if (!imagesError && allShopImages) {
+            allShopImages.forEach(image => {
+              if (!shopImagesMap.has(image.shop_id)) {
+                shopImagesMap.set(image.shop_id, []);
+              }
+              shopImagesMap.get(image.shop_id)!.push(image);
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to fetch shop images for shops in bounds', {
+            error: error instanceof Error ? error.message : 'Unknown error',
+            shopIds
+          });
+        }
       }
 
-      // Add contact methods to each shop
+      // Add contact methods and shop images to each shop
       const shopsWithContactMethods = shopsInBounds.map(shop => ({
         ...shop,
-        contact_methods: contactMethodsMap.get(shop.id) || []
+        contact_methods: contactMethodsMap.get(shop.id) || [],
+        shop_images: shopImagesMap.get(shop.id) || []
       }));
 
       // Log successful search
@@ -1084,8 +1119,12 @@ export class ShopController {
         category,
         shopType,
         limit = '50',
+        page,
         offset = '0',
-        ownerId
+        ownerId,
+        query: searchQuery,
+        sort_by,
+        sort_order = 'desc'
       } = req.query;
 
       const client = getSupabaseClient();
@@ -1105,9 +1144,31 @@ export class ShopController {
         query = query.eq('owner_id', ownerId);
       }
 
+      // Apply text search if query parameter provided
+      if (searchQuery && typeof searchQuery === 'string') {
+        // Search in shop name, description, and address
+        query = query.or(`name.ilike.%${searchQuery}%,description.ilike.%${searchQuery}%,address.ilike.%${searchQuery}%`);
+      }
+
+      // Apply sorting
+      if (sort_by && typeof sort_by === 'string') {
+        const sortColumn = sort_by === 'relevance' ? 'created_at' : sort_by;
+        const ascending = sort_order === 'asc';
+        query = query.order(sortColumn, { ascending });
+      } else {
+        // Default sort by created_at desc
+        query = query.order('created_at', { ascending: false });
+      }
+
       // Apply pagination
       const limitNum = parseInt(limit as string) || 50;
-      const offsetNum = parseInt(offset as string) || 0;
+      let offsetNum = parseInt(offset as string) || 0;
+
+      // If page is provided, calculate offset from page
+      if (page && typeof page === 'string') {
+        const pageNum = parseInt(page);
+        offsetNum = (pageNum - 1) * limitNum;
+      }
 
       query = query.range(offsetNum, offsetNum + limitNum - 1);
 
@@ -1164,7 +1225,7 @@ export class ShopController {
             .from('shop_images')
             .select('*')
             .in('shop_id', shopIds)
-            .order('is_main', { ascending: false })
+            .order('is_primary', { ascending: false })
             .order('display_order', { ascending: true });
 
           if (!imagesError && allShopImages) {

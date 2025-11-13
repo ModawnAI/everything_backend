@@ -37,6 +37,25 @@ router.use(authenticateJWT());
 
 /**
  * @swagger
+ * /api/users/me:
+ *   get:
+ *     summary: Get current authenticated user's complete profile
+ *     description: Returns the complete profile information for the currently authenticated user (RESTful /me endpoint)
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       404:
+ *         description: User not found
+ */
+router.get('/me', userProfileController.getProfile);
+
+/**
+ * @swagger
  * /api/users/profile:
  *   get:
  *     summary: Get current user's profile
@@ -302,6 +321,38 @@ router.post('/profile/image', upload.single('image'), userProfileController.uplo
 
 /**
  * @swagger
+ * /api/users/profile/avatar:
+ *   post:
+ *     summary: Upload profile avatar (alias for /profile/image)
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               avatar:
+ *                 type: string
+ *                 format: binary
+ *                 description: Profile avatar file (max 5MB)
+ *     responses:
+ *       200:
+ *         description: Avatar uploaded successfully
+ *       400:
+ *         description: Invalid file or upload failed
+ *       401:
+ *         description: Unauthorized
+ *       413:
+ *         description: File too large
+ */
+// Alias route for frontend compatibility - accepts 'avatar' field name
+router.post('/profile/avatar', upload.single('avatar'), userProfileController.uploadProfileImage);
+
+/**
+ * @swagger
  * /api/users/account:
  *   delete:
  *     summary: Delete user account (soft delete)
@@ -361,5 +412,105 @@ router.post('/terms/accept', userProfileController.acceptTerms);
  *         description: Unauthorized
  */
 router.post('/privacy/accept', userProfileController.acceptPrivacy);
+
+/**
+ * @swagger
+ * /api/users/export:
+ *   get:
+ *     summary: Export user data
+ *     description: Export all user data including profile, reservations, reviews, favorites, and point transactions
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: User data exported successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     profile:
+ *                       type: object
+ *                     reservations:
+ *                       type: array
+ *                     reviews:
+ *                       type: array
+ *                     favorites:
+ *                       type: array
+ *                     pointTransactions:
+ *                       type: array
+ *                     exportedAt:
+ *                       type: string
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/export', userProfileController.exportUserData);
+
+/**
+ * @swagger
+ * /api/users/profile/send-otp:
+ *   post:
+ *     summary: Send phone verification OTP
+ *     description: Send OTP code to phone number for verification
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Phone number to send OTP to
+ *     responses:
+ *       200:
+ *         description: OTP sent successfully
+ *       400:
+ *         description: Invalid phone number
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/profile/send-otp', userProfileController.sendPhoneOTP);
+
+/**
+ * @swagger
+ * /api/users/profile/verify-phone:
+ *   post:
+ *     summary: Verify phone number with OTP
+ *     description: Verify phone number using the OTP code sent via SMS
+ *     tags: [User Profile]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               phoneNumber:
+ *                 type: string
+ *                 description: Phone number to verify
+ *               otp:
+ *                 type: string
+ *                 description: OTP code received via SMS
+ *     responses:
+ *       200:
+ *         description: Phone verified successfully
+ *       400:
+ *         description: Invalid OTP or phone number
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/profile/verify-phone', userProfileController.verifyPhone);
 
 export default router;
