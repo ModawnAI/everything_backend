@@ -864,6 +864,75 @@ router.get('/:id',
 
 /**
  * @swagger
+ * /api/shops/{id}/available-slots:
+ *   get:
+ *     summary: Get available time slots for a shop
+ *     description: Retrieve available booking time slots for a specific shop on a given date
+ *     tags: [Shops]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Shop ID (UUID)
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Date in YYYY-MM-DD format
+ *       - in: query
+ *         name: serviceIds[]
+ *         required: true
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *             format: uuid
+ *         description: Array of service IDs
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved available slots
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/:id/available-slots',
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  async (req, res) => {
+    try {
+      // Import reservation controller
+      const { ReservationController } = await import('../controllers/reservation.controller');
+      const reservationController = new ReservationController();
+
+      // Transform params: :id -> :shopId for reservation controller
+      req.params.shopId = req.params.id;
+
+      await reservationController.getAvailableSlots(req, res);
+    } catch (error) {
+      logger.error('Error in available slots route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId: req.params.id,
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 가능 시간 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
  * /api/shops/{id}/contact-info:
  *   get:
  *     summary: public contact information for a shop 조회
