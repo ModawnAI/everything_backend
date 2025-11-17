@@ -11,8 +11,8 @@
 // Point Earning Policies v3.2
 export const POINT_POLICY_V32 = {
   // Core earning configuration
-  EARNING_RATE: 0.025, // 2.5% earning rate
-  MAX_ELIGIBLE_AMOUNT: 300000, // 300,000 KRW maximum eligible amount per transaction
+  EARNING_RATE: 0.05, // 5% earning rate (as per POINTS_SYSTEM_DOCUMENTATION.md)
+  MAX_ELIGIBLE_AMOUNT: 999999999, // No maximum limit per transaction
   
   // Availability and expiration
   AVAILABILITY_DELAY_DAYS: 7, // 7-day delay before points become available
@@ -24,8 +24,8 @@ export const POINT_POLICY_V32 = {
   INFLUENCER_MIN_ENGAGEMENT: 0.03, // Minimum 3% engagement rate
   
   // Referral bonuses
-  REFERRAL_BASE_BONUS: 1000, // Base referral bonus in points
-  REFERRAL_COMPLETION_BONUS: 500, // Additional bonus when referred user completes first service
+  REFERRAL_BASE_BONUS: 2000, // Base referral bonus in points (both referrer and referee get 2,000P)
+  REFERRAL_COMPLETION_BONUS: 0, // No additional completion bonus (already included in base)
   
   // Transaction limits
   MIN_TRANSACTION_AMOUNT: 1000, // Minimum transaction amount to earn points (1,000 KRW)
@@ -33,8 +33,8 @@ export const POINT_POLICY_V32 = {
   MAX_MONTHLY_EARNING_LIMIT: 100000, // Maximum points that can be earned per month
   
   // Point usage rules
-  MIN_REDEMPTION_AMOUNT: 1000, // Minimum points required for redemption
-  MAX_REDEMPTION_PERCENTAGE: 50, // Maximum percentage of payment that can be paid with points
+  MIN_REDEMPTION_AMOUNT: 1000, // Minimum points required for redemption (1,000P)
+  MAX_REDEMPTION_PERCENTAGE: 100, // Can use points up to full payment amount
   POINT_TO_KRW_RATIO: 1, // 1 point = 1 KRW
   
   // Special promotions
