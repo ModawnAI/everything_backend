@@ -972,6 +972,11 @@ export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promis
  */
 export function authenticateJWT() {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    // Skip authentication for OPTIONS requests (CORS preflight)
+    if (req.method === 'OPTIONS') {
+      return next();
+    }
+
     console.log('[AUTH-DEBUG-1] authenticateJWT middleware started', {
       path: req.path,
       method: req.method,

@@ -65,6 +65,9 @@ export { default as pointBalanceRoutes } from './point-balance.routes';
 // Influencer Bonus Routes
 export { default as influencerBonusRoutes } from './influencer-bonus.routes';
 
+// Admin Influencers Routes
+export { default as adminInfluencersRoutes } from './admin-influencers.routes';
+
 // Admin Adjustment Routes
 export { default as adminAdjustmentRoutes } from './admin-adjustment.routes';
 

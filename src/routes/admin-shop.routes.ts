@@ -84,8 +84,9 @@ const createShopSchema = Joi.object({
     'string.uri': '사업자등록증 이미지 URL 형식이 올바르지 않습니다.'
   }),
   // Admin-specific fields
-  owner_id: Joi.string().uuid().optional().messages({
-    'string.guid': '유효하지 않은 오너 ID입니다.'
+  owner_id: Joi.string().uuid().required().messages({
+    'string.guid': '유효하지 않은 오너 ID입니다.',
+    'any.required': '오너 ID는 필수입니다.'
   }),
   shop_status: Joi.string().valid('active', 'inactive', 'pending_approval', 'suspended', 'deleted').optional().messages({
     'any.only': '유효하지 않은 샵 상태입니다.'

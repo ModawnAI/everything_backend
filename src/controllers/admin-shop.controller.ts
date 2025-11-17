@@ -788,6 +788,8 @@ export class AdminShopController {
       }
 
       const client = getSupabaseClient();
+      // owner_id is now required from validation
+      const ownerId = shopData.owner_id;
 
       // Prepare shop data with admin-specific fields
       const newShop: any = {
@@ -807,7 +809,7 @@ export class AdminShopController {
         business_license_image_url: shopData.business_license_image_url || null,
 
         // Admin can specify these fields directly
-        owner_id: shopData.owner_id || adminId,
+        owner_id: ownerId,
         shop_status: shopData.shop_status || 'active',
         verification_status: shopData.verification_status || 'verified',
         shop_type: shopData.shop_type || 'partnered',
@@ -845,6 +847,29 @@ export class AdminShopController {
           }
         });
         return;
+      }
+
+      // Update owner user to assign shop_id and shop_owner role
+      const { error: updateError } = await client
+        .from('users')
+        .update({
+          user_role: 'shop_owner',
+          shop_id: shop.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', shop.owner_id);
+
+      if (updateError) {
+        logger.warn('Failed to update owner role, but shop was created', {
+          shopId: shop.id,
+          ownerId: shop.owner_id,
+          error: updateError.message
+        });
+      } else {
+        logger.info('Updated owner user to shop_owner and assigned shop_id', {
+          shopId: shop.id,
+          ownerId: shop.owner_id
+        });
       }
 
       logger.info('Admin created shop successfully', {
