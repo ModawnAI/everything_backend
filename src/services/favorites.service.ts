@@ -218,13 +218,14 @@ export class FavoritesService {
    */
   async removeFavorite(userId: string, shopId: string): Promise<FavoriteShopResponse> {
     try {
-      // Get shop name from cache for real-time update
+      // Get shop data from cache for real-time update
+      // IMPORTANT: Select same fields as addFavoriteFallback to avoid cache inconsistency
       const shop = await queryCacheService.getCachedQuery(
         `shop:${shopId}`,
         async () => {
           const { data, error } = await this.supabase
             .from('shops')
-            .select('name')
+            .select('id, name, shop_status')
             .eq('id', shopId)
             .single();
 
