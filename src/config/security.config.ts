@@ -227,10 +227,15 @@ const createCORSConfig = (environment: 'development' | 'staging' | 'production')
 
   const allowedOrigins = envCorsOrigins || {
     development: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:8080',
-      'http://127.0.0.1:3000'
+      'http://localhost:4001',
+      'http://localhost:4003',
+      'http://localhost:4004',
+      'http://127.0.0.1:4001',
+      'http://127.0.0.1:4003',
+      'http://127.0.0.1:4004',
+      'http://172.26.14.90:4001',
+      'http://172.26.14.90:4003',
+      'http://172.26.14.90:4004'
     ],
     staging: [
       'https://staging.beauty-platform.com',
@@ -239,7 +244,9 @@ const createCORSConfig = (environment: 'development' | 'staging' | 'production')
     production: [
       'https://beauty-platform.com',
       'https://www.beauty-platform.com',
-      'https://app.beauty-platform.com'
+      'https://app.beauty-platform.com',
+      'https://ebeautything-app.vercel.app',
+      'https://ebeautything-admin.vercel.app'
     ]
   }[environment];
 
@@ -247,6 +254,11 @@ const createCORSConfig = (environment: 'development' | 'staging' | 'production')
     origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
+
+      // Allow all Vercel preview deployments (*.vercel.app)
+      if (origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
 
       if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
         return callback(null, true);

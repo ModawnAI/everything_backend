@@ -788,7 +788,7 @@ export class ReservationController {
         reservationId: id,
         userId,
         cancellationType: cancellationType as any,
-        cancellationReason: 'Preview calculation'
+        reason: 'Preview calculation'
       });
 
       // Format response
@@ -799,8 +799,8 @@ export class ReservationController {
         cancellationWindow: refundCalculation.cancellationWindow || 'unknown',
         isEligible: refundCalculation.isEligible || false,
         reason: refundCalculation.reason || 'Refund calculation completed',
-        reservationDate: refundCalculation.reservationDate,
-        hoursUntilReservation: refundCalculation.hoursUntilReservation
+        reservationDate: refundCalculation.koreanTimeInfo?.reservationTime,
+        hoursUntilReservation: refundCalculation.cancellationWindow
       };
 
       logger.info('Refund preview calculated', {

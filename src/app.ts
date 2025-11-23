@@ -122,7 +122,7 @@ const PORT = config.server.port;
 // CORS Configuration - Must be before other middleware
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:5173'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:4003', 'http://localhost:5173'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -131,11 +131,16 @@ app.use(cors({
       return callback(null, true);
     }
 
+    // Allow all Vercel deployments (*.vercel.app)
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+
     // Check if origin is in allowed list
-    if (corsOrigins.includes(origin) || corsOrigins.includes('*')) {
+    if (corsOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      logger.warn('CORS request blocked', {
+      logger.warn('CORS request from non-whitelisted origin (but allowing)', {
         origin,
         allowedOrigins: corsOrigins,
         timestamp: new Date().toISOString()
@@ -149,6 +154,16 @@ app.use(cors({
   exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
   maxAge: 86400 // 24 hours
 }));
+
+// Prevent browser caching of API responses to avoid stale CORS errors
+app.use((req, res, next) => {
+  // Don't cache API responses - prevent browsers from caching error responses
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
 
 // Log all incoming requests including OPTIONS (preflight), except health checks
 app.use((req, res, next) => {

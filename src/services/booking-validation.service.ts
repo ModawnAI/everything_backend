@@ -260,29 +260,51 @@ export class BookingValidationService {
 
     // Date validation
     if (request.date) {
-      const bookingDate = new Date(request.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Parse booking date as YYYY-MM-DD string (no timezone conversion)
+      const bookingDateStr = request.date.split('T')[0]; // Handle both "2025-11-22" and "2025-11-22T00:00:00"
+      const [bookingYear, bookingMonth, bookingDay] = bookingDateStr.split('-').map(Number);
 
-      if (bookingDate < today) {
+      // Get today's date in UTC
+      const now = new Date();
+      const todayYear = now.getUTCFullYear();
+      const todayMonth = now.getUTCMonth() + 1; // getUTCMonth() is 0-indexed
+      const todayDay = now.getUTCDate();
+
+      // Compare date components (YYYY-MM-DD)
+      const bookingDateNum = bookingYear * 10000 + bookingMonth * 100 + bookingDay;
+      const todayNum = todayYear * 10000 + todayMonth * 100 + todayDay;
+
+      if (bookingDateNum < todayNum) {
         errors.push({
           code: 'PAST_DATE',
           field: 'date',
           message: 'Cannot book for past dates',
-          severity: 'critical'
+          severity: 'critical',
+          details: {
+            bookingDate: bookingDateStr,
+            todayDate: `${todayYear}-${String(todayMonth).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`
+          }
         });
       }
 
       // Check if booking is too far in the future (e.g., 6 months)
       const sixMonthsFromNow = new Date();
-      sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+      sixMonthsFromNow.setUTCMonth(sixMonthsFromNow.getUTCMonth() + 6);
+      const futureYear = sixMonthsFromNow.getUTCFullYear();
+      const futureMonth = sixMonthsFromNow.getUTCMonth() + 1;
+      const futureDay = sixMonthsFromNow.getUTCDate();
+      const futureNum = futureYear * 10000 + futureMonth * 100 + futureDay;
 
-      if (bookingDate > sixMonthsFromNow) {
+      if (bookingDateNum > futureNum) {
         errors.push({
           code: 'TOO_FAR_IN_FUTURE',
           field: 'date',
           message: 'Cannot book more than 6 months in advance',
-          severity: 'critical'
+          severity: 'critical',
+          details: {
+            bookingDate: bookingDateStr,
+            maxDate: `${futureYear}-${String(futureMonth).padStart(2, '0')}-${String(futureDay).padStart(2, '0')}`
+          }
         });
       }
     }

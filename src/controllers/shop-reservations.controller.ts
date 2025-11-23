@@ -350,10 +350,14 @@ export class ShopReservationsController {
         userId
       });
 
-      // TODO: Trigger notifications to customer
-      // - Confirmed: Send confirmation email/SMS
-      // - Cancelled: Send cancellation notice with refund info
-      // - No-show: Send no-show notice
+      // Send customer notification (async, don't wait for completion)
+      this.sendCustomerNotification(reservationId, status as any, notes, reason).catch(error => {
+        logger.error('Failed to send customer notification', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          reservationId,
+          status
+        });
+      });
 
       res.status(200).json({
         success: true,
@@ -381,6 +385,88 @@ export class ShopReservationsController {
           message: '예약 상태 업데이트 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
+      });
+    }
+  }
+
+  /**
+   * Send customer notification for reservation status change
+   */
+  private async sendCustomerNotification(reservationId: string, status: 'confirmed' | 'completed' | 'cancelled_by_shop' | 'no_show', notes?: string, reason?: string): Promise<void> {
+    try {
+      logger.info('📨 Sending customer notification', { reservationId, status });
+
+      const supabase = getSupabaseClient();
+
+      // Get reservation with user and shop details
+      const { data: reservation } = await supabase
+        .from('reservations')
+        .select(`
+          *,
+          users:user_id (id, email, name),
+          shops:shop_id (id, name)
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (!reservation) {
+        logger.error('Reservation not found for notification', { reservationId });
+        return;
+      }
+
+      // Get services
+      const { data: reservationServices } = await supabase
+        .from('reservation_services')
+        .select(`
+          *,
+          shop_services:service_id (id, name)
+        `)
+        .eq('reservation_id', reservationId);
+
+      const services = (reservationServices || []).map(rs => ({
+        serviceName: rs.shop_services?.name || 'Unknown Service',
+        quantity: rs.quantity,
+        unitPrice: rs.unit_price,
+        totalPrice: rs.total_price
+      }));
+
+      // Map status to notification type
+      const statusMap: Record<typeof status, 'reservation_confirmed' | 'reservation_cancelled' | 'reservation_completed' | 'reservation_no_show'> = {
+        'confirmed': 'reservation_confirmed',
+        'cancelled_by_shop': 'reservation_cancelled',
+        'completed': 'reservation_completed',
+        'no_show': 'reservation_no_show'
+      };
+
+      const notificationType = statusMap[status];
+
+      // Import and use customer notification service
+      const { customerNotificationService } = await import('../services/customer-notification.service');
+
+      await customerNotificationService.notifyCustomerOfReservationUpdate({
+        customerId: reservation.user_id,
+        reservationId: reservation.id,
+        shopName: reservation.shops?.name || 'Unknown Shop',
+        reservationDate: reservation.reservation_date,
+        reservationTime: reservation.reservation_time,
+        services,
+        totalAmount: reservation.total_amount,
+        depositAmount: reservation.deposit_amount,
+        remainingAmount: reservation.remaining_amount || 0,
+        notificationType,
+        additionalData: {
+          confirmationNotes: status === 'confirmed' ? notes : undefined,
+          cancellationReason: status === 'cancelled_by_shop' ? (reason || notes) : undefined,
+          shopId: reservation.shop_id
+        }
+      });
+
+      logger.info('✅ Customer notification sent', { reservationId, status });
+    } catch (error) {
+      logger.error('❌ Failed to send customer notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId,
+        status
       });
     }
   }

@@ -1295,8 +1295,93 @@ export class AdminReservationService {
    * Send customer notification
    */
   private async sendCustomerNotification(reservationId: string, status: ReservationStatus, notes?: string): Promise<void> {
-    // This would integrate with the notification system
-    logger.info('Sending customer notification', { reservationId, status, notes });
+    try {
+      logger.info('📨 Sending customer notification for reservation', { reservationId, status, notes });
+
+      // Get reservation details with user and shop information
+      const { data: reservation } = await this.supabase
+        .from('reservations')
+        .select(`
+          *,
+          users:user_id (id, email, name),
+          shops:shop_id (id, name)
+        `)
+        .eq('id', reservationId)
+        .single();
+
+      if (!reservation) {
+        logger.error('Reservation not found for notification', { reservationId });
+        return;
+      }
+
+      // Get services for the reservation
+      const { data: reservationServices } = await this.supabase
+        .from('reservation_services')
+        .select(`
+          *,
+          shop_services:service_id (id, name)
+        `)
+        .eq('reservation_id', reservationId);
+
+      const services = (reservationServices || []).map(rs => ({
+        serviceName: rs.shop_services?.name || 'Unknown Service',
+        quantity: rs.quantity,
+        unitPrice: rs.unit_price,
+        totalPrice: rs.total_price
+      }));
+
+      // Import and use customer notification service
+      const { customerNotificationService } = await import('./customer-notification.service');
+
+      // Map status to notification type
+      let notificationType: 'reservation_confirmed' | 'reservation_cancelled' | 'reservation_completed' | 'reservation_no_show';
+
+      switch (status) {
+        case 'confirmed':
+          notificationType = 'reservation_confirmed';
+          break;
+        case 'cancelled_by_shop':
+        case 'cancelled_by_user':
+          notificationType = 'reservation_cancelled';
+          break;
+        case 'completed':
+          notificationType = 'reservation_completed';
+          break;
+        case 'no_show':
+          notificationType = 'reservation_no_show';
+          break;
+        default:
+          logger.info('No notification type mapped for status', { status });
+          return;
+      }
+
+      // Send notification
+      await customerNotificationService.notifyCustomerOfReservationUpdate({
+        customerId: reservation.user_id,
+        reservationId: reservation.id,
+        shopName: reservation.shops?.name || 'Unknown Shop',
+        reservationDate: reservation.reservation_date,
+        reservationTime: reservation.reservation_time,
+        services,
+        totalAmount: reservation.total_amount,
+        depositAmount: reservation.deposit_amount,
+        remainingAmount: reservation.remaining_amount || 0,
+        notificationType,
+        additionalData: {
+          confirmationNotes: notes || undefined,
+          shopId: reservation.shop_id
+        }
+      });
+
+      logger.info('✅ Customer notification sent successfully', { reservationId, status });
+    } catch (error) {
+      logger.error('❌ Failed to send customer notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId,
+        status
+      });
+      // Don't throw - notification failure shouldn't break status update
+    }
   }
 
   /**

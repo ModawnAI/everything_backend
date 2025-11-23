@@ -904,6 +904,21 @@ export class ShopOwnerAuthService {
   }
 
   /**
+   * Get default permissions for shop owners
+   */
+  private getShopOwnerPermissions(): string[] {
+    return [
+      'manage_shop',
+      'view_reservations',
+      'manage_reservations',
+      'view_services',
+      'manage_services',
+      'view_payments',
+      'view_analytics'
+    ];
+  }
+
+  /**
    * Get all active sessions for a shop owner
    */
   async getShopOwnerSessions(shopOwnerId: string): Promise<ShopOwnerSession[]> {

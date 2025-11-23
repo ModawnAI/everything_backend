@@ -298,6 +298,10 @@ config/database-prod.json
 config/api-keys.json
 config/secrets.json
 firebase-admin-sdk.json
+config/firebase-admin-sdk.json
+config/firebase*.json
+e-beautything-firebase-adminsdk-*.json
+*-firebase-adminsdk-*.json
 google-cloud-key.json
 aws-credentials.json
 toss-payments-key.json
@@ -344,3 +348,4 @@ dev-debug.log
 # tasks.json
 # tasks/ 
 test-shop-status-change.js
+.vercel

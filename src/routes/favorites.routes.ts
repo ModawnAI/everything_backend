@@ -29,7 +29,8 @@ const getFavoritesQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).optional(),
   offset: Joi.number().integer().min(0).optional(),
   category: Joi.string().optional(),
-  sortBy: Joi.string().valid('recent', 'name', 'bookings').optional()
+  sortBy: Joi.string().valid('recent', 'name', 'bookings').optional(),
+  includeShopData: Joi.string().valid('true', 'false').optional()
 });
 
 const bulkFavoritesBodySchema = Joi.object({
@@ -274,12 +275,12 @@ router.get('/shops/:shopId/favorite/status',
  * /api/user/favorites:
  *   get:
  *     summary: user's favorite shops 조회
- *     description: Retrieve the authenticated user's favorite shops with pagination and filtering options
- *       
+ *     description: Retrieve the authenticated user's favorite shops with pagination and filtering options. Use includeShopData=true to get full shop details in a single request for better performance.
+ *
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
+ *
  *       ---
- *       
+ *
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -295,11 +296,15 @@ router.get('/shops/:shopId/favorite/status',
  *       - in: query
  *         name: category
  *         schema: { type: 'string' }
- *         description: Filter favorites by shop category
+ *         description: Filter favorites by shop category (only works when includeShopData=true)
  *       - in: query
  *         name: sortBy
  *         schema: { type: 'string', enum: ['recent', 'name', 'bookings'], default: 'recent' }
- *         description: Sort order for favorites
+ *         description: Sort order for favorites (name and bookings only work when includeShopData=true)
+ *       - in: query
+ *         name: includeShopData
+ *         schema: { type: 'string', enum: ['true', 'false'], default: 'false' }
+ *         description: Include full shop details (name, description, images, etc.) in the response. Set to 'true' for optimized single-request fetch.
  *     responses:
  *       200:
  *         description: Favorites retrieved successfully

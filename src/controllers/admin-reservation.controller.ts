@@ -154,7 +154,7 @@ export class AdminReservationController {
   async updateReservationStatus(req: Request, res: Response): Promise<void> {
     try {
       const { id: reservationId } = req.params;
-      const { status, notes, reason, notifyCustomer, notifyShop, autoProcessPayment } = req.body;
+      const { status, notes, reason, notifyCustomer = true, notifyShop, autoProcessPayment } = req.body; // Default notifyCustomer to true
       // Get user from request (set by authenticateJWT middleware)
       const user = (req as any).user;
 

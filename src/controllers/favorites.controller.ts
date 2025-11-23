@@ -44,6 +44,7 @@ export interface GetFavoritesRequest extends AuthenticatedRequest {
     offset?: string;
     category?: string;
     sortBy?: 'recent' | 'name' | 'bookings';
+    includeShopData?: string;
   };
 }
 
@@ -197,13 +198,14 @@ export class FavoritesController {
   public getFavorites = async (req: GetFavoritesRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user.id;
-      const { limit, offset, category, sortBy } = req.query;
+      const { limit, offset, category, sortBy, includeShopData } = req.query;
 
       const options = {
         limit: limit ? parseInt(limit, 10) : undefined,
         offset: offset ? parseInt(offset, 10) : undefined,
         category,
-        sortBy: sortBy as 'recent' | 'name' | 'bookings' | undefined
+        sortBy: sortBy as 'recent' | 'name' | 'bookings' | undefined,
+        includeShopData: includeShopData === 'true'
       };
 
       const result = await favoritesService.getUserFavorites(userId, options);

@@ -243,7 +243,7 @@ export class UserPaymentMethodsController {
         return;
       }
 
-      const shouldDeleteFromPortOne = deleteFromPortOne === 'true' || deleteFromPortOne === true;
+      const shouldDeleteFromPortOne = deleteFromPortOne === 'true' || (typeof deleteFromPortOne === 'boolean' && deleteFromPortOne);
 
       await userPaymentMethodsService.deletePaymentMethod(id, userId, shouldDeleteFromPortOne);
 

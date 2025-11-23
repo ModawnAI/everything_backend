@@ -103,7 +103,7 @@ export class FeedRankingCacheService {
       const getTime = Date.now() - startTime;
       this.stats.getTimes.push(getTime);
 
-      if (cached) {
+      if (cached && typeof cached === 'string') {
         this.stats.hits++;
         logger.debug('Cache hit', { key: fullKey, getTime: `${getTime}ms` });
         return JSON.parse(cached) as T;
@@ -366,7 +366,7 @@ export class FeedRankingCacheService {
       const results = await this.redis.mGet(fullKeys);
 
       return results.map((result, index) => {
-        if (result) {
+        if (result && typeof result === 'string') {
           this.stats.hits++;
           return JSON.parse(result) as T;
         } else {

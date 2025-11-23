@@ -41,10 +41,18 @@
 				"--stdio"
 			]
 		},
-		"playwright-mcp": {	
+		"playwright-mcp": {
       "command": "npx",
       "args": [
         "@playwright/mcp@latest"
+      ]
+    },
+	"firebase": {
+      "command": "npx",
+      "args": [
+        "-y",
+        "firebase-tools@latest",
+        "mcp"
       ]
     }
 	}

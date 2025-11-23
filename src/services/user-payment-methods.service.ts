@@ -76,7 +76,7 @@ export class UserPaymentMethodsService {
       // Verify billing key with PortOne API (if API key available)
       if (this.hasApiKey && this.portoneClient) {
         try {
-          billingKeyInfo = await this.portoneClient.billingKey.getBillingKeyInfo({
+          billingKeyInfo = await (this.portoneClient as any).billingKey.getBillingKeyInfo({
             billingKey: params.billingKey,
           });
 
@@ -358,7 +358,7 @@ export class UserPaymentMethodsService {
       // Delete from PortOne if API key available and requested
       if (deleteFromPortOne && this.hasApiKey && this.portoneClient) {
         try {
-          await this.portoneClient.billingKey.deleteBillingKey({
+          await (this.portoneClient as any).billingKey.deleteBillingKey({
             billingKey: paymentMethod.billingKey,
           });
 

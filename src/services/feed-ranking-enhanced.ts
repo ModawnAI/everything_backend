@@ -167,11 +167,11 @@ export class EnhancedFeedRankingService {
    * Batch calculate analytics for multiple users (optimized)
    */
   async batchGenerateFeedScores(userIds: string[]): Promise<Map<string, FeedAnalytics>> {
-    return await feedRankingPerformanceMonitor.trackExecution(
+    const results = new Map<string, FeedAnalytics>();
+
+    await feedRankingPerformanceMonitor.trackExecution(
       `batchGenerateFeedScores:${userIds.length}`,
       async () => {
-        const results = new Map<string, FeedAnalytics>();
-
         // Try to get cached results first
         const cacheKeys = userIds.map(id => `analytics:user:${id}`);
         const cachedResults = await feedRankingCache.mget<FeedAnalytics>(cacheKeys, {
@@ -221,6 +221,8 @@ export class EnhancedFeedRankingService {
       },
       results.size === userIds.length // All cached = cache hit
     );
+
+    return results;
   }
 
   /**

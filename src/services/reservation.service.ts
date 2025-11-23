@@ -1063,19 +1063,19 @@ export class ReservationService {
 
             // Shop details
             shop: data.shops && !Array.isArray(data.shops) ? {
-              id: data.shops.id,
-              name: data.shops.name,
-              description: data.shops.description,
-              phoneNumber: data.shops.phone_number,
-              email: data.shops.email,
-              address: data.shops.address,
-              detailedAddress: data.shops.detailed_address,
-              postalCode: data.shops.postal_code,
-              latitude: data.shops.latitude,
-              longitude: data.shops.longitude,
-              mainCategory: data.shops.main_category,
-              operatingHours: data.shops.operating_hours,
-              kakaoChannelUrl: data.shops.kakao_channel_url
+              id: (data.shops as any).id,
+              name: (data.shops as any).name,
+              description: (data.shops as any).description,
+              phoneNumber: (data.shops as any).phone_number,
+              email: (data.shops as any).email,
+              address: (data.shops as any).address,
+              detailedAddress: (data.shops as any).detailed_address,
+              postalCode: (data.shops as any).postal_code,
+              latitude: (data.shops as any).latitude,
+              longitude: (data.shops as any).longitude,
+              mainCategory: (data.shops as any).main_category,
+              operatingHours: (data.shops as any).operating_hours,
+              kakaoChannelUrl: (data.shops as any).kakao_channel_url
             } : null,
 
             // Services details

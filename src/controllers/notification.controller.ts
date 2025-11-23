@@ -387,7 +387,7 @@ export default class NotificationController {
           pagination: {
             limit,
             offset,
-            total: history.length
+            total: history.totalCount
           }
         },
         timestamp: new Date().toISOString()

@@ -134,7 +134,14 @@ export class UserProfileController {
         delete transformedUpdates.marketingConsent;
       }
       if ('bookingPreferences' in updates) {
-        transformedUpdates.booking_preferences = updates.bookingPreferences;
+        // Transform nested bookingPreferences object from camelCase to snake_case
+        const prefs = updates.bookingPreferences as any;
+        transformedUpdates.booking_preferences = {
+          ...(prefs.skinType !== undefined && { skin_type: prefs.skinType }),
+          ...(prefs.allergyInfo !== undefined && { allergy_info: prefs.allergyInfo }),
+          ...(prefs.preferredStylist !== undefined && { preferred_stylist: prefs.preferredStylist }),
+          ...(prefs.specialRequests !== undefined && { special_requests: prefs.specialRequests })
+        };
         delete transformedUpdates.bookingPreferences;
       }
 

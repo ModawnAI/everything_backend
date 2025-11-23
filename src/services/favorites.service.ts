@@ -344,19 +344,21 @@ export class FavoritesService {
     offset?: number;
     category?: string;
     sortBy?: 'recent' | 'name' | 'bookings';
+    includeShopData?: boolean;
   }): Promise<UserFavoritesResponse> {
     try {
-      const { limit = 50, offset = 0, category, sortBy = 'recent' } = options || {};
+      const { limit = 50, offset = 0, category, sortBy = 'recent', includeShopData = false } = options || {};
 
       // Create cache key based on query parameters
-      const cacheKey = `list:${userId}:${limit}:${offset}:${category || 'all'}:${sortBy}`;
+      const cacheKey = `list:${userId}:${limit}:${offset}:${category || 'all'}:${sortBy}:${includeShopData}`;
 
       const result = await queryCacheService.getCachedQuery(
         cacheKey,
         async () => {
-          let query = this.supabase
-            .from('user_favorites')
-            .select(`
+          // Build select query based on includeShopData parameter
+          let selectQuery: string;
+          if (includeShopData) {
+            selectQuery = `
               id,
               shop_id,
               created_at,
@@ -377,25 +379,42 @@ export class FavoritesService {
                 created_at,
                 updated_at
               )
-            `, { count: 'exact' })
+            `;
+          } else {
+            selectQuery = `
+              id,
+              user_id,
+              shop_id,
+              created_at
+            `;
+          }
+
+          let query = this.supabase
+            .from('user_favorites')
+            .select(selectQuery, { count: 'exact' })
             .eq('user_id', userId);
 
-          // Filter by category if provided
-          if (category) {
+          // Filter by category if provided (only when includeShopData is true)
+          if (category && includeShopData) {
             query = query.eq('shops.main_category', category);
           }
 
           // Apply sorting
-          switch (sortBy) {
-            case 'recent':
-              query = query.order('created_at', { ascending: false });
-              break;
-            case 'name':
-              query = query.order('shops.name', { ascending: true });
-              break;
-            case 'bookings':
-              query = query.order('shops.total_bookings', { ascending: false });
-              break;
+          if (includeShopData) {
+            switch (sortBy) {
+              case 'recent':
+                query = query.order('created_at', { ascending: false });
+                break;
+              case 'name':
+                query = query.order('shops.name', { ascending: true });
+                break;
+              case 'bookings':
+                query = query.order('shops.total_bookings', { ascending: false });
+                break;
+            }
+          } else {
+            // When not including shop data, only recent sorting is available
+            query = query.order('created_at', { ascending: false });
           }
 
           // Apply pagination with exact count for accurate totalCount
@@ -407,11 +426,11 @@ export class FavoritesService {
             throw error;
           }
 
-          // Fetch shop images for all favorited shops
-          const shopIds = favorites?.map(fav => fav.shop_id).filter(Boolean) || [];
+          // Only fetch shop images when includeShopData is true
+          const shopIds = favorites?.map((fav: any) => fav.shop_id).filter(Boolean) || [];
           const shopImagesMap = new Map<string, any[]>();
 
-          if (shopIds.length > 0) {
+          if (includeShopData && shopIds.length > 0) {
             try {
               const { data: allShopImages, error: imagesError } = await this.supabase
                 .from('shop_images')
@@ -436,29 +455,42 @@ export class FavoritesService {
             }
           }
 
-          const formattedFavorites: FavoriteShop[] = favorites?.map(fav => ({
-            id: fav.id,
-            shopId: fav.shop_id,
-            shop: {
-              id: fav.shops?.[0]?.id,
-              name: fav.shops?.[0]?.name,
-              description: fav.shops?.[0]?.description || '',
-              address: fav.shops?.[0]?.address,
-              mainCategory: fav.shops?.[0]?.main_category,
-              shopStatus: fav.shops?.[0]?.shop_status,
-              shopType: fav.shops?.[0]?.shop_type,
-              latitude: fav.shops?.[0]?.latitude || 0,
-              longitude: fav.shops?.[0]?.longitude || 0,
-              totalBookings: fav.shops?.[0]?.total_bookings || 0,
-              isFeatured: fav.shops?.[0]?.is_featured || false,
-              featuredUntil: fav.shops?.[0]?.featured_until,
-              commissionRate: fav.shops?.[0]?.commission_rate || 0,
-              createdAt: fav.shops?.[0]?.created_at,
-              updatedAt: fav.shops?.[0]?.updated_at,
-              shopImages: shopImagesMap.get(fav.shop_id) || []
-            },
-            addedAt: fav.created_at
-          })) || [];
+          // Format response based on includeShopData flag
+          const formattedFavorites: any[] = favorites?.map((fav: any) => {
+            if (includeShopData) {
+              return {
+                id: fav.id,
+                shopId: fav.shop_id,
+                shop: {
+                  id: fav.shops?.[0]?.id,
+                  name: fav.shops?.[0]?.name,
+                  description: fav.shops?.[0]?.description || '',
+                  address: fav.shops?.[0]?.address,
+                  mainCategory: fav.shops?.[0]?.main_category,
+                  shopStatus: fav.shops?.[0]?.shop_status,
+                  shopType: fav.shops?.[0]?.shop_type,
+                  latitude: fav.shops?.[0]?.latitude || 0,
+                  longitude: fav.shops?.[0]?.longitude || 0,
+                  totalBookings: fav.shops?.[0]?.total_bookings || 0,
+                  isFeatured: fav.shops?.[0]?.is_featured || false,
+                  featuredUntil: fav.shops?.[0]?.featured_until,
+                  commissionRate: fav.shops?.[0]?.commission_rate || 0,
+                  createdAt: fav.shops?.[0]?.created_at,
+                  updatedAt: fav.shops?.[0]?.updated_at,
+                  shopImages: shopImagesMap.get(fav.shop_id) || []
+                },
+                addedAt: fav.created_at
+              };
+            } else {
+              // Minimal response - just favorite metadata
+              return {
+                id: fav.id,
+                user_id: fav.user_id,
+                shop_id: fav.shop_id,
+                created_at: fav.created_at
+              };
+            }
+          }) || [];
 
           return {
             favorites: formattedFavorites,
