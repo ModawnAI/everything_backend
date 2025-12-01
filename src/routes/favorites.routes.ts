@@ -370,6 +370,114 @@ router.get('/user/favorites',
 
 /**
  * @swagger
+ * /api/user/favorites/ids:
+ *   get:
+ *     summary: Get user's favorite shop IDs (lightweight sync)
+ *     description: Retrieve just the IDs of favorited shops for fast sync. Returns ~1KB vs ~50KB for full list.
+ *
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *
+ *       ---
+ *
+ *     tags: [Favorites]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Favorite IDs retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     favoriteIds: { type: 'array', items: { type: 'string', format: 'uuid' }, example: ["123e4567-e89b-12d3-a456-426614174000"] }
+ *                     count: { type: 'integer', example: 1 }
+ *                     timestamp: { type: 'string', format: 'date-time', example: "2025-11-23T19:00:00Z" }
+ *                 message: { type: 'string', example: 'Favorite IDs retrieved successfully' }
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/user/favorites/ids',
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 200 } }),  // Higher limit for fast sync
+  favoritesController.getFavoriteIds
+);
+
+/**
+ * @swagger
+ * /api/user/favorites/batch:
+ *   post:
+ *     summary: Batch toggle favorites (add and remove in one request)
+ *     description: Add and remove multiple favorites in a single request. Useful for offline sync.
+ *
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *
+ *       ---
+ *
+ *     tags: [Favorites]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               add:
+ *                 type: array
+ *                 items: { type: 'string', format: 'uuid' }
+ *                 description: Shop IDs to add to favorites
+ *               remove:
+ *                 type: array
+ *                 items: { type: 'string', format: 'uuid' }
+ *                 description: Shop IDs to remove from favorites
+ *           example:
+ *             add: ["123e4567-e89b-12d3-a456-426614174000"]
+ *             remove: ["456e7890-e89b-12d3-a456-426614174001"]
+ *     responses:
+ *       200:
+ *         description: Batch operation completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     added: { type: 'array', items: { type: 'string', format: 'uuid' } }
+ *                     removed: { type: 'array', items: { type: 'string', format: 'uuid' } }
+ *                     failed: { type: 'array', items: { type: 'object', properties: { shopId: { type: 'string' }, error: { type: 'string' } } } }
+ *                     favoriteIds: { type: 'array', items: { type: 'string', format: 'uuid' } }
+ *                     count: { type: 'integer', example: 5 }
+ *                 message: { type: 'string', example: 'Batch toggle completed successfully' }
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post('/user/favorites/batch',
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),  // Lower limit for batch operations
+  favoritesController.batchToggleFavorites
+);
+
+/**
+ * @swagger
  * /api/user/favorites/stats:
  *   get:
  *     summary: user's favorites statistics 조회

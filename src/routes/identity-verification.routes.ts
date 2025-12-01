@@ -110,7 +110,7 @@ const identityVerificationRateLimit = rateLimit;
  */
 router.post(
   '/prepare',
-  authenticateJWT,
+  authenticateJWT(),
   identityVerificationRateLimit(),
   identityVerificationController.prepareVerification.bind(identityVerificationController)
 );
@@ -196,7 +196,7 @@ router.post(
  */
 router.post(
   '/verify',
-  authenticateJWT,
+  authenticateJWT(),
   identityVerificationRateLimit(),
   identityVerificationController.verifyIdentity.bind(identityVerificationController)
 );
@@ -245,7 +245,7 @@ router.post(
  */
 router.get(
   '/status/:identityVerificationId',
-  authenticateJWT,
+  authenticateJWT(),
   identityVerificationController.getVerificationStatus.bind(identityVerificationController)
 );
 
@@ -297,7 +297,7 @@ router.get(
  */
 router.post(
   '/danal/bypass-params',
-  authenticateJWT,
+  authenticateJWT(),
   identityVerificationController.buildDanalBypassParams.bind(identityVerificationController)
 );
 

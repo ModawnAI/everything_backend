@@ -1277,19 +1277,30 @@ export function authenticateJWT() {
       next();
       console.log('[AUTH-DEBUG-15] next() called successfully');
     } catch (error) {
+      console.log('[AUTH-DEBUG-CATCH] Error caught:', error instanceof Error ? error.message : 'Unknown');
+      console.log('[AUTH-DEBUG-CATCH] Error type:', error instanceof AuthenticationError ? 'AuthenticationError' : error?.constructor?.name);
+
       if (error instanceof AuthenticationError) {
-        // Log authentication failure for security monitoring
-        await securityMonitoringService.logSecurityEvent({
-          event_type: 'auth_failure',
-          source_ip: req.ip || 'unknown',
-          user_agent: req.headers['user-agent'] || 'unknown',
-          endpoint: req.path,
-          severity: error.code === 'TOKEN_EXPIRED' ? 'low' : 'medium',
-          details: {
-            errorCode: error.code,
-            errorMessage: error.message,
-            deviceFingerprint: generateDeviceFingerprint(req)
-          }
+        console.log('[AUTH-DEBUG-CATCH-1] Handling AuthenticationError, statusCode:', error.statusCode, 'code:', error.code);
+
+        // Log authentication failure for security monitoring (non-blocking, fire-and-forget)
+        // Don't await to prevent blocking the response
+        setImmediate(() => {
+          securityMonitoringService.logSecurityEvent({
+            event_type: 'auth_failure',
+            source_ip: req.ip || 'unknown',
+            user_agent: req.headers['user-agent'] || 'unknown',
+            endpoint: req.path,
+            severity: error.code === 'TOKEN_EXPIRED' ? 'low' : 'medium',
+            details: {
+              errorCode: error.code,
+              errorMessage: error.message,
+              deviceFingerprint: generateDeviceFingerprint(req)
+            }
+          }).catch(err => {
+            // Silent failure for security logging
+            logger.debug('Security event logging failed (non-critical)', { error: err instanceof Error ? err.message : 'Unknown' });
+          });
         });
 
         logger.warn('Authentication failed', {
@@ -1300,6 +1311,7 @@ export function authenticateJWT() {
           deviceFingerprint: generateDeviceFingerprint(req)
         });
 
+        console.log('[AUTH-DEBUG-CATCH-2] About to send response');
         res.status(error.statusCode).json({
           success: false,
           error: {
@@ -1308,6 +1320,7 @@ export function authenticateJWT() {
             timestamp: new Date().toISOString()
           }
         });
+        console.log('[AUTH-DEBUG-CATCH-3] Response sent');
         return;
       }
 

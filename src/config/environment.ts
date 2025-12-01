@@ -41,6 +41,11 @@ const envSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.optional()
   }),
+  PORTONE_V2_IDENTITY_VERIFICATION_CHANNEL_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }),
   PORTONE_V2_API_SECRET: Joi.string().when('NODE_ENV', {
     is: 'production',
     then: Joi.required(),
@@ -182,6 +187,7 @@ export const config = {
       v2: {
         storeId: envVars.PORTONE_V2_STORE_ID as string | undefined,
         channelKey: envVars.PORTONE_V2_CHANNEL_KEY as string | undefined,
+        identityVerificationChannelKey: envVars.PORTONE_V2_IDENTITY_VERIFICATION_CHANNEL_KEY as string | undefined,
         apiSecret: envVars.PORTONE_V2_API_SECRET as string | undefined,
         webhookSecret: envVars.PORTONE_V2_WEBHOOK_SECRET as string | undefined,
         baseUrl: envVars.PORTONE_V2_BASE_URL as string,

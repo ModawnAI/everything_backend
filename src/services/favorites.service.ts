@@ -79,6 +79,23 @@ export interface BulkFavoritesRequest {
   shopIds: string[];
 }
 
+export interface FavoriteIdsResponse {
+  success: boolean;
+  favoriteIds: string[];
+  count: number;
+  message?: string;
+}
+
+export interface BatchToggleResult {
+  success: boolean;
+  added: string[];
+  removed: string[];
+  failed: Array<{ shopId: string; error: string }>;
+  favoriteIds: string[];
+  count: number;
+  message?: string;
+}
+
 export interface BulkFavoritesResponse {
   success: boolean;
   added: string[];
@@ -110,8 +127,8 @@ export class FavoritesService {
         return await this.addFavoriteFallback(userId, shopId);
       }
 
-      // Invalidate cache
-      await queryCacheService.invalidate(`favorites:${userId}:*`);
+      // Invalidate all favorites-related cache for this user (use pattern matching)
+      await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
 
       // Emit real-time update
       await this.emitFavoritesUpdate(userId, 'added', shopId, result.shop_name);
@@ -198,8 +215,8 @@ export class FavoritesService {
       };
     }
 
-    // Invalidate cache
-    await queryCacheService.invalidatePattern(`favorites:${userId}:*`);
+    // Invalidate all favorites-related cache for this user (use pattern matching)
+    await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
 
     // Emit real-time update
     await this.emitFavoritesUpdate(userId, 'added', shopId, shop.name);
@@ -257,9 +274,8 @@ export class FavoritesService {
         };
       }
 
-      // Invalidate cache
-      await queryCacheService.invalidate(`favorites:${userId}:*`);
-      await queryCacheService.invalidatePattern(`favorites:${userId}*`);
+      // Invalidate all favorites-related cache for this user (use pattern matching)
+      await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
 
       // Emit real-time update
       await this.emitFavoritesUpdate(userId, 'removed', shopId, shop?.name || 'Unknown Shop');
@@ -675,8 +691,8 @@ export class FavoritesService {
         }
       }
 
-      // Invalidate cache after bulk operation
-      await queryCacheService.invalidatePattern(`favorites:${userId}*`);
+      // Invalidate all favorites-related cache for this user (use pattern matching)
+      await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
 
       logger.info('FavoritesService.bulkUpdateFavorites: Success', {
         userId,
@@ -741,6 +757,175 @@ export class FavoritesService {
     } catch (error) {
       logger.error('FavoritesService.emitFavoritesUpdate: WebSocket error', { userId, action, shopId, error });
       // Don't throw error - WebSocket failure shouldn't break favorites functionality
+    }
+  }
+
+  /**
+   * Get lightweight list of favorite shop IDs
+   * Optimized for fast synchronization
+   */
+  async getFavoriteIds(userId: string): Promise<FavoriteIdsResponse> {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_favorites')
+        .select('shop_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        logger.error('FavoritesService.getFavoriteIds: Database error', { userId, error: error.message });
+        return {
+          success: false,
+          favoriteIds: [],
+          count: 0,
+          message: 'Failed to retrieve favorite IDs'
+        };
+      }
+
+      const favoriteIds = data?.map(f => f.shop_id) || [];
+
+      return {
+        success: true,
+        favoriteIds,
+        count: favoriteIds.length
+      };
+
+    } catch (error) {
+      logger.error('FavoritesService.getFavoriteIds: Unexpected error', { userId, error });
+      return {
+        success: false,
+        favoriteIds: [],
+        count: 0,
+        message: 'An unexpected error occurred'
+      };
+    }
+  }
+
+  /**
+   * Batch toggle multiple favorites
+   * Used for offline sync and bulk operations
+   */
+  async batchToggleFavorites(
+    userId: string,
+    add: string[],
+    remove: string[]
+  ): Promise<BatchToggleResult> {
+    const results: BatchToggleResult = {
+      success: true,
+      added: [],
+      removed: [],
+      failed: [],
+      favoriteIds: [],
+      count: 0
+    };
+
+    try {
+      // Process additions
+      for (const shopId of add || []) {
+        try {
+          // Validate shop exists and is active (with caching)
+          const shop = await queryCacheService.getCachedQuery(
+            `shop:${shopId}`,
+            async () => {
+              const { data, error } = await this.supabase
+                .from('shops')
+                .select('id, name, shop_status')
+                .eq('id', shopId)
+                .single();
+
+              if (error || !data) {
+                throw new Error('Shop not found');
+              }
+              return data;
+            },
+            { namespace: 'shop', ttl: 300 }
+          );
+
+          if (!shop || shop.shop_status !== 'active') {
+            results.failed.push({ shopId, error: 'Shop is not active' });
+            continue;
+          }
+
+          // Add to favorites (upsert to handle duplicates)
+          const { error } = await this.supabase
+            .from('user_favorites')
+            .upsert(
+              {
+                user_id: userId,
+                shop_id: shopId,
+                created_at: new Date().toISOString()
+              },
+              { onConflict: 'user_id,shop_id' }
+            );
+
+          if (error) {
+            results.failed.push({ shopId, error: error.message });
+          } else {
+            results.added.push(shopId);
+          }
+        } catch (error) {
+          results.failed.push({
+            shopId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Process removals
+      for (const shopId of remove || []) {
+        try {
+          const { error } = await this.supabase
+            .from('user_favorites')
+            .delete()
+            .eq('user_id', userId)
+            .eq('shop_id', shopId);
+
+          if (error) {
+            results.failed.push({ shopId, error: error.message });
+          } else {
+            results.removed.push(shopId);
+          }
+        } catch (error) {
+          results.failed.push({
+            shopId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Get updated favorites list
+      const { data: updatedFavorites } = await this.supabase
+        .from('user_favorites')
+        .select('shop_id')
+        .eq('user_id', userId);
+
+      results.favoriteIds = updatedFavorites?.map(f => f.shop_id) || [];
+      results.count = results.favoriteIds.length;
+
+      logger.info('FavoritesService.batchToggleFavorites: Completed', {
+        userId,
+        added: results.added.length,
+        removed: results.removed.length,
+        failed: results.failed.length,
+        totalFavorites: results.count
+      });
+
+      return results;
+
+    } catch (error) {
+      logger.error('FavoritesService.batchToggleFavorites: Unexpected error', { userId, error });
+      return {
+        success: false,
+        added: [],
+        removed: [],
+        failed: [...(add || []), ...(remove || [])].map(shopId => ({
+          shopId,
+          error: 'An unexpected error occurred'
+        })),
+        favoriteIds: [],
+        count: 0,
+        message: 'An unexpected error occurred'
+      };
     }
   }
 }

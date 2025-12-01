@@ -158,16 +158,35 @@ export class FavoritesController {
     try {
       const { shopId } = req.params;
       const userId = req.user.id;
+      const startTime = Date.now();
 
       if (!shopId) {
         throw new ValidationError('Shop ID is required');
       }
+
+      logger.info(`[FAVORITE-DEBUG] 🔄 Toggle favorite started`, {
+        userId,
+        shopId,
+        timestamp: new Date().toISOString()
+      });
 
       const result = await favoritesService.toggleFavorite(userId, shopId);
 
       if (!result.success) {
         throw new BusinessLogicError(result.message);
       }
+
+      const duration = Date.now() - startTime;
+
+      logger.info(`[FAVORITE-DEBUG] ✅ Toggle favorite completed`, {
+        userId,
+        shopId,
+        action: result.isFavorite ? 'ADD' : 'REMOVE',
+        isFavorite: result.isFavorite,
+        favoriteId: result.favoriteId,
+        duration: `${duration}ms`,
+        timestamp: new Date().toISOString()
+      });
 
       res.status(200).json({
         success: true,
@@ -398,6 +417,96 @@ export class FavoritesController {
         error: error instanceof Error ? error.message : 'Unknown error',
         userId: req.user?.id,
         shopId: req.params.shopId,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+      next(error);
+    }
+  };
+
+  /**
+   * GET /api/user/favorites/ids
+   * Get lightweight list of favorite shop IDs for fast sync
+   */
+  public getFavoriteIds = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user.id;
+
+      const result = await favoritesService.getFavoriteIds(userId);
+
+      if (!result.success) {
+        throw new BusinessLogicError(result.message || 'Failed to retrieve favorite IDs');
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          favoriteIds: result.favoriteIds,
+          count: result.count,
+          timestamp: new Date().toISOString()
+        },
+        message: 'Favorite IDs retrieved successfully'
+      });
+
+    } catch (error) {
+      logger.error('FavoritesController.getFavoriteIds error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/user/favorites/batch
+   * Batch toggle multiple favorites (for offline sync)
+   */
+  public batchToggleFavorites = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user.id;
+      const { add = [], remove = [] } = req.body;
+
+      // Validate input
+      if (!Array.isArray(add) || !Array.isArray(remove)) {
+        throw new ValidationError('add and remove must be arrays');
+      }
+
+      if (add.length === 0 && remove.length === 0) {
+        throw new ValidationError('At least one shop ID must be provided in add or remove');
+      }
+
+      // Validate max batch size
+      const maxBatchSize = 50;
+      if (add.length + remove.length > maxBatchSize) {
+        throw new ValidationError(`Batch size cannot exceed ${maxBatchSize} operations`);
+      }
+
+      const result = await favoritesService.batchToggleFavorites(userId, add, remove);
+
+      if (!result.success) {
+        throw new BusinessLogicError(result.message || 'Failed to batch toggle favorites');
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          added: result.added,
+          removed: result.removed,
+          failed: result.failed,
+          favoriteIds: result.favoriteIds,
+          count: result.count
+        },
+        message: 'Batch toggle completed successfully'
+      });
+
+    } catch (error) {
+      logger.error('FavoritesController.batchToggleFavorites error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id,
+        addCount: req.body.add?.length || 0,
+        removeCount: req.body.remove?.length || 0,
         userAgent: req.get('User-Agent'),
         ip: req.ip
       });
