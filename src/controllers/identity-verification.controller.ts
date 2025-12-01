@@ -68,6 +68,7 @@ export class IdentityVerificationController {
   async verifyIdentity(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
       const { identityVerificationId } = req.body;
+      const userId = (req as any).user?.id;
 
       // Validate required fields
       if (!identityVerificationId) {
@@ -82,11 +83,12 @@ export class IdentityVerificationController {
       }
 
       logger.info('Verifying identity', {
-        identityVerificationId
+        identityVerificationId,
+        userId
       });
 
-      // Verify identity
-      const result = await portoneIdentityVerificationService.verifyIdentity(identityVerificationId);
+      // Verify identity (pass userId for user verification update)
+      const result = await portoneIdentityVerificationService.verifyIdentity(identityVerificationId, userId);
 
       if (!result.success) {
         res.status(400).json({

@@ -148,20 +148,28 @@ class PortOneIdentityVerificationService {
    * Verify identity verification result from PortOne
    * Called after frontend completes verification
    */
-  async verifyIdentity(identityVerificationId: string): Promise<PortOneIdentityVerificationResult> {
+  async verifyIdentity(identityVerificationId: string, userId?: string): Promise<PortOneIdentityVerificationResult> {
     try {
       logger.info('Verifying identity verification', {
-        identityVerificationId
+        identityVerificationId,
+        userId
       });
 
-      // Get verification record from database
-      const record = await this.getVerificationRecord(identityVerificationId);
+      // Get verification record from database (may not exist if prepare wasn't called)
+      let record = await this.getVerificationRecord(identityVerificationId);
+
+      // If record doesn't exist, create one now (for SDK-only flow where prepare wasn't called)
       if (!record) {
-        throw new PortOneIdentityVerificationError(
-          '본인인증 요청을 찾을 수 없습니다.',
-          'VERIFICATION_NOT_FOUND',
-          404
-        );
+        logger.info('No verification record found, creating one for SDK-only flow', {
+          identityVerificationId
+        });
+
+        await this.storeVerificationRecord({
+          identityVerificationId,
+          userId
+        });
+
+        record = await this.getVerificationRecord(identityVerificationId);
       }
 
       // Call PortOne API to get verification result
@@ -231,10 +239,11 @@ class PortOneIdentityVerificationService {
         isForeigner: verifiedCustomer.isForeigner
       });
 
-      // If userId exists, update user phone verification
-      if (record.user_id && verifiedCustomer.phoneNumber) {
+      // If userId exists (from record or passed in), update user phone verification
+      const effectiveUserId = record?.user_id || userId;
+      if (effectiveUserId && verifiedCustomer.phoneNumber) {
         await this.markUserPhoneAsVerified(
-          record.user_id,
+          effectiveUserId,
           verifiedCustomer.phoneNumber,
           verifiedCustomer.ci,
           verifiedCustomer.di
@@ -243,7 +252,7 @@ class PortOneIdentityVerificationService {
 
       logger.info('Identity verification completed successfully', {
         identityVerificationId,
-        userId: record.user_id,
+        userId: effectiveUserId,
         name: verifiedCustomer.name
       });
 
