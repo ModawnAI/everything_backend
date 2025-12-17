@@ -336,27 +336,24 @@ class PortOneIdentityVerificationService {
     phoneNumber?: string;
     customData?: string;
   }): Promise<void> {
-    const normalizedPhone = data.phoneNumber?.replace(/[-.\s]/g, '');
-
     const record = {
-      id: crypto.randomUUID(),
+      verification_id: data.identityVerificationId,
+      store_id: this.storeId,
+      channel_key: this.channelKey,
       user_id: data.userId || null,
-      phone_number: normalizedPhone || '',
-      verification_method: 'portone' as const,
-      status: 'pending' as const,
-      portone_identity_verification_id: data.identityVerificationId,
-      portone_provider: 'danal', // Default to Danal, can be updated
-      metadata: data.customData ? JSON.parse(data.customData) : null,
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      expires_at: new Date(Date.now() + 30 * 60 * 1000).toISOString() // 30 minutes
+      status: 'READY',
+      custom_data: data.customData ? JSON.parse(data.customData) : null,
+      pg_provider: 'danal',
+      requested_at: new Date().toISOString(),
+      metadata: {}
     };
 
     const { error } = await this.supabase
-      .from('phone_verifications')
+      .from('identity_verifications')
       .insert(record);
 
     if (error) {
+      logger.error('Failed to store verification record', { error: error.message, identityVerificationId: data.identityVerificationId });
       throw new PortOneIdentityVerificationError(
         '본인인증 기록 저장에 실패했습니다.',
         'DATABASE_ERROR',
@@ -370,9 +367,9 @@ class PortOneIdentityVerificationService {
    */
   private async getVerificationRecord(identityVerificationId: string): Promise<any> {
     const { data, error } = await this.supabase
-      .from('phone_verifications')
+      .from('identity_verifications')
       .select('*')
-      .eq('portone_identity_verification_id', identityVerificationId)
+      .eq('verification_id', identityVerificationId)
       .single();
 
     if (error || !data) {
@@ -387,12 +384,13 @@ class PortOneIdentityVerificationService {
    */
   private async updateVerificationStatus(identityVerificationId: string, status: string): Promise<void> {
     const { error } = await this.supabase
-      .from('phone_verifications')
+      .from('identity_verifications')
       .update({
-        status: status.toLowerCase(),
+        status: status,
+        status_changed_at: new Date().toISOString(),
         updated_at: new Date().toISOString()
       })
-      .eq('portone_identity_verification_id', identityVerificationId);
+      .eq('verification_id', identityVerificationId);
 
     if (error) {
       logger.error('Failed to update verification status', {
@@ -420,26 +418,33 @@ class PortOneIdentityVerificationService {
       isForeigner: boolean;
     }
   ): Promise<void> {
+    // Store verified customer info as JSONB
+    const verifiedCustomer = {
+      ci: result.ci,
+      di: result.di || null,
+      name: result.name,
+      gender: result.gender || null,
+      birthDate: result.birthDate,
+      phoneNumber: result.phoneNumber?.replace(/[-.\s]/g, '') || null,
+      operator: result.operator || null,
+      isForeigner: result.isForeigner
+    };
+
     const updateData = {
-      status: result.status.toLowerCase(),
-      portone_ci: result.ci,
-      portone_di: result.di || null,
-      portone_verified_name: result.name,
-      portone_birth_date: result.birthDate,
-      portone_gender: result.gender || null,
-      portone_carrier: result.operator || null,
-      portone_nationality: result.isForeigner ? 'foreign' : 'domestic',
-      phone_number: result.phoneNumber?.replace(/[-.\s]/g, '') || '',
+      status: result.status,
+      verified_customer: verifiedCustomer,
       verified_at: new Date().toISOString(),
+      status_changed_at: new Date().toISOString(),
       updated_at: new Date().toISOString()
     };
 
     const { error } = await this.supabase
-      .from('phone_verifications')
+      .from('identity_verifications')
       .update(updateData)
-      .eq('portone_identity_verification_id', identityVerificationId);
+      .eq('verification_id', identityVerificationId);
 
     if (error) {
+      logger.error('Failed to update verification result', { error: error.message, identityVerificationId });
       throw new PortOneIdentityVerificationError(
         '본인인증 결과 업데이트에 실패했습니다.',
         'DATABASE_ERROR',
@@ -511,16 +516,17 @@ class PortOneIdentityVerificationService {
   }
 
   /**
-   * Cleanup expired verification records
+   * Cleanup expired verification records (older than 30 minutes in READY status)
    */
   async cleanupExpiredVerifications(): Promise<number> {
     try {
+      const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+
       const { data, error } = await this.supabase
-        .from('phone_verifications')
-        .update({ status: 'expired' })
-        .eq('verification_method', 'portone')
-        .lt('expires_at', new Date().toISOString())
-        .eq('status', 'pending')
+        .from('identity_verifications')
+        .update({ status: 'FAILED', updated_at: new Date().toISOString() })
+        .eq('status', 'READY')
+        .lt('requested_at', thirtyMinutesAgo)
         .select('id');
 
       if (error) {
