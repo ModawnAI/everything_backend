@@ -2005,6 +2005,215 @@ export class ShopOwnerController {
       throw error;
     }
   }
+
+  /**
+   * GET /api/shop-owner/settlement-schedule
+   * Get settlement schedule for shop owner
+   *
+   * Returns upcoming settlement dates and expected amounts
+   */
+  async getSettlementSchedule(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Get user's shops
+      const { data: shops, error: shopsError } = await this.supabase
+        .from('shops')
+        .select('id, name')
+        .eq('owner_id', userId)
+        .eq('shop_status', 'active');
+
+      if (shopsError || !shops || shops.length === 0) {
+        res.status(404).json({
+          error: {
+            code: 'NO_SHOPS_FOUND',
+            message: '활성화된 샵이 없습니다.',
+            details: '샵을 등록하거나 활성화해주세요.'
+          }
+        });
+        return;
+      }
+
+      const shopIds = shops.map(shop => shop.id);
+
+      // Get recent paid payments for settlement calculation
+      // Settlement is calculated for payments in the last 30 days
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+      const { data: payments, error: paymentsError } = await this.supabase
+        .from('payments')
+        .select(`
+          id,
+          amount,
+          payment_status,
+          payment_method,
+          paid_at,
+          created_at,
+          reservations!inner(
+            id,
+            shop_id,
+            reservation_date,
+            total_amount,
+            shops!inner(id, name)
+          )
+        `)
+        .in('reservations.shop_id', shopIds)
+        .in('payment_status', ['fully_paid', 'deposit_paid'])
+        .gte('paid_at', thirtyDaysAgo.toISOString());
+
+      if (paymentsError) {
+        logger.error('Failed to get payments for settlement schedule', {
+          error: paymentsError.message,
+          userId
+        });
+        res.status(500).json({
+          error: {
+            code: 'SETTLEMENT_FETCH_FAILED',
+            message: '정산 일정 조회에 실패했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Settlement typically happens T+3 business days from payment
+      // For simplicity, we'll use T+3 calendar days
+      const SETTLEMENT_DELAY_DAYS = 3;
+
+      // Calculate expected settlement dates and group payments
+      const settlementMap = new Map<string, {
+        date: string;
+        totalAmount: number;
+        paymentCount: number;
+        payments: Array<{
+          id: string;
+          amount: number;
+          paidAt: string;
+          shopName: string;
+          reservationDate: string;
+        }>;
+      }>();
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      payments?.forEach(payment => {
+        const paidAt = payment.paid_at || payment.created_at;
+        const paidDate = new Date(paidAt);
+
+        // Calculate expected settlement date (T+3)
+        const settlementDate = new Date(paidDate);
+        settlementDate.setDate(settlementDate.getDate() + SETTLEMENT_DELAY_DAYS);
+        settlementDate.setHours(0, 0, 0, 0);
+
+        // Only include future or today's settlements
+        if (settlementDate >= today) {
+          const dateKey = settlementDate.toISOString().split('T')[0];
+          const existing = settlementMap.get(dateKey) || {
+            date: dateKey,
+            totalAmount: 0,
+            paymentCount: 0,
+            payments: []
+          };
+
+          existing.totalAmount += payment.amount;
+          existing.paymentCount++;
+          existing.payments.push({
+            id: payment.id,
+            amount: payment.amount,
+            paidAt: paidAt,
+            shopName: (payment.reservations as any)?.shops?.name || '알 수 없음',
+            reservationDate: (payment.reservations as any)?.reservation_date || ''
+          });
+
+          settlementMap.set(dateKey, existing);
+        }
+      });
+
+      // Convert to array and sort by date
+      const settlementSchedule = Array.from(settlementMap.values())
+        .sort((a, b) => a.date.localeCompare(b.date));
+
+      // Calculate summary statistics
+      const totalPendingAmount = settlementSchedule.reduce((sum, s) => sum + s.totalAmount, 0);
+      const totalPendingPayments = settlementSchedule.reduce((sum, s) => sum + s.paymentCount, 0);
+
+      // Get next settlement date
+      const nextSettlement = settlementSchedule.length > 0 ? settlementSchedule[0] : null;
+
+      // Get this week's expected settlements
+      const weekFromNow = new Date(today);
+      weekFromNow.setDate(weekFromNow.getDate() + 7);
+      const thisWeekSettlements = settlementSchedule.filter(s =>
+        new Date(s.date) <= weekFromNow
+      );
+      const thisWeekAmount = thisWeekSettlements.reduce((sum, s) => sum + s.totalAmount, 0);
+
+      logger.info('Settlement schedule retrieved', {
+        userId,
+        totalPendingAmount,
+        totalPendingPayments,
+        scheduleCount: settlementSchedule.length
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          summary: {
+            totalPendingAmount,
+            totalPendingPayments,
+            thisWeekAmount,
+            nextSettlementDate: nextSettlement?.date || null,
+            nextSettlementAmount: nextSettlement?.totalAmount || 0,
+            settlementDelayDays: SETTLEMENT_DELAY_DAYS
+          },
+          schedule: settlementSchedule.map(s => ({
+            date: s.date,
+            totalAmount: s.totalAmount,
+            paymentCount: s.paymentCount,
+            // Only include payment details for the first 5 per date
+            payments: s.payments.slice(0, 5).map(p => ({
+              id: p.id,
+              amount: p.amount,
+              paidAt: p.paidAt,
+              shopName: p.shopName,
+              reservationDate: p.reservationDate
+            })),
+            hasMore: s.payments.length > 5
+          })),
+          shops: shops.map(shop => ({
+            id: shop.id,
+            name: shop.name
+          }))
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error in getSettlementSchedule', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '정산 일정 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
 }
 
 export const shopOwnerController = new ShopOwnerController(); 

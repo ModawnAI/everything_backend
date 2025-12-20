@@ -5,7 +5,7 @@
  * supporting Kakao, Apple, and Google OAuth providers
  */
 
-export type SocialProvider = 'kakao' | 'apple' | 'google' | 'supabase';
+export type SocialProvider = 'kakao' | 'apple' | 'google' | 'naver' | 'supabase';
 
 /**
  * Social login request payload

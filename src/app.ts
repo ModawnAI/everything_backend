@@ -97,6 +97,8 @@ import shopCategoriesRoutes from './routes/shop-categories.routes';
 import serviceCatalogRoutes from './routes/service-catalog.routes';
 import feedRoutes from './routes/feed.routes';
 import userFeedRoutes from './routes/user-feed.routes';
+import reviewRoutes from './routes/review.routes';
+import feedTemplateRoutes from './routes/feed-template.routes';
 import csrfRoutes from './routes/csrf.routes';
 import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
@@ -104,6 +106,7 @@ import adminTicketRoutes from './routes/admin-ticket.routes';
 import adminPointPolicyRoutes from './routes/admin-point-policy.routes';
 import adminAnnouncementRoutes from './routes/admin-announcement.routes';
 import adminPushNotificationRoutes from './routes/admin-push-notification.routes';
+import adminBlindRequestRoutes from './routes/admin-blind-request.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import { testDashboardRoutes } from './routes/test-dashboard.routes';
 import shopReservationsRoutes from './routes/shop-reservations.routes';
@@ -111,6 +114,15 @@ import shopUsersRoutes from './routes/shop-users.routes';
 import shopPaymentsRoutes from './routes/shop-payments.routes';
 import shopAnalyticsRoutes from './routes/shop-analytics.routes';
 import unifiedAuthRoutes from './routes/unified-auth.routes';
+import homeRoutes from './routes/home.routes';
+import adminEditorPicksRoutes from './routes/admin-editor-picks.routes';
+import popupRoutes from './routes/popup.routes';
+import adminPopupRoutes from './routes/admin-popup.routes';
+import shopEntryRequestRoutes from './routes/shop-entry-request.routes';
+import adminShopEntryRequestRoutes from './routes/admin-shop-entry-request.routes';
+import adminShopNotificationRoutes from './routes/admin-shop-notification.routes';
+import shopOwnerNotificationRoutes from './routes/shop-owner-notification.routes';
+import shopStaffRoutes, { staffAssignmentRouter } from './routes/shop-staff.routes';
 
 // Import services
 import { initializeWebSocketService } from './services/websocket.service';
@@ -443,6 +455,24 @@ app.use('/api/admin', adminModerationRoutes);
 app.use('/api/admin/points', adminPointPolicyRoutes);
 app.use('/api/admin/announcements', adminAnnouncementRoutes);
 app.use('/api/admin/push', adminPushNotificationRoutes);
+app.use('/api/admin/editor-picks', adminEditorPicksRoutes);
+app.use('/api/admin/popups', adminPopupRoutes);
+app.use('/api/admin/shop-entry-requests', adminShopEntryRequestRoutes);
+app.use('/api/admin/blind-requests', adminBlindRequestRoutes);
+app.use('/api/admin/shop-notifications', adminShopNotificationRoutes);
+
+// IMPORTANT: Specific /api routes MUST come BEFORE catch-all /api routes
+// that have router.use(authenticateJWT()) to prevent unintended auth blocking
+app.use('/api/home', homeRoutes);
+app.use('/api/popups', popupRoutes);
+app.use('/api/shop-entry-requests', shopEntryRequestRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/feed', feedRoutes);
+app.use('/api/user/feed', userFeedRoutes);
+app.use('/api/shop-owner/feed-templates', feedTemplateRoutes);
+app.use('/api/shop-owner/notifications', shopOwnerNotificationRoutes);
+app.use('/api/shop-owner/staff', shopStaffRoutes);
+app.use('/api/shop-owner/reservations', staffAssignmentRouter);
 
 // General /api routes (order matters less since paths are unique)
 app.use('/api', favoritesRoutes);
@@ -488,8 +518,6 @@ app.use('/api/admin/automation', automaticStateProgressionRoutes);
 // Solution: Mount advanced settings on dedicated path /api/user/settings instead
 app.use('/api/user/settings', userSettingsRoutes);
 app.use('/api/user/payment-methods', userPaymentMethodsRoutes);
-app.use('/api/feed', feedRoutes);
-app.use('/api/user/feed', userFeedRoutes);
 app.use('/api/csrf', csrfRoutes);
 // Catch-all /api/shop routes LAST (after all specific /api/shop/* routes above)
 app.use('/api/shop', shopContactMethodsRoutes);

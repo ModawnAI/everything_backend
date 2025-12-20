@@ -8,6 +8,7 @@ export interface PointBalance {
   availableBalance: number;      // Points currently available for use
   pendingBalance: number;        // Points waiting for 7-day period
   expiredBalance: number;        // Points that have expired
+  todayEarned: number;           // Points earned today (for home widget)
   lastCalculatedAt: string;      // Timestamp of calculation
 }
 
@@ -31,6 +32,7 @@ export interface PointHistoryResponse {
     expiresAt?: string;
     createdAt: string;
     metadata?: Record<string, any>;
+    referrerNickname?: string;  // Friend nickname for referral rewards
   }>;
   totalCount: number;
   hasMore: boolean;
@@ -83,11 +85,13 @@ export class PointBalanceService {
       }
 
       const now = new Date();
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       let totalEarned = 0;
       let totalUsed = 0;
       let availableBalance = 0;
       let pendingBalance = 0;
       let expiredBalance = 0;
+      let todayEarned = 0;
 
       (transactions || []).forEach(transaction => {
         const amount = transaction.amount || 0;
@@ -95,10 +99,16 @@ export class PointBalanceService {
         const status = transaction.status;
         const availableFrom = transaction.available_from ? new Date(transaction.available_from) : null;
         const expiresAt = transaction.expires_at ? new Date(transaction.expires_at) : null;
+        const createdAt = transaction.created_at ? new Date(transaction.created_at) : null;
 
         // Calculate totalEarned: Sum of ALL positive amounts
         if (amount > 0 && ['earned_service', 'earned_referral', 'influencer_bonus', 'adjusted'].includes(transactionType)) {
           totalEarned += amount;
+
+          // Calculate todayEarned: Points earned today
+          if (createdAt && createdAt >= todayStart) {
+            todayEarned += amount;
+          }
         }
 
         // Calculate totalUsed: Sum of ALL negative amounts (stored as absolute values)
@@ -133,6 +143,7 @@ export class PointBalanceService {
         availableBalance,
         pendingBalance,
         expiredBalance,
+        todayEarned,
         lastCalculatedAt: new Date().toISOString()
       };
 
@@ -214,7 +225,8 @@ export class PointBalanceService {
         availableFrom: t.available_from,
         expiresAt: t.expires_at,
         createdAt: t.created_at,
-        metadata: t.metadata
+        metadata: t.metadata,
+        referrerNickname: t.referrer_nickname  // Friend nickname for referral rewards
       }));
 
       const totalPages = Math.ceil((count || 0) / limit);

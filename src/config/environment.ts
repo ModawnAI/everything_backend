@@ -71,7 +71,12 @@ const envSchema = Joi.object({
   // Google OAuth
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   GOOGLE_CLIENT_SECRET: Joi.string().optional(),
-  
+
+  // Naver OAuth
+  NAVER_CLIENT_ID: Joi.string().optional(),
+  NAVER_CLIENT_SECRET: Joi.string().optional(),
+  NAVER_CALLBACK_URL: Joi.string().uri().optional(),
+
   // Supabase Auth specific
   SUPABASE_AUTH_REDIRECT_URL: Joi.string().uri().optional(),
   SUPABASE_AUTH_SITE_URL: Joi.string().uri().optional(),
@@ -215,6 +220,11 @@ export const config = {
     google: {
       clientId: envVars.GOOGLE_CLIENT_ID as string,
       clientSecret: envVars.GOOGLE_CLIENT_SECRET as string,
+    },
+    naver: {
+      clientId: envVars.NAVER_CLIENT_ID as string,
+      clientSecret: envVars.NAVER_CLIENT_SECRET as string,
+      callbackUrl: envVars.NAVER_CALLBACK_URL as string,
     },
     supabase: {
       redirectUrl: envVars.SUPABASE_AUTH_REDIRECT_URL as string,

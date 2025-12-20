@@ -303,4 +303,406 @@ export class ShopUsersController {
       });
     }
   }
+
+  /**
+   * Get new customers for a shop within a date range
+   * New customers = customers whose first reservation at this shop falls within the date range
+   */
+  async getNewCustomers(
+    req: ShopAccessRequest & { query: { startDate?: string; endDate?: string } },
+    res: Response
+  ): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const { startDate, endDate } = req.query;
+
+      if (!startDate || !endDate) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PARAMETERS',
+            message: 'startDate와 endDate가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      logger.info('📋 [SHOP-USERS] Getting new customers', {
+        shopId,
+        startDate,
+        endDate
+      });
+
+      const supabase = getSupabaseClient();
+
+      // Get reservations in the period
+      const { data: periodReservations, error: periodError } = await supabase
+        .from('reservations')
+        .select(`
+          user_id,
+          created_at,
+          total_amount,
+          users!inner (
+            id,
+            email,
+            name,
+            phone_number,
+            profile_image_url
+          )
+        `)
+        .eq('shop_id', shopId)
+        .gte('created_at', `${startDate}T00:00:00`)
+        .lte('created_at', `${endDate}T23:59:59`)
+        .order('created_at', { ascending: true });
+
+      if (periodError) {
+        logger.error('❌ [SHOP-USERS] Failed to fetch period reservations', {
+          error: periodError.message,
+          shopId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: '신규 고객 조회 중 오류가 발생했습니다.',
+            details: periodError.message
+          }
+        });
+        return;
+      }
+
+      // Get all reservations before the period to identify truly new customers
+      const { data: historicalReservations, error: historicalError } = await supabase
+        .from('reservations')
+        .select('user_id')
+        .eq('shop_id', shopId)
+        .lt('created_at', `${startDate}T00:00:00`);
+
+      if (historicalError) {
+        logger.error('❌ [SHOP-USERS] Failed to fetch historical reservations', {
+          error: historicalError.message,
+          shopId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: '신규 고객 조회 중 오류가 발생했습니다.',
+            details: historicalError.message
+          }
+        });
+        return;
+      }
+
+      // Build set of existing customers
+      const existingCustomers = new Set((historicalReservations || []).map(r => r.user_id));
+
+      // Find new customers (first appearance in period)
+      const newCustomerMap = new Map<string, {
+        id: string;
+        email: string;
+        name: string;
+        phone_number: string | null;
+        profile_image_url: string | null;
+        first_visit: string;
+        total_reservations: number;
+        total_spent: number;
+      }>();
+
+      (periodReservations || []).forEach((reservation: any) => {
+        const user = reservation.users;
+        if (!user) return;
+
+        const userId = user.id;
+
+        // Skip if customer existed before the period
+        if (existingCustomers.has(userId)) return;
+
+        if (newCustomerMap.has(userId)) {
+          // Update existing new customer stats
+          const existing = newCustomerMap.get(userId)!;
+          existing.total_reservations += 1;
+          existing.total_spent += reservation.total_amount || 0;
+        } else {
+          // Add as new customer
+          newCustomerMap.set(userId, {
+            id: user.id,
+            email: user.email,
+            name: user.name || 'Unknown',
+            phone_number: user.phone_number,
+            profile_image_url: user.profile_image_url,
+            first_visit: reservation.created_at,
+            total_reservations: 1,
+            total_spent: reservation.total_amount || 0
+          });
+        }
+      });
+
+      const newCustomers = Array.from(newCustomerMap.values());
+
+      logger.info('✅ [SHOP-USERS] New customers retrieved successfully', {
+        shopId,
+        count: newCustomers.length,
+        startDate,
+        endDate
+      });
+
+      res.json({
+        success: true,
+        data: {
+          count: newCustomers.length,
+          customers: newCustomers,
+          periodStart: startDate,
+          periodEnd: endDate
+        }
+      });
+    } catch (error) {
+      logger.error('💥 [SHOP-USERS] Unexpected error in getNewCustomers', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        shopId: req.params.shopId
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '신규 고객 조회 중 예상치 못한 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get memo for a specific customer at a shop
+   */
+  async getCustomerMemo(
+    req: ShopAccessRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { shopId, customerId } = req.params;
+
+      logger.info('📝 [SHOP-USERS] Getting customer memo', {
+        shopId,
+        customerId
+      });
+
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from('customer_memos')
+        .select('id, memo, created_at, updated_at')
+        .eq('shop_id', shopId)
+        .eq('customer_user_id', customerId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') {
+        // PGRST116 = no rows found (not an error for us)
+        logger.error('❌ [SHOP-USERS] Failed to fetch customer memo', {
+          error: error.message,
+          shopId,
+          customerId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: '메모 조회 중 오류가 발생했습니다.',
+            details: error.message
+          }
+        });
+        return;
+      }
+
+      logger.info('✅ [SHOP-USERS] Customer memo retrieved', {
+        shopId,
+        customerId,
+        hasMemo: !!data
+      });
+
+      res.json({
+        success: true,
+        data: {
+          memo: data?.memo || null,
+          updated_at: data?.updated_at || null
+        }
+      });
+    } catch (error) {
+      logger.error('💥 [SHOP-USERS] Unexpected error in getCustomerMemo', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        shopId: req.params.shopId,
+        customerId: req.params.customerId
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '메모 조회 중 예상치 못한 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Save (create or update) memo for a specific customer at a shop
+   */
+  async saveCustomerMemo(
+    req: ShopAccessRequest & { body: { memo: string } },
+    res: Response
+  ): Promise<void> {
+    try {
+      const { shopId, customerId } = req.params;
+      const { memo } = req.body;
+      const userId = (req as any).user?.id; // Shop owner user ID
+
+      if (memo === undefined || memo === null) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PARAMETERS',
+            message: '메모 내용이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      logger.info('💾 [SHOP-USERS] Saving customer memo', {
+        shopId,
+        customerId,
+        memoLength: memo.length
+      });
+
+      const supabase = getSupabaseClient();
+
+      // Use upsert to create or update
+      const { error } = await supabase
+        .from('customer_memos')
+        .upsert({
+          shop_id: shopId,
+          customer_user_id: customerId,
+          memo: memo.trim(),
+          created_by: userId,
+          updated_at: new Date().toISOString()
+        }, {
+          onConflict: 'shop_id,customer_user_id'
+        });
+
+      if (error) {
+        logger.error('❌ [SHOP-USERS] Failed to save customer memo', {
+          error: error.message,
+          shopId,
+          customerId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: '메모 저장 중 오류가 발생했습니다.',
+            details: error.message
+          }
+        });
+        return;
+      }
+
+      logger.info('✅ [SHOP-USERS] Customer memo saved successfully', {
+        shopId,
+        customerId
+      });
+
+      res.json({
+        success: true,
+        message: '메모가 저장되었습니다.'
+      });
+    } catch (error) {
+      logger.error('💥 [SHOP-USERS] Unexpected error in saveCustomerMemo', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        shopId: req.params.shopId,
+        customerId: req.params.customerId
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '메모 저장 중 예상치 못한 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Delete memo for a specific customer at a shop
+   */
+  async deleteCustomerMemo(
+    req: ShopAccessRequest,
+    res: Response
+  ): Promise<void> {
+    try {
+      const { shopId, customerId } = req.params;
+
+      logger.info('🗑️ [SHOP-USERS] Deleting customer memo', {
+        shopId,
+        customerId
+      });
+
+      const supabase = getSupabaseClient();
+
+      const { error } = await supabase
+        .from('customer_memos')
+        .delete()
+        .eq('shop_id', shopId)
+        .eq('customer_user_id', customerId);
+
+      if (error) {
+        logger.error('❌ [SHOP-USERS] Failed to delete customer memo', {
+          error: error.message,
+          shopId,
+          customerId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'DATABASE_ERROR',
+            message: '메모 삭제 중 오류가 발생했습니다.',
+            details: error.message
+          }
+        });
+        return;
+      }
+
+      logger.info('✅ [SHOP-USERS] Customer memo deleted successfully', {
+        shopId,
+        customerId
+      });
+
+      res.json({
+        success: true,
+        message: '메모가 삭제되었습니다.'
+      });
+    } catch (error) {
+      logger.error('💥 [SHOP-USERS] Unexpected error in deleteCustomerMemo', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        shopId: req.params.shopId,
+        customerId: req.params.customerId
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '메모 삭제 중 예상치 못한 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
 }

@@ -854,6 +854,243 @@ export class FeedController {
       res.status(500).json({ error: 'Internal server error' });
     }
   }
+
+  // =============================================================================
+  // SAVED FEEDS ENDPOINTS
+  // =============================================================================
+
+  /**
+   * Save/bookmark a post
+   * POST /api/feed/posts/:postId/save
+   */
+  async savePost(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { postId } = req.params;
+      if (!postId) {
+        res.status(400).json({ success: false, error: 'Post ID is required' });
+        return;
+      }
+
+      const result = await feedService.savePost(userId, postId);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: '저장되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('Error saving post', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id,
+        postId: req.params.postId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Unsave/unbookmark a post
+   * DELETE /api/feed/posts/:postId/save
+   */
+  async unsavePost(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { postId } = req.params;
+      if (!postId) {
+        res.status(400).json({ success: false, error: 'Post ID is required' });
+        return;
+      }
+
+      const result = await feedService.unsavePost(userId, postId);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: '저장이 취소되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('Error unsaving post', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id,
+        postId: req.params.postId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Get user's saved posts
+   * GET /api/feed/saved
+   */
+  async getSavedPosts(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      const result = await feedService.getSavedPosts(userId, { limit, offset });
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          posts: result.posts,
+          pagination: result.pagination
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error getting saved posts', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  // =============================================================================
+  // USER FEED PROFILE ENDPOINTS
+  // =============================================================================
+
+  /**
+   * Get user feed profile
+   * GET /api/feed/users/:userId/profile
+   */
+  async getUserFeedProfile(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      if (!userId) {
+        res.status(400).json({ success: false, error: 'User ID is required' });
+        return;
+      }
+
+      const viewerId = (req as any).user?.id;
+      const postLimit = parseInt(req.query.postLimit as string) || 50;
+
+      const result = await feedService.getUserFeedProfile(userId, viewerId, { postLimit });
+
+      if (!result.success) {
+        res.status(404).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: result.profile
+      });
+
+    } catch (error) {
+      logger.error('Error getting user feed profile', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        targetUserId: req.params.userId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Update user bio
+   * PUT /api/feed/users/bio
+   */
+  async updateUserBio(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { bio } = req.body;
+      if (bio === undefined) {
+        res.status(400).json({ success: false, error: 'Bio is required' });
+        return;
+      }
+
+      const result = await feedService.updateUserBio(userId, bio);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: 'Bio updated successfully'
+      });
+
+    } catch (error) {
+      logger.error('Error updating user bio', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Check if post is saved by current user
+   * GET /api/feed/posts/:postId/saved-status
+   */
+  async getPostSavedStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { postId } = req.params;
+      if (!postId) {
+        res.status(400).json({ success: false, error: 'Post ID is required' });
+        return;
+      }
+
+      const isSaved = await feedService.isPostSaved(userId, postId);
+
+      res.json({
+        success: true,
+        data: { isSaved }
+      });
+
+    } catch (error) {
+      logger.error('Error checking post saved status', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id,
+        postId: req.params.postId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
 }
 
 export default new FeedController();

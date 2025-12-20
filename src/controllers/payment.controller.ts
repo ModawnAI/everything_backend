@@ -1166,7 +1166,7 @@ export class PaymentController {
       const { page = 1, limit = 10, status } = req.query;
       const offset = (Number(page) - 1) * Number(limit);
 
-      // Build query
+      // Build query - include points_used and points_earned from reservations
       let query = this.supabase
         .from('payments')
         .select(`
@@ -1178,9 +1178,11 @@ export class PaymentController {
             total_amount,
             deposit_amount,
             status,
+            points_used,
+            points_earned,
             shops!inner(name, address)
           )
-        `)
+        `, { count: 'exact' })
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .range(offset, offset + Number(limit) - 1);
@@ -1218,6 +1220,8 @@ export class PaymentController {
               totalAmount: payment.reservations.total_amount,
               depositAmount: payment.reservations.deposit_amount,
               status: payment.reservations.status,
+              pointsUsed: payment.reservations.points_used || 0,
+              pointsEarned: payment.reservations.points_earned || 0,
               shop: {
                 name: payment.reservations.shops.name,
                 address: payment.reservations.shops.address

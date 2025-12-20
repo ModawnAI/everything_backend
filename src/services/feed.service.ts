@@ -1373,6 +1373,399 @@ export class FeedService {
       return { success: false, error: 'Internal server error' };
     }
   }
+
+  // =============================================================================
+  // SAVED FEEDS FUNCTIONALITY
+  // =============================================================================
+
+  /**
+   * Save/bookmark a feed post
+   */
+  async savePost(userId: string, postId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Check if post exists
+      const { data: post, error: postError } = await this.supabase
+        .from('feed_posts')
+        .select('id')
+        .eq('id', postId)
+        .eq('status', 'active')
+        .single();
+
+      if (postError || !post) {
+        return { success: false, error: 'Post not found' };
+      }
+
+      // Insert into saved_feeds (unique constraint will prevent duplicates)
+      const { error: saveError } = await this.supabase
+        .from('saved_feeds')
+        .insert({
+          user_id: userId,
+          post_id: postId,
+          created_at: new Date().toISOString()
+        });
+
+      // Ignore duplicate error (23505 = unique_violation)
+      if (saveError && saveError.code !== '23505') {
+        logger.error('Error saving post', { error: saveError });
+        return { success: false, error: 'Failed to save post' };
+      }
+
+      logger.info('Post saved successfully', { userId, postId });
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Error in savePost', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Unsave/unbookmark a feed post
+   */
+  async unsavePost(userId: string, postId: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      const { error: deleteError } = await this.supabase
+        .from('saved_feeds')
+        .delete()
+        .eq('user_id', userId)
+        .eq('post_id', postId);
+
+      if (deleteError) {
+        logger.error('Error unsaving post', { error: deleteError });
+        return { success: false, error: 'Failed to unsave post' };
+      }
+
+      logger.info('Post unsaved successfully', { userId, postId });
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Error in unsavePost', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Get user's saved/bookmarked posts
+   */
+  async getSavedPosts(
+    userId: string,
+    options: { limit?: number; offset?: number } = {}
+  ): Promise<{
+    success: boolean;
+    posts?: FeedPost[];
+    total?: number;
+    pagination?: { limit: number; offset: number; total: number; hasMore: boolean };
+    error?: string
+  }> {
+    try {
+      const limit = Math.min(options.limit || 20, 50);
+      const offset = options.offset || 0;
+
+      // Get saved post IDs with count
+      const { data: savedFeeds, error: savedError, count } = await this.supabase
+        .from('saved_feeds')
+        .select('post_id, created_at', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (savedError) {
+        logger.error('Error fetching saved feeds', { error: savedError });
+        return { success: false, error: 'Failed to fetch saved posts' };
+      }
+
+      if (!savedFeeds || savedFeeds.length === 0) {
+        return {
+          success: true,
+          posts: [],
+          total: 0,
+          pagination: { limit, offset, total: 0, hasMore: false }
+        };
+      }
+
+      const postIds = savedFeeds.map(sf => sf.post_id);
+
+      // Fetch the actual posts with all details
+      const { data: posts, error: postsError } = await this.supabase
+        .from('feed_posts')
+        .select(`
+          id,
+          author_id,
+          content,
+          category,
+          location_tag,
+          tagged_shop_id,
+          hashtags,
+          status,
+          like_count,
+          comment_count,
+          view_count,
+          report_count,
+          is_featured,
+          created_at,
+          updated_at,
+          source_type,
+          source_id,
+          author:users!feed_posts_author_id_fkey (
+            id,
+            name,
+            nickname,
+            profile_image_url,
+            is_influencer
+          ),
+          images:post_images (
+            id,
+            image_url,
+            alt_text,
+            display_order
+          ),
+          tagged_shop:shops!feed_posts_tagged_shop_id_fkey (
+            id,
+            name,
+            main_category
+          )
+        `)
+        .in('id', postIds)
+        .eq('status', 'active');
+
+      if (postsError) {
+        logger.error('Error fetching saved posts details', { error: postsError });
+        return { success: false, error: 'Failed to fetch saved posts' };
+      }
+
+      // Sort posts by saved order and add saved marker
+      const postMap = new Map(posts?.map(p => [p.id, p]) || []);
+      const orderedPosts = savedFeeds
+        .map(sf => {
+          const post = postMap.get(sf.post_id);
+          if (post) {
+            return {
+              ...post,
+              is_saved: true,
+              saved_at: sf.created_at
+            };
+          }
+          return null;
+        })
+        .filter(Boolean) as unknown as FeedPost[];
+
+      // Add like status for current user
+      const postsWithLikes = await this.addUserSpecificData(orderedPosts, userId);
+
+      // Mark all as saved
+      const finalPosts = postsWithLikes.map(p => ({ ...p, is_saved: true }));
+
+      return {
+        success: true,
+        posts: finalPosts,
+        total: count || 0,
+        pagination: {
+          limit,
+          offset,
+          total: count || 0,
+          hasMore: (offset + limit) < (count || 0)
+        }
+      };
+
+    } catch (error) {
+      logger.error('Error in getSavedPosts', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Check if a post is saved by the user
+   */
+  async isPostSaved(userId: string, postId: string): Promise<boolean> {
+    try {
+      const { data, error } = await this.supabase
+        .from('saved_feeds')
+        .select('id')
+        .eq('user_id', userId)
+        .eq('post_id', postId)
+        .maybeSingle();
+
+      if (error) {
+        logger.error('Error checking if post is saved', { error });
+        return false;
+      }
+
+      return !!data;
+
+    } catch (error) {
+      logger.error('Error in isPostSaved', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return false;
+    }
+  }
+
+  /**
+   * Add saved status to posts for a user
+   */
+  async addSavedStatus(posts: FeedPost[], userId: string): Promise<FeedPost[]> {
+    try {
+      if (posts.length === 0) return posts;
+
+      const postIds = posts.map(p => p.id);
+
+      const { data: savedFeeds } = await this.supabase
+        .from('saved_feeds')
+        .select('post_id')
+        .eq('user_id', userId)
+        .in('post_id', postIds);
+
+      const savedPostIds = new Set(savedFeeds?.map(sf => sf.post_id) || []);
+
+      return posts.map(post => ({
+        ...post,
+        is_saved: savedPostIds.has(post.id)
+      }));
+
+    } catch (error) {
+      logger.error('Error adding saved status', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return posts;
+    }
+  }
+
+  // =============================================================================
+  // USER FEED PROFILE
+  // =============================================================================
+
+  /**
+   * Get user's feed profile with their posts
+   */
+  async getUserFeedProfile(
+    userId: string,
+    viewerId?: string,
+    options: { postLimit?: number } = {}
+  ): Promise<{
+    success: boolean;
+    profile?: {
+      id: string;
+      nickname: string;
+      profile_image_url: string | null;
+      bio: string | null;
+      post_count: number;
+      posts: FeedPost[];
+    };
+    error?: string;
+  }> {
+    try {
+      const postLimit = Math.min(options.postLimit || 50, 100);
+
+      // Get user info
+      const { data: user, error: userError } = await this.supabase
+        .from('users')
+        .select('id, name, nickname, profile_image_url, bio')
+        .eq('id', userId)
+        .single();
+
+      if (userError || !user) {
+        return { success: false, error: 'User not found' };
+      }
+
+      // Get user's posts with count
+      const { data: posts, error: postsError, count } = await this.supabase
+        .from('feed_posts')
+        .select(`
+          id,
+          author_id,
+          content,
+          category,
+          location_tag,
+          tagged_shop_id,
+          hashtags,
+          status,
+          like_count,
+          comment_count,
+          view_count,
+          report_count,
+          is_featured,
+          created_at,
+          updated_at,
+          source_type,
+          source_id,
+          images:post_images (
+            id,
+            image_url,
+            alt_text,
+            display_order
+          )
+        `, { count: 'exact' })
+        .eq('author_id', userId)
+        .eq('status', 'active')
+        .order('created_at', { ascending: false })
+        .limit(postLimit);
+
+      if (postsError) {
+        logger.error('Error fetching user posts', { error: postsError });
+        return { success: false, error: 'Failed to fetch user posts' };
+      }
+
+      // Add user data as author to each post
+      const postsWithAuthor = (posts || []).map(post => ({
+        ...post,
+        author: {
+          id: user.id,
+          name: user.name,
+          nickname: user.nickname,
+          profile_image_url: user.profile_image_url,
+          is_influencer: false // Will be updated if needed
+        }
+      }));
+
+      // If viewer is logged in, add like and saved status
+      let finalPosts = postsWithAuthor as FeedPost[];
+      if (viewerId) {
+        finalPosts = await this.addUserSpecificData(finalPosts, viewerId);
+        finalPosts = await this.addSavedStatus(finalPosts, viewerId);
+      }
+
+      return {
+        success: true,
+        profile: {
+          id: user.id,
+          nickname: user.nickname || user.name,
+          profile_image_url: user.profile_image_url,
+          bio: user.bio,
+          post_count: count || 0,
+          posts: finalPosts
+        }
+      };
+
+    } catch (error) {
+      logger.error('Error in getUserFeedProfile', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
+  }
+
+  /**
+   * Update user bio
+   */
+  async updateUserBio(userId: string, bio: string): Promise<{ success: boolean; error?: string }> {
+    try {
+      // Validate bio length (max 500 characters)
+      if (bio && bio.length > 500) {
+        return { success: false, error: 'Bio must be 500 characters or less' };
+      }
+
+      const { error: updateError } = await this.supabase
+        .from('users')
+        .update({ bio, updated_at: new Date().toISOString() })
+        .eq('id', userId);
+
+      if (updateError) {
+        logger.error('Error updating user bio', { error: updateError });
+        return { success: false, error: 'Failed to update bio' };
+      }
+
+      logger.info('User bio updated successfully', { userId });
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Error in updateUserBio', { error: error instanceof Error ? error.message : 'Unknown error' });
+      return { success: false, error: 'Internal server error' };
+    }
+  }
 }
 
 export const feedService = new FeedService();

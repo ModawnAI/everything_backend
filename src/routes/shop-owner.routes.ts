@@ -14,6 +14,8 @@ import { ShopUsersController } from '../controllers/shop-users.controller';
 import { ShopPaymentsController } from '../controllers/shop-payments.controller';
 import { ShopController } from '../controllers/shop.controller';
 import { ShopOperatingHoursController } from '../controllers/shop-operating-hours.controller';
+import { shopOwnerReviewController } from '../controllers/shop-owner-review.controller';
+import { shopTagsController } from '../controllers/shop-tags.controller';
 
 // Initialize controller instances for customers and payments
 const shopUsersController = new ShopUsersController();
@@ -957,6 +959,156 @@ router.get('/customers/stats',
 );
 
 /**
+ * GET /api/shop-owner/customers/new
+ * Get new customers for the shop within a date range
+ *
+ * Query Parameters:
+ * - startDate: Start date (YYYY-MM-DD)
+ * - endDate: End date (YYYY-MM-DD)
+ *
+ * Returns:
+ * - Count of new customers
+ * - List of new customers with details
+ * - Period information
+ */
+router.get('/customers/new',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      const shopId = (req as any).shop?.id;
+
+      // Set shopId in params for controller to access
+      (req as any).params = { ...(req as any).params, shopId };
+
+      await shopUsersController.getNewCustomers(req as any, res);
+    } catch (error) {
+      logger.error('Error in new customers route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '신규 고객 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/customers/:customerId/memo
+ * Get memo for a specific customer
+ *
+ * Returns:
+ * - Customer memo content
+ * - Last updated timestamp
+ */
+router.get('/customers/:customerId/memo',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      const shopId = (req as any).shop?.id;
+
+      // Set shopId in params for controller to access
+      (req as any).params = { ...(req as any).params, shopId };
+
+      await shopUsersController.getCustomerMemo(req as any, res);
+    } catch (error) {
+      logger.error('Error in get customer memo route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        customerId: req.params.customerId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '고객 메모 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/shop-owner/customers/:customerId/memo
+ * Save (create or update) memo for a specific customer
+ *
+ * Body:
+ * - memo: string - The memo content
+ *
+ * Returns:
+ * - Success message
+ */
+router.put('/customers/:customerId/memo',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      const shopId = (req as any).shop?.id;
+
+      // Set shopId in params for controller to access
+      (req as any).params = { ...(req as any).params, shopId };
+
+      await shopUsersController.saveCustomerMemo(req as any, res);
+    } catch (error) {
+      logger.error('Error in save customer memo route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        customerId: req.params.customerId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '고객 메모 저장 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * DELETE /api/shop-owner/customers/:customerId/memo
+ * Delete memo for a specific customer
+ *
+ * Returns:
+ * - Success message
+ */
+router.delete('/customers/:customerId/memo',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      const shopId = (req as any).shop?.id;
+
+      // Set shopId in params for controller to access
+      (req as any).params = { ...(req as any).params, shopId };
+
+      await shopUsersController.deleteCustomerMemo(req as any, res);
+    } catch (error) {
+      logger.error('Error in delete customer memo route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        customerId: req.params.customerId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '고객 메모 삭제 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
  * GET /api/shop-owner/payments
  * Get payment records for shop owner's shop
  *
@@ -993,6 +1145,381 @@ router.get('/payments',
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '결제 내역 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/settlement-schedule
+ * Get settlement schedule for shop owner
+ *
+ * Returns:
+ * - Summary with total pending amount, this week's settlements
+ * - Schedule with dates, amounts, and payment details
+ */
+router.get(
+  '/settlement-schedule',
+  shopOwnerRateLimit,
+  requireShopOwnerWithShop,
+  async (req: any, res: any) => {
+    try {
+      await shopOwnerController.getSettlementSchedule(req, res);
+    } catch (error) {
+      logger.error('Error in settlement schedule route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '정산 일정 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+// ============================================
+// Review Management Routes
+// ============================================
+
+/**
+ * GET /api/shop-owner/reviews
+ * Get shop reviews with replies and blind request status
+ *
+ * Query Parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20)
+ * - status: Filter by status ('all', 'replied', 'unreplied', 'blinded')
+ * - sortBy: Sort order ('newest', 'oldest', 'rating_high', 'rating_low')
+ *
+ * Returns:
+ * - List of reviews with replies and blind request info
+ * - Pagination information
+ */
+router.get('/reviews',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerReviewController.getReviews(req as any, res);
+    } catch (error) {
+      logger.error('Error in reviews route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '리뷰 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/reviews/stats
+ * Get review statistics for the shop
+ *
+ * Returns:
+ * - Total reviews count
+ * - Average rating
+ * - Replied/unreplied counts
+ * - Blinded count
+ * - Pending blind requests count
+ */
+router.get('/reviews/stats',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerReviewController.getStats(req as any, res);
+    } catch (error) {
+      logger.error('Error in review stats route', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '리뷰 통계 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/shop-owner/reviews/:reviewId/reply
+ * Create a reply to a review
+ *
+ * Request Body:
+ * - replyText: Reply content (required, max 1000 chars)
+ *
+ * Returns:
+ * - Created reply object
+ */
+router.post('/reviews/:reviewId/reply',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerReviewController.createReply(req as any, res);
+    } catch (error) {
+      logger.error('Error in create reply route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reviewId: req.params.reviewId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '답글 등록 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/shop-owner/reviews/:reviewId/reply
+ * Update an existing reply
+ *
+ * Request Body:
+ * - replyId: Reply ID to update (required)
+ * - replyText: Updated reply content (required, max 1000 chars)
+ *
+ * Returns:
+ * - Updated reply object
+ */
+router.put('/reviews/:reviewId/reply',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerReviewController.updateReply(req as any, res);
+    } catch (error) {
+      logger.error('Error in update reply route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reviewId: req.params.reviewId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '답글 수정 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * DELETE /api/shop-owner/reviews/:reviewId/reply
+ * Delete a reply
+ *
+ * Request Body:
+ * - replyId: Reply ID to delete (required)
+ *
+ * Returns:
+ * - Success message
+ */
+router.delete('/reviews/:reviewId/reply',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerReviewController.deleteReply(req as any, res);
+    } catch (error) {
+      logger.error('Error in delete reply route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reviewId: req.params.reviewId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '답글 삭제 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * POST /api/shop-owner/reviews/:reviewId/blind-request
+ * Request blind processing for a malicious review
+ *
+ * Request Body:
+ * - reason: Detailed reason for blind request (required)
+ * - reasonCategory: Category ('profanity', 'false_info', 'personal_attack', 'spam', 'other')
+ * - evidenceUrls: Array of evidence URLs (optional)
+ *
+ * Returns:
+ * - Created blind request object
+ */
+router.post('/reviews/:reviewId/blind-request',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  async (req, res) => {
+    try {
+      await shopOwnerReviewController.requestBlind(req as any, res);
+    } catch (error) {
+      logger.error('Error in blind request route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reviewId: req.params.reviewId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '블라인드 요청 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+// ============================================
+// Shop Tags Management Routes
+// ============================================
+
+/**
+ * GET /api/shop-owner/settings/tags
+ * Get shop tags for the authenticated shop owner
+ *
+ * Returns:
+ * - List of tags with display order
+ * - Tag count
+ */
+router.get('/settings/tags',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopTagsController.getTags(req as any, res);
+    } catch (error) {
+      logger.error('Error in get tags route', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '태그 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * PUT /api/shop-owner/settings/tags
+ * Update shop tags (replace all)
+ *
+ * Request Body:
+ * - tags: Array of tag strings (max 10 tags, 20 chars each)
+ *
+ * Returns:
+ * - Updated list of tags
+ * - Tag count
+ */
+router.put('/settings/tags',
+  ...requireShopOwnerWithShop(),
+  sensitiveRateLimit,
+  async (req, res) => {
+    try {
+      await shopTagsController.updateTags(req as any, res);
+    } catch (error) {
+      logger.error('Error in update tags route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        body: req.body
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '태그 저장 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/settings/tags/popular
+ * Get popular tags for autocomplete
+ *
+ * Query Parameters:
+ * - limit: Number of tags to return (default: 20, max: 50)
+ *
+ * Returns:
+ * - List of popular tags with usage count
+ */
+router.get('/settings/tags/popular',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopTagsController.getPopularTags(req as any, res);
+    } catch (error) {
+      logger.error('Error in popular tags route', {
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '인기 태그 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * GET /api/shop-owner/settings/tags/search
+ * Search tags for autocomplete
+ *
+ * Query Parameters:
+ * - q: Search query string
+ * - limit: Number of results (default: 10, max: 20)
+ *
+ * Returns:
+ * - List of matching tags
+ */
+router.get('/settings/tags/search',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      await shopTagsController.searchTags(req as any, res);
+    } catch (error) {
+      logger.error('Error in search tags route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '태그 검색 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });

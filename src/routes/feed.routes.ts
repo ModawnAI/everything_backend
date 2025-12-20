@@ -2301,4 +2301,217 @@ router.put('/weights',
   updatePersonalizedWeights
 );
 
+// =============================================================================
+// SAVED FEEDS ENDPOINTS
+// =============================================================================
+
+/**
+ * @swagger
+ * /api/feed/posts/{postId}/save:
+ *   post:
+ *     summary: Save/bookmark a post
+ *     description: Save a feed post to the user's bookmarks
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The post ID to save
+ *     responses:
+ *       200:
+ *         description: Post saved successfully
+ *       400:
+ *         description: Invalid request or post not found
+ *       401:
+ *         description: Authentication required
+ */
+router.post('/posts/:postId/save',
+  authenticateJWT,
+  interactionLimiter,
+  async (req, res) => {
+    await feedController.savePost(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/posts/{postId}/save:
+ *   delete:
+ *     summary: Unsave/unbookmark a post
+ *     description: Remove a feed post from the user's bookmarks
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The post ID to unsave
+ *     responses:
+ *       200:
+ *         description: Post unsaved successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Authentication required
+ */
+router.delete('/posts/:postId/save',
+  authenticateJWT,
+  interactionLimiter,
+  async (req, res) => {
+    await feedController.unsavePost(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/saved:
+ *   get:
+ *     summary: Get saved/bookmarked posts
+ *     description: Get all posts saved by the current user
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 50
+ *         description: Number of posts to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset for pagination
+ *     responses:
+ *       200:
+ *         description: Saved posts retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/saved',
+  authenticateJWT,
+  generalFeedLimiter,
+  async (req, res) => {
+    await feedController.getSavedPosts(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/posts/{postId}/saved-status:
+ *   get:
+ *     summary: Check if post is saved
+ *     description: Check if a post is saved/bookmarked by the current user
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Saved status returned
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/posts/:postId/saved-status',
+  authenticateJWT,
+  generalFeedLimiter,
+  async (req, res) => {
+    await feedController.getPostSavedStatus(req, res);
+  }
+);
+
+// =============================================================================
+// USER FEED PROFILE ENDPOINTS
+// =============================================================================
+
+/**
+ * @swagger
+ * /api/feed/users/{userId}/profile:
+ *   get:
+ *     summary: Get user feed profile
+ *     description: Get a user's feed profile including bio and their posts
+ *     tags: [Social Feed]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The user ID
+ *       - in: query
+ *         name: postLimit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *           maximum: 100
+ *         description: Number of posts to return
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *       404:
+ *         description: User not found
+ */
+router.get('/users/:userId/profile',
+  generalFeedLimiter,
+  async (req, res) => {
+    await feedController.getUserFeedProfile(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/users/bio:
+ *   put:
+ *     summary: Update user bio
+ *     description: Update the current user's biography for their feed profile
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - bio
+ *             properties:
+ *               bio:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Bio updated successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Authentication required
+ */
+router.put('/users/bio',
+  authenticateJWT,
+  interactionLimiter,
+  async (req, res) => {
+    await feedController.updateUserBio(req, res);
+  }
+);
+
 export default router;

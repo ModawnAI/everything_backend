@@ -167,6 +167,7 @@ export interface User {
   phone_verified: boolean;
   name: string;
   nickname?: string;
+  bio?: string; // User biography/description for feed profile
   gender?: UserGender;
   birth_date?: string; // Date string
   profile_image_url?: string;
@@ -867,12 +868,17 @@ export interface FeedPost {
   hidden_at?: string; // Timestamp
   created_at: string; // Timestamp
   updated_at: string; // Timestamp
-  
+
+  // Source fields for auto-posted content (e.g., from reviews)
+  source_type?: string | null; // 'review', 'promotion', etc.
+  source_id?: string | null; // Reference to source (e.g., review_id)
+
   // Computed/joined fields (not stored in DB)
   author?: Pick<User, 'id' | 'name' | 'nickname' | 'profile_image_url' | 'is_influencer'>;
   images?: PostImage[];
   is_liked_by_user?: boolean; // For current user context
   user_like_id?: string; // For current user context
+  is_saved_by_user?: boolean; // For current user context - saved/bookmarked
 }
 
 /**
@@ -1649,4 +1655,90 @@ export type CardBrand =
 /**
  * Payment Method Type for user_payment_methods table
  */
-export type UserPaymentMethodType = 'CARD' | 'MOBILE' | 'EASY_PAY'; 
+export type UserPaymentMethodType = 'CARD' | 'MOBILE' | 'EASY_PAY';
+
+// =============================================================================
+// FEED ENHANCEMENTS - Saved Feeds, Templates, and User Profiles
+// =============================================================================
+
+/**
+ * Template Category Type
+ * Categories for shop owner feed post templates
+ */
+export type TemplateCategory = 'event' | 'promotion' | 'daily' | 'announcement';
+
+/**
+ * Saved Feed Interface
+ * Represents a user's saved/bookmarked feed post
+ */
+export interface SavedFeed {
+  id: string; // UUID
+  user_id: string; // References users(id)
+  post_id: string; // References feed_posts(id)
+  created_at: string; // Timestamp when saved
+}
+
+/**
+ * Feed Template Interface
+ * Represents a reusable post template for shop owners
+ */
+export interface FeedTemplate {
+  id: string; // UUID
+  shop_id: string; // References shops(id)
+  name: string; // Template name (max 100 chars)
+  content: string; // Template content
+  category: TemplateCategory | null; // event, promotion, daily, announcement
+  is_default: boolean; // Whether this is the default template
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+}
+
+/**
+ * User Feed Profile Interface
+ * Represents a user's public profile for the feed feature
+ */
+export interface UserFeedProfile {
+  id: string; // User ID
+  nickname: string;
+  profile_image_url: string | null;
+  bio: string | null; // User biography/description
+  post_count: number; // Total number of posts
+  posts: FeedPost[]; // User's feed posts
+}
+
+/**
+ * Saved Feed with Post Details
+ * Extended saved feed with joined post data
+ */
+export interface SavedFeedWithPost extends SavedFeed {
+  post: FeedPost & {
+    author?: Pick<User, 'id' | 'nickname' | 'profile_image_url'>;
+    images?: PostImage[];
+  };
+  is_saved: boolean; // Always true for saved feeds
+}
+
+/**
+ * Feed Post Source Type
+ * Indicates the source of auto-posted feed content
+ */
+export type FeedPostSourceType = 'review' | 'promotion' | 'announcement' | null;
+
+/**
+ * Create Feed Template Request
+ */
+export interface CreateFeedTemplateRequest {
+  name: string;
+  content: string;
+  category?: TemplateCategory;
+}
+
+/**
+ * Update Feed Template Request
+ */
+export interface UpdateFeedTemplateRequest {
+  name?: string;
+  content?: string;
+  category?: TemplateCategory;
+  is_default?: boolean;
+} 

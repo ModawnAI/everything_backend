@@ -4108,6 +4108,83 @@ export class NotificationService {
       return { success: false, error: 'Failed to send admin alert' };
     }
   }
+
+  /**
+   * Send referral point earned notification (Item 19)
+   * Notifies user when their friend makes a payment and they earn referral points
+   *
+   * @param userId - The user who earned the referral points (referrer)
+   * @param friendNickname - The nickname of the friend who made the payment
+   * @param pointsEarned - The amount of points earned
+   */
+  async sendReferralPointNotification(
+    userId: string,
+    friendNickname: string,
+    pointsEarned: number
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      logger.info('Sending referral point notification', {
+        userId,
+        friendNickname,
+        pointsEarned
+      });
+
+      const payload: NotificationPayload = {
+        title: '🎉 친구 덕분에 용돈 받았어요!',
+        body: `${friendNickname}님 덕분에 ${pointsEarned.toLocaleString()}P가 적립되었습니다.`,
+        data: {
+          type: 'referral_point_earned',
+          points: pointsEarned.toString(),
+          friendNickname,
+          clickAction: '/points'
+        }
+      };
+
+      // Send push notification
+      await this.sendNotificationToUser(userId, payload);
+
+      // Also save to notifications table for in-app display
+      const { error } = await this.supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: payload.title,
+          message: payload.body,
+          type: 'point',
+          data: {
+            type: 'referral_point_earned',
+            points: pointsEarned,
+            friendNickname
+          },
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        logger.warn('Failed to save referral notification to database', {
+          error: error.message,
+          userId
+        });
+      }
+
+      logger.info('Referral point notification sent successfully', {
+        userId,
+        friendNickname,
+        pointsEarned
+      });
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Failed to send referral point notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        friendNickname,
+        pointsEarned
+      });
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
+    }
+  }
 }
 
 // Export singleton instance
