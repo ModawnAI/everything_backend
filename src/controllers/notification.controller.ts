@@ -387,7 +387,7 @@ export default class NotificationController {
           pagination: {
             limit,
             offset,
-            total: history.length
+            total: history.totalCount
           }
         },
         timestamp: new Date().toISOString()
@@ -440,6 +440,359 @@ export default class NotificationController {
         error: {
           code: 'INTERNAL_ERROR',
           message: '디바이스 토큰 조회 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  // ===== USER NOTIFICATION INBOX ENDPOINTS =====
+
+  /**
+   * Get single notification by ID
+   */
+  async getNotification(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { notificationId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      const { data: notification, error } = await supabase
+        .from('notifications')
+        .select('*')
+        .eq('id', notificationId)
+        .eq('user_id', userId)
+        .neq('status', 'deleted')
+        .single();
+
+      if (error || !notification) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'NOTIFICATION_NOT_FOUND',
+            message: '알림을 찾을 수 없습니다.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: '알림을 조회했습니다.',
+        data: notification,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Failed to get notification', { error, userId: req.user?.id, notificationId: req.params.notificationId });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '알림 조회 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get unread notification count
+   */
+  async getUnreadCount(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      const { count, error } = await supabase
+        .from('notifications')
+        .select('*', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .eq('status', 'unread');
+
+      if (error) {
+        throw error;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: '읽지 않은 알림 수를 조회했습니다.',
+        data: { count: count || 0 },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Failed to get unread count', { error, userId: req.user?.id });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '읽지 않은 알림 수 조회 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Mark single notification as read
+   */
+  async markAsRead(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { notificationId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({
+          status: 'read',
+          read_at: new Date().toISOString()
+        })
+        .eq('id', notificationId)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'UPDATE_FAILED',
+            message: '알림 읽음 처리에 실패했습니다.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: '알림을 읽음으로 표시했습니다.',
+        data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Failed to mark notification as read', { error, userId: req.user?.id, notificationId: req.params.notificationId });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '알림 읽음 처리 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Mark all notifications as read
+   */
+  async markAllAsRead(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({
+          status: 'read',
+          read_at: new Date().toISOString()
+        })
+        .eq('user_id', userId)
+        .eq('status', 'unread')
+        .select();
+
+      if (error) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'UPDATE_FAILED',
+            message: '모든 알림 읽음 처리에 실패했습니다.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `${data.length}개의 알림을 읽음으로 표시했습니다.`,
+        data: {
+          updatedCount: data.length
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Failed to mark all notifications as read', { error, userId: req.user?.id });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '모든 알림 읽음 처리 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Delete single notification (soft delete)
+   */
+  async deleteNotification(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const { notificationId } = req.params;
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      // Soft delete - update status to 'deleted'
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({ status: 'deleted' })
+        .eq('id', notificationId)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'DELETE_FAILED',
+            message: '알림 삭제에 실패했습니다.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: '알림이 삭제되었습니다.',
+        data,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Failed to delete notification', { error, userId: req.user?.id, notificationId: req.params.notificationId });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '알림 삭제 중 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Delete all read notifications (soft delete)
+   */
+  async deleteAllRead(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from('notifications')
+        .update({ status: 'deleted' })
+        .eq('user_id', userId)
+        .eq('status', 'read')
+        .select();
+
+      if (error) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'DELETE_FAILED',
+            message: '읽은 알림 삭제에 실패했습니다.'
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        message: `${data.length}개의 읽은 알림이 삭제되었습니다.`,
+        data: {
+          deletedCount: data.length
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      logger.error('Failed to delete all read notifications', { error, userId: req.user?.id });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_ERROR',
+          message: '읽은 알림 삭제 중 오류가 발생했습니다.'
         }
       });
     }

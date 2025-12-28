@@ -343,7 +343,7 @@ class SupabaseSocialAuthService implements SocialAuthService {
         id: supabaseUser.id,
         email: supabaseUser.email,
         ...profileData,
-        user_role: 'user',
+        user_role: 'user',  // Database ENUM value - converted to 'customer' by unified auth layer
         user_status: 'active',
         is_influencer: false,
         phone_verified: false

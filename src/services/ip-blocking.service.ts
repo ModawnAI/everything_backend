@@ -301,20 +301,31 @@ export class IPBlockingService {
    */
   async isIPBlocked(ip: string): Promise<IPBlockInfo | null> {
     try {
+      // Skip IP blocking in development mode or if disabled
+      if (process.env.NODE_ENV === 'development' || process.env.DISABLE_IP_BLOCKING === 'true') {
+        return null;
+      }
+
+      // Whitelist localhost and local IPs
+      const localIPs = ['127.0.0.1', '::1', 'localhost'];
+      if (localIPs.includes(ip)) {
+        return null;
+      }
+
       const blockKey = `${this.BLOCK_KEY_PREFIX}${ip}`;
       const blockData = await this.store.get(blockKey);
       const blockInfo = blockData ? (blockData as any).blockInfo as IPBlockInfo : null;
-      
+
       if (!blockInfo) return null;
-      
+
       // Check if block has expired
       if (new Date() > blockInfo.blockedUntil) {
         await this.unblockIP(ip, 'system', 'Block expired');
         return null;
       }
-      
+
       return blockInfo;
-      
+
     } catch (error) {
       logger.error('Failed to check IP block status', {
         error: error instanceof Error ? error.message : 'Unknown error',

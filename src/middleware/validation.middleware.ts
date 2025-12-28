@@ -38,6 +38,15 @@ export class RequestValidationError extends Error {
 export function validateRequestBody(schema: Joi.Schema) {
   return (req: Request, res: Response, next: NextFunction): void => {
     try {
+      // Debug: Log raw request body before validation
+      logger.info('[VALIDATION-DEBUG] Raw request body before validation', {
+        body: req.body,
+        bodyKeys: Object.keys(req.body || {}),
+        bodyJSON: JSON.stringify(req.body),
+        path: req.path,
+        method: req.method
+      });
+
       const { error, value } = schema.validate(req.body, {
         abortEarly: false, // Get all validation errors
         stripUnknown: true, // Remove unknown properties
@@ -53,6 +62,7 @@ export function validateRequestBody(schema: Joi.Schema) {
 
         logger.warn('Request body validation failed', {
           errors: validationErrors,
+          rawBody: req.body,
           path: req.path,
           method: req.method,
           ip: req.ip
@@ -102,7 +112,8 @@ export function validateQueryParams(schema: Joi.Schema) {
       const { error, value } = schema.validate(req.query, {
         abortEarly: false,
         stripUnknown: true,
-        allowUnknown: false
+        allowUnknown: true, // Allow unknown parameters
+        convert: true // Enable type conversion from strings to numbers
       });
 
       if (error) {
@@ -114,6 +125,7 @@ export function validateQueryParams(schema: Joi.Schema) {
 
         logger.warn('Query parameters validation failed', {
           errors: validationErrors,
+          rawQuery: req.query,
           path: req.path,
           method: req.method,
           ip: req.ip

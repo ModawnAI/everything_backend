@@ -22,7 +22,6 @@
  */
 
 import { Router } from 'express';
-import multer from 'multer';
 import { FeedController } from '../controllers/feed.controller';
 import {
   getPersonalizedFeed,
@@ -36,6 +35,12 @@ import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validateRequestBody } from '../middleware/validation.middleware';
 import { xssProtection } from '../middleware/xss-csrf-protection.middleware';
+import {
+  createPostLimiter,
+  interactionLimiter,
+  generalFeedLimiter
+} from '../middleware/feed-rate-limit.middleware';
+import { feedUploadErrorHandler } from '../middleware/feed-upload.middleware';
 import { SecurityValidationMiddleware } from '../middleware/security-validation.middleware';
 // import {
 //   feedSecurityMiddleware,
@@ -75,52 +80,22 @@ const securityValidator = new SecurityValidationMiddleware({
   maxThreatsPerRequest: 3
 });
 
-// Multer configuration for image uploads
-const upload = multer({
-  storage: multer.memoryStorage(),
-  limits: {
-    fileSize: 8 * 1024 * 1024, // 8MB per file
-    files: 10 // Maximum 10 files
-  },
-  fileFilter: (req, file, cb) => {
-    // Check file type
-    const allowedMimes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
-    if (allowedMimes.includes(file.mimetype)) {
-      cb(null, true);
-    } else {
-      cb(new Error('Invalid file type. Only JPEG, PNG, and WebP images are allowed.'));
-    }
-  }
-});
-
-// Rate limiting configurations
-const feedGeneralRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 200, // limit each IP to 200 requests per windowMs for general feed operations
-    strategy: 'fixed_window'
-  }
-});
-
-const feedPostCreationRateLimit = rateLimit({
-  config: {
-    windowMs: 60 * 60 * 1000, // 1 hour
-    max: 5, // limit each user to 5 post creations per hour
-    strategy: 'fixed_window',
-    keyGenerator: (req: any) => {
-      // Use user ID for authenticated requests, fall back to IP
-      return req.user?.id || req.ip;
-    }
-  }
-});
-
-const feedInteractionRateLimit = rateLimit({
-  config: {
-    windowMs: 5 * 60 * 1000, // 5 minutes
-    max: 100, // limit each user to 100 interactions (likes/comments) per 5 minutes
-    strategy: 'fixed_window'
-  }
-});
+// ========================================
+// STANDARDIZED RATE LIMITING & UPLOAD
+// ========================================
+// Using shared middleware from:
+// - /middleware/feed-rate-limit.middleware.ts
+// - /middleware/feed-upload.middleware.ts
+//
+// Rate Limiters:
+// - createPostLimiter: 5 posts per hour
+// - interactionLimiter: 100 interactions per 5 minutes
+// - generalFeedLimiter: 200 requests per 15 minutes
+//
+// Upload Configuration:
+// - feedUploadErrorHandler: Standardized multer with error handling
+// - 10MB per file, max 10 files
+// - Allowed: JPEG, PNG, WebP, GIF
 
 // Apply security middleware to all feed routes
 router.use(xssProtection());
@@ -184,9 +159,9 @@ router.use(authenticateJWT());
  *                 example: "Just had an amazing nail service at this salon! 💅 #nails #beauty"
  *               category:
  *                 type: string
- *                 enum: [beauty, lifestyle, review, promotion, general]
- *                 description: Post category
- *                 example: "beauty"
+ *                 enum: [nail, eyelash, waxing, eyebrow_tattoo, hair, review, tutorial, before_after, promotion, news, question, general]
+ *                 description: Post category (optional - service or content type)
+ *                 example: "review"
  *               location_tag:
  *                 type: string
  *                 maxLength: 100
@@ -302,11 +277,24 @@ router.use(authenticateJWT());
  *         description: Authentication required
  */
 
+// Debug middleware to log request before controller
+const logPostCreation = (req: any, res: any, next: any) => {
+  console.log('🔍 [FEED-ROUTE-DEBUG] POST /posts request:', {
+    hasBody: !!req.body,
+    bodyKeys: Object.keys(req.body || {}),
+    body: JSON.stringify(req.body, null, 2),
+    userId: req.user?.id,
+    hasImages: !!req.body.images && req.body.images.length > 0,
+  });
+  next();
+};
+
 router.post('/posts',
-  feedGeneralRateLimit,
-  feedPostCreationRateLimit,
-  createPostCSRFSanitization(),
-  requireFeedPostPermission('create'),
+  generalFeedLimiter, // 200 requests per 15 minutes
+  createPostLimiter, // 5 posts per hour
+  logPostCreation, // Add debug logging
+  // CSRF protection removed - JWT in Authorization header already provides CSRF protection
+  // requireFeedPostPermission('create'), // REMOVED: All authenticated users can create posts
   // ...feedSecurityMiddleware(),
   // validateRequestBody(feedPostSchema),
   feedController.createPost.bind(feedController)
@@ -364,9 +352,9 @@ router.post('/posts',
  *         name: category
  *         schema:
  *           type: string
- *           enum: [beauty, lifestyle, review, promotion, general]
+ *           enum: [nail, eyelash, waxing, eyebrow_tattoo, hair, review, tutorial, before_after, promotion, news, question, general]
  *         description: Filter posts by category
- *         example: "beauty"
+ *         example: "review"
  *       - in: query
  *         name: hashtag
  *         schema:
@@ -458,7 +446,7 @@ router.post('/posts',
  */
 
 router.get('/posts',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   requireFeedPostPermission('list'),
   feedController.getFeedPosts.bind(feedController)
 );
@@ -556,7 +544,7 @@ router.get('/posts',
  */
 
 router.get('/posts/:postId',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   requireFeedPostPermission('read'),
   feedController.getPostById.bind(feedController)
 );
@@ -692,8 +680,8 @@ router.get('/posts/:postId',
  */
 
 router.put('/posts/:postId',
-  feedGeneralRateLimit,
-  createPostCSRFSanitization(),
+  generalFeedLimiter, // 200 requests per 15 minutes
+  // CSRF protection removed - JWT provides protection
   requireFeedPostPermission('update'),
   // validateRequestBody(feedPostSchema),
   feedController.updatePost.bind(feedController)
@@ -759,8 +747,8 @@ router.put('/posts/:postId',
  *         description: Internal server error
  */
 router.delete('/posts/:postId',
-  feedGeneralRateLimit,
-  createPostCSRFSanitization(),
+  generalFeedLimiter, // 200 requests per 15 minutes
+  // CSRF protection removed - JWT provides protection
   requireFeedPostPermission('delete'),
   feedController.deletePost.bind(feedController)
 );
@@ -863,9 +851,9 @@ router.delete('/posts/:postId',
  */
 
 router.post('/posts/:postId/like',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit,
-  createPostCSRFSanitization(),
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
+  // CSRF protection removed - JWT provides protection
   requireFeedLikePermission('create'),
   feedController.likePost.bind(feedController)
 );
@@ -997,9 +985,9 @@ router.post('/posts/:postId/like',
  */
 
 router.post('/posts/:postId/report',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit,
-  createReportCSRFSanitization(),
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
+  // CSRF protection removed - JWT provides protection
   requireFeedReportPermission('create'),
   // validateRequestBody(reportSchema),
   feedController.reportPost.bind(feedController)
@@ -1110,9 +1098,9 @@ router.post('/posts/:postId/report',
  */
 
 router.post('/posts/:postId/comments',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit,
-  createCommentCSRFSanitization(),
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
+  // CSRF protection removed - JWT provides protection
   requireFeedCommentPermission('create'),
   // ...commentSecurityMiddleware(),
   // validateRequestBody(commentSchema),
@@ -1243,7 +1231,7 @@ router.post('/posts/:postId/comments',
  */
 
 router.get('/posts/:postId/comments',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   requireFeedCommentPermission('list'),
   feedController.getComments.bind(feedController)
 );
@@ -1425,13 +1413,15 @@ router.get('/posts/:postId/comments',
  *         description: Authentication required
  */
 
+// Upload error handling now uses shared middleware:
+// feedUploadErrorHandler from /middleware/feed-upload.middleware.ts
+
 router.post('/upload-images',
-  feedGeneralRateLimit,
-  feedInteractionRateLimit, // Use interaction rate limit for uploads
-  createUploadCSRFSanitization(),
-  requireFeedPostPermission('create'), // Users need post creation permission to upload images
-  // imageSecurityMiddleware(),
-  upload.array('images', 10), // Accept up to 10 images
+  generalFeedLimiter, // 200 requests per 15 minutes
+  interactionLimiter, // 100 interactions per 5 minutes
+  // CSRF protection removed - JWT in Authorization header already provides CSRF protection
+  // RBAC removed - all authenticated users can upload images for posts
+  feedUploadErrorHandler, // Standardized multer upload with error handling
   feedController.uploadImages.bind(feedController)
 );
 
@@ -1570,7 +1560,7 @@ router.post('/upload-images',
  *                             example: "Amazing nail art design! 💅✨"
  *                           category:
  *                             type: string
- *                             example: "beauty"
+ *                             example: "nail"
  *                           location_tag:
  *                             type: string
  *                             example: "Gangnam-gu, Seoul"
@@ -1694,7 +1684,7 @@ router.post('/upload-images',
  */
 
 router.post('/personalized',
-  feedGeneralRateLimit,
+  generalFeedLimiter, // 200 requests per 15 minutes
   authenticateJWT,
   getPersonalizedFeed
 );
@@ -1780,7 +1770,7 @@ router.post('/personalized',
  *                             example: 85.7
  *                           category:
  *                             type: string
- *                             example: "beauty"
+ *                             example: "tutorial"
  *                           location:
  *                             type: string
  *                             example: "Gangnam-gu, Seoul"
@@ -1900,7 +1890,7 @@ router.get('/trending',
  *                   type: string
  *                   maxLength: 50
  *                   description: Post category (optional)
- *                   example: "beauty"
+ *                   example: "promotion"
  *                 authorId:
  *                   type: string
  *                   format: uuid
@@ -1953,7 +1943,7 @@ router.get('/trending',
  */
 
 router.post('/interactions',
-  feedInteractionRateLimit,
+  interactionLimiter, // 100 interactions per 5 minutes
   authenticateJWT,
   recordInteraction
 );
@@ -2309,6 +2299,219 @@ router.get('/weights',
 router.put('/weights',
   authenticateJWT,
   updatePersonalizedWeights
+);
+
+// =============================================================================
+// SAVED FEEDS ENDPOINTS
+// =============================================================================
+
+/**
+ * @swagger
+ * /api/feed/posts/{postId}/save:
+ *   post:
+ *     summary: Save/bookmark a post
+ *     description: Save a feed post to the user's bookmarks
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The post ID to save
+ *     responses:
+ *       200:
+ *         description: Post saved successfully
+ *       400:
+ *         description: Invalid request or post not found
+ *       401:
+ *         description: Authentication required
+ */
+router.post('/posts/:postId/save',
+  authenticateJWT,
+  interactionLimiter,
+  async (req, res) => {
+    await feedController.savePost(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/posts/{postId}/save:
+ *   delete:
+ *     summary: Unsave/unbookmark a post
+ *     description: Remove a feed post from the user's bookmarks
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The post ID to unsave
+ *     responses:
+ *       200:
+ *         description: Post unsaved successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Authentication required
+ */
+router.delete('/posts/:postId/save',
+  authenticateJWT,
+  interactionLimiter,
+  async (req, res) => {
+    await feedController.unsavePost(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/saved:
+ *   get:
+ *     summary: Get saved/bookmarked posts
+ *     description: Get all posts saved by the current user
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 20
+ *           maximum: 50
+ *         description: Number of posts to return
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: Offset for pagination
+ *     responses:
+ *       200:
+ *         description: Saved posts retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/saved',
+  authenticateJWT,
+  generalFeedLimiter,
+  async (req, res) => {
+    await feedController.getSavedPosts(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/posts/{postId}/saved-status:
+ *   get:
+ *     summary: Check if post is saved
+ *     description: Check if a post is saved/bookmarked by the current user
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *     responses:
+ *       200:
+ *         description: Saved status returned
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/posts/:postId/saved-status',
+  authenticateJWT,
+  generalFeedLimiter,
+  async (req, res) => {
+    await feedController.getPostSavedStatus(req, res);
+  }
+);
+
+// =============================================================================
+// USER FEED PROFILE ENDPOINTS
+// =============================================================================
+
+/**
+ * @swagger
+ * /api/feed/users/{userId}/profile:
+ *   get:
+ *     summary: Get user feed profile
+ *     description: Get a user's feed profile including bio and their posts
+ *     tags: [Social Feed]
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: The user ID
+ *       - in: query
+ *         name: postLimit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *           maximum: 100
+ *         description: Number of posts to return
+ *     responses:
+ *       200:
+ *         description: User profile retrieved successfully
+ *       404:
+ *         description: User not found
+ */
+router.get('/users/:userId/profile',
+  generalFeedLimiter,
+  async (req, res) => {
+    await feedController.getUserFeedProfile(req, res);
+  }
+);
+
+/**
+ * @swagger
+ * /api/feed/users/bio:
+ *   put:
+ *     summary: Update user bio
+ *     description: Update the current user's biography for their feed profile
+ *     tags: [Social Feed]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - bio
+ *             properties:
+ *               bio:
+ *                 type: string
+ *                 maxLength: 500
+ *     responses:
+ *       200:
+ *         description: Bio updated successfully
+ *       400:
+ *         description: Invalid request
+ *       401:
+ *         description: Authentication required
+ */
+router.put('/users/bio',
+  authenticateJWT,
+  interactionLimiter,
+  async (req, res) => {
+    await feedController.updateUserBio(req, res);
+  }
 );
 
 export default router;

@@ -13,6 +13,8 @@ import { getSupabaseClient } from '../config/database';
 // Database types - using direct Supabase types
 import { logger } from '../utils/logger';
 import { websocketService } from './websocket.service';
+import { queryCacheService } from './query-cache.service';
+import { batchQueryService } from './batch-query.service';
 
 // Favorites operation interfaces
 export interface FavoriteShopRequest {
@@ -77,6 +79,23 @@ export interface BulkFavoritesRequest {
   shopIds: string[];
 }
 
+export interface FavoriteIdsResponse {
+  success: boolean;
+  favoriteIds: string[];
+  count: number;
+  message?: string;
+}
+
+export interface BatchToggleResult {
+  success: boolean;
+  added: string[];
+  removed: string[];
+  failed: Array<{ shopId: string; error: string }>;
+  favoriteIds: string[];
+  count: number;
+  message?: string;
+}
+
 export interface BulkFavoritesResponse {
   success: boolean;
   added: string[];
@@ -93,78 +112,33 @@ export class FavoritesService {
 
   /**
    * Add a shop to user's favorites
+   * OPTIMIZED: Uses single RPC call to combine validation and insert
    */
   async addFavorite(userId: string, shopId: string): Promise<FavoriteShopResponse> {
     try {
-      // Validate shop exists and is active
-      const { data: shop, error: shopError } = await this.supabase
-        .from('shops')
-        .select('id, name, shop_status')
-        .eq('id', shopId)
-        .single();
+      // Use RPC to combine validation and insert in single database roundtrip
+      const { data: result, error } = await this.supabase.rpc('add_favorite_atomic', {
+        p_user_id: userId,
+        p_shop_id: shopId
+      });
 
-      if (shopError || !shop) {
-        logger.warn('FavoritesService.addFavorite: Shop not found', { userId, shopId, error: shopError });
-        return {
-          success: false,
-          isFavorite: false,
-          message: 'Shop not found or inactive'
-        };
+      if (error) {
+        // Fallback to original multi-query approach if RPC doesn't exist
+        return await this.addFavoriteFallback(userId, shopId);
       }
 
-      if (shop.shop_status !== 'approved') {
-        return {
-          success: false,
-          isFavorite: false,
-          message: 'Cannot favorite unapproved shops'
-        };
-      }
-
-      // Check if already favorited
-      const { data: existingFavorite, error: checkError } = await this.supabase
-        .from('user_favorites')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('shop_id', shopId)
-        .single();
-
-      if (existingFavorite) {
-        return {
-          success: true,
-          isFavorite: true,
-          favoriteId: existingFavorite.id,
-          message: 'Shop is already in favorites'
-        };
-      }
-
-      // Add to favorites
-      const { data: newFavorite, error: insertError } = await this.supabase
-        .from('user_favorites')
-        .insert({
-          user_id: userId,
-          shop_id: shopId
-        })
-        .select('id')
-        .single();
-
-      if (insertError) {
-        logger.error('FavoritesService.addFavorite: Database error', { userId, shopId, error: insertError });
-        return {
-          success: false,
-          isFavorite: false,
-          message: 'Failed to add shop to favorites'
-        };
-      }
+      // Invalidate all favorites-related cache for this user (use pattern matching)
+      await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
 
       // Emit real-time update
-      await this.emitFavoritesUpdate(userId, 'added', shopId, shop.name);
+      await this.emitFavoritesUpdate(userId, 'added', shopId, result.shop_name);
 
-      logger.info('FavoritesService.addFavorite: Success', { userId, shopId, favoriteId: newFavorite.id });
+      logger.info('FavoritesService.addFavorite: Success', { userId, shopId, favoriteId: result.favorite_id });
 
       return {
         success: true,
         isFavorite: true,
-        favoriteId: newFavorite.id,
+        favoriteId: result.favorite_id,
         message: 'Shop added to favorites successfully'
       };
 
@@ -179,34 +153,112 @@ export class FavoritesService {
   }
 
   /**
+   * Fallback method for add favorite (original implementation)
+   */
+  private async addFavoriteFallback(userId: string, shopId: string): Promise<FavoriteShopResponse> {
+    // Validate shop exists and is active - with caching
+    const shop = await queryCacheService.getCachedQuery(
+      `shop:${shopId}`,
+      async () => {
+        const { data, error } = await this.supabase
+          .from('shops')
+          .select('id, name, shop_status')
+          .eq('id', shopId)
+          .single();
+
+        if (error || !data) {
+          throw new Error('Shop not found');
+        }
+        return data;
+      },
+      { namespace: 'shop', ttl: 1800 }
+    );
+
+    if (!shop || shop.shop_status !== 'active') {
+      return {
+        success: false,
+        isFavorite: false,
+        message: 'Cannot favorite inactive shops'
+      };
+    }
+
+    // Check if already favorited
+    const { data: existingFavorite } = await this.supabase
+      .from('user_favorites')
+      .select('id')
+      .eq('user_id', userId)
+      .eq('shop_id', shopId)
+      .maybeSingle();
+
+    if (existingFavorite) {
+      return {
+        success: true,
+        isFavorite: true,
+        favoriteId: existingFavorite.id,
+        message: 'Shop is already in favorites'
+      };
+    }
+
+    // Add to favorites
+    const { data: newFavorite, error: insertError } = await this.supabase
+      .from('user_favorites')
+      .insert({ user_id: userId, shop_id: shopId })
+      .select('id')
+      .single();
+
+    if (insertError) {
+      logger.error('FavoritesService.addFavorite: Database error', { userId, shopId, error: insertError });
+      return {
+        success: false,
+        isFavorite: false,
+        message: 'Failed to add shop to favorites'
+      };
+    }
+
+    // Invalidate all favorites-related cache for this user (use pattern matching)
+    await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
+
+    // Emit real-time update
+    await this.emitFavoritesUpdate(userId, 'added', shopId, shop.name);
+
+    return {
+      success: true,
+      isFavorite: true,
+      favoriteId: newFavorite.id,
+      message: 'Shop added to favorites successfully'
+    };
+  }
+
+  /**
    * Remove a shop from user's favorites
+   * Optimized: Uses cached shop data and single delete operation
    */
   async removeFavorite(userId: string, shopId: string): Promise<FavoriteShopResponse> {
     try {
-      // Check if favorite exists
-      const { data: existingFavorite, error: checkError } = await this.supabase
-        .from('user_favorites')
-        .select('id')
-        .eq('user_id', userId)
-        .eq('shop_id', shopId)
-        .single();
+      // Get shop data from cache for real-time update
+      // IMPORTANT: Select same fields as addFavoriteFallback to avoid cache inconsistency
+      const shop = await queryCacheService.getCachedQuery(
+        `shop:${shopId}`,
+        async () => {
+          const { data, error } = await this.supabase
+            .from('shops')
+            .select('id, name, shop_status')
+            .eq('id', shopId)
+            .single();
 
-      if (!existingFavorite) {
-        return {
-          success: true,
-          isFavorite: false,
-          message: 'Shop is not in favorites'
-        };
-      }
+          if (error || !data) {
+            return null;
+          }
 
-      // Get shop name for real-time update
-      const { data: shop } = await this.supabase
-        .from('shops')
-        .select('name')
-        .eq('id', shopId)
-        .single();
+          return data;
+        },
+        {
+          namespace: 'shop',
+          ttl: 1800, // 30 minutes
+        }
+      );
 
-      // Remove from favorites
+      // Remove from favorites (delete automatically returns nothing if not exists)
       const { error: deleteError } = await this.supabase
         .from('user_favorites')
         .delete()
@@ -221,6 +273,9 @@ export class FavoritesService {
           message: 'Failed to remove shop from favorites'
         };
       }
+
+      // Invalidate all favorites-related cache for this user (use pattern matching)
+      await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
 
       // Emit real-time update
       await this.emitFavoritesUpdate(userId, 'removed', shopId, shop?.name || 'Unknown Shop');
@@ -299,101 +354,176 @@ export class FavoritesService {
 
   /**
    * Get user's favorite shops with full shop details
+   * Optimized: Added caching for frequently accessed favorites lists
    */
   async getUserFavorites(userId: string, options?: {
     limit?: number;
     offset?: number;
     category?: string;
     sortBy?: 'recent' | 'name' | 'bookings';
+    includeShopData?: boolean;
   }): Promise<UserFavoritesResponse> {
     try {
-      const { limit = 50, offset = 0, category, sortBy = 'recent' } = options || {};
+      const { limit = 50, offset = 0, category, sortBy = 'recent', includeShopData = false } = options || {};
 
-      let query = this.supabase
-        .from('user_favorites')
-        .select(`
-          id,
-          shop_id,
-          created_at,
-          shops!inner (
-            id,
-            name,
-            description,
-            address,
-            main_category,
-            shop_status,
-            shop_type,
-            latitude,
-            longitude,
-            total_bookings,
-            is_featured,
-            featured_until,
-            commission_rate,
-            created_at,
-            updated_at
-          )
-        `)
-        .eq('user_id', userId);
+      // Create cache key based on query parameters
+      const cacheKey = `list:${userId}:${limit}:${offset}:${category || 'all'}:${sortBy}:${includeShopData}`;
 
-      // Filter by category if provided
-      if (category) {
-        query = query.eq('shops.main_category', category);
-      }
+      const result = await queryCacheService.getCachedQuery(
+        cacheKey,
+        async () => {
+          // Build select query based on includeShopData parameter
+          let selectQuery: string;
+          if (includeShopData) {
+            selectQuery = `
+              id,
+              shop_id,
+              created_at,
+              shops!inner (
+                id,
+                name,
+                description,
+                address,
+                main_category,
+                shop_status,
+                shop_type,
+                latitude,
+                longitude,
+                total_bookings,
+                is_featured,
+                featured_until,
+                commission_rate,
+                created_at,
+                updated_at
+              )
+            `;
+          } else {
+            selectQuery = `
+              id,
+              user_id,
+              shop_id,
+              created_at
+            `;
+          }
 
-      // Apply sorting
-      switch (sortBy) {
-        case 'recent':
-          query = query.order('created_at', { ascending: false });
-          break;
-        case 'name':
-          query = query.order('shops.name', { ascending: true });
-          break;
-        case 'bookings':
-          query = query.order('shops.total_bookings', { ascending: false });
-          break;
-      }
+          let query = this.supabase
+            .from('user_favorites')
+            .select(selectQuery, { count: 'exact' })
+            .eq('user_id', userId);
 
-      // Apply pagination - using count: 'planned' for performance
-      const { data: favorites, error, count } = await query
-        .range(offset, offset + limit - 1);
+          // Filter by category if provided (only when includeShopData is true)
+          if (category && includeShopData) {
+            query = query.eq('shops.main_category', category);
+          }
 
-      if (error) {
-        logger.error('FavoritesService.getUserFavorites: Database error', { userId, error });
-        return {
-          success: false,
-          favorites: [],
-          totalCount: 0,
-          message: 'Failed to retrieve favorites'
-        };
-      }
+          // Apply sorting
+          if (includeShopData) {
+            switch (sortBy) {
+              case 'recent':
+                query = query.order('created_at', { ascending: false });
+                break;
+              case 'name':
+                query = query.order('shops.name', { ascending: true });
+                break;
+              case 'bookings':
+                query = query.order('shops.total_bookings', { ascending: false });
+                break;
+            }
+          } else {
+            // When not including shop data, only recent sorting is available
+            query = query.order('created_at', { ascending: false });
+          }
 
-      const formattedFavorites: FavoriteShop[] = favorites?.map(fav => ({
-        id: fav.id,
-        shopId: fav.shop_id,
-        shop: {
-          id: fav.shops?.[0]?.id,
-          name: fav.shops?.[0]?.name,
-          description: fav.shops?.[0]?.description || '',
-          address: fav.shops?.[0]?.address,
-          mainCategory: fav.shops?.[0]?.main_category,
-          shopStatus: fav.shops?.[0]?.shop_status,
-          shopType: fav.shops?.[0]?.shop_type,
-          latitude: fav.shops?.[0]?.latitude || 0,
-          longitude: fav.shops?.[0]?.longitude || 0,
-          totalBookings: fav.shops?.[0]?.total_bookings || 0,
-          isFeatured: fav.shops?.[0]?.is_featured || false,
-          featuredUntil: fav.shops?.[0]?.featured_until,
-          commissionRate: fav.shops?.[0]?.commission_rate || 0,
-          createdAt: fav.shops?.[0]?.created_at,
-          updatedAt: fav.shops?.[0]?.updated_at
+          // Apply pagination with exact count for accurate totalCount
+          const { data: favorites, error, count } = await query
+            .range(offset, offset + limit - 1);
+
+          if (error) {
+            logger.error('FavoritesService.getUserFavorites: Database error', { userId, error });
+            throw error;
+          }
+
+          // Only fetch shop images when includeShopData is true
+          const shopIds = favorites?.map((fav: any) => fav.shop_id).filter(Boolean) || [];
+          const shopImagesMap = new Map<string, any[]>();
+
+          if (includeShopData && shopIds.length > 0) {
+            try {
+              const { data: allShopImages, error: imagesError } = await this.supabase
+                .from('shop_images')
+                .select('*')
+                .in('shop_id', shopIds)
+                .order('is_main', { ascending: false })
+                .order('display_order', { ascending: true });
+
+              if (!imagesError && allShopImages) {
+                allShopImages.forEach(image => {
+                  if (!shopImagesMap.has(image.shop_id)) {
+                    shopImagesMap.set(image.shop_id, []);
+                  }
+                  shopImagesMap.get(image.shop_id)!.push(image);
+                });
+              }
+            } catch (error) {
+              logger.error('Failed to fetch shop images for favorites', {
+                error: error instanceof Error ? error.message : 'Unknown error',
+                shopIds
+              });
+            }
+          }
+
+          // Format response based on includeShopData flag
+          const formattedFavorites: any[] = favorites?.map((fav: any) => {
+            if (includeShopData) {
+              return {
+                id: fav.id,
+                shopId: fav.shop_id,
+                shop: {
+                  id: fav.shops?.[0]?.id,
+                  name: fav.shops?.[0]?.name,
+                  description: fav.shops?.[0]?.description || '',
+                  address: fav.shops?.[0]?.address,
+                  mainCategory: fav.shops?.[0]?.main_category,
+                  shopStatus: fav.shops?.[0]?.shop_status,
+                  shopType: fav.shops?.[0]?.shop_type,
+                  latitude: fav.shops?.[0]?.latitude || 0,
+                  longitude: fav.shops?.[0]?.longitude || 0,
+                  totalBookings: fav.shops?.[0]?.total_bookings || 0,
+                  isFeatured: fav.shops?.[0]?.is_featured || false,
+                  featuredUntil: fav.shops?.[0]?.featured_until,
+                  commissionRate: fav.shops?.[0]?.commission_rate || 0,
+                  createdAt: fav.shops?.[0]?.created_at,
+                  updatedAt: fav.shops?.[0]?.updated_at,
+                  shopImages: shopImagesMap.get(fav.shop_id) || []
+                },
+                addedAt: fav.created_at
+              };
+            } else {
+              // Minimal response - just favorite metadata
+              return {
+                id: fav.id,
+                user_id: fav.user_id,
+                shop_id: fav.shop_id,
+                created_at: fav.created_at
+              };
+            }
+          }) || [];
+
+          return {
+            favorites: formattedFavorites,
+            totalCount: count || 0
+          };
         },
-        addedAt: fav.created_at
-      })) || [];
+        {
+          namespace: 'favorites',
+          ttl: 300, // 5 minutes
+        }
+      );
 
       return {
         success: true,
-        favorites: formattedFavorites,
-        totalCount: count || 0,
+        favorites: result.favorites,
+        totalCount: result.totalCount,
         message: 'Favorites retrieved successfully'
       };
 
@@ -410,98 +540,77 @@ export class FavoritesService {
 
   /**
    * Get favorites statistics for user
+   * Optimized: Single query with caching instead of 3 separate queries
    */
   async getFavoritesStats(userId: string): Promise<FavoritesStatsResponse> {
     try {
-      // Get total count
-      const { count: totalCount, error: countError } = await this.supabase
-        .from('user_favorites')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_id', userId);
+      // Use cached query for stats
+      const stats = await queryCacheService.getCachedQuery(
+        `stats:${userId}`,
+        async () => {
+          // Single query to get all needed data
+          const { data: allFavorites, error } = await this.supabase
+            .from('user_favorites')
+            .select(`
+              shop_id,
+              created_at,
+              shops!inner (
+                name,
+                main_category
+              )
+            `)
+            .eq('user_id', userId)
+            .order('created_at', { ascending: false });
 
-      if (countError) {
-        logger.error('FavoritesService.getFavoritesStats: Count error', { userId, error: countError });
-        return {
-          success: false,
-          stats: {
-            totalFavorites: 0,
-            favoriteCategories: [],
-            recentlyAdded: []
-          },
-          message: 'Failed to retrieve favorites statistics'
-        };
-      }
+          if (error) {
+            logger.error('FavoritesService.getFavoritesStats: Database error', { userId, error });
+            throw error;
+          }
 
-      // Get category breakdown
-      const { data: categoryData, error: categoryError } = await this.supabase
-        .from('user_favorites')
-        .select(`
-          shops!inner (main_category)
-        `)
-        .eq('user_id', userId);
+          // Process data in memory
+          const totalFavorites = allFavorites?.length || 0;
 
-      if (categoryError) {
-        logger.error('FavoritesService.getFavoritesStats: Category error', { userId, error: categoryError });
-        return {
-          success: false,
-          stats: {
-            totalFavorites: 0,
-            favoriteCategories: [],
-            recentlyAdded: []
-          },
-          message: 'Failed to retrieve favorites statistics'
-        };
-      }
+          // Count categories
+          const categoryCounts: Record<string, number> = {};
+          allFavorites?.forEach(item => {
+            // Supabase returns shops as an array due to join, so we take the first element
+            const shop = Array.isArray(item.shops) ? item.shops[0] : item.shops;
+            const category = shop?.main_category;
+            if (category) {
+              categoryCounts[category] = (categoryCounts[category] || 0) + 1;
+            }
+          });
 
-      // Count categories
-      const categoryCounts: Record<string, number> = {};
-      categoryData?.forEach(item => {
-        const category = item.shops[0]?.main_category;
-        categoryCounts[category] = (categoryCounts[category] || 0) + 1;
-      });
+          const favoriteCategories = Object.entries(categoryCounts)
+            .map(([category, count]) => ({ category, count }))
+            .sort((a, b) => b.count - a.count);
 
-      const favoriteCategories = Object.entries(categoryCounts)
-        .map(([category, count]) => ({ category, count }))
-        .sort((a, b) => b.count - a.count);
+          // Get recently added (already sorted by created_at desc)
+          const recentlyAdded = allFavorites?.slice(0, 5).map(item => {
+            // Supabase returns shops as an array due to join, so we take the first element
+            const shop = Array.isArray(item.shops) ? item.shops[0] : item.shops;
+            return {
+              shopId: item.shop_id,
+              shopName: shop?.name || 'Unknown Shop',
+              addedAt: item.created_at
+            };
+          }) || [];
 
-      // Get recently added
-      const { data: recentData, error: recentError } = await this.supabase
-        .from('user_favorites')
-        .select(`
-          shop_id,
-          created_at,
-          shops!inner (name)
-        `)
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(5);
-
-      if (recentError) {
-        logger.error('FavoritesService.getFavoritesStats: Recent error', { userId, error: recentError });
-        return {
-          success: false,
-          stats: {
-            totalFavorites: 0,
-            favoriteCategories: [],
-            recentlyAdded: []
-          },
-          message: 'Failed to retrieve favorites statistics'
-        };
-      }
-
-      const recentlyAdded = recentData?.map(item => ({
-        shopId: item.shop_id,
-        shopName: item.shops[0]?.name,
-        addedAt: item.created_at
-      })) || [];
+          return {
+            totalFavorites,
+            favoriteCategories,
+            recentlyAdded
+          };
+        },
+        {
+          namespace: 'favorites',
+          ttl: 300, // 5 minutes - stats don't need to be real-time
+        }
+      );
 
       return {
         success: true,
-        stats: {
-          totalFavorites: totalCount || 0,
-          favoriteCategories,
-          recentlyAdded
-        },
+        stats,
         message: 'Favorites statistics retrieved successfully'
       };
 
@@ -521,6 +630,7 @@ export class FavoritesService {
 
   /**
    * Bulk add/remove favorites
+   * Optimized: Uses batch operations instead of individual queries
    */
   async bulkUpdateFavorites(userId: string, shopIds: string[], action: 'add' | 'remove'): Promise<BulkFavoritesResponse> {
     try {
@@ -528,27 +638,69 @@ export class FavoritesService {
       const removed: string[] = [];
       const failed: Array<{ shopId: string; reason: string }> = [];
 
-      for (const shopId of shopIds) {
-        try {
-          if (action === 'add') {
-            const result = await this.addFavorite(userId, shopId);
-            if (result.success) {
-              added.push(shopId);
-            } else {
-              failed.push({ shopId, reason: result.message });
+      if (action === 'add') {
+        // Batch check which shops exist
+        const shopsMap = await batchQueryService.batchGetShops(shopIds);
+
+        // Batch check which are already favorited
+        const existingFavorites = await batchQueryService.batchCheckFavorites(userId, shopIds);
+
+        // Prepare records to insert
+        const recordsToInsert = shopIds
+          .filter(shopId => {
+            if (!shopsMap.has(shopId)) {
+              failed.push({ shopId, reason: 'Shop not found' });
+              return false;
             }
-          } else {
-            const result = await this.removeFavorite(userId, shopId);
-            if (result.success) {
-              removed.push(shopId);
-            } else {
-              failed.push({ shopId, reason: result.message });
+            if (existingFavorites.has(shopId)) {
+              failed.push({ shopId, reason: 'Already in favorites' });
+              return false;
             }
-          }
-        } catch (error) {
-          failed.push({ shopId, reason: 'Unexpected error occurred' });
+            return true;
+          })
+          .map(shopId => ({
+            user_id: userId,
+            shop_id: shopId,
+            created_at: new Date().toISOString()
+          }));
+
+        // Batch insert
+        if (recordsToInsert.length > 0) {
+          const insertResult = await batchQueryService.batchInsert('user_favorites', recordsToInsert);
+
+          insertResult.success.forEach((record: any) => {
+            added.push(record.shop_id);
+          });
+
+          insertResult.failed.forEach((failedRecord: any) => {
+            failed.push({
+              shopId: failedRecord.record.shop_id,
+              reason: failedRecord.error
+            });
+          });
+        }
+
+      } else {
+        // Batch delete
+        const deleteResult = await batchQueryService.batchDelete('user_favorites', shopIds);
+
+        if (deleteResult.success) {
+          removed.push(...shopIds);
+        } else {
+          failed.push(...shopIds.map(shopId => ({ shopId, reason: 'Delete failed' })));
         }
       }
+
+      // Invalidate all favorites-related cache for this user (use pattern matching)
+      await queryCacheService.invalidatePattern(`*favorites*${userId}*`);
+
+      logger.info('FavoritesService.bulkUpdateFavorites: Success', {
+        userId,
+        action,
+        added: added.length,
+        removed: removed.length,
+        failed: failed.length
+      });
 
       return {
         success: true,
@@ -572,22 +724,13 @@ export class FavoritesService {
 
   /**
    * Check multiple shops favorite status
+   * Optimized: Uses batch service with caching
    */
   async checkMultipleFavorites(userId: string, shopIds: string[]): Promise<Record<string, boolean>> {
     try {
-      const { data, error } = await this.supabase
-        .from('user_favorites')
-        .select('shop_id')
-        .eq('user_id', userId)
-        .in('shop_id', shopIds);
+      // Use batch service which includes caching
+      const favoriteShopIds = await batchQueryService.batchCheckFavorites(userId, shopIds);
 
-      if (error) {
-        logger.error('FavoritesService.checkMultipleFavorites: Database error', { userId, shopIds, error });
-        return {};
-      }
-
-      const favoriteShopIds = new Set(data?.map(item => item.shop_id) || []);
-      
       return shopIds.reduce((acc, shopId) => {
         acc[shopId] = favoriteShopIds.has(shopId);
         return acc;
@@ -614,6 +757,175 @@ export class FavoritesService {
     } catch (error) {
       logger.error('FavoritesService.emitFavoritesUpdate: WebSocket error', { userId, action, shopId, error });
       // Don't throw error - WebSocket failure shouldn't break favorites functionality
+    }
+  }
+
+  /**
+   * Get lightweight list of favorite shop IDs
+   * Optimized for fast synchronization
+   */
+  async getFavoriteIds(userId: string): Promise<FavoriteIdsResponse> {
+    try {
+      const { data, error } = await this.supabase
+        .from('user_favorites')
+        .select('shop_id')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        logger.error('FavoritesService.getFavoriteIds: Database error', { userId, error: error.message });
+        return {
+          success: false,
+          favoriteIds: [],
+          count: 0,
+          message: 'Failed to retrieve favorite IDs'
+        };
+      }
+
+      const favoriteIds = data?.map(f => f.shop_id) || [];
+
+      return {
+        success: true,
+        favoriteIds,
+        count: favoriteIds.length
+      };
+
+    } catch (error) {
+      logger.error('FavoritesService.getFavoriteIds: Unexpected error', { userId, error });
+      return {
+        success: false,
+        favoriteIds: [],
+        count: 0,
+        message: 'An unexpected error occurred'
+      };
+    }
+  }
+
+  /**
+   * Batch toggle multiple favorites
+   * Used for offline sync and bulk operations
+   */
+  async batchToggleFavorites(
+    userId: string,
+    add: string[],
+    remove: string[]
+  ): Promise<BatchToggleResult> {
+    const results: BatchToggleResult = {
+      success: true,
+      added: [],
+      removed: [],
+      failed: [],
+      favoriteIds: [],
+      count: 0
+    };
+
+    try {
+      // Process additions
+      for (const shopId of add || []) {
+        try {
+          // Validate shop exists and is active (with caching)
+          const shop = await queryCacheService.getCachedQuery(
+            `shop:${shopId}`,
+            async () => {
+              const { data, error } = await this.supabase
+                .from('shops')
+                .select('id, name, shop_status')
+                .eq('id', shopId)
+                .single();
+
+              if (error || !data) {
+                throw new Error('Shop not found');
+              }
+              return data;
+            },
+            { namespace: 'shop', ttl: 300 }
+          );
+
+          if (!shop || shop.shop_status !== 'active') {
+            results.failed.push({ shopId, error: 'Shop is not active' });
+            continue;
+          }
+
+          // Add to favorites (upsert to handle duplicates)
+          const { error } = await this.supabase
+            .from('user_favorites')
+            .upsert(
+              {
+                user_id: userId,
+                shop_id: shopId,
+                created_at: new Date().toISOString()
+              },
+              { onConflict: 'user_id,shop_id' }
+            );
+
+          if (error) {
+            results.failed.push({ shopId, error: error.message });
+          } else {
+            results.added.push(shopId);
+          }
+        } catch (error) {
+          results.failed.push({
+            shopId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Process removals
+      for (const shopId of remove || []) {
+        try {
+          const { error } = await this.supabase
+            .from('user_favorites')
+            .delete()
+            .eq('user_id', userId)
+            .eq('shop_id', shopId);
+
+          if (error) {
+            results.failed.push({ shopId, error: error.message });
+          } else {
+            results.removed.push(shopId);
+          }
+        } catch (error) {
+          results.failed.push({
+            shopId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+        }
+      }
+
+      // Get updated favorites list
+      const { data: updatedFavorites } = await this.supabase
+        .from('user_favorites')
+        .select('shop_id')
+        .eq('user_id', userId);
+
+      results.favoriteIds = updatedFavorites?.map(f => f.shop_id) || [];
+      results.count = results.favoriteIds.length;
+
+      logger.info('FavoritesService.batchToggleFavorites: Completed', {
+        userId,
+        added: results.added.length,
+        removed: results.removed.length,
+        failed: results.failed.length,
+        totalFavorites: results.count
+      });
+
+      return results;
+
+    } catch (error) {
+      logger.error('FavoritesService.batchToggleFavorites: Unexpected error', { userId, error });
+      return {
+        success: false,
+        added: [],
+        removed: [],
+        failed: [...(add || []), ...(remove || [])].map(shopId => ({
+          shopId,
+          error: 'An unexpected error occurred'
+        })),
+        favoriteIds: [],
+        count: 0,
+        message: 'An unexpected error occurred'
+      };
     }
   }
 }

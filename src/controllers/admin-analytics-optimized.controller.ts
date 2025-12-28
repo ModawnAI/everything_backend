@@ -30,6 +30,8 @@ export class AdminAnalyticsOptimizedController {
     try {
 
       const adminId = req.user?.id;
+      const userRole = req.user?.role;
+      const userShopId = req.user?.shop_id;
 
       if (!adminId) {
         res.status(401).json({
@@ -43,14 +45,34 @@ export class AdminAnalyticsOptimizedController {
         return;
       }
 
-      logger.info('[CONTROLLER] Getting dashboard metrics...', { adminId });
+      // For shop owners, ensure they have a shop_id
+      if (userRole === 'shop_owner' && !userShopId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'SHOP_ID_REQUIRED',
+            message: '샵 ID가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      logger.info('[CONTROLLER] Getting dashboard metrics...', {
+        adminId,
+        role: userRole,
+        shopId: userShopId
+      });
 
       let metrics;
       let usedRealtime = false;
 
+      // Determine if we should filter by shop_id (for shop owners only)
+      const filterShopId = userRole === 'shop_owner' ? userShopId : undefined;
+
       try {
-        // First try materialized views
-        metrics = await this.analyticsService.getQuickDashboardMetrics();
+        // First try materialized views with shop filter
+        metrics = await this.analyticsService.getQuickDashboardMetrics(filterShopId);
 
         // Check if data looks current (today's data should exist)
         const now = new Date();
@@ -58,12 +80,12 @@ export class AdminAnalyticsOptimizedController {
 
         if (isDataStale) {
           logger.warn('[CONTROLLER] Materialized view data appears stale, using real-time calculation');
-          metrics = await this.realtimeService.getRealTimeDashboardMetrics();
+          metrics = await this.realtimeService.getRealTimeDashboardMetrics(filterShopId);
           usedRealtime = true;
         }
       } catch (viewError) {
         logger.warn('[CONTROLLER] Materialized view failed, using real-time calculation', { viewError });
-        metrics = await this.realtimeService.getRealTimeDashboardMetrics();
+        metrics = await this.realtimeService.getRealTimeDashboardMetrics(filterShopId);
         usedRealtime = true;
       }
 

@@ -48,10 +48,12 @@ export class AdminAnalyticsRealtimeService {
 
   /**
    * Get real-time dashboard metrics calculated from actual database data
+   *
+   * @param shopId - Optional shop ID to filter metrics for shop owners
    */
-  async getRealTimeDashboardMetrics(): Promise<RealTimeDashboardMetrics> {
+  async getRealTimeDashboardMetrics(shopId?: string): Promise<RealTimeDashboardMetrics> {
     try {
-      logger.info('Calculating real-time dashboard metrics');
+      logger.info('Calculating real-time dashboard metrics', { shopId });
 
       const now = new Date();
       const today = now.toISOString().split('T')[0];
@@ -59,20 +61,20 @@ export class AdminAnalyticsRealtimeService {
       const prevMonthStart = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString().split('T')[0];
       const prevMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0).toISOString().split('T')[0];
 
-      // Calculate user metrics
-      const userMetrics = await this.calculateUserMetrics(today, monthStart, prevMonthStart, prevMonthEnd);
+      // Calculate user metrics (shop-filtered if shopId provided)
+      const userMetrics = await this.calculateUserMetrics(today, monthStart, prevMonthStart, prevMonthEnd, shopId);
 
-      // Calculate revenue metrics
-      const revenueMetrics = await this.calculateRevenueMetrics(today, monthStart, prevMonthStart, prevMonthEnd);
+      // Calculate revenue metrics (shop-filtered if shopId provided)
+      const revenueMetrics = await this.calculateRevenueMetrics(today, monthStart, prevMonthStart, prevMonthEnd, shopId);
 
-      // Calculate reservation metrics
-      const reservationMetrics = await this.calculateReservationMetrics(today);
+      // Calculate reservation metrics (shop-filtered if shopId provided)
+      const reservationMetrics = await this.calculateReservationMetrics(today, shopId);
 
-      // Calculate shop metrics
-      const shopMetrics = await this.calculateShopMetrics();
+      // Calculate shop metrics (single shop or all shops)
+      const shopMetrics = await this.calculateShopMetrics(shopId);
 
-      // Calculate payment metrics
-      const paymentMetrics = await this.calculatePaymentMetrics();
+      // Calculate payment metrics (shop-filtered if shopId provided)
+      const paymentMetrics = await this.calculatePaymentMetrics(shopId);
 
       return {
         ...userMetrics,
@@ -90,31 +92,31 @@ export class AdminAnalyticsRealtimeService {
     }
   }
 
-  private async calculateUserMetrics(today: string, monthStart: string, prevMonthStart: string, prevMonthEnd: string) {
+  private async calculateUserMetrics(today: string, monthStart: string, prevMonthStart: string, prevMonthEnd: string, shopId?: string) {
     try {
-      // Total and active users
-      const { count: totalUsers } = await this.supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true });
-
-      const { count: activeUsers } = await this.supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
-        .eq('user_status', 'active');
-
-      // New users this month
-      const { count: newUsersThisMonth } = await this.supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
+      // Build base query
+      let totalUsersQuery = this.supabase.from('users').select('*', { count: 'exact', head: true });
+      let activeUsersQuery = this.supabase.from('users').select('*', { count: 'exact', head: true }).eq('user_status', 'active');
+      let newUsersThisMonthQuery = this.supabase.from('users').select('*', { count: 'exact', head: true })
         .gte('created_at', monthStart + 'T00:00:00')
         .lt('created_at', new Date().toISOString());
-
-      // New users previous month
-      const { count: newUsersPrevMonth } = await this.supabase
-        .from('users')
-        .select('*', { count: 'exact', head: true })
+      let newUsersPrevMonthQuery = this.supabase.from('users').select('*', { count: 'exact', head: true })
         .gte('created_at', prevMonthStart + 'T00:00:00')
         .lte('created_at', prevMonthEnd + 'T23:59:59');
+
+      // Apply shop filter if provided
+      if (shopId) {
+        totalUsersQuery = totalUsersQuery.eq('shop_id', shopId);
+        activeUsersQuery = activeUsersQuery.eq('shop_id', shopId);
+        newUsersThisMonthQuery = newUsersThisMonthQuery.eq('shop_id', shopId);
+        newUsersPrevMonthQuery = newUsersPrevMonthQuery.eq('shop_id', shopId);
+      }
+
+      // Execute queries
+      const { count: totalUsers } = await totalUsersQuery;
+      const { count: activeUsers } = await activeUsersQuery;
+      const { count: newUsersThisMonth } = await newUsersThisMonthQuery;
+      const { count: newUsersPrevMonth } = await newUsersPrevMonthQuery;
 
       // Calculate growth rate
       const userGrowthRate = newUsersPrevMonth > 0
@@ -133,13 +135,20 @@ export class AdminAnalyticsRealtimeService {
     }
   }
 
-  private async calculateRevenueMetrics(today: string, monthStart: string, prevMonthStart: string, prevMonthEnd: string) {
+  private async calculateRevenueMetrics(today: string, monthStart: string, prevMonthStart: string, prevMonthEnd: string, shopId?: string) {
     try {
-      // Total revenue
-      const { data: allPayments } = await this.supabase
+      // Build query for total revenue
+      let paymentsQuery = this.supabase
         .from('payments')
-        .select('amount, created_at')
+        .select('amount, created_at, shop_id')
         .not('amount', 'is', null);
+
+      // Apply shop filter if provided
+      if (shopId) {
+        paymentsQuery = paymentsQuery.eq('shop_id', shopId);
+      }
+
+      const { data: allPayments } = await paymentsQuery;
 
       const totalRevenue = allPayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
 
@@ -180,31 +189,29 @@ export class AdminAnalyticsRealtimeService {
     }
   }
 
-  private async calculateReservationMetrics(today: string) {
+  private async calculateReservationMetrics(today: string, shopId?: string) {
     try {
-      // Total reservations
-      const { count: totalReservations } = await this.supabase
-        .from('reservations')
-        .select('*', { count: 'exact', head: true });
-
-      // Active reservations (confirmed or requested)
-      const { count: activeReservations } = await this.supabase
-        .from('reservations')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['confirmed', 'requested']);
-
-      // Today's reservations
-      const { count: todayReservations } = await this.supabase
-        .from('reservations')
-        .select('*', { count: 'exact', head: true })
+      // Build base queries
+      let totalReservationsQuery = this.supabase.from('reservations').select('*', { count: 'exact', head: true });
+      let activeReservationsQuery = this.supabase.from('reservations').select('*', { count: 'exact', head: true }).in('status', ['confirmed', 'requested']);
+      let todayReservationsQuery = this.supabase.from('reservations').select('*', { count: 'exact', head: true })
         .gte('created_at', today + 'T00:00:00')
         .lt('created_at', today + 'T23:59:59');
+      let completedReservationsQuery = this.supabase.from('reservations').select('*', { count: 'exact', head: true }).eq('status', 'completed');
 
-      // Completed reservations for success rate
-      const { count: completedReservations } = await this.supabase
-        .from('reservations')
-        .select('*', { count: 'exact', head: true })
-        .eq('status', 'completed');
+      // Apply shop filter if provided
+      if (shopId) {
+        totalReservationsQuery = totalReservationsQuery.eq('shop_id', shopId);
+        activeReservationsQuery = activeReservationsQuery.eq('shop_id', shopId);
+        todayReservationsQuery = todayReservationsQuery.eq('shop_id', shopId);
+        completedReservationsQuery = completedReservationsQuery.eq('shop_id', shopId);
+      }
+
+      // Execute queries
+      const { count: totalReservations } = await totalReservationsQuery;
+      const { count: activeReservations } = await activeReservationsQuery;
+      const { count: todayReservations } = await todayReservationsQuery;
+      const { count: completedReservations } = await completedReservationsQuery;
 
       // Calculate success rate
       const reservationSuccessRate = totalReservations > 0
@@ -223,20 +230,38 @@ export class AdminAnalyticsRealtimeService {
     }
   }
 
-  private async calculateShopMetrics() {
+  private async calculateShopMetrics(shopId?: string) {
     try {
-      // Total shops
+      if (shopId) {
+        // For shop owners, just return info about their single shop
+        const { data: shop, error } = await this.supabase
+          .from('shops')
+          .select('*')
+          .eq('id', shopId)
+          .single();
+
+        if (error) {
+          logger.error('Error fetching shop info', { error, shopId });
+          throw error;
+        }
+
+        return {
+          totalShops: 1,
+          activeShops: shop?.shop_status === 'active' ? 1 : 0,
+          pendingApprovals: shop?.shop_status === 'pending_approval' ? 1 : 0
+        };
+      }
+
+      // For admin, return system-wide stats
       const { count: totalShops } = await this.supabase
         .from('shops')
         .select('*', { count: 'exact', head: true });
 
-      // Active shops
       const { count: activeShops } = await this.supabase
         .from('shops')
         .select('*', { count: 'exact', head: true })
         .eq('shop_status', 'active');
 
-      // Pending approvals
       const { count: pendingApprovals } = await this.supabase
         .from('shops')
         .select('*', { count: 'exact', head: true })
@@ -253,28 +278,36 @@ export class AdminAnalyticsRealtimeService {
     }
   }
 
-  private async calculatePaymentMetrics() {
+  private async calculatePaymentMetrics(shopId?: string) {
     try {
-      // Total transactions
-      const { count: totalTransactions } = await this.supabase
-        .from('payments')
-        .select('*', { count: 'exact', head: true });
+      // Build base queries
+      let totalTransactionsQuery = this.supabase.from('payments').select('*', { count: 'exact', head: true });
+      let successfulTransactionsQuery = this.supabase.from('payments').select('*', { count: 'exact', head: true }).in('status', ['fully_paid', 'deposit_paid']);
 
-      // Successful transactions (assuming status exists)
-      const { count: successfulTransactions } = await this.supabase
-        .from('payments')
-        .select('*', { count: 'exact', head: true })
-        .in('status', ['fully_paid', 'deposit_paid']);
+      // Apply shop filter if provided
+      if (shopId) {
+        totalTransactionsQuery = totalTransactionsQuery.eq('shop_id', shopId);
+        successfulTransactionsQuery = successfulTransactionsQuery.eq('shop_id', shopId);
+      }
+
+      // Execute queries
+      const { count: totalTransactions } = await totalTransactionsQuery;
+      const { count: successfulTransactions } = await successfulTransactionsQuery;
 
       // If status column doesn't exist, assume all payments with amounts are successful
       let actualSuccessful = successfulTransactions;
       if (successfulTransactions === null || successfulTransactions === 0) {
-        const { count: paymentsWithAmount } = await this.supabase
+        let paymentsWithAmountQuery = this.supabase
           .from('payments')
           .select('*', { count: 'exact', head: true })
           .not('amount', 'is', null)
           .gt('amount', 0);
 
+        if (shopId) {
+          paymentsWithAmountQuery = paymentsWithAmountQuery.eq('shop_id', shopId);
+        }
+
+        const { count: paymentsWithAmount } = await paymentsWithAmountQuery;
         actualSuccessful = paymentsWithAmount;
       }
 

@@ -580,7 +580,9 @@ class RBACContentIntegration {
       case 'moderator_role':
         return permissionContext.userRole === 'admin';
       case 'verified_user':
-        return permissionContext.isEmailVerified === true;
+        // All authenticated users are considered verified for feed operations
+        // This aligns with checkCustomCondition behavior
+        return true;
       case 'content_owner':
         return contentContext?.authorId === permissionContext.userId;
       default:

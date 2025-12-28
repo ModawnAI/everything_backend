@@ -12,6 +12,7 @@
 import { getSupabaseClient } from '../config/database';
 import { User, UserSettings } from '../types/database.types';
 import { logger } from '../utils/logger';
+import { normalizeSupabaseUrl } from '../utils/supabase-url';
 import sharp from 'sharp';
 import { websocketService } from './websocket.service';
 
@@ -41,6 +42,12 @@ export interface ProfileUpdateRequest {
   birth_date?: string;
   profile_image_url?: string;
   marketing_consent?: boolean;
+  booking_preferences?: {
+    skinType?: 'normal' | 'dry' | 'oily' | 'combination' | 'sensitive';
+    allergyInfo?: string;
+    preferredStylist?: string;
+    specialRequests?: string;
+  };
 }
 
 export interface PrivacySettingsUpdateRequest {
@@ -1155,7 +1162,7 @@ export class UserProfileService {
         .from('profile-images')
         .getPublicUrl(filePath);
 
-      return urlData.publicUrl;
+      return normalizeSupabaseUrl(urlData.publicUrl);
     } catch (error) {
       logger.error('Upload to storage failed:', { fileName, error });
       throw error;

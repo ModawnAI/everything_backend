@@ -448,6 +448,43 @@ router.get('/metadata',
 
 /**
  * @swagger
+ * /api/service-catalog/categories:
+ *   get:
+ *     summary: 서비스 카테고리 목록 (메타데이터 별칭)
+ *     description: |
+ *       Get service categories. This is an alias for /metadata endpoint.
+ *       Returns the same metadata including categories, service levels, and difficulty levels.
+ *
+ *       **Access:** Public - No authentication required
+ *     tags: [Service Catalog]
+ *     responses:
+ *       200:
+ *         description: Categories retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     categories:
+ *                       type: array
+ *                       items:
+ *                         type: string
+ *                       example: ["nail", "eyelash", "waxing", "eyebrow_tattoo", "hair"]
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/categories',
+  serviceCatalogController.getServiceTypeMetadata.bind(serviceCatalogController)
+);
+
+/**
+ * @swagger
  * /api/service-catalog/popular:
  *   get:
  *     summary: 인기 서비스 조회

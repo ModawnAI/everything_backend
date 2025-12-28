@@ -932,20 +932,24 @@ export class SocialAuthController {
         data: {
           configurationValid: true,
           providers: {
-            kakao: { 
+            kakao: {
               configured: !!config.socialLogin.kakao.clientId,
               available: true
             },
-            apple: { 
+            apple: {
               configured: !!config.socialLogin.apple.clientId,
               available: true
             },
-            google: { 
+            google: {
               configured: !!config.socialLogin.google.clientId,
+              available: true
+            },
+            naver: {
+              configured: !!(config.socialLogin.naver?.clientId && config.socialLogin.naver?.clientSecret),
               available: true
             }
           },
-          authMethod: 'Supabase Auth'
+          authMethod: 'Supabase Auth (Naver: Custom OAuth)'
         }
       };
 

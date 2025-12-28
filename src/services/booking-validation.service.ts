@@ -260,29 +260,51 @@ export class BookingValidationService {
 
     // Date validation
     if (request.date) {
-      const bookingDate = new Date(request.date);
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Parse booking date as YYYY-MM-DD string (no timezone conversion)
+      const bookingDateStr = request.date.split('T')[0]; // Handle both "2025-11-22" and "2025-11-22T00:00:00"
+      const [bookingYear, bookingMonth, bookingDay] = bookingDateStr.split('-').map(Number);
 
-      if (bookingDate < today) {
+      // Get today's date in UTC
+      const now = new Date();
+      const todayYear = now.getUTCFullYear();
+      const todayMonth = now.getUTCMonth() + 1; // getUTCMonth() is 0-indexed
+      const todayDay = now.getUTCDate();
+
+      // Compare date components (YYYY-MM-DD)
+      const bookingDateNum = bookingYear * 10000 + bookingMonth * 100 + bookingDay;
+      const todayNum = todayYear * 10000 + todayMonth * 100 + todayDay;
+
+      if (bookingDateNum < todayNum) {
         errors.push({
           code: 'PAST_DATE',
           field: 'date',
           message: 'Cannot book for past dates',
-          severity: 'critical'
+          severity: 'critical',
+          details: {
+            bookingDate: bookingDateStr,
+            todayDate: `${todayYear}-${String(todayMonth).padStart(2, '0')}-${String(todayDay).padStart(2, '0')}`
+          }
         });
       }
 
       // Check if booking is too far in the future (e.g., 6 months)
       const sixMonthsFromNow = new Date();
-      sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+      sixMonthsFromNow.setUTCMonth(sixMonthsFromNow.getUTCMonth() + 6);
+      const futureYear = sixMonthsFromNow.getUTCFullYear();
+      const futureMonth = sixMonthsFromNow.getUTCMonth() + 1;
+      const futureDay = sixMonthsFromNow.getUTCDate();
+      const futureNum = futureYear * 10000 + futureMonth * 100 + futureDay;
 
-      if (bookingDate > sixMonthsFromNow) {
+      if (bookingDateNum > futureNum) {
         errors.push({
           code: 'TOO_FAR_IN_FUTURE',
           field: 'date',
           message: 'Cannot book more than 6 months in advance',
-          severity: 'critical'
+          severity: 'critical',
+          details: {
+            bookingDate: bookingDateStr,
+            maxDate: `${futureYear}-${String(futureMonth).padStart(2, '0')}-${String(futureDay).padStart(2, '0')}`
+          }
         });
       }
     }
@@ -386,7 +408,7 @@ export class BookingValidationService {
     }
 
     // Check if user is active
-    if (user.status !== 'active') {
+    if (user.user_status !== 'active') {
       errors.push({
         code: 'USER_INACTIVE',
         field: 'userId',
@@ -495,8 +517,20 @@ export class BookingValidationService {
       return this.createValidationResult(false, errors, warnings, Date.now(), ['service_availability']);
     }
 
+    // Debug: Log actual data values
+    console.log('🔍 [DEBUG] Service data:', {
+      id: service.id,
+      is_available: service.is_available,
+      shop_id: service.shop_id
+    });
+    console.log('🔍 [DEBUG] Shop data:', {
+      id: shop.id,
+      shop_status: shop.shop_status
+    });
+
     // Check if service is active
-    if (!service.is_active) {
+    if (!service.is_available) {
+      console.log('❌ [DEBUG] Service is_available check failed:', service.is_available);
       errors.push({
         code: 'SERVICE_INACTIVE',
         field: 'serviceId',
@@ -506,7 +540,8 @@ export class BookingValidationService {
     }
 
     // Check if shop is active
-    if (!shop.is_active) {
+    if (shop.shop_status !== 'active') {
+      console.log('❌ [DEBUG] Shop status check failed:', shop.shop_status, '!== active');
       errors.push({
         code: 'SHOP_INACTIVE',
         field: 'shopId',
@@ -744,6 +779,18 @@ export class BookingValidationService {
     const timeDifference = bookingDateTime.getTime() - now.getTime();
     const hoursDifference = timeDifference / (1000 * 60 * 60);
 
+    console.log('🔍 [TIME-CHECK] Time comparison:', {
+      requestDate: request.date,
+      requestTime: request.timeSlot,
+      bookingDateTime: bookingDateTime.toISOString(),
+      bookingDateTimeLocal: bookingDateTime.toString(),
+      now: now.toISOString(),
+      nowLocal: now.toString(),
+      timeDifferenceMs: timeDifference,
+      hoursDifference: hoursDifference,
+      isInPast: hoursDifference < 0
+    });
+
     if (hoursDifference < 2) {
       errors.push({
         code: 'INSUFFICIENT_NOTICE',
@@ -785,48 +832,6 @@ export class BookingValidationService {
    */
   private initializeBusinessRules(): void {
     this.businessRules = [
-      {
-        id: 'premium_member_priority',
-        name: 'Premium Member Priority',
-        description: 'Premium members get priority booking for certain time slots',
-        enabled: true,
-        priority: 10,
-        validationFunction: async (request: BookingRequest, context: ValidationContext) => {
-          const errors: ValidationError[] = [];
-          const warnings: ValidationWarning[] = [];
-
-          if (context.user.membership_status === 'premium' || context.user.membership_status === 'vip') {
-            // Premium members can book premium slots
-            const isPremiumSlot = this.isPremiumTimeSlot(request.timeSlot);
-            if (isPremiumSlot) {
-              warnings.push({
-                code: 'PREMIUM_SLOT_BOOKING',
-                field: 'timeSlot',
-                message: 'Premium time slot booking - additional charges may apply',
-                details: { membershipStatus: context.user.membership_status }
-              });
-            }
-          } else {
-            // Non-premium members cannot book premium slots
-            const isPremiumSlot = this.isPremiumTimeSlot(request.timeSlot);
-            if (isPremiumSlot) {
-              errors.push({
-                code: 'PREMIUM_SLOT_RESTRICTED',
-                field: 'timeSlot',
-                message: 'Premium time slots are restricted to premium members',
-                severity: 'critical'
-              });
-            }
-          }
-
-          return {
-            isValid: errors.length === 0,
-            errors,
-            warnings,
-            metadata: {} as any
-          };
-        }
-      },
       {
         id: 'advance_booking_restrictions',
         name: 'Advance Booking Restrictions',
@@ -904,12 +909,6 @@ export class BookingValidationService {
     };
   }
 
-  private isPremiumTimeSlot(timeSlot: string): boolean {
-    const hour = parseInt(timeSlot.split(':')[0]);
-    // Premium slots: 10:00-12:00 and 18:00-20:00
-    return (hour >= 10 && hour < 12) || (hour >= 18 && hour < 20);
-  }
-
   private async isHoliday(date: string): Promise<string | null> {
     // This would need to be implemented based on your holiday calendar
     // For now, return null (no holiday)
@@ -955,7 +954,7 @@ export class BookingValidationService {
 
   private async getService(serviceId: string): Promise<any> {
     const { data, error } = await this.supabase
-      .from('services')
+      .from('shop_services')
       .select('*')
       .eq('id', serviceId)
       .single();

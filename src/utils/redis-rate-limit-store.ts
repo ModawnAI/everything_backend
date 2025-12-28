@@ -24,7 +24,7 @@ const REDIS_RATE_LIMIT_CONFIG: RedisRateLimitConfig = {
   keyPrefix: 'rate_limit:',
   maxRetriesPerRequest: 3,
   connectTimeout: 5000,
-  lazyConnect: true,
+  lazyConnect: true, // Connect lazily to prevent blocking initialization
 };
 
 /**
@@ -136,9 +136,14 @@ export class RedisRateLimitStore implements RateLimitStore {
    * Ensure Redis connection is established
    */
   private async ensureConnection(): Promise<Redis> {
-    // If connection previously failed or Redis is disabled, don't retry
-    if (this.connectionFailed || !config.redis.enabled) {
-      throw new RateLimitStoreError('Redis client not available');
+    // Fast-fail if Redis is disabled - avoid any connection attempt
+    if (!config.redis.enabled) {
+      throw new RateLimitStoreError('Redis is disabled');
+    }
+
+    // If connection previously failed, don't retry
+    if (this.connectionFailed) {
+      throw new RateLimitStoreError('Redis connection previously failed');
     }
 
     if (!this.client || !this.isConnected) {
@@ -157,6 +162,18 @@ export class RedisRateLimitStore implements RateLimitStore {
    */
   async get(key: string): Promise<RateLimitData | null> {
     try {
+      // Fast-fail if Redis is disabled - use in-memory store
+      if (!config.redis.enabled) {
+        const data = this.mockStore.get(key);
+        if (data && data.resetTime > new Date()) {
+          return data;
+        }
+        if (data && data.resetTime <= new Date()) {
+          this.mockStore.delete(key);
+        }
+        return null;
+      }
+
       // Use mock store in test environment
       if (this.isTestEnvironment()) {
         const data = this.mockStore.get(key);
@@ -196,6 +213,12 @@ export class RedisRateLimitStore implements RateLimitStore {
    */
   async set(key: string, data: RateLimitData, ttl: number): Promise<void> {
     try {
+      // Fast-fail if Redis is disabled - use in-memory store
+      if (!config.redis.enabled) {
+        this.mockStore.set(key, data);
+        return;
+      }
+
       // Use mock store in test environment
       if (this.isTestEnvironment()) {
         this.mockStore.set(key, data);
@@ -220,6 +243,30 @@ export class RedisRateLimitStore implements RateLimitStore {
    */
   async increment(key: string, ttl: number): Promise<RateLimitData> {
     try {
+      // Fast-fail if Redis is disabled - use in-memory store
+      if (!config.redis.enabled) {
+        const existingData = this.mockStore.get(key);
+        const now = new Date();
+
+        if (!existingData || existingData.resetTime <= now) {
+          const newData: RateLimitData = {
+            totalHits: 1,
+            resetTime: new Date(now.getTime() + ttl),
+            remainingRequests: 999
+          };
+          this.mockStore.set(key, newData);
+          return newData;
+        } else {
+          const updatedData: RateLimitData = {
+            totalHits: existingData.totalHits + 1,
+            resetTime: existingData.resetTime,
+            remainingRequests: Math.max(0, existingData.remainingRequests - 1)
+          };
+          this.mockStore.set(key, updatedData);
+          return updatedData;
+        }
+      }
+
       // Use mock store in test environment
       if (this.isTestEnvironment()) {
         const existingData = this.mockStore.get(key);
@@ -292,6 +339,12 @@ export class RedisRateLimitStore implements RateLimitStore {
    */
   async reset(key: string): Promise<void> {
     try {
+      // Fast-fail if Redis is disabled - use in-memory store
+      if (!config.redis.enabled) {
+        this.mockStore.delete(key);
+        return;
+      }
+
       // Use mock store in test environment
       if (this.isTestEnvironment()) {
         this.mockStore.delete(key);
@@ -318,6 +371,17 @@ export class RedisRateLimitStore implements RateLimitStore {
    */
   async cleanup(): Promise<void> {
     try {
+      // Fast-fail if Redis is disabled - use in-memory store
+      if (!config.redis.enabled) {
+        const now = new Date();
+        for (const [key, data] of this.mockStore.entries()) {
+          if (data.resetTime <= now) {
+            this.mockStore.delete(key);
+          }
+        }
+        return;
+      }
+
       // Use mock store in test environment
       if (this.isTestEnvironment()) {
         const now = new Date();

@@ -164,19 +164,7 @@ export class ShopOwnerNotificationService {
           message: this.generateNotificationMessage(payload),
           related_id: payload.reservationId,
           action_url: `/shop/reservations/${payload.reservationId}`,
-          status: 'unread',
-          data: {
-            shopId: payload.shopId,
-            reservationId: payload.reservationId,
-            reservationDate: payload.reservationDate,
-            reservationTime: payload.reservationTime,
-            totalAmount: payload.totalAmount,
-            depositAmount: payload.depositAmount,
-            remainingAmount: payload.remainingAmount,
-            services: payload.services,
-            specialRequests: payload.specialRequests,
-            paymentMethod: payload.paymentMethod
-          }
+          status: 'unread'
         })
         .select('id')
         .single();

@@ -4,14 +4,16 @@
 
 import { Router } from 'express';
 import { authenticateJWT } from '../middleware/auth.middleware';
+import { requireAdminAuth } from '../middleware/admin-auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validateRequest } from '../middleware/validation.middleware';
 import { query } from 'express-validator';
 
 const router = Router();
 
-// Apply authentication and rate limiting
+// Apply authentication, admin authorization, and rate limiting
 router.use(authenticateJWT());
+router.use(requireAdminAuth);
 router.use(rateLimit());
 
 /**

@@ -3,12 +3,13 @@ import { logger } from '../utils/logger';
 import { PointTransactionType, PointStatus } from '../types/database.types';
 
 export interface PointBalance {
-  available: number;
-  pending: number;
-  total: number;
-  expired: number;
-  used: number;
-  projectedAvailable: number; // Points that will become available in the future
+  totalEarned: number;           // Total points ever earned
+  totalUsed: number;             // Total points ever spent
+  availableBalance: number;      // Points currently available for use
+  pendingBalance: number;        // Points waiting for 7-day period
+  expiredBalance: number;        // Points that have expired
+  todayEarned: number;           // Points earned today (for home widget)
+  lastCalculatedAt: string;      // Timestamp of calculation
 }
 
 export interface PointHistoryFilters {
@@ -31,6 +32,7 @@ export interface PointHistoryResponse {
     expiresAt?: string;
     createdAt: string;
     metadata?: Record<string, any>;
+    referrerNickname?: string;  // Friend nickname for referral rewards
   }>;
   totalCount: number;
   hasMore: boolean;
@@ -66,6 +68,7 @@ export class PointBalanceService {
 
   /**
    * Get comprehensive point balance for a user
+   * Implements the exact calculation from POINTS_SYSTEM_DOCUMENTATION.md
    */
   async getPointBalance(userId: string): Promise<PointBalance> {
     try {
@@ -82,49 +85,66 @@ export class PointBalanceService {
       }
 
       const now = new Date();
-      let available = 0;
-      let pending = 0;
-      let expired = 0;
-      let used = 0;
-      let projectedAvailable = 0;
+      const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      let totalEarned = 0;
+      let totalUsed = 0;
+      let availableBalance = 0;
+      let pendingBalance = 0;
+      let expiredBalance = 0;
+      let todayEarned = 0;
 
       (transactions || []).forEach(transaction => {
         const amount = transaction.amount || 0;
+        const transactionType = transaction.transaction_type;
+        const status = transaction.status;
         const availableFrom = transaction.available_from ? new Date(transaction.available_from) : null;
         const expiresAt = transaction.expires_at ? new Date(transaction.expires_at) : null;
+        const createdAt = transaction.created_at ? new Date(transaction.created_at) : null;
 
-        switch (transaction.status) {
-          case 'available':
-            if (expiresAt && expiresAt < now) {
-              expired += amount;
-            } else {
-              available += amount;
-            }
-            break;
-          case 'pending':
-            pending += amount;
-            if (availableFrom && availableFrom > now) {
-              projectedAvailable += amount;
-            }
-            break;
-          case 'used':
-            used += amount;
-            break;
-          case 'expired':
-            expired += amount;
-            break;
+        // Calculate totalEarned: Sum of ALL positive amounts
+        if (amount > 0 && ['earned_service', 'earned_referral', 'influencer_bonus', 'adjusted'].includes(transactionType)) {
+          totalEarned += amount;
+
+          // Calculate todayEarned: Points earned today
+          if (createdAt && createdAt >= todayStart) {
+            todayEarned += amount;
+          }
+        }
+
+        // Calculate totalUsed: Sum of ALL negative amounts (stored as absolute values)
+        if (amount < 0 || (transactionType === 'used_service' && amount > 0)) {
+          totalUsed += Math.abs(amount);
+        }
+
+        // Calculate availableBalance: Available points that are not expired
+        if (status === 'available' && ['earned_service', 'earned_referral', 'influencer_bonus', 'adjusted'].includes(transactionType)) {
+          if (!expiresAt || expiresAt > now) {
+            availableBalance += amount;
+          }
+        }
+
+        // Calculate pendingBalance: Points in pending status
+        if (status === 'pending' && availableFrom && availableFrom > now) {
+          pendingBalance += amount;
+        }
+
+        // Calculate expiredBalance: Points that have expired
+        if (status === 'expired' || (expiresAt && expiresAt < now && status === 'available')) {
+          expiredBalance += amount;
         }
       });
 
-      const total = available + pending + used + expired;
+      // Subtract used points from available balance
+      availableBalance = availableBalance - totalUsed;
 
       const balance: PointBalance = {
-        available,
-        pending,
-        total,
-        expired,
-        used,
-        projectedAvailable
+        totalEarned,
+        totalUsed,
+        availableBalance,
+        pendingBalance,
+        expiredBalance,
+        todayEarned,
+        lastCalculatedAt: new Date().toISOString()
       };
 
       logger.info('Point balance calculated', { userId, balance });
@@ -205,7 +225,8 @@ export class PointBalanceService {
         availableFrom: t.available_from,
         expiresAt: t.expires_at,
         createdAt: t.created_at,
-        metadata: t.metadata
+        metadata: t.metadata,
+        referrerNickname: t.referrer_nickname  // Friend nickname for referral rewards
       }));
 
       const totalPages = Math.ceil((count || 0) / limit);
@@ -364,7 +385,7 @@ export class PointBalanceService {
       const endDate = new Date();
       endDate.setDate(endDate.getDate() + days);
 
-      let projectedAvailable = currentBalance.available;
+      let projectedAvailable = currentBalance.availableBalance;
       const projectedByDate: Array<{ date: string; available: number; expiring: number }> = [];
       let nextExpirationDate: string | undefined;
       let nextExpirationAmount = 0;
@@ -433,7 +454,7 @@ export class PointBalanceService {
       }
 
       const projection: PointProjection = {
-        currentAvailable: currentBalance.available,
+        currentAvailable: currentBalance.availableBalance,
         projectedAvailable,
         projectedByDate,
         nextExpirationDate,

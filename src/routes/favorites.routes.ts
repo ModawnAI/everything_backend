@@ -18,29 +18,7 @@ import Joi from 'joi';
 const router = Router();
 
 // Rate limiting configurations
-const favoritesRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 100, // 100 requests per 15 minutes
-    strategy: 'sliding_window'
-  }
-});
-
-const favoritesModificationRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 50, // 50 modification requests per 15 minutes
-    strategy: 'sliding_window'
-  }
-});
-
-const bulkFavoritesRateLimit = rateLimit({
-  config: {
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 10, // 10 bulk operations per 15 minutes
-    strategy: 'sliding_window'
-  }
-});
+// NOTE: Using inline calls like reservation.routes.ts (no pre-defined middleware variables)
 
 // Joi validation schemas
 const shopIdSchema = Joi.object({
@@ -51,7 +29,8 @@ const getFavoritesQuerySchema = Joi.object({
   limit: Joi.number().integer().min(1).max(100).optional(),
   offset: Joi.number().integer().min(0).optional(),
   category: Joi.string().optional(),
-  sortBy: Joi.string().valid('recent', 'name', 'bookings').optional()
+  sortBy: Joi.string().valid('recent', 'name', 'bookings').optional(),
+  includeShopData: Joi.string().valid('true', 'false').optional()
 });
 
 const bulkFavoritesBodySchema = Joi.object({
@@ -118,8 +97,8 @@ const checkFavoritesBodySchema = Joi.object({
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.post('/shops/:shopId/favorite',
-  authenticateJWT,
-  favoritesModificationRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Modification rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.addFavorite
 );
@@ -174,8 +153,8 @@ router.post('/shops/:shopId/favorite',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.delete('/shops/:shopId/favorite',
-  authenticateJWT,
-  favoritesModificationRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Modification rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.removeFavorite
 );
@@ -231,8 +210,8 @@ router.delete('/shops/:shopId/favorite',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.put('/shops/:shopId/favorite',
-  authenticateJWT,
-  favoritesModificationRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Modification rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.toggleFavorite
 );
@@ -285,8 +264,8 @@ router.put('/shops/:shopId/favorite',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/shops/:shopId/favorite/status',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   validateRequestParams(shopIdSchema),
   favoritesController.isFavorite
 );
@@ -296,12 +275,12 @@ router.get('/shops/:shopId/favorite/status',
  * /api/user/favorites:
  *   get:
  *     summary: user's favorite shops 조회
- *     description: Retrieve the authenticated user's favorite shops with pagination and filtering options
- *       
+ *     description: Retrieve the authenticated user's favorite shops with pagination and filtering options. Use includeShopData=true to get full shop details in a single request for better performance.
+ *
  *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
- *       
+ *
  *       ---
- *       
+ *
  *     tags: [Favorites]
  *     security:
  *       - bearerAuth: []
@@ -317,11 +296,15 @@ router.get('/shops/:shopId/favorite/status',
  *       - in: query
  *         name: category
  *         schema: { type: 'string' }
- *         description: Filter favorites by shop category
+ *         description: Filter favorites by shop category (only works when includeShopData=true)
  *       - in: query
  *         name: sortBy
  *         schema: { type: 'string', enum: ['recent', 'name', 'bookings'], default: 'recent' }
- *         description: Sort order for favorites
+ *         description: Sort order for favorites (name and bookings only work when includeShopData=true)
+ *       - in: query
+ *         name: includeShopData
+ *         schema: { type: 'string', enum: ['true', 'false'], default: 'false' }
+ *         description: Include full shop details (name, description, images, etc.) in the response. Set to 'true' for optimized single-request fetch.
  *     responses:
  *       200:
  *         description: Favorites retrieved successfully
@@ -379,10 +362,118 @@ router.get('/shops/:shopId/favorite/status',
  *         description: Authentication required
  */
 router.get('/user/favorites',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),  // FIXED: Added parentheses to call the function
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   validateRequestQuery(getFavoritesQuerySchema),
   favoritesController.getFavorites
+);
+
+/**
+ * @swagger
+ * /api/user/favorites/ids:
+ *   get:
+ *     summary: Get user's favorite shop IDs (lightweight sync)
+ *     description: Retrieve just the IDs of favorited shops for fast sync. Returns ~1KB vs ~50KB for full list.
+ *
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *
+ *       ---
+ *
+ *     tags: [Favorites]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Favorite IDs retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     favoriteIds: { type: 'array', items: { type: 'string', format: 'uuid' }, example: ["123e4567-e89b-12d3-a456-426614174000"] }
+ *                     count: { type: 'integer', example: 1 }
+ *                     timestamp: { type: 'string', format: 'date-time', example: "2025-11-23T19:00:00Z" }
+ *                 message: { type: 'string', example: 'Favorite IDs retrieved successfully' }
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.get('/user/favorites/ids',
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 200 } }),  // Higher limit for fast sync
+  favoritesController.getFavoriteIds
+);
+
+/**
+ * @swagger
+ * /api/user/favorites/batch:
+ *   post:
+ *     summary: Batch toggle favorites (add and remove in one request)
+ *     description: Add and remove multiple favorites in a single request. Useful for offline sync.
+ *
+ *       서비스 API입니다. 플랫폼의 핵심 기능을 제공합니다.
+ *
+ *       ---
+ *
+ *     tags: [Favorites]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               add:
+ *                 type: array
+ *                 items: { type: 'string', format: 'uuid' }
+ *                 description: Shop IDs to add to favorites
+ *               remove:
+ *                 type: array
+ *                 items: { type: 'string', format: 'uuid' }
+ *                 description: Shop IDs to remove from favorites
+ *           example:
+ *             add: ["123e4567-e89b-12d3-a456-426614174000"]
+ *             remove: ["456e7890-e89b-12d3-a456-426614174001"]
+ *     responses:
+ *       200:
+ *         description: Batch operation completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success: { type: 'boolean', example: true }
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     added: { type: 'array', items: { type: 'string', format: 'uuid' } }
+ *                     removed: { type: 'array', items: { type: 'string', format: 'uuid' } }
+ *                     failed: { type: 'array', items: { type: 'object', properties: { shopId: { type: 'string' }, error: { type: 'string' } } } }
+ *                     favoriteIds: { type: 'array', items: { type: 'string', format: 'uuid' } }
+ *                     count: { type: 'integer', example: 5 }
+ *                 message: { type: 'string', example: 'Batch toggle completed successfully' }
+ *       400:
+ *         $ref: '#/components/responses/ValidationError'
+ *       401:
+ *         $ref: '#/components/responses/UnauthorizedError'
+ *       429:
+ *         $ref: '#/components/responses/RateLimitError'
+ *       500:
+ *         $ref: '#/components/responses/InternalServerError'
+ */
+router.post('/user/favorites/batch',
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),  // Lower limit for batch operations
+  favoritesController.batchToggleFavorites
 );
 
 /**
@@ -419,8 +510,8 @@ router.get('/user/favorites',
  *         $ref: '#/components/responses/InternalServerError'
  */
 router.get('/user/favorites/stats',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   favoritesController.getFavoritesStats
 );
 
@@ -522,8 +613,8 @@ router.get('/user/favorites/stats',
  *         description: Authentication required
  */
 router.post('/user/favorites/bulk',
-  authenticateJWT,
-  bulkFavoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),  // Bulk operations rate limit (stricter)
   validateRequestBody(bulkFavoritesBodySchema),
   favoritesController.bulkUpdateFavorites
 );
@@ -617,10 +708,16 @@ router.post('/user/favorites/bulk',
  *         description: Authentication required
  */
 router.post('/user/favorites/check',
-  authenticateJWT,
-  favoritesRateLimit,
+  authenticateJWT(),
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),  // Standard rate limit
   validateRequestBody(checkFavoritesBodySchema),
   favoritesController.checkFavorites
 );
+
+// DEBUG ROUTE - TEST IF ROUTER IS WORKING
+router.get('/test-favorites-route', (req, res) => {
+  console.log('🧪 TEST ROUTE HIT: /api/test-favorites-route');
+  res.json({ success: true, message: 'Favorites router is working!' });
+});
 
 export default router;

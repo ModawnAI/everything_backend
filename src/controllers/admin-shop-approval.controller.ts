@@ -16,23 +16,13 @@ export class AdminShopApprovalController {
    */
   async getShopsForApproval(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -104,7 +94,7 @@ export class AdminShopApprovalController {
         limit: parseInt(limit as string, 10)
       };
 
-      const result = await adminShopApprovalService.getShopsForApproval(filters, validation.admin.id);
+      const result = await adminShopApprovalService.getShopsForApproval(filters, user.id);
 
       res.json({
         success: true,
@@ -131,23 +121,13 @@ export class AdminShopApprovalController {
     try {
       const { id: shopId } = req.params;
       const { action, reason, adminNotes, verificationNotes, notifyOwner, autoActivate } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -177,7 +157,7 @@ export class AdminShopApprovalController {
         autoActivate: autoActivate === true
       };
 
-      const result = await adminShopApprovalService.processShopApproval(shopId, request, validation.admin.id);
+      const result = await adminShopApprovalService.processShopApproval(shopId, request, user.id);
 
       res.json({
         success: true,
@@ -206,23 +186,13 @@ export class AdminShopApprovalController {
   async performBulkApproval(req: Request, res: Response): Promise<void> {
     try {
       const { shopIds, action, reason, adminNotes, autoActivate } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -251,7 +221,7 @@ export class AdminShopApprovalController {
         autoActivate: autoActivate === true
       };
 
-      const result = await adminShopApprovalService.performBulkApproval(request, validation.admin.id);
+      const result = await adminShopApprovalService.performBulkApproval(request, user.id);
 
       res.json({
         success: true,
@@ -276,28 +246,18 @@ export class AdminShopApprovalController {
    */
   async getShopVerificationStatistics(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
+          error: 'Authentication required'
         });
         return;
       }
 
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
-        });
-        return;
-      }
-
-      const statistics = await adminShopApprovalService.getShopVerificationStatistics(validation.admin.id);
+      const statistics = await adminShopApprovalService.getShopVerificationStatistics(user.id);
 
       res.json({
         success: true,
@@ -323,23 +283,13 @@ export class AdminShopApprovalController {
   async getShopApprovalDetails(req: Request, res: Response): Promise<void> {
     try {
       const { id: shopId } = req.params;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }

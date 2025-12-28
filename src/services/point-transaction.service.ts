@@ -635,17 +635,19 @@ export class PointTransactionService {
 
   /**
    * Calculate real-time point balance
+   * Implements exact calculation from POINTS_SYSTEM_DOCUMENTATION.md
    */
   private async calculateRealTimeBalance(userId: string): Promise<PointBalanceResponse> {
     const { data: transactions, error } = await this.supabase
       .from('point_transactions')
-      .select('amount, status')
+      .select('amount, status, transaction_type, available_from, expires_at')
       .eq('user_id', userId);
 
     if (error) {
       throw new Error(`Failed to get transactions: ${error.message}`);
     }
 
+    const now = new Date();
     let totalEarned = 0;
     let totalUsed = 0;
     let availableBalance = 0;
@@ -653,25 +655,42 @@ export class PointTransactionService {
     let expiredBalance = 0;
 
     for (const transaction of transactions || []) {
-      if (transaction.amount > 0) {
-        totalEarned += transaction.amount;
-        
-        switch (transaction.status) {
-          case 'available':
-            availableBalance += transaction.amount;
-            break;
-          case 'pending':
-            pendingBalance += transaction.amount;
-            break;
-          case 'expired':
-            expiredBalance += transaction.amount;
-            break;
+      const amount = transaction.amount || 0;
+      const transactionType = transaction.transaction_type;
+      const status = transaction.status;
+      const availableFrom = transaction.available_from ? new Date(transaction.available_from) : null;
+      const expiresAt = transaction.expires_at ? new Date(transaction.expires_at) : null;
+
+      // Calculate totalEarned: Sum of ALL positive amounts
+      if (amount > 0 && ['earned_service', 'earned_referral', 'influencer_bonus', 'adjusted'].includes(transactionType)) {
+        totalEarned += amount;
+      }
+
+      // Calculate totalUsed: Sum of ALL negative amounts (stored as absolute values)
+      if (amount < 0 || (transactionType === 'used_service' && amount > 0)) {
+        totalUsed += Math.abs(amount);
+      }
+
+      // Calculate availableBalance: Available points that are not expired
+      if (status === 'available' && ['earned_service', 'earned_referral', 'influencer_bonus'].includes(transactionType)) {
+        if (!expiresAt || expiresAt > now) {
+          availableBalance += amount;
         }
-      } else {
-        totalUsed += Math.abs(transaction.amount);
-        availableBalance += transaction.amount; // Negative amount
+      }
+
+      // Calculate pendingBalance: Points in pending status
+      if (status === 'pending' && availableFrom && availableFrom > now) {
+        pendingBalance += amount;
+      }
+
+      // Calculate expiredBalance: Points that have expired
+      if (status === 'expired' || (expiresAt && expiresAt < now && status === 'available')) {
+        expiredBalance += amount;
       }
     }
+
+    // Subtract used points from available balance
+    availableBalance = availableBalance - totalUsed;
 
     return {
       totalEarned,

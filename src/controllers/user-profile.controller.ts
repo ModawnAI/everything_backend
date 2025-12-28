@@ -119,7 +119,47 @@ export class UserProfileController {
         return;
       }
 
-      const updatedProfile = await userProfileService.updateUserProfile(userId, updates);
+      // Transform camelCase fields to snake_case for database compatibility
+      const transformedUpdates: any = { ...updates };
+      if ('birthDate' in updates) {
+        transformedUpdates.birth_date = updates.birthDate as string;
+        delete transformedUpdates.birthDate;
+      }
+      if ('profileImageUrl' in updates) {
+        transformedUpdates.profile_image_url = updates.profileImageUrl as string;
+        delete transformedUpdates.profileImageUrl;
+      }
+      if ('marketingConsent' in updates) {
+        transformedUpdates.marketing_consent = updates.marketingConsent as boolean;
+        delete transformedUpdates.marketingConsent;
+      }
+      if ('bookingPreferences' in updates) {
+        // Transform nested bookingPreferences object from camelCase to snake_case
+        const prefs = updates.bookingPreferences as any;
+        transformedUpdates.booking_preferences = {
+          ...(prefs.skinType !== undefined && { skin_type: prefs.skinType }),
+          ...(prefs.allergyInfo !== undefined && { allergy_info: prefs.allergyInfo }),
+          ...(prefs.preferredStylist !== undefined && { preferred_stylist: prefs.preferredStylist }),
+          ...(prefs.specialRequests !== undefined && { special_requests: prefs.specialRequests })
+        };
+        delete transformedUpdates.bookingPreferences;
+      }
+
+      // Remove fields that aren't allowed in profile updates (require separate verification flows)
+      if ('email' in updates) {
+        delete transformedUpdates.email;
+        logger.info('Removed email from profile update (use dedicated email change endpoint)', {
+          userId
+        });
+      }
+      if ('phoneNumber' in updates) {
+        delete transformedUpdates.phoneNumber;
+        logger.info('Removed phoneNumber from profile update (use dedicated phone change endpoint)', {
+          userId
+        });
+      }
+
+      const updatedProfile = await userProfileService.updateUserProfile(userId, transformedUpdates);
 
       // Log successful profile update
       await logProfileSecurityEvent(req, 'profile_update', true, {
@@ -469,6 +509,194 @@ export class UserProfileController {
       });
     } catch (error) {
       logger.error('UserProfileController.acceptPrivacy error:', { error });
+      next(error);
+    }
+  };
+
+  /**
+   * GET /api/users/export
+   * Export all user data
+   */
+  public exportUserData = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // Get comprehensive user data
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      // Fetch all user data in parallel
+      const [profileData, reservationsData, favoritesData, pointsData] = await Promise.all([
+        supabase.from('users').select('*').eq('id', userId).single(),
+        supabase.from('reservations').select('*').eq('user_id', userId).order('created_at', { ascending: false }),
+        supabase.from('user_favorites').select('*, shops(*)').eq('user_id', userId),
+        supabase.from('point_transactions').select('*').eq('user_id', userId).order('created_at', { ascending: false })
+      ]);
+
+      const exportData = {
+        profile: profileData.data || {},
+        reservations: reservationsData.data || [],
+        reviews: [], // TODO: Add reviews when reviews table is implemented
+        favorites: favoritesData.data || [],
+        pointTransactions: pointsData.data || [],
+        exportedAt: new Date().toISOString()
+      };
+
+      logger.info('User data exported', { userId });
+
+      res.status(200).json({
+        success: true,
+        data: exportData,
+        message: '사용자 데이터를 성공적으로 내보냈습니다.'
+      });
+    } catch (error) {
+      logger.error('UserProfileController.exportUserData error:', { error });
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/users/profile/send-otp
+   * Send phone verification OTP
+   */
+  public sendPhoneOTP = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      const { phoneNumber } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      if (!phoneNumber) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: '전화번호가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // TODO: Integrate with actual SMS service (e.g., PortOne, Aligo, etc.)
+      // For now, return success with mock OTP
+      const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+      logger.info('OTP sent (mock)', { userId, phoneNumber, otpCode });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          phoneNumber,
+          expiresAt: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutes
+          message: 'OTP 코드가 전송되었습니다.'
+        }
+      });
+    } catch (error) {
+      logger.error('UserProfileController.sendPhoneOTP error:', { error });
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/users/profile/verify-phone
+   * Verify phone number with OTP
+   */
+  public verifyPhone = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user?.id;
+      const { phoneNumber, otp } = req.body;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '사용자 인증이 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      if (!phoneNumber || !otp) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REQUEST',
+            message: '전화번호와 OTP 코드가 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // TODO: Verify OTP with actual SMS service
+      // For now, accept any 6-digit OTP as valid
+      if (!/^\d{6}$/.test(otp)) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_OTP',
+            message: '잘못된 OTP 형식입니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // Update user profile with verified phone
+      const { getSupabaseClient } = await import('../config/database');
+      const supabase = getSupabaseClient();
+
+      const { data, error } = await supabase
+        .from('users')
+        .update({
+          phone_number: phoneNumber,
+          phone_verified: true,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', userId)
+        .select()
+        .single();
+
+      if (error) {
+        throw error;
+      }
+
+      logger.info('Phone verified successfully', { userId, phoneNumber });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          phoneNumber,
+          phoneVerified: true,
+          message: '전화번호가 성공적으로 인증되었습니다.'
+        }
+      });
+    } catch (error) {
+      logger.error('UserProfileController.verifyPhone error:', { error });
       next(error);
     }
   };

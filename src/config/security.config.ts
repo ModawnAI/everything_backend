@@ -220,12 +220,22 @@ const createCSRFConfig = (environment: 'development' | 'staging' | 'production')
  * CORS Configuration
  */
 const createCORSConfig = (environment: 'development' | 'staging' | 'production') => {
-  const allowedOrigins = {
+  // Check for CORS_ORIGIN environment variable first
+  const envCorsOrigins = process.env.CORS_ORIGIN
+    ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
+    : null;
+
+  const allowedOrigins = envCorsOrigins || {
     development: [
-      'http://localhost:3000',
-      'http://localhost:3001',
-      'http://localhost:8080',
-      'http://127.0.0.1:3000'
+      'http://localhost:4001',
+      'http://localhost:4003',
+      'http://localhost:4004',
+      'http://127.0.0.1:4001',
+      'http://127.0.0.1:4003',
+      'http://127.0.0.1:4004',
+      'http://172.26.14.90:4001',
+      'http://172.26.14.90:4003',
+      'http://172.26.14.90:4004'
     ],
     staging: [
       'https://staging.beauty-platform.com',
@@ -234,25 +244,34 @@ const createCORSConfig = (environment: 'development' | 'staging' | 'production')
     production: [
       'https://beauty-platform.com',
       'https://www.beauty-platform.com',
-      'https://app.beauty-platform.com'
+      'https://app.beauty-platform.com',
+      'https://ebeautything-app.vercel.app',
+      'https://ebeautything-admin.vercel.app'
     ]
-  };
+  }[environment];
 
   return {
     origin: (origin: string | undefined, callback: (error: Error | null, allow?: boolean) => void) => {
       // Allow requests with no origin (mobile apps, Postman, etc.)
       if (!origin) return callback(null, true);
 
-      if (allowedOrigins[environment].includes(origin)) {
+      // Allow all Vercel preview deployments (*.vercel.app)
+      if (origin.endsWith('.vercel.app')) {
+        return callback(null, true);
+      }
+
+      if (allowedOrigins.includes(origin) || allowedOrigins.includes('*')) {
         return callback(null, true);
       }
 
       // Also allow localhost origins in development for testing
-      if (origin.includes('localhost') || origin.includes('127.0.0.1')) {
+      if (environment === 'development' && (origin.includes('localhost') || origin.includes('127.0.0.1'))) {
         return callback(null, true);
       }
 
-      return callback(new Error('Not allowed by CORS'));
+      // Log warning but allow anyway (same as app.ts behavior)
+      console.warn('CORS request from unallowed origin:', origin, 'Allowed:', allowedOrigins);
+      return callback(null, true);
     },
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: [

@@ -37,6 +37,14 @@ export class RateLimiterFlexibleService {
    * Initialize Redis connection
    */
   private async initializeRedis(): Promise<void> {
+    // Check if rate limiting is disabled
+    if (process.env.DISABLE_RATE_LIMIT === 'true') {
+      logger.info("Rate limiting is disabled, skipping Redis initialization");
+      this.redisClient = null;
+      this.fallbackMode = true;
+      return;
+    }
+
     // Check if Redis is enabled
     if (!config.redis.enabled) {
       logger.info("Redis rate limiter is disabled, using in-memory fallback");
@@ -51,10 +59,19 @@ export class RateLimiterFlexibleService {
         port: REDIS_RATE_LIMIT_CONFIG.port,
         password: REDIS_RATE_LIMIT_CONFIG.password,
         db: REDIS_RATE_LIMIT_CONFIG.db,
-        maxRetriesPerRequest: REDIS_RATE_LIMIT_CONFIG.maxRetriesPerRequest,
-        connectTimeout: REDIS_RATE_LIMIT_CONFIG.connectTimeout,
-        lazyConnect: REDIS_RATE_LIMIT_CONFIG.lazyConnect,
-        keyPrefix: REDIS_RATE_LIMIT_CONFIG.keyPrefix
+        maxRetriesPerRequest: 2,
+        retryStrategy: (times) => {
+          // Stop retrying after 2 attempts
+          if (times > 2) {
+            logger.error('Redis rate limiter connection failed after retries, using memory fallback');
+            return null; // Stop retrying
+          }
+          return Math.min(times * 100, 500); // Wait 100ms, 200ms
+        },
+        connectTimeout: 2000, // Reduced from 5000 to 2000
+        lazyConnect: false, // FIXED: Connect immediately to set isConnected properly
+        keyPrefix: REDIS_RATE_LIMIT_CONFIG.keyPrefix,
+        enableOfflineQueue: false // Don't queue commands when disconnected
       });
 
       this.redisClient.on('error', (error) => {
@@ -78,17 +95,40 @@ export class RateLimiterFlexibleService {
         this.fallbackMode = true;
       });
 
-      // Test connection with timeout to prevent blocking
-      const pingPromise = this.redisClient.ping();
-      const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error('Redis ping timeout')), 2000)
-      );
+      this.redisClient.on('ready', () => {
+        logger.info('Redis rate limiter ready');
+        this.isConnected = true;
+        this.fallbackMode = false;
+      });
 
-      await Promise.race([pingPromise, timeoutPromise]);
-      this.isConnected = true;
+      // Try to connect with timeout
+      try {
+        await Promise.race([
+          this.redisClient.connect(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timeout')), 2000)
+          )
+        ]);
+
+        // Test connection with ping
+        await this.redisClient.ping();
+        this.isConnected = true;
+        this.fallbackMode = false;
+        logger.info('Redis rate limiter connected and tested successfully');
+      } catch (connectError) {
+        logger.warn('Redis connection or ping failed, using in-memory fallback', {
+          error: connectError instanceof Error ? connectError.message : 'Unknown error'
+        });
+        this.fallbackMode = true;
+        this.isConnected = false;
+        if (this.redisClient) {
+          this.redisClient.disconnect();
+          this.redisClient = null;
+        }
+      }
 
     } catch (error) {
-      logger.warn('Redis connection failed, using in-memory fallback', {
+      logger.warn('Redis initialization failed, using in-memory fallback', {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
       this.fallbackMode = true;

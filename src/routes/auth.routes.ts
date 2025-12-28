@@ -3,9 +3,10 @@ import { authenticateJWT, optionalAuth } from '../middleware/auth.middleware';
 import { rateLimit, loginRateLimit } from '../middleware/rate-limit.middleware';
 import AuthController from '../controllers/auth.controller';
 import { socialAuthController } from '../controllers/social-auth.controller';
+import { naverAuthController } from '../controllers/naver-auth.controller';
 import { validateRequestBody } from '../middleware/validation.middleware';
-import { 
-  socialLoginSchema, 
+import {
+  socialLoginSchema,
   userRegistrationSchema,
   phoneVerificationInitiateSchema,
   phoneVerificationConfirmSchema,
@@ -724,6 +725,212 @@ router.post('/supabase-session',
 router.post('/refresh-supabase',
   rateLimit(),
   socialAuthController.refreshSupabaseSession
+);
+
+// ============================================
+// Naver OAuth Routes
+// ============================================
+
+/**
+ * @swagger
+ * /api/auth/naver:
+ *   get:
+ *     tags:
+ *       - Authentication
+ *       - Naver OAuth
+ *     summary: Initiate Naver OAuth login
+ *     description: Redirects user to Naver authorization page for OAuth login
+ *     parameters:
+ *       - in: query
+ *         name: returnUrl
+ *         schema:
+ *           type: string
+ *         description: URL to redirect after successful authentication
+ *     responses:
+ *       302:
+ *         description: Redirect to Naver authorization page
+ *       503:
+ *         description: Naver OAuth not configured
+ */
+router.get('/naver',
+  rateLimit(),
+  naverAuthController.initiateAuth
+);
+
+/**
+ * @swagger
+ * /api/auth/naver/callback:
+ *   get:
+ *     tags:
+ *       - Authentication
+ *       - Naver OAuth
+ *     summary: Handle Naver OAuth callback
+ *     description: Processes OAuth callback from Naver and creates/updates user session
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Authorization code from Naver
+ *       - in: query
+ *         name: state
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: State parameter for CSRF protection
+ *     responses:
+ *       302:
+ *         description: Redirect to success or error page
+ */
+router.get('/naver/callback',
+  rateLimit(),
+  naverAuthController.handleCallback
+);
+
+/**
+ * @swagger
+ * /api/auth/naver/token:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *       - Naver OAuth
+ *     summary: Authenticate with Naver access token (Mobile App)
+ *     description: Authenticate user using Naver access token obtained from mobile SDK
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accessToken
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *                 description: Naver access token from mobile SDK
+ *               fcmToken:
+ *                 type: string
+ *                 description: Firebase FCM token for push notifications
+ *               deviceInfo:
+ *                 type: object
+ *                 properties:
+ *                   deviceId:
+ *                     type: string
+ *                   platform:
+ *                     type: string
+ *                     enum: [ios, android, web]
+ *                   appVersion:
+ *                     type: string
+ *                   osVersion:
+ *                     type: string
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *                     token:
+ *                       type: string
+ *                     refreshToken:
+ *                       type: string
+ *                     expiresIn:
+ *                       type: number
+ *                     isNewUser:
+ *                       type: boolean
+ *                     profileComplete:
+ *                       type: boolean
+ *       400:
+ *         description: Missing access token
+ *       401:
+ *         description: Invalid or expired token
+ *       403:
+ *         description: Account is inactive
+ *       500:
+ *         description: Authentication failed
+ */
+router.post('/naver/token',
+  loginRateLimit(),
+  naverAuthController.authenticateWithToken
+);
+
+/**
+ * @swagger
+ * /api/auth/naver/unlink:
+ *   delete:
+ *     tags:
+ *       - Authentication
+ *       - Naver OAuth
+ *     summary: Unlink Naver account
+ *     description: Unlink Naver account from user profile
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *                 description: Naver access token for revoking (optional)
+ *     responses:
+ *       200:
+ *         description: Account unlinked successfully
+ *       400:
+ *         description: Account is not linked to Naver
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: Unlink failed
+ */
+router.delete('/naver/unlink',
+  rateLimit(),
+  authenticateJWT(),
+  naverAuthController.unlinkAccount
+);
+
+/**
+ * @swagger
+ * /api/auth/naver/status:
+ *   get:
+ *     tags:
+ *       - Authentication
+ *       - Naver OAuth
+ *     summary: Check Naver OAuth status
+ *     description: Check if Naver OAuth is configured and available
+ *     responses:
+ *       200:
+ *         description: Status retrieved
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     configured:
+ *                       type: boolean
+ *                     available:
+ *                       type: boolean
+ *                     provider:
+ *                       type: string
+ */
+router.get('/naver/status',
+  rateLimit(),
+  naverAuthController.getStatus
 );
 
 export default router; 

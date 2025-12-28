@@ -84,8 +84,9 @@ const createShopSchema = Joi.object({
     'string.uri': '사업자등록증 이미지 URL 형식이 올바르지 않습니다.'
   }),
   // Admin-specific fields
-  owner_id: Joi.string().uuid().optional().messages({
-    'string.guid': '유효하지 않은 오너 ID입니다.'
+  owner_id: Joi.string().uuid().required().messages({
+    'string.guid': '유효하지 않은 오너 ID입니다.',
+    'any.required': '오너 ID는 필수입니다.'
   }),
   shop_status: Joi.string().valid('active', 'inactive', 'pending_approval', 'suspended', 'deleted').optional().messages({
     'any.only': '유효하지 않은 샵 상태입니다.'
@@ -201,6 +202,18 @@ const approveShopSchema = Joi.object({
   }),
   notes: Joi.string().max(1000).optional().messages({
     'string.max': '메모는 최대 1000자까지 입력 가능합니다.'
+  })
+});
+
+const updateShopStatusSchema = Joi.object({
+  status: Joi.string().valid(
+    'active', 'inactive', 'pending_approval', 'suspended', 'deleted'
+  ).required().messages({
+    'any.only': '유효하지 않은 샵 상태입니다.',
+    'any.required': '샵 상태는 필수입니다.'
+  }),
+  reason: Joi.string().max(500).optional().allow('').messages({
+    'string.max': '사유는 최대 500자까지 입력 가능합니다.'
   })
 });
 
@@ -364,6 +377,25 @@ router.get(
 );
 
 /**
+ * GET /api/admin/shops/:shopId/reservations
+ * Get shop reservations (Admin only)
+ *
+ * Query parameters:
+ * - page: Page number (default: 1)
+ * - limit: Items per page (default: 20, max: 100)
+ * - status: Filter by reservation status
+ *
+ * Returns:
+ * - List of reservations for the shop
+ * - Pagination info
+ */
+router.get(
+  '/:shopId/reservations',
+  adminRateLimit,
+  adminShopController.getShopReservations
+);
+
+/**
  * GET /api/admin/shops/:shopId/analytics
  * Get shop analytics data (Admin only)
  *
@@ -384,6 +416,26 @@ router.get(
 );
 
 /**
+ * GET /api/admin/shops/:shopId/operating-hours
+ * Get shop operating hours (Admin only)
+ *
+ * Returns:
+ * - shopId: Shop UUID
+ * - shopName: Shop name
+ * - operating_hours: Weekly operating hours data
+ * - current_status: Real-time operating status
+ *   - is_open: Whether shop is currently open
+ *   - current_day: Current day name
+ *   - current_time: Current time (HH:MM)
+ *   - next_opening: Next opening time if closed
+ */
+router.get(
+  '/:shopId/operating-hours',
+  adminRateLimit,
+  adminShopController.getShopOperatingHours.bind(adminShopController)
+);
+
+/**
  * PUT /api/admin/shops/:shopId/approve
  * Approve or reject a shop (Admin only)
  *
@@ -400,6 +452,23 @@ router.put(
   sensitiveRateLimit,
   validateRequestBody(approveShopSchema),
   adminShopController.approveShop
+);
+
+/**
+ * PATCH /api/admin/shops/:shopId/status
+ * Update shop status (Admin only)
+ *
+ * Request body:
+ * {
+ *   "status": "active" | "inactive" | "pending_approval" | "suspended" | "deleted",
+ *   "reason": "Optional reason for status change (can be empty string)"
+ * }
+ */
+router.patch(
+  '/:shopId/status',
+  sensitiveRateLimit,
+  validateRequestBody(updateShopStatusSchema),
+  adminShopController.updateShopStatus
 );
 
 /**

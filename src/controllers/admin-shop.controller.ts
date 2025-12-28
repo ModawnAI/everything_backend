@@ -13,6 +13,7 @@ import { logger } from '../utils/logger';
 import { ShopVerificationStatus, ShopType, ShopStatus } from '../types/database.types';
 import { shopVerificationService } from '../services/shop-verification.service';
 import { AdminAnalyticsService } from '../services/admin-analytics.service';
+import { FeedService } from '../services/feed.service';
 
 // Request interfaces
 interface ApproveShopRequest extends Request {
@@ -64,6 +65,7 @@ export class AdminShopController {
         category,
         shopType,
         verificationStatus,
+        search,
         sortBy = 'created_at',
         sortOrder = 'desc'
       } = req.query;
@@ -104,6 +106,13 @@ export class AdminShopController {
             is_available,
             display_order
           ),
+          shop_images(
+            id,
+            image_url,
+            alt_text,
+            is_primary,
+            display_order
+          ),
           owner:users!shops_owner_id_fkey(
             id,
             name,
@@ -124,6 +133,10 @@ export class AdminShopController {
       }
       if (verificationStatus) {
         query = query.eq('verification_status', verificationStatus);
+      }
+      // Add search filter
+      if (search) {
+        query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%,address.ilike.%${search}%`);
       }
 
       // Add sorting
@@ -253,9 +266,36 @@ export class AdminShopController {
         return;
       }
 
+      // Fetch shop owner's feed posts
+      let feedPosts: any[] = [];
+      if (shop.owner_id) {
+        try {
+          const feedService = new FeedService();
+          const feedResult = await feedService.getFeedPosts(shop.owner_id, {
+            author_id: shop.owner_id,
+            limit: 20, // Show recent 20 posts
+            page: 1
+          });
+
+          if (feedResult.success && feedResult.posts) {
+            feedPosts = feedResult.posts;
+          }
+        } catch (feedError: any) {
+          logger.warn('Failed to fetch shop feed posts', {
+            shopId,
+            ownerId: shop.owner_id,
+            error: feedError.message
+          });
+          // Don't fail the whole request if feed fetch fails
+        }
+      }
+
       res.status(200).json({
         success: true,
-        data: shop
+        data: {
+          shop: shop,
+          feedPosts: feedPosts
+        }
       });
 
     } catch (error: any) {
@@ -748,6 +788,8 @@ export class AdminShopController {
       }
 
       const client = getSupabaseClient();
+      // owner_id is now required from validation
+      const ownerId = shopData.owner_id;
 
       // Prepare shop data with admin-specific fields
       const newShop: any = {
@@ -767,7 +809,7 @@ export class AdminShopController {
         business_license_image_url: shopData.business_license_image_url || null,
 
         // Admin can specify these fields directly
-        owner_id: shopData.owner_id || adminId,
+        owner_id: ownerId,
         shop_status: shopData.shop_status || 'active',
         verification_status: shopData.verification_status || 'verified',
         shop_type: shopData.shop_type || 'partnered',
@@ -807,6 +849,29 @@ export class AdminShopController {
         return;
       }
 
+      // Update owner user to assign shop_id and shop_owner role
+      const { error: updateError } = await client
+        .from('users')
+        .update({
+          user_role: 'shop_owner',
+          shop_id: shop.id,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', shop.owner_id);
+
+      if (updateError) {
+        logger.warn('Failed to update owner role, but shop was created', {
+          shopId: shop.id,
+          ownerId: shop.owner_id,
+          error: updateError.message
+        });
+      } else {
+        logger.info('Updated owner user to shop_owner and assigned shop_id', {
+          shopId: shop.id,
+          ownerId: shop.owner_id
+        });
+      }
+
       logger.info('Admin created shop successfully', {
         shopId: shop.id,
         adminId,
@@ -821,6 +886,133 @@ export class AdminShopController {
 
     } catch (error) {
       logger.error('AdminShopController.createShop error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * PATCH /api/admin/shops/:shopId/status
+   * Update shop status (Admin only)
+   */
+  async updateShopStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const { status, reason } = req.body;
+      const adminId = (req as any).user?.id;
+
+      // Debug logging
+      logger.info('UpdateShopStatus called', {
+        shopId,
+        requestBody: req.body,
+        status,
+        reason,
+        bodyType: typeof req.body,
+        statusType: typeof status
+      });
+
+      if (!adminId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '관리자 인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const client = getSupabaseClient();
+
+      // Check if shop exists
+      const { data: existingShop, error: fetchError } = await client
+        .from('shops')
+        .select('id, name, shop_status')
+        .eq('id', shopId)
+        .single();
+
+      if (fetchError || !existingShop) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '해당 샵을 찾을 수 없습니다.',
+            details: '샵이 존재하지 않습니다.'
+          }
+        });
+        return;
+      }
+
+      // Update shop status
+      const { data: updatedShop, error: updateError } = await client
+        .from('shops')
+        .update({
+          shop_status: status,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', shopId)
+        .select()
+        .single();
+
+      if (updateError) {
+        logger.error('Failed to update shop status', {
+          error: updateError.message,
+          shopId,
+          status,
+          adminId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'STATUS_UPDATE_FAILED',
+            message: '샵 상태 변경에 실패했습니다.',
+            details: updateError.message
+          }
+        });
+        return;
+      }
+
+      logger.info('Shop status updated successfully', {
+        shopId,
+        adminId,
+        oldStatus: existingShop.shop_status,
+        newStatus: status,
+        reason
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          shopId: updatedShop.id,
+          shopName: updatedShop.name,
+          oldStatus: existingShop.shop_status,
+          newStatus: status,
+          updatedAt: updatedShop.updated_at
+        },
+        message: '샵 상태가 성공적으로 변경되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.updateShopStatus error:', { error });
       res.status(500).json({
         success: false,
         error: {
@@ -1232,6 +1424,113 @@ export class AdminShopController {
   }
 
   /**
+   * GET /api/admin/shops/:shopId/reservations
+   * Get shop reservations (Admin only)
+   */
+  async getShopReservations(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+      const { page = '1', limit = '20', status } = req.query;
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const pageNum = parseInt(page as string);
+      const limitNum = Math.min(parseInt(limit as string), 100);
+      const offset = (pageNum - 1) * limitNum;
+
+      const supabase = getSupabaseClient();
+
+      // Build query for reservations
+      let query = supabase
+        .from('reservations')
+        .select(`
+          id,
+          user_id,
+          shop_id,
+          status,
+          reservation_date,
+          reservation_time,
+          total_amount,
+          deposit_amount,
+          remaining_amount,
+          points_used,
+          points_earned,
+          special_requests,
+          confirmed_at,
+          completed_at,
+          cancelled_at,
+          created_at,
+          updated_at
+        `, { count: 'exact' })
+        .eq('shop_id', shopId);
+
+      // Add status filter if provided
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      // Add sorting and pagination
+      query = query
+        .order('reservation_date', { ascending: false })
+        .order('reservation_time', { ascending: false })
+        .range(offset, offset + limitNum - 1);
+
+      const { data: reservations, error, count } = await query;
+
+      if (error) {
+        logger.error('Failed to fetch shop reservations', {
+          error: error.message,
+          shopId
+        });
+
+        res.status(500).json({
+          success: false,
+          error: {
+            code: 'FETCH_RESERVATIONS_FAILED',
+            message: '예약 목록을 가져오는데 실패했습니다.',
+            details: error.message
+          }
+        });
+        return;
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          reservations: reservations || [],
+          pagination: {
+            page: pageNum,
+            limit: limitNum,
+            total: count || 0,
+            totalPages: Math.ceil((count || 0) / limitNum)
+          }
+        },
+        message: '샵 예약 목록을 성공적으로 조회했습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.getShopReservations error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '서버 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
    * POST /api/admin/data-integrity/validate
    * Validate data integrity across all analytics tables
    */
@@ -1306,6 +1605,197 @@ export class AdminShopController {
         }
       });
     }
+  }
+
+  /**
+   * GET /api/admin/shops/:shopId/operating-hours
+   * Get shop operating hours (Admin only)
+   */
+  async getShopOperatingHours(req: Request, res: Response): Promise<void> {
+    try {
+      const { shopId } = req.params;
+
+      if (!shopId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_SHOP_ID',
+            message: '샵 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const supabase = getSupabaseClient();
+
+      // Fetch shop with operating hours
+      const { data: shop, error } = await supabase
+        .from('shops')
+        .select('id, name, operating_hours')
+        .eq('id', shopId)
+        .single();
+
+      if (error || !shop) {
+        logger.error('Failed to fetch shop operating hours', {
+          shopId,
+          error: error?.message
+        });
+
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'SHOP_NOT_FOUND',
+            message: '샵을 찾을 수 없습니다.',
+            details: '요청하신 샵이 존재하지 않거나 삭제되었습니다.'
+          }
+        });
+        return;
+      }
+
+      // Calculate current status
+      const currentStatus = this.getCurrentOperatingStatus(shop.operating_hours);
+
+      logger.info('Shop operating hours retrieved by admin', {
+        shopId,
+        shopName: shop.name,
+        hasOperatingHours: !!shop.operating_hours
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          shopId: shop.id,
+          shopName: shop.name,
+          operating_hours: shop.operating_hours || this.getDefaultOperatingHours(),
+          current_status: currentStatus
+        },
+        message: '영업시간을 성공적으로 조회했습니다.'
+      });
+
+    } catch (error) {
+      logger.error('AdminShopController.getShopOperatingHours error:', { error });
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '영업시간 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * Get current shop operating status based on operating hours
+   */
+  private getCurrentOperatingStatus(operatingHours: any): {
+    is_open: boolean;
+    current_day: string;
+    current_time: string;
+    next_opening?: string;
+  } {
+    const now = new Date();
+    const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = dayNames[now.getDay()];
+
+    const status = {
+      is_open: false,
+      current_day: currentDay,
+      current_time: currentTime,
+      next_opening: undefined as string | undefined
+    };
+
+    if (!operatingHours || !operatingHours[currentDay]) {
+      return status;
+    }
+
+    const todayHours = operatingHours[currentDay];
+
+    // Check if shop is closed today
+    if (todayHours.closed === true) {
+      status.next_opening = this.getNextOpening(operatingHours, now);
+      return status;
+    }
+
+    if (!todayHours.open || !todayHours.close) {
+      return status;
+    }
+
+    const currentMinutes = this.timeToMinutes(currentTime);
+    const openMinutes = this.timeToMinutes(todayHours.open);
+    const closeMinutes = this.timeToMinutes(todayHours.close);
+
+    // Check if currently in break time
+    if (todayHours.break_start && todayHours.break_end) {
+      const breakStartMinutes = this.timeToMinutes(todayHours.break_start);
+      const breakEndMinutes = this.timeToMinutes(todayHours.break_end);
+
+      if (currentMinutes >= breakStartMinutes && currentMinutes < breakEndMinutes) {
+        status.next_opening = `Today at ${todayHours.break_end}`;
+        return status;
+      }
+    }
+
+    // Handle overnight hours
+    if (closeMinutes <= openMinutes && closeMinutes < 12 * 60) {
+      // Overnight hours (e.g., 22:00 - 02:00)
+      status.is_open = currentMinutes >= openMinutes || currentMinutes < closeMinutes;
+    } else {
+      // Regular hours
+      status.is_open = currentMinutes >= openMinutes && currentMinutes < closeMinutes;
+    }
+
+    if (!status.is_open) {
+      status.next_opening = this.getNextOpening(operatingHours, now);
+    }
+
+    return status;
+  }
+
+  /**
+   * Convert time string (HH:MM) to minutes since midnight
+   */
+  private timeToMinutes(time: string): number {
+    const [hours, minutes] = time.split(':').map(Number);
+    return hours * 60 + minutes;
+  }
+
+  /**
+   * Get next opening time
+   */
+  private getNextOpening(operatingHours: any, currentDate: Date): string | undefined {
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const currentDay = currentDate.getDay();
+
+    // Check remaining days in the week
+    for (let i = 1; i <= 7; i++) {
+      const nextDayIndex = (currentDay + i) % 7;
+      const nextDayName = dayNames[nextDayIndex];
+      const nextDayHours = operatingHours[nextDayName];
+
+      if (nextDayHours && !nextDayHours.closed && nextDayHours.open) {
+        const dayLabel = i === 1 ? 'Tomorrow' : nextDayName;
+        return `${dayLabel} at ${nextDayHours.open}`;
+      }
+    }
+
+    return undefined;
+  }
+
+  /**
+   * Get default operating hours template
+   */
+  private getDefaultOperatingHours(): any {
+    return {
+      monday: { open: '09:00', close: '18:00', closed: false },
+      tuesday: { open: '09:00', close: '18:00', closed: false },
+      wednesday: { open: '09:00', close: '18:00', closed: false },
+      thursday: { open: '09:00', close: '18:00', closed: false },
+      friday: { open: '09:00', close: '18:00', closed: false },
+      saturday: { open: '10:00', close: '17:00', closed: false },
+      sunday: { closed: true }
+    };
   }
 
   /**

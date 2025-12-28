@@ -28,20 +28,32 @@ export class BookingValidationMiddleware {
   validateBookingRequest = async (req: ValidatedBookingRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       // Extract booking request from request body
+      // v3.1 API compatibility: Map new fields to legacy format for validation
+      const services = req.body.services || [];
+      const firstService = services.length > 0 ? services[0] : null;
+
       const bookingRequest: BookingRequest = {
         userId: req.body.userId || req.user?.id,
         shopId: req.body.shopId,
-        serviceId: req.body.serviceId,
+        serviceId: firstService?.serviceId || req.body.serviceId,
         staffId: req.body.staffId,
-        date: req.body.date,
-        timeSlot: req.body.timeSlot,
-        quantity: req.body.quantity,
+        date: req.body.reservationDate || req.body.date,
+        timeSlot: req.body.reservationTime || req.body.timeSlot,
+        quantity: firstService?.quantity || req.body.quantity || 1,
         specialRequests: req.body.specialRequests,
         customerNotes: req.body.customerNotes
       };
 
+      console.log('🔍 [BOOKING-VALIDATION] Mapped booking request:', JSON.stringify(bookingRequest, null, 2));
+
       // Perform comprehensive validation
       const validationResult = await this.validationService.validateBookingRequest(bookingRequest);
+
+      console.log('🔍 [BOOKING-VALIDATION] Validation result:', JSON.stringify({
+        isValid: validationResult.isValid,
+        errors: validationResult.errors,
+        warnings: validationResult.warnings
+      }, null, 2));
 
       // Store validation result in request for controller access
       req.validatedBooking = bookingRequest;

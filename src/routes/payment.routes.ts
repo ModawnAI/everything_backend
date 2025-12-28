@@ -406,4 +406,108 @@ router.get(
   paymentController.handlePaymentFail.bind(paymentController)
 );
 
+/**
+ * Billing key payment routes (pay with saved card)
+ */
+
+/**
+ * @swagger
+ * /api/payments/billing-key:
+ *   post:
+ *     summary: Pay with saved billing key
+ *     description: Make instant payment using a saved payment method (billing key)
+ *
+ *       저장된 결제 수단(빌링키)을 사용하여 즉시 결제를 진행합니다.
+ *       결제창 없이 서버-투-서버로 바로 결제가 완료됩니다.
+ *
+ *       ---
+ *
+ *     tags: [결제]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - reservationId
+ *               - paymentMethodId
+ *               - amount
+ *             properties:
+ *               reservationId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: Reservation ID to pay for
+ *                 example: "123e4567-e89b-12d3-a456-426614174000"
+ *               paymentMethodId:
+ *                 type: string
+ *                 format: uuid
+ *                 description: User's saved payment method ID
+ *                 example: "pm_123e4567-e89b-12d3-a456-426614174000"
+ *               amount:
+ *                 type: integer
+ *                 minimum: 100
+ *                 description: Payment amount in KRW
+ *                 example: 50000
+ *               paymentType:
+ *                 type: string
+ *                 enum: [deposit, final, single]
+ *                 default: deposit
+ *                 description: Type of payment
+ *               orderName:
+ *                 type: string
+ *                 description: Custom order name (optional)
+ *                 example: "에뷰리띵 예약금"
+ *     responses:
+ *       200:
+ *         description: Payment completed successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     paymentId:
+ *                       type: string
+ *                       description: Internal payment ID
+ *                     transactionId:
+ *                       type: string
+ *                       description: PortOne transaction ID
+ *                     status:
+ *                       type: string
+ *                       example: "PAID"
+ *                     paidAt:
+ *                       type: string
+ *                       format: date-time
+ *                     receiptUrl:
+ *                       type: string
+ *                       format: uri
+ *                 message:
+ *                   type: string
+ *                   example: "결제가 완료되었습니다."
+ *       400:
+ *         description: Invalid request parameters
+ *       401:
+ *         description: Authentication required
+ *       404:
+ *         description: Payment method or reservation not found
+ *       402:
+ *         description: Payment failed
+ *       500:
+ *         description: Internal server error
+ */
+router.post(
+  '/billing-key',
+  authenticateJWT,
+  paymentRateLimit(),
+  paymentController.payWithBillingKey.bind(paymentController)
+);
+
 export default router; 

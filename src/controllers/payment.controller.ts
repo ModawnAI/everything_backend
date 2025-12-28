@@ -1166,7 +1166,7 @@ export class PaymentController {
       const { page = 1, limit = 10, status } = req.query;
       const offset = (Number(page) - 1) * Number(limit);
 
-      // Build query
+      // Build query - include points_used and points_earned from reservations
       let query = this.supabase
         .from('payments')
         .select(`
@@ -1178,9 +1178,11 @@ export class PaymentController {
             total_amount,
             deposit_amount,
             status,
+            points_used,
+            points_earned,
             shops!inner(name, address)
           )
-        `)
+        `, { count: 'exact' })
         .eq('user_id', userId)
         .order('created_at', { ascending: false })
         .range(offset, offset + Number(limit) - 1);
@@ -1218,6 +1220,8 @@ export class PaymentController {
               totalAmount: payment.reservations.total_amount,
               depositAmount: payment.reservations.deposit_amount,
               status: payment.reservations.status,
+              pointsUsed: payment.reservations.points_used || 0,
+              pointsEarned: payment.reservations.points_earned || 0,
               shop: {
                 name: payment.reservations.shops.name,
                 address: payment.reservations.shops.address
@@ -1542,6 +1546,281 @@ export class PaymentController {
           message: '최종 결제 확인에 실패했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
+      });
+    }
+  }
+
+  /**
+   * POST /api/payments/billing-key
+   * Pay with saved billing key (instant payment without payment window)
+   */
+  async payWithBillingKey(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user!.id;
+      const { reservationId, paymentMethodId, amount, paymentType = 'deposit', orderName } = req.body;
+
+      // Validate required fields
+      if (!reservationId || !paymentMethodId || !amount) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'MISSING_REQUIRED_FIELDS',
+            message: '필수 필드가 누락되었습니다.',
+            details: 'reservationId, paymentMethodId, amount를 모두 제공해주세요.',
+          },
+        });
+        return;
+      }
+
+      // Validate amount
+      if (amount < 100) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_AMOUNT',
+            message: '결제 금액이 유효하지 않습니다.',
+            details: '최소 결제 금액은 100원입니다.',
+          },
+        });
+        return;
+      }
+
+      logger.info('Processing billing key payment', {
+        userId,
+        reservationId,
+        paymentMethodId,
+        amount,
+        paymentType,
+      });
+
+      // 1. Get reservation
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select('id, user_id, shop_id, total_price, status')
+        .eq('id', reservationId)
+        .single();
+
+      if (reservationError || !reservation) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'RESERVATION_NOT_FOUND',
+            message: '예약을 찾을 수 없습니다.',
+          },
+        });
+        return;
+      }
+
+      // Verify ownership
+      if (reservation.user_id !== userId) {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'ACCESS_DENIED',
+            message: '해당 예약에 대한 권한이 없습니다.',
+          },
+        });
+        return;
+      }
+
+      // 2. Get user's saved payment method
+      const { userPaymentMethodsService } = await import('../services/user-payment-methods.service');
+      const paymentMethod = await userPaymentMethodsService.getPaymentMethod(paymentMethodId, userId);
+
+      if (!paymentMethod) {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'PAYMENT_METHOD_NOT_FOUND',
+            message: '결제 수단을 찾을 수 없습니다.',
+          },
+        });
+        return;
+      }
+
+      // 3. Generate unique payment ID
+      const timestamp = Date.now();
+      const portonePaymentId = `pay_${reservationId.substring(0, 8)}_${paymentType}_${timestamp}`;
+
+      // 4. Call PortOne billing key payment API
+      const { PortOneClient } = await import('@portone/server-sdk');
+      const { config } = await import('../config/environment');
+
+      const apiSecret = config.payments?.portone?.v2?.apiSecret;
+      if (!apiSecret) {
+        logger.warn('PortOne API secret not configured - simulating payment success for development');
+
+        // Development mode: simulate payment success
+        const { data: simulatedPayment } = await this.supabase
+          .from('payments')
+          .insert({
+            reservation_id: reservationId,
+            user_id: userId,
+            payment_method: 'card',
+            payment_status: 'fully_paid',
+            amount,
+            currency: 'KRW',
+            payment_provider: 'portone',
+            provider_order_id: portonePaymentId,
+            provider_transaction_id: `dev_txn_${timestamp}`,
+            is_deposit: paymentType === 'deposit',
+            payment_stage: paymentType,
+            paid_at: new Date().toISOString(),
+            metadata: {
+              dev_mode: true,
+              paymentMethodId,
+              billingKey: paymentMethod.billingKey,
+              orderName: orderName || `에뷰리띵 ${paymentType === 'deposit' ? '예약금' : '최종'} 결제`,
+            },
+          })
+          .select()
+          .single();
+
+        logger.info('DEV MODE: Simulated billing key payment success', {
+          paymentId: simulatedPayment.id,
+          reservationId,
+          amount,
+        });
+
+        res.status(200).json({
+          success: true,
+          data: {
+            paymentId: simulatedPayment.id,
+            transactionId: simulatedPayment.provider_transaction_id,
+            status: 'PAID',
+            paidAt: simulatedPayment.paid_at,
+            receiptUrl: null,
+          },
+          message: '결제가 완료되었습니다 (개발 모드).',
+        });
+        return;
+      }
+
+      // Production mode: Call PortOne API
+      const portoneClient = PortOneClient({ secret: apiSecret });
+
+      const paymentResponse = await portoneClient.payment.payWithBillingKey({
+        paymentId: portonePaymentId,
+        billingKey: paymentMethod.billingKey,
+        orderName: orderName || `에뷰리띵 ${paymentType === 'deposit' ? '예약금' : '최종'} 결제`,
+        customer: {
+          id: userId,
+        },
+        amount: {
+          total: amount,
+        },
+        currency: 'KRW',
+      } as any);
+
+      // Check payment status
+      if ((paymentResponse as any).status !== 'PAID') {
+        logger.error('Billing key payment not completed', {
+          paymentId: portonePaymentId,
+          status: (paymentResponse as any).status,
+        });
+
+        res.status(402).json({
+          success: false,
+          error: {
+            code: 'PAYMENT_FAILED',
+            message: '결제에 실패했습니다.',
+            details: (paymentResponse as any).failureReason || '결제 처리 중 문제가 발생했습니다.',
+          },
+        });
+        return;
+      }
+
+      // 5. Save payment record
+      const { data: payment, error: paymentInsertError } = await this.supabase
+        .from('payments')
+        .insert({
+          reservation_id: reservationId,
+          user_id: userId,
+          payment_method: 'card',
+          payment_status: 'fully_paid',
+          amount,
+          currency: 'KRW',
+          payment_provider: 'portone',
+          provider_order_id: portonePaymentId,
+          provider_transaction_id: (paymentResponse as any).transactionId,
+          is_deposit: paymentType === 'deposit',
+          payment_stage: paymentType,
+          paid_at: (paymentResponse as any).paidAt || new Date().toISOString(),
+          metadata: {
+            paymentMethodId,
+            billingKey: paymentMethod.billingKey,
+            orderName: (paymentResponse as any).orderName,
+            portoneResponse: paymentResponse,
+          },
+        })
+        .select()
+        .single();
+
+      if (paymentInsertError) {
+        logger.error('Failed to save payment record after successful billing key payment', {
+          error: paymentInsertError.message,
+          portonePaymentId,
+        });
+        throw paymentInsertError;
+      }
+
+      // 6. Update payment method usage
+      await userPaymentMethodsService.recordPaymentMethodUsage(paymentMethodId);
+
+      // 7. Update reservation status based on payment type
+      if (paymentType === 'deposit') {
+        await this.supabase
+          .from('reservations')
+          .update({
+            status: 'deposit_paid',
+            deposit_amount: amount,
+            deposit_paid_at: new Date().toISOString(),
+          })
+          .eq('id', reservationId);
+      } else if (paymentType === 'final' || paymentType === 'single') {
+        await this.supabase
+          .from('reservations')
+          .update({
+            status: 'fully_paid',
+            payment_completed_at: new Date().toISOString(),
+          })
+          .eq('id', reservationId);
+      }
+
+      logger.info('Billing key payment completed successfully', {
+        paymentId: payment.id,
+        reservationId,
+        transactionId: payment.provider_transaction_id,
+        amount,
+        paymentType,
+      });
+
+      res.status(200).json({
+        success: true,
+        data: {
+          paymentId: payment.id,
+          transactionId: payment.provider_transaction_id,
+          status: 'PAID',
+          paidAt: payment.paid_at,
+          receiptUrl: (paymentResponse as any).receiptUrl || null,
+        },
+        message: '결제가 완료되었습니다.',
+      });
+
+    } catch (error) {
+      logger.error('Error in payWithBillingKey', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id,
+        body: req.body,
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'BILLING_KEY_PAYMENT_FAILED',
+          message: '빌링키 결제에 실패했습니다.',
+          details: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.',
+        },
       });
     }
   }

@@ -107,8 +107,8 @@ export class AdminAdjustmentService {
   private readonly approvalThresholds: ApprovalWorkflow[] = [
     { threshold: 10000, requiredLevel: 1, autoApproval: true, notificationRecipients: [] },
     { threshold: 50000, requiredLevel: 2, autoApproval: false, notificationRecipients: ['admin'] },
-    { threshold: 100000, requiredLevel: 3, autoApproval: false, notificationRecipients: ['admin', 'super_admin'] },
-    { threshold: Infinity, requiredLevel: 4, autoApproval: false, notificationRecipients: ['admin', 'super_admin', 'finance'] }
+    { threshold: 100000, requiredLevel: 3, autoApproval: false, notificationRecipients: ['admin'] },
+    { threshold: Infinity, requiredLevel: 4, autoApproval: false, notificationRecipients: ['admin', 'finance'] }
   ];
 
   /**

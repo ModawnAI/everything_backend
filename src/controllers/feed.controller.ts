@@ -29,19 +29,65 @@ export class FeedController {
         return;
       }
 
+      // [DEBUG] Log complete request body in development
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('📦 [FEED-DEBUG] createPost request body:', {
+          body: req.body,
+          bodyKeys: Object.keys(req.body || {}),
+          hasImages: !!req.body.images,
+          imagesCount: req.body.images?.length || 0,
+          imagesStructure: req.body.images?.map((img: any) => ({
+            hasImageUrl: !!img.imageUrl,
+            hasImage_url: !!img.image_url,
+            hasAltText: !!img.altText,
+            hasAlt_text: !!img.alt_text,
+            hasDisplayOrder: !!img.displayOrder,
+            hasDisplay_order: !!img.display_order,
+            keys: Object.keys(img)
+          }))
+        });
+      }
+
       // Validate request body
       // const { error, value } = validateFeedPost(req.body);
       // if (error) {
-      //   res.status(400).json({ 
-      //     error: 'Validation failed', 
-      //     details: error.details.map(d => d.message) 
+      //   res.status(400).json({
+      //     error: 'Validation failed',
+      //     details: error.details.map(d => d.message)
       //   });
       //   return;
       // }
       const value = req.body;
 
+      // Normalize field names (camelCase → snake_case for database compatibility)
+      const normalizedValue = {
+        content: value.content,
+        category: value.category,
+        location_tag: value.location_tag || value.locationTag,
+        tagged_shop_id: value.tagged_shop_id || value.taggedShopId,
+        hashtags: value.hashtags,
+        images: value.images?.map((img: any) => ({
+          image_url: img.image_url || img.imageUrl,
+          alt_text: img.alt_text || img.altText,
+          display_order: img.display_order || img.displayOrder
+        }))
+      };
+
+      if (process.env.NODE_ENV === 'development') {
+        logger.info('🔄 [FEED-DEBUG] Normalized data for service:', {
+          original_has_images: !!value.images,
+          normalized_has_images: !!normalizedValue.images,
+          normalized_images_count: normalizedValue.images?.length || 0,
+          normalized_images: normalizedValue.images?.map((img: any) => ({
+            has_image_url: !!img.image_url,
+            image_url: img.image_url,
+            display_order: img.display_order
+          }))
+        });
+      }
+
       const postData = {
-        ...value,
+        ...normalizedValue,
         author_id: userId
       };
 
@@ -165,6 +211,116 @@ export class FeedController {
         req
       );
       
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Get user's own posts (most recent 10)
+   * GET /api/user/feed/my-posts
+   */
+  async getMyPosts(req: Request, res: Response): Promise<void> {
+    const startTime = Date.now();
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const result = await feedService.getMyPosts(userId);
+
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+
+      // Log feed load performance
+      const duration = Date.now() - startTime;
+      feedLoggingService.logFeedLoad(
+        duration,
+        userId,
+        result.posts?.length || 0,
+        false,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: {
+          posts: result.posts || []
+        }
+      });
+
+    } catch (error) {
+      const userId = (req as any).user?.id;
+      const duration = Date.now() - startTime;
+
+      feedLoggingService.logFeedError(
+        error as Error,
+        {
+          userId,
+          operation: 'my_posts_load',
+          metadata: { duration }
+        },
+        req
+      );
+
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Get discover feed (posts from other users and shops)
+   * GET /api/user/feed/discover
+   */
+  async getDiscoverFeed(req: Request, res: Response): Promise<void> {
+    const startTime = Date.now();
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ error: 'Authentication required' });
+        return;
+      }
+
+      const result = await feedService.getDiscoverFeed(userId);
+
+      if (!result.success) {
+        res.status(400).json({ error: result.error });
+        return;
+      }
+
+      // Log feed load performance
+      const duration = Date.now() - startTime;
+      feedLoggingService.logFeedLoad(
+        duration,
+        userId,
+        result.posts?.length || 0,
+        false,
+        req
+      );
+
+      res.json({
+        success: true,
+        data: {
+          posts: result.posts || []
+        }
+      });
+
+    } catch (error) {
+      const userId = (req as any).user?.id;
+      const duration = Date.now() - startTime;
+
+      feedLoggingService.logFeedError(
+        error as Error,
+        {
+          userId,
+          operation: 'discover_feed_load',
+          metadata: { duration }
+        },
+        req
+      );
+
       res.status(500).json({ error: 'Internal server error' });
     }
   }
@@ -418,7 +574,7 @@ export class FeedController {
   async getComments(req: Request, res: Response): Promise<void> {
     try {
       const { postId } = req.params;
-      const { page = 1, limit = 20 } = req.query;
+      const { page = '1', limit = '20' } = req.query;
       const userId = (req as any).user?.id;
 
       if (!userId) {
@@ -426,12 +582,34 @@ export class FeedController {
         return;
       }
 
+      // Parse and validate pagination parameters
+      const parsedPage = parseInt(page as string, 10);
+      const parsedLimit = parseInt(limit as string, 10);
+
+      // Validate parsed values
+      if (isNaN(parsedPage) || parsedPage < 1) {
+        res.status(400).json({ error: 'Invalid page parameter' });
+        return;
+      }
+
+      if (isNaN(parsedLimit) || parsedLimit < 1 || parsedLimit > 50) {
+        res.status(400).json({ error: 'Invalid limit parameter (must be between 1 and 50)' });
+        return;
+      }
+
       const result = await feedService.getComments(postId, {
-        page: parseInt(page as string),
-        limit: parseInt(limit as string)
+        page: parsedPage,
+        limit: parsedLimit
       });
-      
+
       if (!result.success) {
+        logger.error('getComments service error', {
+          postId,
+          userId,
+          error: result.error,
+          page: parsedPage,
+          limit: parsedLimit
+        });
         res.status(400).json({ error: result.error });
         return;
       }
@@ -674,6 +852,243 @@ export class FeedController {
         userId: (req as any).user?.id
       });
       res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+
+  // =============================================================================
+  // SAVED FEEDS ENDPOINTS
+  // =============================================================================
+
+  /**
+   * Save/bookmark a post
+   * POST /api/feed/posts/:postId/save
+   */
+  async savePost(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { postId } = req.params;
+      if (!postId) {
+        res.status(400).json({ success: false, error: 'Post ID is required' });
+        return;
+      }
+
+      const result = await feedService.savePost(userId, postId);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: '저장되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('Error saving post', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id,
+        postId: req.params.postId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Unsave/unbookmark a post
+   * DELETE /api/feed/posts/:postId/save
+   */
+  async unsavePost(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { postId } = req.params;
+      if (!postId) {
+        res.status(400).json({ success: false, error: 'Post ID is required' });
+        return;
+      }
+
+      const result = await feedService.unsavePost(userId, postId);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: '저장이 취소되었습니다.'
+      });
+
+    } catch (error) {
+      logger.error('Error unsaving post', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id,
+        postId: req.params.postId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Get user's saved posts
+   * GET /api/feed/saved
+   */
+  async getSavedPosts(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const limit = parseInt(req.query.limit as string) || 20;
+      const offset = parseInt(req.query.offset as string) || 0;
+
+      const result = await feedService.getSavedPosts(userId, { limit, offset });
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: {
+          posts: result.posts,
+          pagination: result.pagination
+        }
+      });
+
+    } catch (error) {
+      logger.error('Error getting saved posts', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  // =============================================================================
+  // USER FEED PROFILE ENDPOINTS
+  // =============================================================================
+
+  /**
+   * Get user feed profile
+   * GET /api/feed/users/:userId/profile
+   */
+  async getUserFeedProfile(req: Request, res: Response): Promise<void> {
+    try {
+      const { userId } = req.params;
+      if (!userId) {
+        res.status(400).json({ success: false, error: 'User ID is required' });
+        return;
+      }
+
+      const viewerId = (req as any).user?.id;
+      const postLimit = parseInt(req.query.postLimit as string) || 50;
+
+      const result = await feedService.getUserFeedProfile(userId, viewerId, { postLimit });
+
+      if (!result.success) {
+        res.status(404).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: result.profile
+      });
+
+    } catch (error) {
+      logger.error('Error getting user feed profile', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        targetUserId: req.params.userId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Update user bio
+   * PUT /api/feed/users/bio
+   */
+  async updateUserBio(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { bio } = req.body;
+      if (bio === undefined) {
+        res.status(400).json({ success: false, error: 'Bio is required' });
+        return;
+      }
+
+      const result = await feedService.updateUserBio(userId, bio);
+
+      if (!result.success) {
+        res.status(400).json(result);
+        return;
+      }
+
+      res.json({
+        success: true,
+        message: 'Bio updated successfully'
+      });
+
+    } catch (error) {
+      logger.error('Error updating user bio', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
+    }
+  }
+
+  /**
+   * Check if post is saved by current user
+   * GET /api/feed/posts/:postId/saved-status
+   */
+  async getPostSavedStatus(req: Request, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({ success: false, error: 'Authentication required' });
+        return;
+      }
+
+      const { postId } = req.params;
+      if (!postId) {
+        res.status(400).json({ success: false, error: 'Post ID is required' });
+        return;
+      }
+
+      const isSaved = await feedService.isPostSaved(userId, postId);
+
+      res.json({
+        success: true,
+        data: { isSaved }
+      });
+
+    } catch (error) {
+      logger.error('Error checking post saved status', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id,
+        postId: req.params.postId
+      });
+      res.status(500).json({ success: false, error: 'Internal server error' });
     }
   }
 }

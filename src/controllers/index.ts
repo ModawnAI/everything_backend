@@ -1,6 +1,9 @@
 // Controllers Index
 // Central export point for all controllers
 
+// Unified Authentication Controller
+export { UnifiedAuthController, unifiedAuthController } from './unified-auth.controller';
+
 // Authentication Controller
 export { default as AuthController } from './auth.controller';
 

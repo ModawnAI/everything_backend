@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Danal Payment Test - E-Beautything</title>
+  <script src="https://cdn.portone.io/v2/browser-sdk.js"></script>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      max-width: 600px;
+      margin: 50px auto;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      background: white;
+      padding: 30px;
+      border-radius: 10px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      margin-bottom: 5px;
+      color: #666;
+      font-weight: 500;
+    }
+    input, select {
+      width: 100%;
+      padding: 10px;
+      border: 1px solid #ddd;
+      border-radius: 5px;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+    button {
+      width: 100%;
+      padding: 15px;
+      background: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 5px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    button:hover {
+      background: #45a049;
+    }
+    button:disabled {
+      background: #ccc;
+      cursor: not-allowed;
+    }
+    .result {
+      margin-top: 20px;
+      padding: 15px;
+      border-radius: 5px;
+      display: none;
+    }
+    .result.success {
+      background: #d4edda;
+      border: 1px solid #c3e6cb;
+      color: #155724;
+    }
+    .result.error {
+      background: #f8d7da;
+      border: 1px solid #f5c6cb;
+      color: #721c24;
+    }
+    .info {
+      background: #e7f3ff;
+      border-left: 4px solid #2196F3;
+      padding: 15px;
+      margin-bottom: 20px;
+      border-radius: 4px;
+    }
+    .info h3 {
+      margin-top: 0;
+      color: #1976D2;
+    }
+    pre {
+      background: #f4f4f4;
+      padding: 10px;
+      border-radius: 4px;
+      overflow-x: auto;
+      font-size: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>🏪 Danal Payment Test</h1>
+
+    <div class="info">
+      <h3>📋 Configuration</h3>
+      <div id="config-info">
+        <p><strong>Store ID:</strong> <code>store-e8fdd5ab-363e-4b42-8326-b740a207acef</code></p>
+        <p><strong>Channel Key:</strong> <code>channel-key-d33714da-6ff6-4e33-88a4-106dd855f122</code></p>
+        <p><strong>Provider:</strong> Danal</p>
+        <p><strong>Status:</strong> <span id="status">Ready to test</span></p>
+      </div>
+    </div>
+
+    <form id="payment-form">
+      <div class="form-group">
+        <label for="amount">결제 금액 (원)</label>
+        <input type="number" id="amount" value="10000" min="1000" step="1000" required>
+      </div>
+
+      <div class="form-group">
+        <label for="orderName">주문명</label>
+        <input type="text" id="orderName" value="에뷰리띵 테스트 결제" required>
+      </div>
+
+      <div class="form-group">
+        <label for="customerName">고객명</label>
+        <input type="text" id="customerName" value="홍길동" required>
+      </div>
+
+      <div class="form-group">
+        <label for="customerEmail">이메일</label>
+        <input type="email" id="customerEmail" value="test@example.com" required>
+      </div>
+
+      <div class="form-group">
+        <label for="customerPhone">전화번호</label>
+        <input type="tel" id="customerPhone" value="01012345678" required>
+      </div>
+
+      <div class="form-group">
+        <label for="payMethod">결제 수단</label>
+        <select id="payMethod" required>
+          <option value="CARD">신용카드</option>
+          <option value="VIRTUAL_ACCOUNT">가상계좌</option>
+          <option value="TRANSFER">계좌이체</option>
+          <option value="MOBILE">휴대폰</option>
+        </select>
+      </div>
+
+      <button type="submit" id="pay-button">결제하기</button>
+    </form>
+
+    <div id="result" class="result"></div>
+  </div>
+
+  <script>
+    const STORE_ID = 'store-e8fdd5ab-363e-4b42-8326-b740a207acef';
+    const CHANNEL_KEY = 'channel-key-d33714da-6ff6-4e33-88a4-106dd855f122';
+
+    document.getElementById('payment-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const payButton = document.getElementById('pay-button');
+      const resultDiv = document.getElementById('result');
+
+      // Disable button
+      payButton.disabled = true;
+      payButton.textContent = '결제 진행 중...';
+      resultDiv.style.display = 'none';
+
+      // Get form values
+      const amount = parseInt(document.getElementById('amount').value);
+      const orderName = document.getElementById('orderName').value;
+      const customerName = document.getElementById('customerName').value;
+      const customerEmail = document.getElementById('customerEmail').value;
+      const customerPhone = document.getElementById('customerPhone').value;
+      const payMethod = document.getElementById('payMethod').value;
+
+      // Generate unique payment ID
+      const paymentId = `payment_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      try {
+        console.log('Starting payment with:', {
+          paymentId,
+          amount,
+          payMethod,
+          orderName
+        });
+
+        // Request payment via PortOne SDK
+        const response = await PortOne.requestPayment({
+          storeId: STORE_ID,
+          channelKey: CHANNEL_KEY,
+          paymentId: paymentId,
+          orderName: orderName,
+          totalAmount: amount,
+          currency: 'KRW',
+          payMethod: payMethod,
+          customer: {
+            fullName: customerName,
+            phoneNumber: customerPhone,
+            email: customerEmail
+          },
+          customData: {
+            testMode: true,
+            timestamp: new Date().toISOString()
+          }
+        });
+
+        console.log('Payment response:', response);
+
+        // Check for errors
+        if (response.code) {
+          throw new Error(response.message || '결제 실패');
+        }
+
+        // Success!
+        resultDiv.className = 'result success';
+        resultDiv.innerHTML = `
+          <h3>✅ 결제 성공!</h3>
+          <p><strong>Payment ID:</strong> ${response.paymentId}</p>
+          <p><strong>Transaction ID:</strong> ${response.transactionId || 'N/A'}</p>
+          <p><strong>금액:</strong> ${amount.toLocaleString()}원</p>
+          <p><strong>상태:</strong> ${response.status || 'PAID'}</p>
+          <details style="margin-top: 10px;">
+            <summary style="cursor: pointer;">전체 응답 보기</summary>
+            <pre>${JSON.stringify(response, null, 2)}</pre>
+          </details>
+        `;
+        resultDiv.style.display = 'block';
+
+        // Update status
+        document.getElementById('status').textContent = '마지막 결제 성공 ✅';
+        document.getElementById('status').style.color = '#4CAF50';
+
+      } catch (error) {
+        console.error('Payment error:', error);
+
+        resultDiv.className = 'result error';
+        resultDiv.innerHTML = `
+          <h3>❌ 결제 실패</h3>
+          <p><strong>오류:</strong> ${error.message}</p>
+          <details style="margin-top: 10px;">
+            <summary style="cursor: pointer;">상세 정보</summary>
+            <pre>${error.stack || JSON.stringify(error, null, 2)}</pre>
+          </details>
+        `;
+        resultDiv.style.display = 'block';
+
+        // Update status
+        document.getElementById('status').textContent = '마지막 결제 실패 ❌';
+        document.getElementById('status').style.color = '#f44336';
+      } finally {
+        // Re-enable button
+        payButton.disabled = false;
+        payButton.textContent = '결제하기';
+      }
+    });
+
+    // Log SDK version
+    console.log('PortOne SDK loaded');
+    console.log('Store ID:', STORE_ID);
+    console.log('Channel Key:', CHANNEL_KEY);
+  </script>
+</body>
+</html>

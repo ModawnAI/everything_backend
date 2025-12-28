@@ -12,6 +12,7 @@ import { config } from '../config/environment';
 import { ImageSecurityService } from './image-security.service';
 import { CDNService, CDNResult, ImageTransformationOptions } from './cdn.service';
 import { imageTransformationService } from './image-transformation.service';
+import { normalizeSupabaseUrl } from '../utils/supabase-url';
 
 export interface ImageOptimizationOptions {
   width?: number;
@@ -545,7 +546,7 @@ export class ImageService {
       .from('shop-images')
       .getPublicUrl(filePath);
 
-    return urlData.publicUrl;
+    return normalizeSupabaseUrl(urlData.publicUrl);
   }
 
   /**

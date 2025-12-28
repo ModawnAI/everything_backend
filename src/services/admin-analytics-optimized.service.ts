@@ -117,10 +117,19 @@ export class AdminAnalyticsOptimizedService {
   /**
    * Get quick dashboard metrics (< 10ms)
    * Reads from dashboard_quick_metrics materialized view
+   *
+   * @param shopId - Optional shop ID to filter metrics for shop owners
    */
-  async getQuickDashboardMetrics(): Promise<QuickDashboardMetrics> {
+  async getQuickDashboardMetrics(shopId?: string): Promise<QuickDashboardMetrics> {
     try {
-      logger.info('Getting quick dashboard metrics from materialized view');
+      logger.info('Getting quick dashboard metrics from materialized view', { shopId });
+
+      // If shopId is provided, we need to calculate shop-specific metrics
+      // Since materialized views are system-wide, we fall back to real-time for shop-specific data
+      if (shopId) {
+        logger.info('Shop ID provided, delegating to real-time service for shop-specific metrics');
+        throw new Error('Shop-specific metrics require real-time calculation');
+      }
 
       const { data, error } = await this.supabase
         .from('dashboard_quick_metrics')

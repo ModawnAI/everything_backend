@@ -524,9 +524,91 @@ router.get('/nearby',
 );
 
 /**
+ * GET /api/shops/popular
+ * Get popular shops using PRD 2.1 algorithm (official partner shop priority)
+ *
+ * Query Parameters:
+ * - category: Shop category filter (optional)
+ * - limit: Maximum number of results (optional, default: 50)
+ * - offset: Pagination offset (optional, default: 0)
+ *
+ * Sorting Algorithm (PRD 2.1):
+ * 1. '입점 샵' (partnered shops) appear first
+ * 2. Within partnered shops, sorted by newest partnership_started_at
+ * 3. Non-partnered shops appear after
+ *
+ * Example: GET /api/shops/popular?category=nail&limit=20
+ */
+
+/**
+ * @swagger
+ * /popular:
+ *   get:
+ *     summary: /popular 조회 (인기 샵)
+ *     description: GET endpoint for /popular
+ *
+ *       PRD 2.1 알고리즘에 따른 샵 노출 우선순위:
+ *       1. '입점 샵' 우선 노출
+ *       2. 입점 샵 내에서는 최신 입점 순 정렬
+ *       3. 비입점 샵은 그 다음에 노출
+ *
+ *       ---
+ *
+ *     tags: [Shops]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: category
+ *         schema:
+ *           type: string
+ *         description: 카테고리 필터 (optional)
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           default: 50
+ *         description: 최대 결과 개수 (1-100)
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           default: 0
+ *         description: 페이지네이션 오프셋
+ *     responses:
+ *       200:
+ *         description: Success
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/popular',
+  searchRateLimit,
+  async (req, res) => {
+    try {
+      await shopController.getPopularShops(req, res);
+    } catch (error) {
+      logger.error('Error in popular shops route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '인기 샵 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
  * GET /api/shops/bounds
  * Get shops within a bounding box (for map interfaces)
- * 
+ *
  * Query Parameters:
  * - neLat: North-east latitude (required)
  * - neLng: North-east longitude (required)
@@ -535,7 +617,7 @@ router.get('/nearby',
  * - category: Shop category filter (optional)
  * - shopType: Shop type filter (optional)
  * - onlyFeatured: Show only featured shops (optional)
- * 
+ *
  * Example: GET /api/shops/bounds?neLat=37.6&neLng=127.0&swLat=37.5&swLng=126.9&category=nail
  */
 
@@ -773,6 +855,75 @@ router.get('/:id',
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '샵 정보 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
+ * @swagger
+ * /api/shops/{id}/available-slots:
+ *   get:
+ *     summary: Get available time slots for a shop
+ *     description: Retrieve available booking time slots for a specific shop on a given date
+ *     tags: [Shops]
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: Shop ID (UUID)
+ *       - in: query
+ *         name: date
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Date in YYYY-MM-DD format
+ *       - in: query
+ *         name: serviceIds[]
+ *         required: true
+ *         schema:
+ *           type: array
+ *           items:
+ *             type: string
+ *             format: uuid
+ *         description: Array of service IDs
+ *     responses:
+ *       200:
+ *         description: Successfully retrieved available slots
+ *       400:
+ *         description: Bad Request
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/:id/available-slots',
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  async (req, res) => {
+    try {
+      // Import reservation controller
+      const { ReservationController } = await import('../controllers/reservation.controller');
+      const reservationController = new ReservationController();
+
+      // Transform params: :id -> :shopId for reservation controller
+      req.params.shopId = req.params.id;
+
+      await reservationController.getAvailableSlots(req, res);
+    } catch (error) {
+      logger.error('Error in available slots route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        shopId: req.params.id,
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 가능 시간 조회 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });

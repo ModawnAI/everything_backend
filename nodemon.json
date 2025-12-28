@@ -1,10 +1,22 @@
 {
   "watch": ["src"],
   "ext": "ts,json",
-  "ignore": ["src/**/*.test.ts", "src/**/*.spec.ts", "src/**/*.d.ts", "node_modules", ".git", ".vscode"],
-  "exec": "ts-node src/app.ts",
+  "ignore": [
+    "src/**/*.test.ts",
+    "src/**/*.spec.ts",
+    "src/**/*.d.ts",
+    "node_modules",
+    ".git",
+    ".vscode",
+    "dist",
+    "logs",
+    "*.log"
+  ],
+  "exec": "ts-node --transpile-only src/app.ts",
   "env": {
-    "NODE_ENV": "development"
+    "NODE_ENV": "development",
+    "TS_NODE_TRANSPILE_ONLY": "true",
+    "TS_NODE_FILES": "true"
   },
   "delay": "1000",
   "signal": "SIGINT",
@@ -12,6 +24,6 @@
     "restart": "echo '\n🔄 Server restarting...\n'",
     "crash": "echo '\n⚠️  Server crashed, waiting for changes...\n'"
   },
-  "verbose": true,
+  "verbose": false,
   "restartable": "rs"
 }

@@ -26,6 +26,7 @@ import authRoutes from './routes/auth.routes';
 import registrationRoutes from './routes/registration.routes';
 import userProfileRoutes from './routes/user-profile.routes';
 import userStatusRoutes from './routes/user-status.routes';
+import userPaymentMethodsRoutes from './routes/user-payment-methods.routes';
 import shopRoutes from './routes/shop.routes';
 import shopImageRoutes from './routes/shop-image.routes';
 import { adminShopRoutes } from './routes/admin-shop.routes';
@@ -39,11 +40,13 @@ import reservationReschedulingRoutes from './routes/reservation-rescheduling.rou
 import conflictResolutionRoutes from './routes/conflict-resolution.routes';
 import paymentRoutes from './routes/payment.routes';
 import splitPaymentRoutes from './routes/split-payment.routes';
+import identityVerificationRoutes from './routes/identity-verification.routes';
 import pointRoutes from './routes/point.routes';
 import pointBalanceRoutes from './routes/point-balance.routes';
 import pointProcessingRoutes from './routes/point-processing.routes';
 import paymentSecurityRoutes from './routes/payment-security.routes';
 import influencerBonusRoutes from './routes/influencer-bonus.routes';
+import adminInfluencersRoutes from './routes/admin-influencers.routes';
 import adminAdjustmentRoutes from './routes/admin-adjustment.routes';
 import adminPaymentRoutes from './routes/admin-payment.routes';
 import adminPaymentManagementRoutes from './routes/admin-payment-management.routes';
@@ -51,10 +54,12 @@ import adminAnalyticsRoutes from './routes/admin-analytics.routes';
 import ipBlockingRoutes from './routes/admin/ip-blocking.routes';
 import securityRoutes from './routes/security.routes';
 import notificationRoutes from './routes/notification.routes';
+import userNotificationsRoutes from './routes/user-notifications.routes';
 import websocketRoutes from './routes/websocket.routes';
 import testErrorRoutes from './routes/test-error.routes';
 import healthRoutes from './routes/health.routes';
 import adminAuthRoutes from './routes/admin-auth.routes';
+import shopOwnerAuthRoutes from './routes/shop-owner-auth.routes';
 import adminUserManagementRoutes from './routes/admin-user-management.routes';
 import cacheRoutes from './routes/cache.routes';
 import monitoringRoutes from './routes/monitoring.routes';
@@ -77,6 +82,7 @@ import referralAnalyticsRoutes from './routes/referral-analytics.routes';
 import { userSettingsRoutes } from './routes/user-settings.routes';
 import shopRegistrationRoutes from './routes/shop-registration.routes';
 import shopSearchRoutes from './routes/shop-search.routes';
+import searchRoutes from './routes/search.routes';
 import shopProfileRoutes from './routes/shop-profile.routes';
 import shopServiceRoutes from './routes/shop-service.routes';
 import shopOperatingHoursRoutes from './routes/shop-operating-hours.routes';
@@ -90,24 +96,35 @@ import adminModerationRoutes from './routes/admin-moderation.routes';
 import shopCategoriesRoutes from './routes/shop-categories.routes';
 import serviceCatalogRoutes from './routes/service-catalog.routes';
 import feedRoutes from './routes/feed.routes';
+import userFeedRoutes from './routes/user-feed.routes';
+import reviewRoutes from './routes/review.routes';
+import feedTemplateRoutes from './routes/feed-template.routes';
 import csrfRoutes from './routes/csrf.routes';
 import adminFinancialRoutes from './routes/admin-financial.routes';
 import adminProductRoutes from './routes/admin-product.routes';
 import adminTicketRoutes from './routes/admin-ticket.routes';
+import adminPointPolicyRoutes from './routes/admin-point-policy.routes';
+import adminAnnouncementRoutes from './routes/admin-announcement.routes';
+import adminPushNotificationRoutes from './routes/admin-push-notification.routes';
+import adminBlindRequestRoutes from './routes/admin-blind-request.routes';
 import dashboardRoutes from './routes/dashboard.routes';
 import { testDashboardRoutes } from './routes/test-dashboard.routes';
+import shopReservationsRoutes from './routes/shop-reservations.routes';
+import shopUsersRoutes from './routes/shop-users.routes';
+import shopPaymentsRoutes from './routes/shop-payments.routes';
+import shopAnalyticsRoutes from './routes/shop-analytics.routes';
+import unifiedAuthRoutes from './routes/unified-auth.routes';
+import homeRoutes from './routes/home.routes';
+import adminEditorPicksRoutes from './routes/admin-editor-picks.routes';
+import popupRoutes from './routes/popup.routes';
+import adminPopupRoutes from './routes/admin-popup.routes';
+import shopEntryRequestRoutes from './routes/shop-entry-request.routes';
+import adminShopEntryRequestRoutes from './routes/admin-shop-entry-request.routes';
+import adminShopNotificationRoutes from './routes/admin-shop-notification.routes';
+import shopOwnerNotificationRoutes from './routes/shop-owner-notification.routes';
+import shopStaffRoutes, { staffAssignmentRouter } from './routes/shop-staff.routes';
 
-// Import barrel exports (will be populated as we build the application)
-import {} from '@/controllers';
-import {} from '@/services';
-import {} from '@/repositories';
-import {} from '@/middleware';
-import {} from '@/routes';
-import {} from '@/types';
-import {} from '@/utils';
-import {} from '@/config';
-import {} from '@/validators';
-import {} from '@/constants';
+// Import services
 import { initializeWebSocketService } from './services/websocket.service';
 import { influencerSchedulerService } from './services/influencer-scheduler.service';
 
@@ -117,7 +134,7 @@ const PORT = config.server.port;
 // CORS Configuration - Must be before other middleware
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:5173'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:4003', 'http://localhost:5173'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -126,11 +143,16 @@ app.use(cors({
       return callback(null, true);
     }
 
+    // Allow all Vercel deployments (*.vercel.app)
+    if (origin.endsWith('.vercel.app')) {
+      return callback(null, true);
+    }
+
     // Check if origin is in allowed list
-    if (corsOrigins.includes(origin) || corsOrigins.includes('*')) {
+    if (corsOrigins.includes(origin)) {
       callback(null, true);
     } else {
-      logger.warn('CORS request blocked', {
+      logger.warn('CORS request from non-whitelisted origin (but allowing)', {
         origin,
         allowedOrigins: corsOrigins,
         timestamp: new Date().toISOString()
@@ -144,6 +166,16 @@ app.use(cors({
   exposedHeaders: ['X-Total-Count', 'X-Page', 'X-Per-Page'],
   maxAge: 86400 // 24 hours
 }));
+
+// Prevent browser caching of API responses to avoid stale CORS errors
+app.use((req, res, next) => {
+  // Don't cache API responses - prevent browsers from caching error responses
+  res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+  res.setHeader('Pragma', 'no-cache');
+  res.setHeader('Expires', '0');
+  res.setHeader('Surrogate-Control', 'no-store');
+  next();
+});
 
 // Log all incoming requests including OPTIONS (preflight), except health checks
 app.use((req, res, next) => {
@@ -174,6 +206,11 @@ app.use(morganFormat);
 app.use(compression());
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+
+// Case transformation middleware - MUST be after body parsers
+// Automatically transforms ALL JSON responses from snake_case to camelCase
+import { transformResponseMiddleware } from './utils/case-transformer';
+app.use(transformResponseMiddleware);
 
 // Comprehensive security middleware setup
 import { securityHeaders } from './middleware/security.middleware';
@@ -340,6 +377,10 @@ app.use(applyResponseStandardization());
 app.use('/api/test/dashboard', testDashboardRoutes);
 
 // API Routes
+// Unified authentication (new)
+app.use('/api/v2/auth', unifiedAuthRoutes);
+
+// Legacy authentication routes
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/users', userProfileRoutes);
@@ -349,6 +390,9 @@ app.use('/api/users', userProfileRoutes);
 
 // Admin authentication - Auth routes don't need authentication middleware
 app.use('/api/admin/auth', adminAuthRoutes);
+
+// Shop owner authentication - Auth routes don't need authentication middleware
+app.use('/api/shop-owner/auth', shopOwnerAuthRoutes);
 
 // Apply authentication to all other admin routes (supports both Supabase and JWT tokens)
 app.use('/api/admin/*', authenticateJWT(), requireAdmin());
@@ -369,15 +413,24 @@ app.use('/api/storage', storageRoutes);
 app.use('/api/shops/categories', shopCategoriesRoutes);
 app.use('/api/service-catalog', serviceCatalogRoutes);
 app.use('/api/shops/search', shopSearchRoutes);
+app.use('/api/search', searchRoutes); // General search (suggestions, autocomplete)
 app.use('/api/shops', shopRoutes);
 app.use('/api/shops/images', shopImageRoutes);
 app.use('/api/shop/register', shopRegistrationRoutes);
 app.use('/api/shop/profile', shopProfileRoutes);
+app.use('/api/shop/info', shopProfileRoutes); // Alias for /api/shop/profile
 app.use('/api/shop/services', shopServiceRoutes);
 app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
 app.use('/api/shop/dashboard', shopDashboardRoutes);
 app.use('/api/shop/images', imageMetadataRoutes);
 app.use('/api/cdn', cdnRoutes);
+
+// Shop-scoped routes (requires authentication + shop access validation)
+// Platform admins can access any shop, shop users only their own
+app.use('/api/shops/:shopId/reservations', shopReservationsRoutes);
+app.use('/api/shops/:shopId/payments', shopPaymentsRoutes);
+app.use('/api/shops/:shopId/analytics', shopAnalyticsRoutes);
+app.use('/api/shops/:shopId/users', shopUsersRoutes);
 
 // IMPORTANT: Routes ordered from MOST SPECIFIC to MOST GENERAL
 // This prevents route conflicts when multiple routers share base paths
@@ -386,6 +439,9 @@ app.use('/api/cdn', cdnRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/webhooks', paymentRoutes);
 app.use('/api/split-payments', splitPaymentRoutes);
+
+// Identity Verification routes (PortOne V2)
+app.use('/api/identity-verification', identityVerificationRoutes);
 app.use('/api/payment-security', paymentSecurityRoutes);
 app.use('/api/points', pointRoutes);
 
@@ -394,7 +450,29 @@ app.use('/api/admin/no-show', noShowDetectionRoutes);
 app.use('/api/admin/point-processing', pointProcessingRoutes);
 app.use('/api/admin/adjustments', adminAdjustmentRoutes);
 app.use('/api/admin/influencer-bonus', influencerBonusRoutes);
+app.use('/api/admin/influencers', adminInfluencersRoutes);
 app.use('/api/admin', adminModerationRoutes);
+app.use('/api/admin/points', adminPointPolicyRoutes);
+app.use('/api/admin/announcements', adminAnnouncementRoutes);
+app.use('/api/admin/push', adminPushNotificationRoutes);
+app.use('/api/admin/editor-picks', adminEditorPicksRoutes);
+app.use('/api/admin/popups', adminPopupRoutes);
+app.use('/api/admin/shop-entry-requests', adminShopEntryRequestRoutes);
+app.use('/api/admin/blind-requests', adminBlindRequestRoutes);
+app.use('/api/admin/shop-notifications', adminShopNotificationRoutes);
+
+// IMPORTANT: Specific /api routes MUST come BEFORE catch-all /api routes
+// that have router.use(authenticateJWT()) to prevent unintended auth blocking
+app.use('/api/home', homeRoutes);
+app.use('/api/popups', popupRoutes);
+app.use('/api/shop-entry-requests', shopEntryRequestRoutes);
+app.use('/api/reviews', reviewRoutes);
+app.use('/api/feed', feedRoutes);
+app.use('/api/user/feed', userFeedRoutes);
+app.use('/api/shop-owner/feed-templates', feedTemplateRoutes);
+app.use('/api/shop-owner/notifications', shopOwnerNotificationRoutes);
+app.use('/api/shop-owner/staff', shopStaffRoutes);
+app.use('/api/shop-owner/reservations', staffAssignmentRouter);
 
 // General /api routes (order matters less since paths are unique)
 app.use('/api', favoritesRoutes);
@@ -402,7 +480,8 @@ app.use('/api/reservations', reservationRoutes);
 app.use('/api', reservationReschedulingRoutes);
 app.use('/api', conflictResolutionRoutes);
 app.use('/api', pointBalanceRoutes);
-app.use('/api/shop', shopContactMethodsRoutes);
+// MOVED UP: More specific /api/shop routes MUST come before catch-all /api/shop
+// app.use('/api/shop', shopContactMethodsRoutes); // MOVED TO AFTER SPECIFIC ROUTES
 app.use('/api/shops', shopReportingRoutes);
 app.use('/api/admin/payments', adminPaymentRoutes);
 app.use('/api/admin/payments/management', adminPaymentManagementRoutes);
@@ -422,9 +501,10 @@ app.use('/api/monitoring', monitoringRoutes);
 app.use('/api/monitoring', monitoringDashboardRoutes);
 app.use('/api/shutdown', shutdownRoutes);
 app.use('/api/user/sessions', userSessionsRoutes);
+app.use('/api/user/notifications', userNotificationsRoutes);
 app.use('/api/admin/security', adminSecurityRoutes);
 app.use('/api/admin/security-enhanced', adminSecurityEnhancedRoutes);
-app.use('/api/admin/security-events', adminSecurityEventsRoutes);
+app.use('/api/admin/security/events', adminSecurityEventsRoutes);
 app.use('/api/analytics/auth', authAnalyticsRoutes);
 app.use('/api/referral-codes', referralCodeRoutes);
 app.use('/api/referral-relationships', referralRelationshipRoutes);
@@ -434,9 +514,13 @@ app.use('/api/referral-analytics', referralAnalyticsRoutes);
 app.use('/api/referrals', referralRoutes);
 app.use('/api/admin/audit', auditTrailRoutes);
 app.use('/api/admin/automation', automaticStateProgressionRoutes);
-app.use('/api/users', userSettingsRoutes);
-app.use('/api/feed', feedRoutes);
+// ⚠️ FIXED: Route collision - userSettingsRoutes conflicted with userProfileRoutes on same path
+// Solution: Mount advanced settings on dedicated path /api/user/settings instead
+app.use('/api/user/settings', userSettingsRoutes);
+app.use('/api/user/payment-methods', userPaymentMethodsRoutes);
 app.use('/api/csrf', csrfRoutes);
+// Catch-all /api/shop routes LAST (after all specific /api/shop/* routes above)
+app.use('/api/shop', shopContactMethodsRoutes);
 
 // 404 handler
 app.use('*', (req, res) => {

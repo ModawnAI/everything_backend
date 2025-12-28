@@ -478,35 +478,59 @@ class ShopCategoriesService {
    */
   async getCategoryStats(): Promise<CategoryStats> {
     try {
-      // Use the database function for statistics
-      const { data: stats, error } = await this.supabase.rpc('get_category_statistics');
+      // Get all categories with service types
+      const categories = await this.getAllCategories({
+        includeInactive: false,
+        withServiceTypes: true
+      });
 
-      if (error) {
-        logger.error('Database error getting category statistics', { error });
-        throw new Error('Failed to retrieve category statistics from database');
+      // Calculate statistics from static data
+      let totalServices = 0;
+      let popularServices = 0;
+      const categoryBreakdown: Array<{
+        categoryId: string;
+        categoryName: string;
+        serviceCount: number;
+        averagePrice: number;
+      }> = [];
+
+      for (const category of categories) {
+        const serviceCount = category.serviceTypes.length;
+        totalServices += serviceCount;
+
+        // Count popular services in this category
+        const popularCount = category.serviceTypes.filter(s => s.isPopular).length;
+        popularServices += popularCount;
+
+        // Calculate average price for this category
+        let totalMin = 0;
+        let totalMax = 0;
+        for (const service of category.serviceTypes) {
+          totalMin += service.priceRange.min;
+          totalMax += service.priceRange.max;
+        }
+        const averagePrice = serviceCount > 0
+          ? Math.round((totalMin + totalMax) / (2 * serviceCount))
+          : 0;
+
+        categoryBreakdown.push({
+          categoryId: category.id,
+          categoryName: category.displayName,
+          serviceCount,
+          averagePrice
+        });
       }
 
-      if (!stats || stats.length === 0) {
-        return {
-          totalCategories: 0,
-          activeCategories: 0,
-          totalServices: 0,
-          popularServices: 0,
-          categoryBreakdown: []
-        };
-      }
-
-      const stat = stats[0];
-      const formattedStats: CategoryStats = {
-        totalCategories: Number(stat.total_categories),
-        activeCategories: Number(stat.active_categories),
-        totalServices: Number(stat.total_services),
-        popularServices: Number(stat.popular_services),
-        categoryBreakdown: stat.average_price_per_category || []
+      const stats: CategoryStats = {
+        totalCategories: categories.length,
+        activeCategories: categories.filter(c => c.isActive).length,
+        totalServices,
+        popularServices,
+        categoryBreakdown
       };
 
-      logger.info('Retrieved category statistics from database', { stats: formattedStats });
-      return formattedStats;
+      logger.info('Calculated category statistics from static data', { stats });
+      return stats;
 
     } catch (error) {
       logger.error('Error getting category statistics', { error });

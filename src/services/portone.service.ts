@@ -274,7 +274,47 @@ export class PortOneService {
       // Generate unique payment ID with stage distinction
       const paymentId = this.generatePaymentId(request.reservationId, request.isDeposit, request.paymentStage);
 
-      // Create payment record in database
+      // Prepare stage-specific order name
+      const orderName = this.generateOrderName(request.paymentStage || (request.isDeposit ? 'deposit' : 'single'));
+
+      // Step 1: Call PortOne prepare API to pre-register payment amount (prevents tampering)
+      try {
+        logger.info('Pre-registering payment with PortOne', { paymentId, amount: request.amount });
+
+        const prepareResponse = await fetch('https://api.portone.io/payments/prepare', {
+          method: 'POST',
+          headers: {
+            'Authorization': `PortOne ${config.payments.portone.v2.apiSecret}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            storeId: this.storeId,
+            paymentId,
+            orderName,
+            totalAmount: request.amount,
+            currency: 'KRW'
+          })
+        });
+
+        if (!prepareResponse.ok) {
+          const errorData = await prepareResponse.json();
+          logger.error('PortOne prepare API failed', {
+            status: prepareResponse.status,
+            error: errorData
+          });
+          throw new Error(`Prepare API failed: ${errorData.message || prepareResponse.statusText}`);
+        }
+
+        logger.info('Payment pre-registered successfully with PortOne', { paymentId });
+      } catch (prepareError) {
+        logger.error('Failed to prepare payment with PortOne', {
+          error: prepareError instanceof Error ? prepareError.message : 'Unknown error',
+          paymentId
+        });
+        throw prepareError;
+      }
+
+      // Step 2: Create payment record in database
       const dbPaymentId = await this.createPaymentRecord({
         reservationId: request.reservationId,
         userId: request.userId,
@@ -284,9 +324,7 @@ export class PortOneService {
         paymentStage: request.paymentStage || (request.isDeposit ? 'deposit' : 'single')
       });
 
-      // Prepare PortOne request with stage-specific order name
-      const orderName = this.generateOrderName(request.paymentStage || (request.isDeposit ? 'deposit' : 'single'));
-
+      // Step 3: Prepare PortOne client-side request configuration
       const portoneRequest: PortOnePaymentRequest = {
         storeId: this.storeId,
         channelKey: this.channelKey,
@@ -494,14 +532,16 @@ export class PortOneService {
    */
   async verifyWebhook(body: string, headers: Record<string, string>): Promise<any> {
     try {
+      // Use latest webhook version (2024-04-25) for enhanced security and features
       const webhook = await Webhook.verify(
-        this.webhookSecret,
+        this.webhookSecret!,
         body,
         headers
       );
 
       logger.info('Webhook verified successfully via SDK', {
-        type: webhook.type
+        type: webhook.type,
+        version: '2024-04-25'
       });
 
       return webhook;
@@ -529,13 +569,45 @@ export class PortOneService {
         return;
       }
 
-      const webhookId = `webhook_${webhook.data.paymentId}_${Date.now()}`;
+      // Extract webhook ID for idempotency (use PortOne's webhook ID if available, otherwise create one)
+      const webhookId = (webhook as any).id || `webhook_${webhook.data.paymentId}_${webhook.type}_${Date.now()}`;
 
       logger.info('Processing PortOne webhook via SDK', {
         webhookId,
         paymentId: webhook.data.paymentId,
         type: webhook.type
       });
+
+      // Step 1: Check if this webhook has already been processed (idempotency)
+      const { data: existingLog, error: logCheckError } = await this.supabase
+        .from('webhook_logs')
+        .select('id, status')
+        .eq('webhook_id', webhookId)
+        .single();
+
+      if (existingLog && !logCheckError) {
+        logger.info('Webhook already processed - skipping duplicate', {
+          webhookId,
+          previousStatus: existingLog.status,
+          paymentId: webhook.data.paymentId
+        });
+
+        // Log the duplicate attempt
+        await this.supabase
+          .from('webhook_logs')
+          .insert({
+            webhook_id: `${webhookId}_duplicate_${Date.now()}`,
+            webhook_type: webhook.type,
+            provider_transaction_id: webhook.data.paymentId,
+            status: 'skipped',
+            request_body: webhook,
+            response_body: { message: 'Duplicate webhook - already processed', originalWebhookId: webhookId },
+            processed_at: new Date().toISOString(),
+            created_at: new Date().toISOString()
+          });
+
+        return; // Skip processing
+      }
 
       // Sync payment status using SDK
       const payment = await this.getPaymentInfo(webhook.data.paymentId);
@@ -561,15 +633,20 @@ export class PortOneService {
         });
       }
 
-      // Log webhook processing
+      // Step 2: Log webhook processing success
       await this.supabase
         .from('webhook_logs')
         .insert({
           webhook_id: webhookId,
-          payment_key: webhook.data.paymentId,
+          webhook_type: webhook.type,
+          payment_id: paymentRecord?.id || null,
+          provider_transaction_id: webhook.data.paymentId,
           status: 'processed',
-          payload: webhook,
-          processed_at: new Date().toISOString()
+          request_body: webhook,
+          response_status: 200,
+          response_body: { message: 'Webhook processed successfully', paymentStatus: payment.status },
+          processed_at: new Date().toISOString(),
+          created_at: new Date().toISOString()
         });
 
       logger.info('PortOne webhook processed successfully via SDK', {
@@ -589,12 +666,23 @@ export class PortOneService {
   /**
    * Cancel payment with PortOne using official SDK
    */
-  async cancelPayment(paymentId: string, reason: string, amount?: number): Promise<void> {
+  async cancelPayment(
+    paymentId: string,
+    reason: string,
+    amount?: number,
+    refundAccount?: {
+      bank: string;
+      number: string;
+      holderName: string;
+      holderPhoneNumber?: string;
+    }
+  ): Promise<void> {
     try {
       logger.info('Canceling PortOne payment via SDK', {
         paymentId,
         reason,
-        amount
+        amount,
+        hasRefundAccount: !!refundAccount
       });
 
       const paymentRecord = await this.getPaymentById(paymentId);
@@ -606,6 +694,30 @@ export class PortOneService {
         throw new Error('Payment has not been initialized yet');
       }
 
+      // Fetch payment info to check payment method and cancellable amount
+      const paymentInfo = await this.client.payment.getPayment({
+        paymentId: paymentRecord.provider_order_id
+      });
+
+      // Validate cancellable amount before proceeding
+      const currentCancellableAmount = (paymentInfo as any).cancellableAmount || paymentRecord.amount;
+      const requestedCancelAmount = amount || paymentRecord.amount;
+
+      if (requestedCancelAmount > currentCancellableAmount) {
+        throw new Error(
+          `Requested cancellation amount (${requestedCancelAmount}) exceeds cancellable amount (${currentCancellableAmount})`
+        );
+      }
+
+      logger.info('Cancellable amount validation passed', {
+        paymentId,
+        requestedAmount: requestedCancelAmount,
+        cancellableAmount: currentCancellableAmount
+      });
+
+      // Check if this is a virtual account payment
+      const isVirtualAccount = (paymentInfo as any).method?.type === 'VirtualAccount';
+
       // Use official SDK to cancel payment
       const cancelRequest: any = {
         paymentId: paymentRecord.provider_order_id,
@@ -614,6 +726,30 @@ export class PortOneService {
 
       if (amount) {
         cancelRequest.amount = amount;
+      }
+
+      // Add refund account for virtual account payments
+      if (isVirtualAccount) {
+        if (!refundAccount) {
+          throw new Error('Virtual account refund requires refund account details (bank, account number, holder name)');
+        }
+
+        cancelRequest.refundAccount = {
+          bank: refundAccount.bank,
+          number: refundAccount.number,
+          holderName: refundAccount.holderName
+        };
+
+        // Some PGs (like Smartro) require phone number for virtual account refunds
+        if (refundAccount.holderPhoneNumber) {
+          cancelRequest.refundAccount.holderPhoneNumber = refundAccount.holderPhoneNumber;
+        }
+
+        logger.info('Adding refund account for virtual account cancellation', {
+          paymentId,
+          bank: refundAccount.bank,
+          holderName: refundAccount.holderName
+        });
       }
 
       const result = await this.client.payment.cancelPayment(cancelRequest);

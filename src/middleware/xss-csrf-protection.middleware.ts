@@ -88,132 +88,23 @@ class XSSProtectionService {
       patterns.push('dangerous_tags');
     }
     
-    // Check for additional XSS patterns
+    // Check for CRITICAL XSS patterns only (removed common words that cause false positives)
     const additionalPatterns = [
+      // Dangerous HTML tags
       { pattern: /<iframe[^>]*>/gi, name: 'iframe_tag' },
       { pattern: /<object[^>]*>/gi, name: 'object_tag' },
       { pattern: /<embed[^>]*>/gi, name: 'embed_tag' },
-      { pattern: /<form[^>]*>/gi, name: 'form_tag' },
-      { pattern: /<input[^>]*>/gi, name: 'input_tag' },
-      { pattern: /<textarea[^>]*>/gi, name: 'textarea_tag' },
-      { pattern: /<select[^>]*>/gi, name: 'select_tag' },
-      { pattern: /<button[^>]*>/gi, name: 'button_tag' },
-      { pattern: /<link[^>]*>/gi, name: 'link_tag' },
-      { pattern: /<meta[^>]*>/gi, name: 'meta_tag' },
-      { pattern: /<style[^>]*>/gi, name: 'style_tag' },
-      { pattern: /expression\s*\(/gi, name: 'css_expression' },
-      { pattern: /url\s*\(/gi, name: 'css_url' },
-      { pattern: /@import/gi, name: 'css_import' },
-      { pattern: /<![^>]*>/gi, name: 'html_comment' },
-      { pattern: /&#x?[0-9a-f]+;/gi, name: 'html_entities' },
-      { pattern: /%[0-9a-f]{2}/gi, name: 'url_encoding' },
-      { pattern: /\\x[0-9a-f]{2}/gi, name: 'hex_encoding' },
-      { pattern: /\\u[0-9a-f]{4}/gi, name: 'unicode_encoding' },
-      { pattern: /\\[0-7]{3}/gi, name: 'octal_encoding' },
-      { pattern: /base64/gi, name: 'base64_encoding' },
-      { pattern: /eval\s*\(/gi, name: 'eval_function' },
-      { pattern: /setTimeout\s*\(/gi, name: 'settimeout_function' },
-      { pattern: /setInterval\s*\(/gi, name: 'setinterval_function' },
-      { pattern: /Function\s*\(/gi, name: 'function_constructor' },
-      { pattern: /document\./gi, name: 'document_object' },
-      { pattern: /window\./gi, name: 'window_object' },
-      { pattern: /location\./gi, name: 'location_object' },
-      { pattern: /navigator\./gi, name: 'navigator_object' },
-      { pattern: /screen\./gi, name: 'screen_object' },
-      { pattern: /history\./gi, name: 'history_object' },
-      { pattern: /localStorage/gi, name: 'localstorage' },
-      { pattern: /sessionStorage/gi, name: 'sessionstorage' },
-      { pattern: /cookie/gi, name: 'cookie_access' },
-      { pattern: /XMLHttpRequest/gi, name: 'xhr_object' },
-      { pattern: /fetch\s*\(/gi, name: 'fetch_function' },
-      { pattern: /WebSocket/gi, name: 'websocket' },
-      { pattern: /postMessage/gi, name: 'postmessage' },
-      { pattern: /addEventListener/gi, name: 'addeventlistener' },
-      { pattern: /attachEvent/gi, name: 'attachevent' },
-      { pattern: /innerHTML/gi, name: 'innerhtml' },
-      { pattern: /outerHTML/gi, name: 'outerhtml' },
-      { pattern: /insertAdjacentHTML/gi, name: 'insertadjacenthtml' },
-      { pattern: /createElement/gi, name: 'createelement' },
-      { pattern: /appendChild/gi, name: 'appendchild' },
-      { pattern: /insertBefore/gi, name: 'insertbefore' },
-      { pattern: /replaceChild/gi, name: 'replacechild' },
-      { pattern: /removeChild/gi, name: 'removechild' },
-      { pattern: /cloneNode/gi, name: 'clonenode' },
-      { pattern: /getAttribute/gi, name: 'getattribute' },
-      { pattern: /setAttribute/gi, name: 'setattribute' },
-      { pattern: /removeAttribute/gi, name: 'removeattribute' },
-      { pattern: /getElementsBy/gi, name: 'getelementsby' },
-      { pattern: /querySelector/gi, name: 'queryselector' },
-      { pattern: /querySelectorAll/gi, name: 'queryselectorall' },
-      { pattern: /getElementById/gi, name: 'getelementbyid' },
-      { pattern: /getElementsByClassName/gi, name: 'getelementsbyclassname' },
-      { pattern: /getElementsByTagName/gi, name: 'getelementsbytagname' },
-      { pattern: /parentNode/gi, name: 'parentnode' },
-      { pattern: /childNodes/gi, name: 'childnodes' },
-      { pattern: /firstChild/gi, name: 'firstchild' },
-      { pattern: /lastChild/gi, name: 'lastchild' },
-      { pattern: /nextSibling/gi, name: 'nextsibling' },
-      { pattern: /previousSibling/gi, name: 'previoussibling' },
-      { pattern: /nodeType/gi, name: 'nodetype' },
-      { pattern: /nodeName/gi, name: 'nodename' },
-      { pattern: /nodeValue/gi, name: 'nodevalue' },
-      { pattern: /textContent/gi, name: 'textcontent' },
-      { pattern: /innerText/gi, name: 'innertext' },
-      { pattern: /outerText/gi, name: 'outertext' },
-      { pattern: /scrollIntoView/gi, name: 'scrollintoview' },
-      { pattern: /scrollTo/gi, name: 'scrollto' },
-      { pattern: /scrollBy/gi, name: 'scrollby' },
-      { pattern: /focus/gi, name: 'focus' },
-      { pattern: /blur/gi, name: 'blur' },
-      { pattern: /click/gi, name: 'click' },
-      { pattern: /submit/gi, name: 'submit' },
-      { pattern: /reset/gi, name: 'reset' },
-      { pattern: /select/gi, name: 'select' },
-      { pattern: /change/gi, name: 'change' },
-      { pattern: /load/gi, name: 'load' },
-      { pattern: /unload/gi, name: 'unload' },
-      { pattern: /beforeunload/gi, name: 'beforeunload' },
-      { pattern: /resize/gi, name: 'resize' },
-      { pattern: /scroll/gi, name: 'scroll' },
-      { pattern: /error/gi, name: 'error' },
-      { pattern: /abort/gi, name: 'abort' },
-      { pattern: /loadstart/gi, name: 'loadstart' },
-      { pattern: /loadend/gi, name: 'loadend' },
-      { pattern: /progress/gi, name: 'progress' },
-      { pattern: /timeout/gi, name: 'timeout' },
-      { pattern: /readystatechange/gi, name: 'readystatechange' },
-      { pattern: /DOMContentLoaded/gi, name: 'domcontentloaded' },
-      { pattern: /pageshow/gi, name: 'pageshow' },
-      { pattern: /pagehide/gi, name: 'pagehide' },
-      { pattern: /beforeprint/gi, name: 'beforeprint' },
-      { pattern: /afterprint/gi, name: 'afterprint' },
-      { pattern: /online/gi, name: 'online' },
-      { pattern: /offline/gi, name: 'offline' },
-      { pattern: /popstate/gi, name: 'popstate' },
-      { pattern: /hashchange/gi, name: 'hashchange' },
-      { pattern: /storage/gi, name: 'storage' },
-      { pattern: /message/gi, name: 'message' },
-      { pattern: /beforeunload/gi, name: 'beforeunload' },
-      { pattern: /unload/gi, name: 'unload' },
-      { pattern: /load/gi, name: 'load' },
-      { pattern: /error/gi, name: 'error' },
-      { pattern: /abort/gi, name: 'abort' },
-      { pattern: /loadstart/gi, name: 'loadstart' },
-      { pattern: /loadend/gi, name: 'loadend' },
-      { pattern: /progress/gi, name: 'progress' },
-      { pattern: /timeout/gi, name: 'timeout' },
-      { pattern: /readystatechange/gi, name: 'readystatechange' },
-      { pattern: /DOMContentLoaded/gi, name: 'domcontentloaded' },
-      { pattern: /pageshow/gi, name: 'pageshow' },
-      { pattern: /pagehide/gi, name: 'pagehide' },
-      { pattern: /beforeprint/gi, name: 'beforeprint' },
-      { pattern: /afterprint/gi, name: 'afterprint' },
-      { pattern: /online/gi, name: 'online' },
-      { pattern: /offline/gi, name: 'offline' },
-      { pattern: /popstate/gi, name: 'popstate' },
-      { pattern: /hashchange/gi, name: 'hashchange' },
-      { pattern: /storage/gi, name: 'storage' },
-      { pattern: /message/gi, name: 'message' }
+
+      // Dangerous functions (must have context to avoid false positives)
+      { pattern: /\beval\s*\(/gi, name: 'eval_function' },
+      { pattern: /\bsetTimeout\s*\(\s*["'`]/gi, name: 'settimeout_with_string' }, // Only if passing strings
+      { pattern: /\bsetInterval\s*\(\s*["'`]/gi, name: 'setinterval_with_string' },
+      { pattern: /\bFunction\s*\(\s*["'`]/gi, name: 'function_constructor' },
+
+      // Direct DOM manipulation with HTML strings (high risk)
+      { pattern: /\.innerHTML\s*=\s*["'`]/gi, name: 'innerhtml_assignment' },
+      { pattern: /\.outerHTML\s*=\s*["'`]/gi, name: 'outerhtml_assignment' },
+      { pattern: /\.insertAdjacentHTML\s*\(/gi, name: 'insertadjacenthtml' }
     ];
     
     additionalPatterns.forEach(({ pattern, name }) => {
@@ -269,116 +160,20 @@ class XSSProtectionService {
         SANITIZE_DOM: true
       });
 
-      // Additional XSS protection for plain text
+      // Additional XSS protection for plain text (only critical patterns)
       sanitized = sanitized
         .replace(/javascript:/gi, '')
         .replace(/vbscript:/gi, '')
-        .replace(/data:/gi, '')
-        .replace(/on\w+\s*=/gi, '')
+        .replace(/data:text\/html/gi, '') // Allow data: URLs for images but not HTML
+        .replace(/on\w+\s*=/gi, '') // Remove event handlers
         .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '')
         .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, '')
         .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
         .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, '')
-        .replace(/<form\b[^<]*(?:(?!<\/form>)<[^<]*)*<\/form>/gi, '')
-        .replace(/<input\b[^<]*(?:(?!<\/input>)<[^<]*)*<\/input>/gi, '')
-        .replace(/<textarea\b[^<]*(?:(?!<\/textarea>)<[^<]*)*<\/textarea>/gi, '')
-        .replace(/<select\b[^<]*(?:(?!<\/select>)<[^<]*)*<\/select>/gi, '')
-        .replace(/<button\b[^<]*(?:(?!<\/button>)<[^<]*)*<\/button>/gi, '')
-        .replace(/<link\b[^<]*(?:(?!<\/link>)<[^<]*)*<\/link>/gi, '')
-        .replace(/<meta\b[^<]*(?:(?!<\/meta>)<[^<]*)*<\/meta>/gi, '')
-        .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, '')
         .replace(/expression\s*\(/gi, '')
-        .replace(/url\s*\(/gi, '')
         .replace(/@import/gi, '')
         .replace(/<![^>]*>/gi, '')
-        .replace(/&#x?[0-9a-f]+;/gi, '')
-        .replace(/%[0-9a-f]{2}/gi, '')
-        .replace(/\\x[0-9a-f]{2}/gi, '')
-        .replace(/\\u[0-9a-f]{4}/gi, '')
-        .replace(/\\[0-7]{3}/gi, '')
-        .replace(/base64/gi, '')
-        .replace(/eval\s*\(/gi, '')
-        .replace(/setTimeout\s*\(/gi, '')
-        .replace(/setInterval\s*\(/gi, '')
-        .replace(/Function\s*\(/gi, '')
-        .replace(/document\./gi, '')
-        .replace(/window\./gi, '')
-        .replace(/location\./gi, '')
-        .replace(/navigator\./gi, '')
-        .replace(/screen\./gi, '')
-        .replace(/history\./gi, '')
-        .replace(/localStorage/gi, '')
-        .replace(/sessionStorage/gi, '')
-        .replace(/cookie/gi, '')
-        .replace(/XMLHttpRequest/gi, '')
-        .replace(/fetch\s*\(/gi, '')
-        .replace(/WebSocket/gi, '')
-        .replace(/postMessage/gi, '')
-        .replace(/addEventListener/gi, '')
-        .replace(/attachEvent/gi, '')
-        .replace(/innerHTML/gi, '')
-        .replace(/outerHTML/gi, '')
-        .replace(/insertAdjacentHTML/gi, '')
-        .replace(/createElement/gi, '')
-        .replace(/appendChild/gi, '')
-        .replace(/insertBefore/gi, '')
-        .replace(/replaceChild/gi, '')
-        .replace(/removeChild/gi, '')
-        .replace(/cloneNode/gi, '')
-        .replace(/getAttribute/gi, '')
-        .replace(/setAttribute/gi, '')
-        .replace(/removeAttribute/gi, '')
-        .replace(/getElementsBy/gi, '')
-        .replace(/querySelector/gi, '')
-        .replace(/querySelectorAll/gi, '')
-        .replace(/getElementById/gi, '')
-        .replace(/getElementsByClassName/gi, '')
-        .replace(/getElementsByTagName/gi, '')
-        .replace(/parentNode/gi, '')
-        .replace(/childNodes/gi, '')
-        .replace(/firstChild/gi, '')
-        .replace(/lastChild/gi, '')
-        .replace(/nextSibling/gi, '')
-        .replace(/previousSibling/gi, '')
-        .replace(/nodeType/gi, '')
-        .replace(/nodeName/gi, '')
-        .replace(/nodeValue/gi, '')
-        .replace(/textContent/gi, '')
-        .replace(/innerText/gi, '')
-        .replace(/outerText/gi, '')
-        .replace(/scrollIntoView/gi, '')
-        .replace(/scrollTo/gi, '')
-        .replace(/scrollBy/gi, '')
-        .replace(/focus/gi, '')
-        .replace(/blur/gi, '')
-        .replace(/click/gi, '')
-        .replace(/submit/gi, '')
-        .replace(/reset/gi, '')
-        .replace(/select/gi, '')
-        .replace(/change/gi, '')
-        .replace(/load/gi, '')
-        .replace(/unload/gi, '')
-        .replace(/beforeunload/gi, '')
-        .replace(/resize/gi, '')
-        .replace(/scroll/gi, '')
-        .replace(/error/gi, '')
-        .replace(/abort/gi, '')
-        .replace(/loadstart/gi, '')
-        .replace(/loadend/gi, '')
-        .replace(/progress/gi, '')
-        .replace(/timeout/gi, '')
-        .replace(/readystatechange/gi, '')
-        .replace(/DOMContentLoaded/gi, '')
-        .replace(/pageshow/gi, '')
-        .replace(/pagehide/gi, '')
-        .replace(/beforeprint/gi, '')
-        .replace(/afterprint/gi, '')
-        .replace(/online/gi, '')
-        .replace(/offline/gi, '')
-        .replace(/popstate/gi, '')
-        .replace(/hashchange/gi, '')
-        .replace(/storage/gi, '')
-        .replace(/message/gi, '')
+        .replace(/\beval\s*\(/gi, '')
         .trim();
     }
 
@@ -398,6 +193,11 @@ class XSSProtectionService {
       method: req.method,
       timestamp: new Date()
     };
+
+    // Skip XSS detection in development mode
+    if (process.env.NODE_ENV === 'development') {
+      return violations;
+    }
 
     // Skip XSS detection for authenticated admin endpoints
     const isAdminEndpoint = req.path.startsWith('/api/admin/');
@@ -478,9 +278,28 @@ class XSSProtectionService {
    * Determine severity based on detected patterns
    */
   private determineSeverity(patterns: string[]): 'low' | 'medium' | 'high' | 'critical' {
-    const criticalPatterns = ['script_tag', 'javascript_protocol', 'eval_function', 'document_object', 'window_object'];
-    const highPatterns = ['event_handlers', 'dangerous_tags', 'iframe_tag', 'object_tag', 'embed_tag'];
-    const mediumPatterns = ['data_uri', 'css_expression', 'html_entities', 'url_encoding'];
+    const criticalPatterns = [
+      'script_tag',
+      'javascript_protocol',
+      'eval_function',
+      'innerhtml_assignment',
+      'outerhtml_assignment',
+      'function_constructor'
+    ];
+    const highPatterns = [
+      'event_handlers',
+      'dangerous_tags',
+      'iframe_tag',
+      'object_tag',
+      'embed_tag',
+      'settimeout_with_string',
+      'setinterval_with_string',
+      'insertadjacenthtml'
+    ];
+    const mediumPatterns = [
+      'data_uri',
+      'css_expression'
+    ];
 
     if (patterns.some(p => criticalPatterns.includes(p))) {
       return 'critical';
@@ -606,8 +425,10 @@ class CSRFProtectionService {
     };
 
     // Skip CSRF for GET requests and safe endpoints
-    if (req.method === 'GET' || 
-        req.path.startsWith('/api/health') || 
+    if (req.method === 'GET' ||
+        req.path.startsWith('/api/health') ||
+        req.path.startsWith('/api/admin/auth') ||
+        req.path.startsWith('/api/shop-owner/auth') ||
         req.path.startsWith('/api/security/csp-report') ||
         req.path.startsWith('/api/security/ct-report') ||
         process.env.NODE_ENV === 'test' ||

@@ -625,6 +625,51 @@ router.get('/settings',
 
 /**
  * @swagger
+ * /api/notifications/preferences:
+ *   get:
+ *     summary: user notification preferences 조회 (alias for settings)
+ *     description: Retrieve notification preferences for the authenticated user (same as /settings)
+ *
+ *       알림 관련 API입니다. 푸시 알림과 알림 설정을 관리합니다.
+ *
+ *       ---
+ *
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Notification preferences retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     settings:
+ *                       $ref: '#/components/schemas/NotificationSettings'
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *       401:
+ *         description: Unauthorized - Authentication required
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/preferences',
+  authenticateJWT,
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  notificationController.getUserNotificationSettings.bind(notificationController)
+);
+
+/**
+ * @swagger
  * /api/notifications/settings:
  *   put:
  *     summary: user notification settings 수정
@@ -817,6 +862,161 @@ router.get('/tokens',
   authenticateJWT,
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
   notificationController.getUserDeviceTokens.bind(notificationController)
+);
+
+// ===== USER NOTIFICATION INBOX ENDPOINTS =====
+// ⚠️ IMPORTANT: Specific routes MUST come before parameterized routes (/:notificationId)
+
+/**
+ * @swagger
+ * /api/notifications/unread-count:
+ *   get:
+ *     summary: Get unread notification count
+ *     description: Get the count of unread notifications for the authenticated user
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Unread count retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/unread-count',
+  authenticateJWT,
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  notificationController.getUnreadCount.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/read-all:
+ *   post:
+ *     summary: Mark all notifications as read
+ *     description: Mark all unread notifications as read for the authenticated user
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: All notifications marked as read
+ *       401:
+ *         description: Unauthorized
+ */
+router.post('/read-all',
+  authenticateJWT,
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
+  notificationController.markAllAsRead.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/read:
+ *   delete:
+ *     summary: Delete all read notifications
+ *     description: Soft delete all read notifications for the authenticated user
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Read notifications deleted successfully
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete('/read',
+  authenticateJWT,
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }),
+  notificationController.deleteAllRead.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/{notificationId}:
+ *   get:
+ *     summary: Get single notification by ID
+ *     description: Retrieve a single notification for the authenticated user
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Notification ID
+ *     responses:
+ *       200:
+ *         description: Notification retrieved successfully
+ *       404:
+ *         description: Notification not found
+ *       401:
+ *         description: Unauthorized
+ */
+router.get('/:notificationId',
+  authenticateJWT,
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
+  notificationController.getNotification.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/{notificationId}:
+ *   delete:
+ *     summary: Delete notification
+ *     description: Soft delete a single notification for the authenticated user
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: notificationId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Notification ID
+ *     responses:
+ *       200:
+ *         description: Notification deleted successfully
+ *       400:
+ *         description: Delete failed
+ *       401:
+ *         description: Unauthorized
+ */
+router.delete('/:notificationId',
+  authenticateJWT,
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
+  notificationController.deleteNotification.bind(notificationController)
+);
+
+/**
+ * @swagger
+ * /api/notifications/preferences:
+ *   put:
+ *     summary: Update notification preferences
+ *     description: Update notification preferences for the authenticated user (alias for /settings)
+ *     tags: [Notifications]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             $ref: '#/components/schemas/NotificationSettings'
+ *     responses:
+ *       200:
+ *         description: Preferences updated successfully
+ *       400:
+ *         description: Invalid request data
+ *       401:
+ *         description: Unauthorized
+ */
+router.put('/preferences',
+  authenticateJWT,
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
+  notificationController.updateUserNotificationSettings.bind(notificationController)
 );
 
 // ===== SHOP OWNER NOTIFICATION ROUTES =====

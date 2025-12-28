@@ -24,12 +24,14 @@ export interface CustomerNotificationPayload {
   depositAmount?: number;
   remainingAmount?: number;
   specialRequests?: string;
-  notificationType: 'reservation_confirmed' | 'reservation_rejected';
+  notificationType: 'reservation_confirmed' | 'reservation_rejected' | 'reservation_cancelled' | 'reservation_completed' | 'reservation_no_show';
   additionalData?: {
     confirmationNotes?: string;
     rejectionReason?: string;
+    cancellationReason?: string;
     refundProcessed?: boolean;
     refundAmount?: number;
+    shopId?: string;
   };
 }
 
@@ -136,7 +138,7 @@ export class CustomerNotificationService {
    */
   private async createNotificationRecord(payload: CustomerNotificationPayload): Promise<string> {
     try {
-      const { data, error } = await this.supabase
+      const { data, error} = await this.supabase
         .from('notifications')
         .insert({
           user_id: payload.customerId,
@@ -145,20 +147,7 @@ export class CustomerNotificationService {
           message: this.generateNotificationMessage(payload),
           related_id: payload.reservationId,
           action_url: `/reservations/${payload.reservationId}`,
-          status: 'unread',
-          data: {
-            reservationId: payload.reservationId,
-            shopName: payload.shopName,
-            reservationDate: payload.reservationDate,
-            reservationTime: payload.reservationTime,
-            totalAmount: payload.totalAmount,
-            depositAmount: payload.depositAmount,
-            remainingAmount: payload.remainingAmount,
-            services: payload.services,
-            specialRequests: payload.specialRequests,
-            notificationType: payload.notificationType,
-            ...payload.additionalData
-          }
+          status: 'unread'
         })
         .select('id')
         .single();
@@ -188,6 +177,12 @@ export class CustomerNotificationService {
         return `🎉 [${payload.shopName}] 예약 확정`;
       case 'reservation_rejected':
         return `😔 [${payload.shopName}] 예약 거절`;
+      case 'reservation_cancelled':
+        return `❌ [${payload.shopName}] 예약 취소`;
+      case 'reservation_completed':
+        return `✅ [${payload.shopName}] 서비스 완료`;
+      case 'reservation_no_show':
+        return `⚠️ [${payload.shopName}] No-Show 처리`;
       default:
         return `[${payload.shopName}] 예약 상태 변경`;
     }
@@ -199,9 +194,9 @@ export class CustomerNotificationService {
   private generateNotificationMessage(payload: CustomerNotificationPayload): string {
     const timeStr = payload.reservationTime.substring(0, 5); // Format as HH:MM
     const serviceNames = payload.services.map(s => s.serviceName).join(', ');
-    
+
     let message = '';
-    
+
     switch (payload.notificationType) {
       case 'reservation_confirmed':
         message = `🎉 예약이 확정되었습니다!
@@ -252,6 +247,68 @@ export class CustomerNotificationService {
         message += `
 
 다른 시간이나 샵으로 예약을 다시 시도해보시기 바랍니다.
+문의사항이 있으시면 고객센터로 연락해주세요.
+
+감사합니다.`;
+        break;
+
+      case 'reservation_cancelled':
+        message = `❌ 예약이 취소되었습니다.
+
+샵: ${payload.shopName}
+예약일시: ${payload.reservationDate} ${timeStr}
+서비스: ${serviceNames}
+취소 사유: ${payload.additionalData?.cancellationReason || '샵 사정으로 인한 취소'}`;
+
+        if (payload.additionalData?.refundProcessed && payload.additionalData?.refundAmount) {
+          message += `
+
+예약금 ${payload.additionalData.refundAmount.toLocaleString()}원이 환불 처리되었습니다.`;
+        } else if (payload.depositAmount && payload.depositAmount > 0) {
+          message += `
+
+예약금 환불은 별도로 처리됩니다.`;
+        }
+
+        message += `
+
+다른 시간이나 샵으로 예약을 다시 시도해보시기 바랍니다.
+문의사항이 있으시면 고객센터로 연락해주세요.
+
+감사합니다.`;
+        break;
+
+      case 'reservation_completed':
+        message = `✅ 서비스가 완료되었습니다.
+
+샵: ${payload.shopName}
+서비스 날짜: ${payload.reservationDate} ${timeStr}
+서비스: ${serviceNames}
+총 금액: ${payload.totalAmount.toLocaleString()}원`;
+
+        message += `
+
+서비스를 이용해주셔서 감사합니다.
+리뷰를 남겨주시면 다른 고객들에게 큰 도움이 됩니다.
+
+감사합니다.`;
+        break;
+
+      case 'reservation_no_show':
+        message = `⚠️ 예약 시간에 방문하지 않으셨습니다.
+
+샵: ${payload.shopName}
+예약일시: ${payload.reservationDate} ${timeStr}
+서비스: ${serviceNames}`;
+
+        if (payload.depositAmount && payload.depositAmount > 0) {
+          message += `
+
+No-Show로 인해 예약금 환불이 제한될 수 있습니다.`;
+        }
+
+        message += `
+
 문의사항이 있으시면 고객센터로 연락해주세요.
 
 감사합니다.`;

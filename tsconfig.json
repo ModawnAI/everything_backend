@@ -84,7 +84,11 @@
     "**/*.spec.ts"
   ],
   "ts-node": {
-    "esm": false,
-    "experimentalSpecifierResolution": "node"
+    "transpileOnly": true,
+    "files": true,
+    "compilerOptions": {
+      "module": "commonjs",
+      "target": "ES2022"
+    }
   }
 } 

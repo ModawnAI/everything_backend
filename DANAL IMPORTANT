@@ -1,0 +1,945 @@
+🎯 Complete Implementation Guide: Danal Identity Verification 
+  with PortOne V2 on User App
+
+  Based on the official PortOne documentation and your existing
+  backend implementation, here's the comprehensive guide for
+  implementing Danal phone verification on your user app.
+
+  📋 Table of Contents
+
+  1. #overview--flow
+  2. #backend-setup
+  3. #frontend-implementation
+  4. #react-native--mobile-app-implementation
+  5. #testing--validation
+  6. #security-best-practices
+  7. #error-handling
+  8. #production-checklist
+
+  ---
+  🎬 Overview & Flow
+
+  What is Danal Identity Verification?
+
+  Danal (다날) 휴대폰 본인인증 is Korea's leading mobile phone
+  identity verification service that:
+  - ✅ Verifies user's identity using their mobile phone
+  - ✅ Confirms name, birth date, phone number, gender
+  - ✅ Provides CI (Connecting Information) - unique ID across
+  services
+  - ✅ Provides DI (Duplication Information) - unique ID within
+  your service
+  - ✅ Prevents duplicate registrations
+  - ✅ Enables age verification (14+, 19+, custom age limits)
+
+  Complete Flow Diagram
+
+  ┌──────────────┐
+  │  User App    │
+  │  (Frontend)  │
+  └───────┬──────┘
+          │ 1. Request verification
+          │    POST /api/identity-verification/prepare
+          ▼
+  ┌──────────────┐
+  │   Backend    │ 2. Prepare & return config
+  │   (Express)  │    (storeId, channelKey, etc.)
+  └───────┬──────┘
+          │
+          ▼
+  ┌──────────────┐
+  │  User App    │ 3. Call PortOne.requestIdentityVerification()
+  │  (SDK Call)  │    Opens verification UI
+  └───────┬──────┘
+          │
+          ▼
+  ┌──────────────┐
+  │   Danal      │ 4. User enters info + SMS code
+  │ Verification │    Danal verifies identity
+  │     UI       │
+  └───────┬──────┘
+          │
+          ▼
+  ┌──────────────┐
+  │  User App    │ 5. Receive response with
+  identityVerificationId
+  │  (Callback)  │    Send to backend for verification
+  └───────┬──────┘
+          │ 6. POST /api/identity-verification/verify
+          │    { identityVerificationId }
+          ▼
+  ┌──────────────┐
+  │   Backend    │ 7. Call PortOne API
+  │              │    GET /identity-verifications/{id}
+  └───────┬──────┘
+          │
+          ▼
+  ┌──────────────┐
+  │   PortOne    │ 8. Returns verified customer data
+  │   API        │    (CI, DI, name, birthDate, etc.)
+  └───────┬──────┘
+          │
+          ▼
+  ┌──────────────┐
+  │   Backend    │ 9. Update user record
+  │  (Database)  │    - Mark phone_verified = true
+  │              │    - Store CI/DI
+  └───────┬──────┘
+          │
+          ▼
+  ┌──────────────┐
+  │  User App    │ 10. Show success + proceed
+  │  (Success)   │
+  └──────────────┘
+
+  ---
+  ✅ Backend Setup (Already Complete!)
+
+  Good news! Your backend is already fully implemented with:
+
+  ✅ Existing Implementation
+
+  Routes (/home/bitnami/everything_backend/src/routes/identity-ve
+  rification.routes.ts:1):
+  - POST /api/identity-verification/prepare - Prepare
+  verification request
+  - POST /api/identity-verification/verify - Verify completion
+  - GET /api/identity-verification/status/:id - Check status
+  - POST /api/identity-verification/danal/bypass-params - Helper
+  for Danal params
+
+  Service (/home/bitnami/everything_backend/src/services/portone-
+  identity-verification.service.ts:1):
+  - Full PortOne V2 SDK integration
+  - Database tracking (phone_verifications table)
+  - CI/DI storage
+  - Phone verification updates
+  - Automatic cleanup of expired verifications
+
+  Features:
+  - ✅ JWT authentication required
+  - ✅ Rate limiting applied
+  - ✅ Input validation
+  - ✅ Comprehensive error handling
+  - ✅ Logging and monitoring
+  - ✅ Supports Danal bypass parameters
+
+  ---
+  🎨 Frontend Implementation
+
+  Option 1: React / Next.js Web App (Recommended)
+
+  Step 1: Install PortOne V2 Browser SDK
+
+  npm install @portone/browser-sdk
+  # or
+  yarn add @portone/browser-sdk
+  # or
+  pnpm add @portone/browser-sdk
+
+  Step 2: Create Identity Verification Hook
+
+  Create /hooks/useIdentityVerification.ts:
+
+  import { useState, useCallback } from 'react';
+  import { loadIdentityVerification, requestIdentityVerification
+  } from '@portone/browser-sdk/v2';
+  import axios from 'axios';
+
+  interface VerificationConfig {
+    identityVerificationId: string;
+    storeId: string;
+    channelKey: string;
+  }
+
+  interface VerifiedCustomer {
+    ci: string;
+    di?: string;
+    name: string;
+    gender?: 'MALE' | 'FEMALE';
+    birthDate: string; // YYYY-MM-DD
+    phoneNumber?: string;
+    operator?: string;
+    isForeigner: boolean;
+  }
+
+  interface VerificationResult {
+    success: boolean;
+    verifiedCustomer?: VerifiedCustomer;
+    error?: string;
+  }
+
+  const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ||
+  'http://localhost:3001';
+
+  export const useIdentityVerification = () => {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    /**
+     * Start identity verification process
+     * @param options - Danal bypass options
+     */
+    const verifyIdentity = useCallback(async (options?: {
+      customer?: {
+        phoneNumber?: string;
+        fullName?: string;
+      };
+      bypass?: {
+        IsCarrier?: string; // 'SKT', 'KTF', 'LGT', 'MVNO' or 
+  combinations
+        AGELIMIT?: number; // Minimum age (e.g., 20 for adult 
+  verification)
+        CPTITLE?: string; // Service URL or name
+      };
+    }): Promise<VerificationResult> => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        // Generate unique verification ID
+        const identityVerificationId =
+  `identity-verification-${crypto.randomUUID()}`;
+
+        // Step 1: Prepare verification on backend
+        const token = localStorage.getItem('accessToken');
+        const prepareResponse = await axios.post(
+          `${API_BASE_URL}/api/identity-verification/prepare`,
+          {
+            identityVerificationId,
+            customer: options?.customer,
+            bypass: options?.bypass,
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        const config: VerificationConfig =
+  prepareResponse.data.data;
+
+        // Step 2: Open PortOne verification UI
+        const response = await requestIdentityVerification({
+          storeId: config.storeId,
+          identityVerificationId: config.identityVerificationId,
+          channelKey: config.channelKey,
+          // Optional: Pre-fill customer info
+          ...(options?.customer && {
+            customer: {
+              phoneNumber: options.customer.phoneNumber,
+              fullName: options.customer.fullName,
+            },
+          }),
+          // Optional: Danal-specific parameters
+          ...(options?.bypass && {
+            bypass: options.bypass,
+          }),
+        });
+
+        // Check if verification was cancelled or failed
+        if (response.code !== undefined) {
+          throw new Error(response.message || '본인인증에 
+  실패했습니다.');
+        }
+
+        // Step 3: Verify on backend
+        const verifyResponse = await axios.post(
+          `${API_BASE_URL}/api/identity-verification/verify`,
+          {
+            identityVerificationId:
+  config.identityVerificationId,
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!verifyResponse.data.success) {
+          throw new Error(verifyResponse.data.error?.message ||
+  '본인인증 검증에 실패했습니다.');
+        }
+
+        setLoading(false);
+        return {
+          success: true,
+          verifiedCustomer:
+  verifyResponse.data.data.verifiedCustomer,
+        };
+
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.error?.message
+  ||
+                            err.message ||
+                            '본인인증 중 오류가 발생했습니다.';
+
+        setError(errorMessage);
+        setLoading(false);
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+    }, []);
+
+    return {
+      verifyIdentity,
+      loading,
+      error,
+    };
+  };
+
+  Step 3: Create Verification Component
+
+  Create /components/IdentityVerification.tsx:
+
+  'use client'; // For Next.js 13+ App Router
+
+  import { useState } from 'react';
+  import { useIdentityVerification } from
+  '@/hooks/useIdentityVerification';
+
+  export function IdentityVerificationButton() {
+    const { verifyIdentity, loading, error } =
+  useIdentityVerification();
+    const [result, setResult] = useState<any>(null);
+
+    const handleVerify = async () => {
+      const result = await verifyIdentity({
+        // Optional: Pre-fill phone number if you have it
+        customer: {
+          // phoneNumber: '01012345678',
+          // fullName: '홍길동',
+        },
+        // Optional: Danal-specific options
+        bypass: {
+          // AGELIMIT: 19, // Require 19+ age
+          // IsCarrier: 'SKT;KTF', // Limit to SKT and KT 
+  carriers
+          CPTITLE: 'eBeautything', // Your service name
+        },
+      });
+
+      if (result.success) {
+        console.log('Verification successful:',
+  result.verifiedCustomer);
+        setResult(result.verifiedCustomer);
+
+        // ✅ Phone is now verified!
+        // ✅ User data is updated on backend
+        // You can proceed to next step or refresh user data
+      } else {
+        console.error('Verification failed:', result.error);
+      }
+    };
+
+    return (
+      <div className="p-6 bg-white rounded-lg shadow-md">
+        <h2 className="text-2xl font-bold mb-4">휴대폰
+  본인인증</h2>
+
+        <p className="text-gray-600 mb-6">
+          본인 명의의 휴대폰으로 본인인증을 진행해주세요.
+          본인인증을 통해 다음 정보가 확인됩니다:
+        </p>
+
+        <ul className="list-disc list-inside text-sm 
+  text-gray-600 mb-6 space-y-1">
+          <li>이름</li>
+          <li>생년월일</li>
+          <li>성별</li>
+          <li>휴대폰 번호</li>
+          <li>통신사</li>
+          <li>내/외국인 여부</li>
+        </ul>
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 
+  rounded-md p-4 mb-4">
+            <p className="text-red-800 text-sm">{error}</p>
+          </div>
+        )}
+
+        {result && (
+          <div className="bg-green-50 border border-green-200 
+  rounded-md p-4 mb-4">
+            <p className="text-green-800 font-semibold mb-2">✅
+  본인인증 완료</p>
+            <div className="text-sm text-gray-700 space-y-1">
+              <p><strong>이름:</strong> {result.name}</p>
+              <p><strong>생년월일:</strong>
+  {result.birthDate}</p>
+              <p><strong>휴대폰:</strong> {result.phoneNumber ||
+  '제공되지 않음'}</p>
+              <p><strong>통신사:</strong> {result.operator ||
+  '제공되지 않음'}</p>
+            </div>
+          </div>
+        )}
+
+        <button
+          onClick={handleVerify}
+          disabled={loading}
+          className={`w-full py-3 px-4 rounded-md font-semibold 
+  text-white transition-colors ${
+            loading
+              ? 'bg-gray-400 cursor-not-allowed'
+              : 'bg-blue-600 hover:bg-blue-700'
+          }`}
+        >
+          {loading ? '인증 진행 중...' : '휴대폰 본인인증 시작'}
+        </button>
+
+        <p className="text-xs text-gray-500 mt-4 text-center">
+          본인인증은 다날(Danal)을 통해 안전하게 처리됩니다.
+        </p>
+      </div>
+    );
+  }
+
+  Step 4: Use the Component
+
+  // In your page or component
+  import { IdentityVerificationButton } from
+  '@/components/IdentityVerification';
+
+  export default function SignupPage() {
+    return (
+      <div className="container mx-auto py-8">
+        <h1 className="text-3xl font-bold mb-8">회원가입</h1>
+
+        {/* Other signup fields... */}
+
+        <IdentityVerificationButton />
+      </div>
+    );
+  }
+
+  ---
+  📱 React Native / Mobile App Implementation
+
+  Step 1: Install Dependencies
+
+  npm install @portone/react-native-sdk
+  npm install react-native-webview # Required for SDK
+
+  Step 2: Configure iOS (if applicable)
+
+  <!-- ios/YourApp/Info.plist -->
+  <key>NSAppTransportSecurity</key>
+  <dict>
+    <key>NSAllowsArbitraryLoads</key>
+    <true/>
+  </dict>
+
+  Step 3: Create Hook for React Native
+
+  Create /hooks/useIdentityVerification.native.ts:
+
+  import { useState, useCallback } from 'react';
+  import { requestIdentityVerification } from
+  '@portone/react-native-sdk';
+  import axios from 'axios';
+  import AsyncStorage from
+  '@react-native-async-storage/async-storage';
+
+  const API_BASE_URL = process.env.API_URL ||
+  'http://localhost:3001';
+
+  export const useIdentityVerification = () => {
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const verifyIdentity = useCallback(async (options?: {
+      customer?: {
+        phoneNumber?: string;
+        fullName?: string;
+      };
+      bypass?: {
+        IsCarrier?: string;
+        AGELIMIT?: number;
+        CPTITLE?: string;
+      };
+    }) => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const identityVerificationId =
+  `identity-verification-${Date.now()}-${Math.random()}`;
+        const token = await AsyncStorage.getItem('accessToken');
+
+        // Prepare on backend
+        const prepareResponse = await axios.post(
+          `${API_BASE_URL}/api/identity-verification/prepare`,
+          {
+            identityVerificationId,
+            customer: options?.customer,
+            bypass: options?.bypass,
+          },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        const config = prepareResponse.data.data;
+
+        // Request verification (opens WebView)
+        const response = await requestIdentityVerification({
+          storeId: config.storeId,
+          identityVerificationId: config.identityVerificationId,
+          channelKey: config.channelKey,
+          redirectUrl:
+  `yourapp://identity-verification-redirect`, // Deep link
+          ...(options?.customer && {
+            customer: options.customer,
+          }),
+          ...(options?.bypass && {
+            bypass: options.bypass,
+          }),
+        });
+
+        if (response.code !== undefined) {
+          throw new Error(response.message || '본인인증에 
+  실패했습니다.');
+        }
+
+        // Verify on backend
+        const verifyResponse = await axios.post(
+          `${API_BASE_URL}/api/identity-verification/verify`,
+          { identityVerificationId: config.identityVerificationId
+   },
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+
+        if (!verifyResponse.data.success) {
+          throw new Error(verifyResponse.data.error?.message ||
+  '본인인증 검증에 실패했습니다.');
+        }
+
+        setLoading(false);
+        return {
+          success: true,
+          verifiedCustomer:
+  verifyResponse.data.data.verifiedCustomer,
+        };
+
+      } catch (err: any) {
+        const errorMessage = err.response?.data?.error?.message
+  ||
+                            err.message ||
+                            '본인인증 중 오류가 발생했습니다.';
+
+        setError(errorMessage);
+        setLoading(false);
+
+        return {
+          success: false,
+          error: errorMessage,
+        };
+      }
+    }, []);
+
+    return {
+      verifyIdentity,
+      loading,
+      error,
+    };
+  };
+
+  Step 4: Create React Native Component
+
+  import React, { useState } from 'react';
+  import { View, Text, TouchableOpacity, ActivityIndicator,
+  StyleSheet } from 'react-native';
+  import { useIdentityVerification } from
+  '../hooks/useIdentityVerification.native';
+
+  export function IdentityVerificationScreen() {
+    const { verifyIdentity, loading, error } =
+  useIdentityVerification();
+    const [result, setResult] = useState<any>(null);
+
+    const handleVerify = async () => {
+      const result = await verifyIdentity({
+        bypass: {
+          CPTITLE: 'eBeautything',
+          // AGELIMIT: 19, // Optional age limit
+        },
+      });
+
+      if (result.success) {
+        setResult(result.verifiedCustomer);
+        // Navigate to next screen or show success
+      }
+    };
+
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>휴대폰 본인인증</Text>
+
+        <Text style={styles.description}>
+          본인 명의의 휴대폰으로 본인인증을 진행해주세요.
+        </Text>
+
+        {error && (
+          <View style={styles.errorContainer}>
+            <Text style={styles.errorText}>{error}</Text>
+          </View>
+        )}
+
+        {result && (
+          <View style={styles.successContainer}>
+            <Text style={styles.successTitle}>✅ 본인인증
+  완료</Text>
+            <Text style={styles.resultText}>이름:
+  {result.name}</Text>
+            <Text style={styles.resultText}>생년월일:
+  {result.birthDate}</Text>
+            <Text style={styles.resultText}>휴대폰:
+  {result.phoneNumber || 'N/A'}</Text>
+          </View>
+        )}
+
+        <TouchableOpacity
+          style={[styles.button, loading && 
+  styles.buttonDisabled]}
+          onPress={handleVerify}
+          disabled={loading}
+        >
+          {loading ? (
+            <ActivityIndicator color="#fff" />
+          ) : (
+            <Text style={styles.buttonText}>휴대폰 본인인증
+  시작</Text>
+          )}
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  const styles = StyleSheet.create({
+    container: {
+      flex: 1,
+      padding: 20,
+      backgroundColor: '#fff',
+    },
+    title: {
+      fontSize: 24,
+      fontWeight: 'bold',
+      marginBottom: 16,
+    },
+    description: {
+      fontSize: 14,
+      color: '#666',
+      marginBottom: 24,
+    },
+    errorContainer: {
+      backgroundColor: '#fee',
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 16,
+    },
+    errorText: {
+      color: '#c00',
+      fontSize: 14,
+    },
+    successContainer: {
+      backgroundColor: '#efe',
+      padding: 12,
+      borderRadius: 8,
+      marginBottom: 16,
+    },
+    successTitle: {
+      fontSize: 16,
+      fontWeight: 'bold',
+      color: '#060',
+      marginBottom: 8,
+    },
+    resultText: {
+      fontSize: 14,
+      color: '#333',
+      marginBottom: 4,
+    },
+    button: {
+      backgroundColor: '#007bff',
+      padding: 16,
+      borderRadius: 8,
+      alignItems: 'center',
+    },
+    buttonDisabled: {
+      backgroundColor: '#ccc',
+    },
+    buttonText: {
+      color: '#fff',
+      fontSize: 16,
+      fontWeight: '600',
+    },
+  });
+
+  ---
+  🧪 Testing & Validation
+
+  Test Mode Setup
+
+  PortOne provides free test channels for Danal verification:
+
+  // Use test channel for development
+  const verifyResult = await verifyIdentity({
+    // Use test phone numbers (check PortOne console for test 
+  numbers)
+    customer: {
+      phoneNumber: '01012341234', // Test number
+      fullName: '홍길동',
+    },
+    bypass: {
+      CPTITLE: 'eBeautything',
+    },
+  });
+
+  Manual Testing Checklist
+
+  - Happy Path: Complete verification successfully
+  - Cancel Flow: User cancels mid-verification
+  - Invalid Phone: Enter invalid phone number format
+  - Age Restriction: Test AGELIMIT parameter (14+, 19+)
+  - Carrier Restriction: Test IsCarrier parameter
+  - Timeout: Let verification expire (30 minutes)
+  - Duplicate CI/DI: Test with already verified user
+  - Network Error: Simulate backend failure
+  - Token Expired: Test with expired JWT token
+
+  E2E Testing Example (Cypress/Playwright)
+
+  // e2e/identity-verification.spec.ts
+  describe('Identity Verification', () => {
+    it('should complete phone verification successfully', () => {
+      cy.visit('/signup');
+      cy.get('[data-testid="verify-phone-button"]').click();
+
+      // PortOne UI will open
+      cy.origin('https://checkout.portone.io', () => {
+        cy.get('input[name="name"]').type('홍길동');
+        cy.get('input[name="phone"]').type('01012341234');
+        cy.get('input[name="birthdate"]').type('19900101');
+        cy.get('button[type="submit"]').click();
+
+        // Enter SMS code (in test mode, use fixed code)
+        cy.get('input[name="otp"]').type('123456');
+        cy.get('button[type="submit"]').click();
+      });
+
+      // Back to your app
+      cy.contains('✅ 본인인증 완료').should('be.visible');
+      cy.get('[data-testid="verified-name"]').should('contain',
+  '홍길동');
+    });
+  });
+
+  ---
+  🔒 Security Best Practices
+
+  1. CI/DI Usage
+
+  CI (Connecting Information):
+  - ✅ Use for: Cross-service user identification
+  - ✅ Same person = Same CI across all services
+  - ✅ Store in database for duplicate checking
+  - ⚠️ Sensitive data - encrypt at rest
+
+  DI (Duplication Information):
+  - ✅ Use for: Within-service duplicate checking
+  - ✅ Same person = Same DI within YOUR service only
+  - ✅ Prevent multiple accounts per person
+  - ⚠️ Different DI across services (unlike CI)
+
+  2. Prevent Duplicate Registrations
+
+  // Backend: Check before allowing signup
+  async function checkDuplicateUser(ci: string, di: string): 
+  Promise<boolean> {
+    const { data, error } = await supabase
+      .from('user_verifications')
+      .select('user_id')
+      .or(`verification_data->>ci.eq.${ci},verification_data->>di
+  .eq.${di}`)
+      .limit(1);
+
+    return !!data && data.length > 0;
+  }
+
+  3. Age Verification
+
+  // Frontend: Set minimum age
+  const verifyAdult = async () => {
+    const result = await verifyIdentity({
+      bypass: {
+        AGELIMIT: 19, // Must be 19+ (Korean age)
+        CPTITLE: 'eBeautything',
+      },
+    });
+
+    if (result.success) {
+      // User is verified as 19+
+      const birthDate = new
+  Date(result.verifiedCustomer!.birthDate);
+      const age = calculateKoreanAge(birthDate);
+      console.log('Verified age:', age);
+    }
+  };
+
+  4. Secure Data Storage
+
+  // Backend: Encrypt CI/DI before storing
+  import crypto from 'crypto';
+
+  function encryptSensitiveData(data: string): string {
+    const cipher = crypto.createCipher('aes-256-cbc',
+  process.env.ENCRYPTION_KEY!);
+    let encrypted = cipher.update(data, 'utf8', 'hex');
+    encrypted += cipher.final('hex');
+    return encrypted;
+  }
+
+  // Store encrypted CI/DI
+  await supabase.from('user_verifications').insert({
+    user_id: userId,
+    verification_data: {
+      ci: encryptSensitiveData(ci),
+      di: encryptSensitiveData(di),
+      phone_number: phoneNumber,
+    },
+  });
+
+  ---
+  🚀 Production Checklist
+
+  Before Going Live
+
+  - PortOne Contract: Sign contract with PortOne
+  (https://portone.io)
+  - Danal Contract: PortOne will facilitate Danal PG contract
+  - Channel Setup: Create LIVE channel in PortOne console (not
+  test)
+  - Store ID: Get production Store ID from PortOne console
+  - Channel Key: Get production Channel Key for Danal
+  - API Secret: Get production API secret (keep secure!)
+  - Environment Variables: Set production values in .env
+
+  # Production .env
+  PORTONE_V2_API_SECRET=live_secret_xxxxxxxxxxxxxxxx
+  PORTONE_V2_STORE_ID=store-xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx
+  PORTONE_V2_CHANNEL_KEY=channel-key-xxxxxxxx-xxxx-xxxx-xxxx-xxxx
+  xxxxxxxx
+
+  Optional: Additional Data Request
+
+  To get phoneNumber, operator, and isForeigner from Danal, you
+  need to:
+
+  1. Email PortOne at cs@portone.io with:
+    - Company name (상호명)
+    - Business registration number (사업자번호)
+    - Danal merchant ID (CPID)
+    - Industry (업종)
+    - Reason for request (필요사유)
+    - Privacy policy URL (개인정보취급방침 URL)
+  2. Privacy Policy Requirement: Must display privacy policy on
+  your website/app
+
+  Example privacy policies (from PortOne customers):
+  - https://marpple.shop/kr/@/privacy
+  - https://soomgo.com/terms/privacy
+  - https://static.marketit.asia/static/privacy-terms.pdf
+
+  Frontend Environment Configuration
+
+  // config/portone.ts
+  export const PORTONE_CONFIG = {
+    development: {
+      apiUrl: 'http://localhost:3001',
+      // Test values are already configured on backend
+    },
+    production: {
+      apiUrl: 'https://api.ebeautything.com',
+      // Production values are configured on backend
+    },
+  };
+
+  export const API_BASE_URL =
+    process.env.NODE_ENV === 'production'
+      ? PORTONE_CONFIG.production.apiUrl
+      : PORTONE_CONFIG.development.apiUrl;
+
+  ---
+  📊 Response Data Reference
+
+  Verified Customer Object
+
+  interface VerifiedCustomer {
+    // Always provided
+    ci: string;              // 연계정보 - Unique across services
+    name: string;            // 이름
+    birthDate: string;       // 생년월일 (YYYY-MM-DD)
+
+    // Provided by Danal (with contract)
+    di?: string;             // 중복가입확인정보 - Unique within 
+  service
+    gender?: 'MALE' | 'FEMALE';  // 성별
+    phoneNumber?: string;    // 휴대폰번호 (requires additional 
+  contract)
+    operator?: string;       // 통신사 (requires additional 
+  contract)
+    isForeigner: boolean;    // 내/외국인 여부 (requires 
+  additional contract)
+  }
+
+  Verification Status Values
+
+  - VERIFIED - Successfully verified ✅
+  - FAILED - Verification failed ❌
+  - PENDING - In progress or not completed ⏳
+
+  ---
+  🎯 Summary
+
+  What You Have:
+  ✅ Complete backend implementation
+  ✅ PortOne V2 SDK integration
+  ✅ Database tracking
+  ✅ CI/DI storage
+  ✅ Phone verification updates
+  ✅ Comprehensive error handling
+
+  What You Need to Do:
+  1. Install @portone/browser-sdk (web) or
+  @portone/react-native-sdk (mobile)
+  2. Copy the frontend code provided above
+  3. Test with test channel
+  4. Sign PortOne contract for production
+  5. Update environment variables
+  6. Deploy to production
+
+  Official Documentation:
+  - https://developers.portone.io/opi/ko/extra/identity-verificat
+  ion/readme-v2
+  - https://developers.portone.io/opi/ko/integration/pg/v2/danal-
+  identity-verification
+  - https://developers.portone.io/sdk/ko/v2-sdk/readme
+  - https://developers.portone.io/sdk/ko/v2-mobile-sdk/readme
+
+  Need help with any specific part? Ask away! 🚀

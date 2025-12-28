@@ -22,9 +22,10 @@ const CONNECTION_POOL_CONFIG = {
       'X-Client-Info': 'ebeautything-backend',
     },
     fetch: (url: RequestInfo | URL, options?: RequestInit) => {
-      // Add timeout to all requests
+      // Add timeout to all requests - use env variable or default to 5 seconds
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      const timeoutMs = parseInt(process.env.SUPABASE_TIMEOUT_MS || '5000', 10);
+      const timeout = setTimeout(() => controller.abort(), timeoutMs);
 
       return fetch(url, {
         ...options,
@@ -54,9 +55,25 @@ const RETRY_CONFIG = {
  * Create and configure Supabase client with optimized settings
  */
 function createSupabaseClient(): SupabaseClient {
-  // In test environment, create a mock client
+  // In test environment, check if we need real DB for integration tests
   if (config.server.env === 'test') {
-    // If running under Jest, let the test file's own mock take precedence
+    // If SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY are set, create real client for integration tests
+    if (config.database.supabaseUrl && config.database.supabaseServiceRoleKey) {
+      const supabaseClient = createClient<any, 'public'>(
+        config.database.supabaseUrl,
+        config.database.supabaseServiceRoleKey,
+        CONNECTION_POOL_CONFIG
+      );
+
+      logger.info('Real Supabase client initialized for integration tests', {
+        url: config.database.supabaseUrl,
+        environment: config.server.env,
+      });
+
+      return supabaseClient;
+    }
+
+    // If running under Jest without real DB config, let the test file's own mock take precedence
     if (typeof jest !== 'undefined') {
       return {} as any;
     }

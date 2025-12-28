@@ -1,7 +1,15 @@
 import { Router } from 'express';
 import { dashboardController } from '../controllers/dashboard.controller';
+import { authenticateJWT } from '../middleware/auth.middleware';
+import { requireAdminAuth } from '../middleware/admin-auth.middleware';
+import { rateLimit } from '../middleware/rate-limit.middleware';
 
 const router = Router();
+
+// Apply authentication, admin authorization, and rate limiting to all routes
+router.use(authenticateJWT());
+router.use(requireAdminAuth);
+router.use(rateLimit());
 
 /**
  * @swagger
@@ -110,5 +118,31 @@ const router = Router();
  *         description: Internal server error
  */
 router.get('/overview', dashboardController.getDashboardOverview.bind(dashboardController));
+
+/**
+ * @swagger
+ * /api/admin/dashboard/stats:
+ *   get:
+ *     summary: Get dashboard statistics (alias for /overview)
+ *     tags: [Admin Dashboard]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: period
+ *         schema:
+ *           type: string
+ *           enum: [7d, 30d, 90d]
+ *           default: 30d
+ *         description: Time period for statistics
+ *     responses:
+ *       200:
+ *         description: Dashboard statistics retrieved successfully
+ *       401:
+ *         description: Unauthorized
+ *       500:
+ *         description: Internal server error
+ */
+router.get('/stats', dashboardController.getDashboardOverview.bind(dashboardController));
 
 export default router;

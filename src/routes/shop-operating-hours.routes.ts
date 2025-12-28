@@ -18,6 +18,23 @@ import { logger } from '../utils/logger';
 
 const router = Router();
 
+// CRITICAL DEBUG: Log IMMEDIATELY when this router is imported
+console.log('='.repeat(80));
+console.log('🔍 [ROUTER-INIT] Shop Operating Hours router created');
+console.log('='.repeat(80));
+logger.info('[ROUTER-INIT] Shop Operating Hours router created');
+
+// CRITICAL DEBUG: Log EVERY request that hits this router (BEFORE auth)
+router.use((req, res, next) => {
+  logger.info('[ROUTER-ENTRY] *** Operating hours router ENTERED ***', {
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    baseUrl: req.baseUrl
+  });
+  next();
+});
+
 /**
  * @swagger
  * tags:
@@ -140,6 +157,19 @@ const operatingHoursUpdateRateLimit = rateLimit({
 
 // Apply authentication to all routes
 router.use(authenticateJWT());
+
+// Debug logging middleware to trace route matching
+router.use((req, res, next) => {
+  logger.info('[ROUTE-DEBUG] Operating hours route matched', {
+    method: req.method,
+    path: req.path,
+    originalUrl: req.originalUrl,
+    baseUrl: req.baseUrl,
+    userId: (req as any).user?.id,
+    userRole: (req as any).user?.role
+  });
+  next();
+});
 
 /**
  * @swagger
@@ -304,9 +334,22 @@ router.use(authenticateJWT());
  *         description: Authentication required
  */
 router.get('/',
+  (req, res, next) => {
+    logger.info('[GET-ROUTE-DEBUG] GET / handler called', {
+      path: req.path,
+      originalUrl: req.originalUrl,
+      userId: (req as any).user?.id
+    });
+    next();
+  },
   ...requireShopOwnerWithShop(),
   operatingHoursRateLimit,
   async (req, res) => {
+    logger.info('[CONTROLLER-DEBUG] About to call getOperatingHours controller', {
+      userId: (req as any).user?.id,
+      shop: (req as any).shop
+    });
+
     try {
       await shopOperatingHoursController.getOperatingHours(req, res);
     } catch (error) {

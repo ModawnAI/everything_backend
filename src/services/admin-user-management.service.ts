@@ -3151,6 +3151,143 @@ export class AdminUserManagementService {
       });
     }
   }
+
+  /**
+   * Get user's referral list with first payment status
+   */
+  async getUserReferrals(userId: string, adminId: string): Promise<any> {
+    try {
+      // Get user's referrals with referred user information
+      const { data: referrals, error: referralsError } = await this.supabase
+        .from('referrals')
+        .select(`
+          id,
+          referred_id,
+          referral_code,
+          status,
+          bonus_paid,
+          bonus_amount,
+          payment_id,
+          created_at,
+          updated_at
+        `)
+        .eq('referrer_id', userId)
+        .order('created_at', { ascending: false });
+
+      if (referralsError) {
+        throw referralsError;
+      }
+
+      if (!referrals || referrals.length === 0) {
+        return {
+          referrals: [],
+          totalReferrals: 0,
+          completedReferrals: 0,
+          referralsWithFirstPayment: 0
+        };
+      }
+
+      // Get referred users information with masking
+      const referredUserIds = referrals.map(r => r.referred_id);
+      const { data: users, error: usersError } = await this.supabase
+        .from('users')
+        .select('id, name, email')
+        .in('id', referredUserIds);
+
+      if (usersError) {
+        throw usersError;
+      }
+
+      // Get first payment for each referred user
+      const { data: payments, error: paymentsError } = await this.supabase
+        .from('payments')
+        .select('user_id, amount, paid_at, created_at')
+        .in('user_id', referredUserIds)
+        .eq('payment_status', 'paid')
+        .order('paid_at', { ascending: true });
+
+      if (paymentsError) {
+        throw paymentsError;
+      }
+
+      // Create a map of first payments by user
+      const firstPaymentMap = new Map();
+      if (payments) {
+        payments.forEach(payment => {
+          if (!firstPaymentMap.has(payment.user_id)) {
+            firstPaymentMap.set(payment.user_id, payment);
+          }
+        });
+      }
+
+      // Create user map for quick lookup
+      const userMap = new Map(users?.map(u => [u.id, u]) || []);
+
+      // Mask user information
+      const maskEmail = (email: string): string => {
+        if (!email) return '';
+        const [local, domain] = email.split('@');
+        if (local.length <= 2) return `${local[0]}***@${domain}`;
+        return `${local.substring(0, 2)}***@${domain}`;
+      };
+
+      const maskName = (name: string): string => {
+        if (!name) return '';
+        if (name.length <= 2) return name[0] + '*'.repeat(name.length - 1);
+        return name.substring(0, Math.ceil(name.length / 2)) + '*'.repeat(Math.floor(name.length / 2));
+      };
+
+      // Combine data
+      const referralsList = referrals.map(referral => {
+        const user = userMap.get(referral.referred_id);
+        const firstPayment = firstPaymentMap.get(referral.referred_id);
+
+        return {
+          id: referral.id,
+          referredId: referral.referred_id,
+          referredUserName: user ? maskName(user.name) : 'Unknown',
+          referredUserEmail: user?.email ? maskEmail(user.email) : '',
+          status: referral.status,
+          hasFirstPayment: !!firstPayment,
+          firstPaymentDate: firstPayment?.paid_at || null,
+          firstPaymentAmount: firstPayment?.amount || 0,
+          bonusPaid: referral.bonus_paid,
+          bonusAmount: referral.bonus_amount,
+          createdAt: referral.created_at
+        };
+      });
+
+      // Calculate stats
+      const completedReferrals = referralsList.filter(r => r.status === 'completed').length;
+      const referralsWithFirstPayment = referralsList.filter(r => r.hasFirstPayment).length;
+
+      // Log admin action
+      await this.logAdminAction(
+        adminId,
+        'view_user_referrals',
+        { referralCount: referralsList.length },
+        {
+          targetId: userId,
+          targetType: 'user',
+          reason: 'Admin viewed user referrals'
+        }
+      );
+
+      return {
+        referrals: referralsList,
+        totalReferrals: referralsList.length,
+        completedReferrals,
+        referralsWithFirstPayment
+      };
+    } catch (error) {
+      logger.error('Get user referrals failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        adminId
+      });
+      throw error;
+    }
+  }
 }
 
 export const adminUserManagementService = new AdminUserManagementService(); 

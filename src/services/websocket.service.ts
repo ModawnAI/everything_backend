@@ -831,6 +831,46 @@ export class WebSocketService {
   }
 
   /**
+   * Broadcast reservation update to shop owner, user, and admin rooms
+   */
+  public broadcastReservationUpdate(update: ReservationUpdate): void {
+    try {
+      const timestamp = new Date().toISOString();
+
+      // Broadcast to admin reservations room
+      this.io.to('admin-reservations').emit('reservation_update', {
+        ...update,
+        timestamp
+      });
+
+      // Send to specific user
+      this.io.to(`user-${update.userId}`).emit('reservation_update', {
+        ...update,
+        timestamp
+      });
+
+      // Send to shop owner - this is the key notification for shop owners
+      this.io.to(`shop-${update.shopId}`).emit('reservation_update', {
+        ...update,
+        timestamp
+      });
+
+      logger.info('Reservation update broadcasted via WebSocket', {
+        reservationId: update.reservationId,
+        shopId: update.shopId,
+        userId: update.userId,
+        updateType: update.updateType
+      });
+
+    } catch (error) {
+      logger.error('Failed to broadcast reservation update', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: update.reservationId
+      });
+    }
+  }
+
+  /**
    * Parse user agent string for device information
    */
   private parseUserAgent(userAgent: string): Record<string, any> {

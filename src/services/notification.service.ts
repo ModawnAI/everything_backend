@@ -528,10 +528,72 @@ export class NotificationService {
   constructor() {
     // Initialize Firebase Admin SDK
     if (!admin.apps.length) {
-      this.firebaseApp = admin.initializeApp({
-        credential: admin.credential.applicationDefault(),
-        projectId: process.env.FIREBASE_PROJECT_ID || 'your-project-id'
-      });
+      try {
+        const initMethod = process.env.FIREBASE_AUTH_METHOD || 'auto';
+
+        if (initMethod === 'service_account' || initMethod === 'auto') {
+          // Try to load service account file
+          const serviceAccountPath = process.env.FIREBASE_ADMIN_SDK_PATH || './config/firebase-admin-sdk.json';
+          const fs = require('fs');
+          const path = require('path');
+          const fullPath = path.resolve(serviceAccountPath);
+
+          if (fs.existsSync(fullPath)) {
+            const serviceAccount = JSON.parse(fs.readFileSync(fullPath, 'utf8'));
+
+            this.firebaseApp = admin.initializeApp({
+              credential: admin.credential.cert(serviceAccount),
+              projectId: serviceAccount.project_id || process.env.FCM_PROJECT_ID
+            });
+
+            logger.info('Firebase Admin SDK initialized with service account file', {
+              projectId: serviceAccount.project_id,
+              method: 'service_account'
+            });
+            return;
+          }
+        }
+
+        if (initMethod === 'refresh_token') {
+          // Method 2: Use refresh token (for environments where service account keys are restricted)
+          const refreshToken = process.env.FIREBASE_REFRESH_TOKEN;
+
+          if (refreshToken) {
+            this.firebaseApp = admin.initializeApp({
+              credential: admin.credential.refreshToken(refreshToken),
+              projectId: process.env.FCM_PROJECT_ID
+            });
+
+            logger.info('Firebase Admin SDK initialized with refresh token', {
+              projectId: process.env.FCM_PROJECT_ID,
+              method: 'refresh_token'
+            });
+            return;
+          }
+        }
+
+        // Method 3: Application Default Credentials (fallback)
+        logger.info('Using Application Default Credentials for Firebase', {
+          projectId: process.env.FCM_PROJECT_ID,
+          method: 'application_default'
+        });
+
+        this.firebaseApp = admin.initializeApp({
+          credential: admin.credential.applicationDefault(),
+          projectId: process.env.FCM_PROJECT_ID || 'e-beautything'
+        });
+
+        logger.info('Firebase Admin SDK initialized successfully', {
+          projectId: process.env.FCM_PROJECT_ID
+        });
+
+      } catch (error) {
+        logger.error('Failed to initialize Firebase Admin SDK', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          stack: error instanceof Error ? error.stack : undefined
+        });
+        throw new Error('Firebase Admin SDK initialization failed');
+      }
     } else {
       this.firebaseApp = admin.app();
     }
@@ -1606,6 +1668,10 @@ export class NotificationService {
       // iOS configuration with priority support
       const apnsConfig = payload.apnsConfig || {};
       message.apns = {
+        headers: {
+          'apns-priority': '10',  // Always use high priority for notifications
+          'apns-push-type': 'alert'  // Specify alert type for visible notifications
+        },
         payload: {
           aps: {
             alert: {
@@ -1614,7 +1680,7 @@ export class NotificationService {
             },
             badge: apnsConfig.badge || 1,
             sound: apnsConfig.sound || 'default',
-            ...(apnsConfig.contentAvailable && { 'content-available': apnsConfig.contentAvailable }),
+            'content-available': 1,  // Enable background updates
             ...(apnsConfig.mutableContent && { 'mutable-content': apnsConfig.mutableContent })
           }
         }
@@ -1644,13 +1710,24 @@ export class NotificationService {
       };
 
       const response = await this.firebaseApp.messaging().send(message);
-      
+
+      logger.info('FCM notification sent successfully', {
+        messageId: response,
+        token: token.substring(0, 20) + '...',
+        title: payload.title
+      });
+
       return {
         success: true,
         messageId: response
       };
     } catch (error) {
-      logger.error('Failed to send notification to device', { error, token });
+      logger.error('Failed to send notification to device', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        errorCode: (error as any)?.errorInfo?.code,
+        token: token.substring(0, 20) + '...',
+        title: payload.title
+      });
       
       // Handle specific Firebase errors
       // if (error instanceof admin.messaging.UnregisteredError) {
@@ -1690,14 +1767,14 @@ export class NotificationService {
       const { data: history, error } = await this.supabase
         .from('notification_history')
         .insert({
-          userId,
+          user_id: userId,
           title: payload.title,
           body: payload.body,
           data: payload.data,
           status,
-          sentAt: status === 'sent' ? new Date().toISOString() : undefined,
-          errorMessage,
-          createdAt: new Date().toISOString()
+          sent_at: status === 'sent' ? new Date().toISOString() : undefined,
+          error_message: errorMessage,
+          created_at: new Date().toISOString()
         })
         .select()
         .single();
@@ -3476,13 +3553,52 @@ export class NotificationService {
    */
   async getUserNotificationSettings(userId: string): Promise<NotificationSettings | null> {
     try {
-      const { data: settings, error } = await this.supabase
-        .from('notification_settings')
+      // Get settings from user_settings table
+      const { data: userSettings, error } = await this.supabase
+        .from('user_settings')
         .select('*')
-        .eq('userId', userId)
+        .eq('user_id', userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error; // PGRST116 = no rows returned
+      if (error) {
+        if (error.code === 'PGRST116') {
+          // No settings found, return defaults
+          return {
+            userId,
+            pushEnabled: true,
+            emailEnabled: true,
+            smsEnabled: false,
+            reservationUpdates: true,
+            paymentNotifications: true,
+            promotionalMessages: false,
+            systemAlerts: true,
+            userManagementAlerts: true,
+            securityAlerts: true,
+            profileUpdateConfirmations: true,
+            adminActionNotifications: true,
+            updatedAt: new Date().toISOString()
+          };
+        }
+        throw error;
+      }
+
+      // Map user_settings fields to NotificationSettings interface
+      const settings: NotificationSettings = {
+        userId,
+        pushEnabled: userSettings.push_notifications_enabled ?? true,
+        emailEnabled: true, // Not stored in user_settings yet
+        smsEnabled: false, // Not stored in user_settings yet
+        reservationUpdates: userSettings.reservation_notifications ?? true,
+        paymentNotifications: true, // Not stored in user_settings yet
+        promotionalMessages: userSettings.marketing_notifications ?? false,
+        systemAlerts: userSettings.event_notifications ?? true,
+        userManagementAlerts: true, // Not stored in user_settings yet
+        securityAlerts: true, // Not stored in user_settings yet
+        profileUpdateConfirmations: true, // Not stored in user_settings yet
+        adminActionNotifications: true, // Not stored in user_settings yet
+        updatedAt: userSettings.updated_at || new Date().toISOString()
+      };
+
       return settings;
     } catch (error) {
       logger.error('Failed to get user notification settings', { error, userId });
@@ -3498,18 +3614,43 @@ export class NotificationService {
     settings: Partial<NotificationSettings>
   ): Promise<NotificationSettings> {
     try {
-      const { data: updatedSettings, error } = await this.supabase
-        .from('notification_settings')
+      // Map NotificationSettings to user_settings table fields
+      const updateData: any = {
+        updated_at: new Date().toISOString()
+      };
+
+      if (settings.pushEnabled !== undefined) {
+        updateData.push_notifications_enabled = settings.pushEnabled;
+      }
+      if (settings.reservationUpdates !== undefined) {
+        updateData.reservation_notifications = settings.reservationUpdates;
+      }
+      if (settings.promotionalMessages !== undefined) {
+        updateData.marketing_notifications = settings.promotionalMessages;
+      }
+      if (settings.systemAlerts !== undefined) {
+        updateData.event_notifications = settings.systemAlerts;
+      }
+
+      // Upsert user settings (insert if doesn't exist, update if exists)
+      const { data: updatedData, error } = await this.supabase
+        .from('user_settings')
         .upsert({
-          userId,
-          ...settings,
-          updatedAt: new Date().toISOString()
+          user_id: userId,
+          ...updateData
+        }, {
+          onConflict: 'user_id'
         })
         .select()
         .single();
 
-      if (error) throw error;
-      return updatedSettings;
+      if (error) {
+        logger.error('Failed to update user notification settings in database', { error, userId });
+        throw error;
+      }
+
+      // Return the updated settings
+      return this.getUserNotificationSettings(userId) as Promise<NotificationSettings>;
     } catch (error) {
       logger.error('Failed to update user notification settings', { error, userId });
       throw error;
@@ -3517,25 +3658,75 @@ export class NotificationService {
   }
 
   /**
-   * Get notification history for a user
+   * Get notification history for a user with pagination
    */
   async getUserNotificationHistory(
     userId: string,
-    limit: number = 50,
-    offset: number = 0
-  ): Promise<NotificationHistory[]> {
+    page: number = 1,
+    limit: number = 20,
+    status?: string
+  ): Promise<{
+    notifications: NotificationHistory[];
+    totalCount: number;
+    currentPage: number;
+    totalPages: number;
+  }> {
     try {
-      const { data: history, error } = await this.supabase
+      const offset = (page - 1) * limit;
+
+      let query = this.supabase
         .from('notification_history')
-        .select('*')
-        .eq('userId', userId)
-        .order('createdAt', { ascending: false })
-        .range(offset, offset + limit - 1);
+        .select('*', { count: 'exact' })
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false });
+
+      // Filter by status if provided
+      if (status) {
+        query = query.eq('status', status);
+      }
+
+      const { data: history, error, count } = await query.range(offset, offset + limit - 1);
 
       if (error) throw error;
-      return history || [];
+
+      return {
+        notifications: history || [],
+        totalCount: count || 0,
+        currentPage: page,
+        totalPages: Math.ceil((count || 0) / limit)
+      };
     } catch (error) {
       logger.error('Failed to get user notification history', { error, userId });
+      throw error;
+    }
+  }
+
+  /**
+   * Mark notification as read
+   */
+  async markNotificationAsRead(notificationId: string, userId: string): Promise<void> {
+    try {
+      const { error } = await this.supabase
+        .from('notifications')
+        .update({
+          status: 'read',
+          read_at: new Date().toISOString()
+        })
+        .eq('id', notificationId)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+
+      logger.info('Notification marked as read', {
+        notificationId,
+        userId
+      });
+    } catch (error) {
+      logger.error('Failed to mark notification as read', {
+        error,
+        notificationId,
+        userId
+      });
       throw error;
     }
   }
@@ -3551,10 +3742,10 @@ export class NotificationService {
       thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
       const { data: result, error } = await this.supabase
-        .from('device_tokens')
-        .update({ isActive: false })
-        .lt('updatedAt', thirtyDaysAgo.toISOString())
-        .eq('isActive', true);
+        .from('push_tokens')
+        .update({ is_active: false })
+        .lt('last_used_at', thirtyDaysAgo.toISOString())
+        .eq('is_active', true);
 
       if (error) throw error;
 
@@ -3915,6 +4106,83 @@ export class NotificationService {
         priority
       });
       return { success: false, error: 'Failed to send admin alert' };
+    }
+  }
+
+  /**
+   * Send referral point earned notification (Item 19)
+   * Notifies user when their friend makes a payment and they earn referral points
+   *
+   * @param userId - The user who earned the referral points (referrer)
+   * @param friendNickname - The nickname of the friend who made the payment
+   * @param pointsEarned - The amount of points earned
+   */
+  async sendReferralPointNotification(
+    userId: string,
+    friendNickname: string,
+    pointsEarned: number
+  ): Promise<{ success: boolean; error?: string }> {
+    try {
+      logger.info('Sending referral point notification', {
+        userId,
+        friendNickname,
+        pointsEarned
+      });
+
+      const payload: NotificationPayload = {
+        title: '🎉 친구 덕분에 용돈 받았어요!',
+        body: `${friendNickname}님 덕분에 ${pointsEarned.toLocaleString()}P가 적립되었습니다.`,
+        data: {
+          type: 'referral_point_earned',
+          points: pointsEarned.toString(),
+          friendNickname,
+          clickAction: '/points'
+        }
+      };
+
+      // Send push notification
+      await this.sendNotificationToUser(userId, payload);
+
+      // Also save to notifications table for in-app display
+      const { error } = await this.supabase
+        .from('notifications')
+        .insert({
+          user_id: userId,
+          title: payload.title,
+          message: payload.body,
+          type: 'point',
+          data: {
+            type: 'referral_point_earned',
+            points: pointsEarned,
+            friendNickname
+          },
+          is_read: false,
+          created_at: new Date().toISOString()
+        });
+
+      if (error) {
+        logger.warn('Failed to save referral notification to database', {
+          error: error.message,
+          userId
+        });
+      }
+
+      logger.info('Referral point notification sent successfully', {
+        userId,
+        friendNickname,
+        pointsEarned
+      });
+
+      return { success: true };
+
+    } catch (error) {
+      logger.error('Failed to send referral point notification', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId,
+        friendNickname,
+        pointsEarned
+      });
+      return { success: false, error: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 }

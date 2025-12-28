@@ -41,6 +41,11 @@ const envSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.optional()
   }),
+  PORTONE_V2_IDENTITY_VERIFICATION_CHANNEL_KEY: Joi.string().when('NODE_ENV', {
+    is: 'production',
+    then: Joi.required(),
+    otherwise: Joi.optional()
+  }),
   PORTONE_V2_API_SECRET: Joi.string().when('NODE_ENV', {
     is: 'production',
     then: Joi.required(),
@@ -66,7 +71,12 @@ const envSchema = Joi.object({
   // Google OAuth
   GOOGLE_CLIENT_ID: Joi.string().optional(),
   GOOGLE_CLIENT_SECRET: Joi.string().optional(),
-  
+
+  // Naver OAuth
+  NAVER_CLIENT_ID: Joi.string().optional(),
+  NAVER_CLIENT_SECRET: Joi.string().optional(),
+  NAVER_CALLBACK_URL: Joi.string().uri().optional(),
+
   // Supabase Auth specific
   SUPABASE_AUTH_REDIRECT_URL: Joi.string().uri().optional(),
   SUPABASE_AUTH_SITE_URL: Joi.string().uri().optional(),
@@ -182,6 +192,7 @@ export const config = {
       v2: {
         storeId: envVars.PORTONE_V2_STORE_ID as string | undefined,
         channelKey: envVars.PORTONE_V2_CHANNEL_KEY as string | undefined,
+        identityVerificationChannelKey: envVars.PORTONE_V2_IDENTITY_VERIFICATION_CHANNEL_KEY as string | undefined,
         apiSecret: envVars.PORTONE_V2_API_SECRET as string | undefined,
         webhookSecret: envVars.PORTONE_V2_WEBHOOK_SECRET as string | undefined,
         baseUrl: envVars.PORTONE_V2_BASE_URL as string,
@@ -209,6 +220,11 @@ export const config = {
     google: {
       clientId: envVars.GOOGLE_CLIENT_ID as string,
       clientSecret: envVars.GOOGLE_CLIENT_SECRET as string,
+    },
+    naver: {
+      clientId: envVars.NAVER_CLIENT_ID as string,
+      clientSecret: envVars.NAVER_CLIENT_SECRET as string,
+      callbackUrl: envVars.NAVER_CALLBACK_URL as string,
     },
     supabase: {
       redirectUrl: envVars.SUPABASE_AUTH_REDIRECT_URL as string,

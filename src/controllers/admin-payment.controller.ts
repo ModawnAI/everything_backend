@@ -2,6 +2,7 @@ import { Response } from 'express';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 import { AdminPaymentService, PaymentFilters, RefundRequest } from '../services/admin-payment.service';
 import { logger } from '../utils/logger';
+import { getSupabaseClient } from '../config/database';
 
 export class AdminPaymentController {
   private adminPaymentService = new AdminPaymentService();
@@ -145,13 +146,15 @@ export class AdminPaymentController {
    */
   async processRefund(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
-      const adminId = req.user?.id;
-      if (!adminId) {
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
+
+      if (!userId) {
         res.status(401).json({
           success: false,
           error: 'AUTH_1001',
-          message: '관리자 인증이 필요합니다.',
-          details: 'Admin authentication required'
+          message: '인증이 필요합니다.',
+          details: 'Authentication required'
         });
         return;
       }
@@ -166,7 +169,44 @@ export class AdminPaymentController {
         });
         return;
       }
-      
+
+      // Shop owners can only refund payments for their own shops
+      if (userRole === 'shop_owner') {
+        const supabase = getSupabaseClient();
+        const { data: payment, error: paymentError } = await supabase
+          .from('payments')
+          .select(`
+            id,
+            reservations!inner(
+              shop_id,
+              shops!inner(owner_id)
+            )
+          `)
+          .eq('id', paymentId)
+          .single();
+
+        if (paymentError || !payment) {
+          res.status(404).json({
+            success: false,
+            error: 'PAYMENT_4006',
+            message: '결제를 찾을 수 없습니다.',
+            details: 'Payment not found'
+          });
+          return;
+        }
+
+        const shopOwnerId = (payment.reservations as any)?.shops?.owner_id;
+        if (shopOwnerId !== userId) {
+          res.status(403).json({
+            success: false,
+            error: 'PAYMENT_4007',
+            message: '이 결제에 대한 환불 권한이 없습니다.',
+            details: 'You can only process refunds for your own shop payments'
+          });
+          return;
+        }
+      }
+
       const refundRequest: RefundRequest = {
         paymentId,
         refundAmount: Number(req.body?.refundAmount),
@@ -197,7 +237,7 @@ export class AdminPaymentController {
         return;
       }
 
-      const result = await this.adminPaymentService.processRefund(paymentId, refundRequest, adminId);
+      const result = await this.adminPaymentService.processRefund(paymentId, refundRequest, userId);
 
       if (result.success) {
         res.status(200).json({

@@ -1,0 +1,378 @@
+================================================================================
+COMPREHENSIVE BACKEND ROUTES ANALYSIS
+에뷰리띵 (eBeautything) - Beauty Reservation Platform
+================================================================================
+
+PROJECT: Everything Backend API
+FRAMEWORK: Express.js 4.x + TypeScript 5.x
+TOTAL ROUTE FILES: 91
+TOTAL ROUTES: 250+ endpoints
+AUTHENTICATION: JWT-based with role-based access control
+
+================================================================================
+QUICK REFERENCE - TOP PRIORITY ROUTES
+================================================================================
+
+AUTHENTICATION ENDPOINTS:
+  User:        POST   /api/auth/social-login, /register, /verify-phone
+  Admin:       POST   /api/admin/auth/login, /refresh, /logout
+  Shop Owner:  POST   /api/shop-owner/auth/login, /refresh, /logout
+
+ADMIN CONTROL:
+  Users:       GET    /api/admin/users (search, filter, pagination)
+  Shops:       GET    /api/admin/shops (manage, approve, verify)
+  Reservations: GET   /api/admin/reservations (analytics, filtering)
+
+SHOP OWNER DASHBOARD:
+  Dashboard:   GET    /api/shop-owner/dashboard
+  Reservations: GET   /api/shop-owner/reservations
+  Confirm:     PUT    /api/shop-owner/reservations/:id/confirm
+  Complete:    PUT    /api/shop-owner/reservations/:id/complete
+
+USER OPERATIONS:
+  Reservation: POST   /api/reservations (create booking)
+  Payment:     POST   /api/payments/portone/prepare, /confirm
+  Profile:     GET    /api/users/profile, PUT to update
+
+================================================================================
+ROUTE CATEGORIZATION (12 CATEGORIES)
+================================================================================
+
+1. AUTHENTICATION (4 files, 30+ endpoints)
+   - User auth (social, registration, verification)
+   - Admin auth (email/password with 2FA support)
+   - Shop owner auth (Supabase-based)
+   - Unified auth (multi-role support)
+
+2. ADMIN OPERATIONS (20+ files, 100+ endpoints)
+   - User management (search, filter, roles)
+   - Shop management (CRUD, verification, approval)
+   - Reservation management (analytics, status updates)
+   - Analytics dashboard (real-time metrics)
+   - Payment management (settlements, refunds)
+   - Security & audit (events, IP blocking)
+   - Content moderation (reviews, announcements)
+   - Point policy management
+
+3. SHOP OWNER FEATURES (10 files, 40+ endpoints)
+   - Dashboard & analytics
+   - Reservation management (confirm, reject, complete)
+   - Customer management
+   - Payment tracking
+   - Operating hours management
+   - Service catalog
+
+4. USER FEATURES (15+ files, 60+ endpoints)
+   - Profile & settings management
+   - Reservation creation & management
+   - Feed & discovery
+   - Favorites & wishlist
+   - Points system
+   - Referral program
+   - Session management
+
+5. PAYMENT SYSTEM (8 files, 25+ endpoints)
+   - PortOne V2 integration
+   - Payment preparation & confirmation
+   - Webhook handling
+   - Refund processing
+   - Split payments
+   - Security validation
+
+6. POINT SYSTEM (5 files, 15+ endpoints)
+   - Balance management
+   - Transaction history
+   - Influencer bonuses
+   - Point policies
+
+7. SHOP MANAGEMENT (8 files, 35+ endpoints)
+   - Shop listing & search
+   - Service catalog
+   - Operating hours
+   - Contact methods
+   - Image management
+
+8. REFERRAL PROGRAM (7 files, 25+ endpoints)
+   - Referral code generation
+   - Earnings tracking
+   - Influencer qualification
+   - Bonus distribution
+
+9. NOTIFICATIONS (3 files, 15+ endpoints)
+   - Push notifications
+   - In-app notifications
+   - WebSocket real-time updates
+   - Notification preferences
+
+10. SECURITY & AUDIT (6 files, 20+ endpoints)
+    - Security event logging
+    - Audit trail
+    - IP blocking
+    - Threat detection
+
+11. UTILITY & INFRASTRUCTURE (12+ files, 30+ endpoints)
+    - Health checks
+    - Cache management
+    - Storage management
+    - System monitoring
+
+12. ADVANCED FEATURES (8+ files, 25+ endpoints)
+    - Reservation rescheduling
+    - Conflict resolution
+    - No-show detection
+    - Identity verification
+
+================================================================================
+AUTHENTICATION & AUTHORIZATION REQUIREMENTS
+================================================================================
+
+MIDDLEWARE CHAIN:
+  1. Logger (all requests)
+  2. Helmet (security headers)
+  3. CORS & body parser
+  4. Rate Limiting
+  5. JWT Authentication (if required)
+  6. Role-Based Authorization (RBAC)
+  7. Resource Access Validation
+  8. Input Sanitization
+  9. Route Handler
+  10. Response Standardization
+  11. Error Handling
+
+AUTHENTICATION METHODS:
+  ✓ JWT Bearer Token (primary)
+  ✓ Supabase Auth (social providers)
+  ✓ Session Token (device tracking)
+  ✓ Refresh Token (7-day expiry)
+  ✓ API Key (internal only)
+
+ROLES & PERMISSIONS:
+  Admin: Full platform access, user/shop management, financial controls
+  Shop Owner: Shop-specific operations, reservation/payment management
+  User/Customer: Profile, reservations, payments, referrals
+  Influencer: Special referral earnings, bonus tracking
+
+RATE LIMITING:
+  Login endpoints:     5-10 requests/minute (strict)
+  Read operations:     100 requests/15 minutes
+  Sensitive ops:       20-30 requests/15 minutes
+  Payment ops:         Custom rate limit
+  Public endpoints:    Standard rate limit
+
+================================================================================
+CRITICAL ENDPOINT SECURITY NOTES
+================================================================================
+
+SHOP OWNER FOCUS:
+  ⚠ POST /api/shop-owner/auth/login
+     - Email/password auth via Supabase
+     - Shop ownership verification required
+     - Failed login lockout: 5 attempts = 30min ban
+     - Device tracking enabled
+
+  ⚠ PUT /api/shop-owner/reservations/:id/confirm
+     - Confirms pending reservation
+     - Deposit payment check
+     - Notification sent to customer
+     - Requires shop ownership validation
+
+  ⚠ PUT /api/shop-owner/reservations/:id/complete
+     - Marks service as completed
+     - Triggers point calculation (2.5%, max 300K won)
+     - Updates payment status
+     - Requires completion notes validation
+
+ADMIN FOCUS:
+  ⚠ POST /api/admin/auth/login
+     - IP whitelist validation
+     - Failed login lockout: 5 attempts = 30min ban
+     - Session creation with device tracking
+     - Comprehensive audit logging
+
+  ⚠ GET /api/admin/users
+     - Advanced filtering (role, status, points, referrals)
+     - Comprehensive user profile access
+     - Rate limited: 100 req/15min
+     - Sensitive personal data returned
+
+  ⚠ PATCH /api/admin/shops/:id/status
+     - Status change (active, inactive, suspended, deleted)
+     - Optional reason field for tracking
+     - Affects shop availability immediately
+     - Rate limited: 20 req/15min (sensitive)
+
+  ⚠ POST /api/admin/shops/:id/approve
+     - Shop verification approval/rejection
+     - Shop type assignment (partnered/non-partnered)
+     - Commission rate configuration
+     - Audit trail creation
+
+PAYMENT FOCUS:
+  ⚠ POST /api/payments/portone/prepare
+     - Amount validation
+     - Payment type (deposit/final)
+     - Requires JWT authentication
+     - Customer information validation
+
+  ⚠ POST /api/payments/portone/webhook
+     - PUBLIC endpoint (no auth required)
+     - Webhook signature validation (portOneV2WebhookSecurity)
+     - Payment status updates
+     - Critical for payment processing
+
+================================================================================
+VALIDATION & ERROR HANDLING
+================================================================================
+
+INPUT VALIDATION:
+  Tool: Joi schema validation
+  Scope: All POST/PUT/PATCH requests
+  Features:
+    - Type checking
+    - Pattern validation (phone, email, dates, times)
+    - Custom error messages (Korean)
+    - UUID validation for resource IDs
+    - Range validation for numeric fields
+
+RESPONSE FORMAT:
+  Standard:
+    {
+      "success": boolean,
+      "data": { /* response payload */ },
+      "error": {
+        "code": "ERROR_CODE",
+        "message": "User-friendly message",
+        "details": "Technical details (optional)"
+      }
+    }
+
+HTTP STATUS CODES:
+  200 - Successful GET/retrieve
+  201 - Successful resource creation
+  204 - Successful DELETE
+  400 - Validation error, malformed input
+  401 - Missing/invalid authentication
+  403 - Insufficient permissions
+  404 - Resource not found
+  409 - Business logic conflict
+  429 - Rate limit exceeded
+  500 - Unhandled server error
+
+================================================================================
+PAGINATION & FILTERING
+================================================================================
+
+PAGINATION:
+  Parameters: page (1-indexed), limit (1-100, default 20)
+  Response: totalCount, hasMore, currentPage, totalPages
+
+COMMON FILTERS:
+  search: Text search across multiple fields
+  role: User role (user, shop_owner, admin, influencer)
+  status: Account/resource status
+  category: Service category filtering
+  startDate/endDate: Date range filtering
+  sortBy: Sort field selection
+  sortOrder: asc/desc
+
+EXAMPLE:
+  GET /api/admin/users?search=john&role=shop_owner&status=active&page=1&limit=20
+
+================================================================================
+SESSION & TOKEN MANAGEMENT
+================================================================================
+
+JWT TOKENS:
+  Access Token:  15-24 hours expiry (varies by role)
+  Refresh Token: 7 days expiry
+  Token Rotation: Supported on refresh
+  Device Tracking: deviceId, deviceName, userAgent
+
+SESSION FEATURES:
+  - Multiple device login support
+  - Session revocation on logout
+  - IP address logging for security
+  - Last activity timestamp tracking
+  - Automatic session cleanup
+
+LOGIN FLOW:
+  1. User authenticates (email/password or social)
+  2. JWT token pair generated
+  3. Device information captured
+  4. Session created in database
+  5. IP address logged for audit
+  6. Refresh token stored securely
+  7. Access token returned to client
+
+================================================================================
+ENDPOINT GROUPS BY ACCESS PATTERN
+================================================================================
+
+PUBLIC ENDPOINTS (No authentication):
+  - GET /api/shops (search/list)
+  - GET /api/shops/:id (view details)
+  - GET /api/shops/:shopId/available-slots (availability)
+  - GET /health (server status)
+  - POST /api/auth/* (registration, login)
+
+AUTHENTICATED ONLY (JWT required):
+  - GET /api/users/profile
+  - POST /api/reservations
+  - GET /api/points/balance
+  - POST /api/payments/portone/prepare
+
+ROLE-SPECIFIC:
+  Admin:
+    - GET /api/admin/users
+    - GET /api/admin/shops
+    - PATCH /api/admin/shops/:id/status
+  
+  Shop Owner:
+    - GET /api/shop-owner/dashboard
+    - PUT /api/shop-owner/reservations/:id/confirm
+    - GET /api/shop-owner/customers
+  
+  User:
+    - POST /api/reservations
+    - GET /api/feed
+    - POST /api/payments/portone/confirm
+
+================================================================================
+FILE STRUCTURE & LOCATIONS
+================================================================================
+
+Route Files:      /home/bitnami/everything_backend/src/routes/
+Controllers:      /home/bitnami/everything_backend/src/controllers/
+Middleware:       /home/bitnami/everything_backend/src/middleware/
+Validators:       /home/bitnami/everything_backend/src/validators/
+Services:         /home/bitnami/everything_backend/src/services/
+Repositories:     /home/bitnami/everything_backend/src/repositories/
+Types:            /home/bitnami/everything_backend/src/types/
+Main App:         /home/bitnami/everything_backend/src/app.ts
+
+================================================================================
+IMPLEMENTATION CHECKLIST FOR INTEGRATION
+================================================================================
+
+WHEN ADDING NEW ENDPOINTS:
+  [ ] Define authentication requirement (public/JWT/admin/shop owner)
+  [ ] Create Joi validation schema if POST/PUT/PATCH
+  [ ] Apply appropriate rate limiting middleware
+  [ ] Add RBAC middleware if role-specific
+  [ ] Implement error handling with proper HTTP status codes
+  [ ] Add comprehensive logging (request/response)
+  [ ] Document Swagger/OpenAPI annotations
+  [ ] Add integration tests
+  [ ] Security audit (SQL injection, XSS, CSRF prevention)
+  [ ] Update CLAUDE.md documentation
+
+WHEN MODIFYING EXISTING ENDPOINTS:
+  [ ] Check backward compatibility
+  [ ] Update validation schemas
+  [ ] Update authentication/authorization checks
+  [ ] Review security implications
+  [ ] Update API documentation
+  [ ] Test rate limiting behavior
+  [ ] Verify audit logging
+
+================================================================================

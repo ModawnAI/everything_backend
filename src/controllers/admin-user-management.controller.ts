@@ -15,23 +15,13 @@ export class AdminUserManagementController {
    */
   async getUsers(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -118,7 +108,7 @@ export class AdminUserManagementController {
         limit: parseInt(limit as string, 10)
       };
 
-      const result = await adminUserManagementService.getUsers(filters, validation.admin.id);
+      const result = await adminUserManagementService.getUsers(filters, user.id);
 
       res.json({
         success: true,
@@ -170,23 +160,13 @@ export class AdminUserManagementController {
     try {
       const { id: userId } = req.params;
       const { status, reason, adminNotes, notifyUser } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -214,7 +194,7 @@ export class AdminUserManagementController {
         notifyUser: notifyUser === true
       };
 
-      const result = await adminUserManagementService.updateUserStatus(userId, request, validation.admin.id);
+      const result = await adminUserManagementService.updateUserStatus(userId, request, user.id);
 
       res.json({
         success: true,
@@ -243,23 +223,13 @@ export class AdminUserManagementController {
   async performBulkAction(req: Request, res: Response): Promise<void> {
     try {
       const { userIds, action, reason, adminNotes } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -298,7 +268,7 @@ export class AdminUserManagementController {
         }
 
         // Prevent privilege escalation - only admins can assign admin role
-        if (targetRole === 'admin' && validation.admin.role !== 'admin') {
+        if (targetRole === 'admin' && user.role !== 'admin') {
           res.status(403).json({
             success: false,
             error: 'Insufficient privileges to assign admin role'
@@ -326,7 +296,7 @@ export class AdminUserManagementController {
         batchSize
       };
 
-      const result = await adminUserManagementService.performBulkAction(request, validation.admin.id);
+      const result = await adminUserManagementService.performBulkAction(request, user.id);
 
       res.json({
         success: true,
@@ -351,28 +321,18 @@ export class AdminUserManagementController {
    */
   async getUserStatistics(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
+          error: 'Authentication required'
         });
         return;
       }
 
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
-        });
-        return;
-      }
-
-      const statistics = await adminUserManagementService.getUserStatistics(validation.admin.id);
+      const statistics = await adminUserManagementService.getUserStatistics(user.id);
 
       res.json({
         success: true,
@@ -399,23 +359,13 @@ export class AdminUserManagementController {
     try {
       const { id: userId } = req.params;
       const { role, reason, adminNotes } = req.body;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -437,7 +387,7 @@ export class AdminUserManagementController {
       }
 
       // Prevent privilege escalation - only super admins can create admins
-      if (role === 'admin' && validation.admin.role !== 'admin') {
+      if (role === 'admin' && user.role !== 'admin') {
         res.status(403).json({
           success: false,
           error: 'Insufficient privileges to assign admin role'
@@ -451,7 +401,7 @@ export class AdminUserManagementController {
         adminNotes
       };
 
-      const result = await adminUserManagementService.updateUserRole(userId, request, validation.admin.id);
+      const result = await adminUserManagementService.updateUserRole(userId, request, user.id);
 
       res.json({
         success: true,
@@ -479,23 +429,13 @@ export class AdminUserManagementController {
    */
   async getUserActivity(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -521,7 +461,7 @@ export class AdminUserManagementController {
         offset: (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
       };
 
-      const result = await adminUserManagementService.getUserActivity(filters, validation.admin.id);
+      const result = await adminUserManagementService.getUserActivity(filters, user.id);
 
       res.json({
         success: true,
@@ -547,23 +487,13 @@ export class AdminUserManagementController {
   async getUserDetails(req: Request, res: Response): Promise<void> {
     try {
       const { id: userId } = req.params;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -577,13 +507,13 @@ export class AdminUserManagementController {
       }
 
       // Get user with detailed information
-      const { data: user, error } = await adminUserManagementService['supabase']
+      const { data: userData, error } = await adminUserManagementService['supabase']
         .from('users')
         .select('*')
         .eq('id', userId)
         .single();
 
-      if (error || !user) {
+      if (error || !userData) {
         logger.error('Failed to fetch user details', {
           userId,
           error: error?.message,
@@ -608,45 +538,45 @@ export class AdminUserManagementController {
         .select('id, status, created_at')
         .eq('referrer_id', userId);
 
-      // Attach related data to user object
-      user.reservations = reservations || [];
-      user.referrals = referrals || [];
+      // Attach related data to userData object
+      userData.reservations = reservations || [];
+      userData.referrals = referrals || [];
 
       // Calculate additional statistics
-      const totalReservations = user.reservations?.length || 0;
-      const completedReservations = user.reservations?.filter((r: any) => r.status === 'completed').length || 0;
-      // Note: point_transactions table doesn't exist yet, using user's total_points fields instead
-      const totalPointsEarned = user.total_points || 0;
-      const totalPointsUsed = (user.total_points || 0) - (user.available_points || 0);
-      const successfulReferrals = user.referrals?.filter((r: any) => r.status === 'completed').length || 0;
+      const totalReservations = userData.reservations?.length || 0;
+      const completedReservations = userData.reservations?.filter((r: any) => r.status === 'completed').length || 0;
+      // Note: point_transactions table doesn't exist yet, using userData's total_points fields instead
+      const totalPointsEarned = userData.total_points || 0;
+      const totalPointsUsed = (userData.total_points || 0) - (userData.available_points || 0);
+      const successfulReferrals = userData.referrals?.filter((r: any) => r.status === 'completed').length || 0;
 
       const userDetails = {
-        id: user.id,
-        email: user.email,
-        phoneNumber: user.phone_number,
-        phoneVerified: user.phone_verified,
-        name: user.name,
-        nickname: user.nickname,
-        gender: user.gender,
-        birthDate: user.birth_date,
-        userRole: user.user_role,
-        userStatus: user.user_status,
-        isInfluencer: user.is_influencer,
-        influencerQualifiedAt: user.influencer_qualified_at,
-        socialProvider: user.social_provider,
-        referralCode: user.referral_code,
-        referredByCode: user.referred_by_code,
-        totalPoints: user.total_points,
-        availablePoints: user.available_points,
-        totalReferrals: user.total_referrals,
-        successfulReferrals: user.successful_referrals,
-        lastLoginAt: user.last_login_at,
-        lastLoginIp: user.last_login_ip,
-        termsAcceptedAt: user.terms_accepted_at,
-        privacyAcceptedAt: user.privacy_accepted_at,
-        marketingConsent: user.marketing_consent,
-        createdAt: user.created_at,
-        updatedAt: user.updated_at,
+        id: userData.id,
+        email: userData.email,
+        phoneNumber: userData.phone_number,
+        phoneVerified: userData.phone_verified,
+        name: userData.name,
+        nickname: userData.nickname,
+        gender: userData.gender,
+        birthDate: userData.birth_date,
+        userRole: userData.user_role,
+        userStatus: userData.user_status,
+        isInfluencer: userData.is_influencer,
+        influencerQualifiedAt: userData.influencer_qualified_at,
+        socialProvider: userData.social_provider,
+        referralCode: userData.referral_code,
+        referredByCode: userData.referred_by_code,
+        totalPoints: userData.total_points,
+        availablePoints: userData.available_points,
+        totalReferrals: userData.total_referrals,
+        successfulReferrals: userData.successful_referrals,
+        lastLoginAt: userData.last_login_at,
+        lastLoginIp: userData.last_login_ip,
+        termsAcceptedAt: userData.terms_accepted_at,
+        privacyAcceptedAt: userData.privacy_accepted_at,
+        marketingConsent: userData.marketing_consent,
+        createdAt: userData.created_at,
+        updatedAt: userData.updated_at,
         // Additional statistics
         statistics: {
           totalReservations,
@@ -681,23 +611,13 @@ export class AdminUserManagementController {
    */
   async searchAuditLogs(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -735,7 +655,7 @@ export class AdminUserManagementController {
         offset: (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
       };
 
-      const result = await adminUserManagementService.searchAuditLogs(filters, validation.admin.id);
+      const result = await adminUserManagementService.searchAuditLogs(filters, user.id);
 
       res.json({
         success: true,
@@ -760,23 +680,13 @@ export class AdminUserManagementController {
   async getUserAuditLogs(req: Request, res: Response): Promise<void> {
     try {
       const { userId } = req.params;
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -814,7 +724,7 @@ export class AdminUserManagementController {
         offset: (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
       };
 
-      const result = await adminUserManagementService.getUserAuditLogs(userId, filters, validation.admin.id);
+      const result = await adminUserManagementService.getUserAuditLogs(userId, filters, user.id);
 
       res.json({
         success: true,
@@ -841,23 +751,13 @@ export class AdminUserManagementController {
    */
   async exportAuditLogs(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -902,7 +802,7 @@ export class AdminUserManagementController {
         includeAggregations: Boolean(includeAggregations)
       };
 
-      const result = await adminUserManagementService.exportAuditLogs(exportRequest, validation.admin.id);
+      const result = await adminUserManagementService.exportAuditLogs(exportRequest, user.id);
 
       res.json({
         success: true,
@@ -926,23 +826,13 @@ export class AdminUserManagementController {
    */
   async getUserAnalytics(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -980,7 +870,7 @@ export class AdminUserManagementController {
         includeGeographicData: includeGeographicData === 'true'
       };
 
-      const result = await adminUserManagementService.getUserAnalytics(filters, validation.admin.id);
+      const result = await adminUserManagementService.getUserAnalytics(filters, user.id);
 
       res.json({
         success: true,
@@ -1004,23 +894,13 @@ export class AdminUserManagementController {
    */
   async advancedUserSearch(req: Request, res: Response): Promise<void> {
     try {
-      const token = req.headers.authorization?.replace('Bearer ', '');
-      const ipAddress = req.ip || req.connection.remoteAddress || 'unknown';
+      // Get user from request (set by authenticateJWT middleware)
+      const user = (req as any).user;
 
-      if (!token) {
+      if (!user) {
         res.status(401).json({
           success: false,
-          error: 'Authorization token is required'
-        });
-        return;
-      }
-
-      // Validate admin session
-      const validation = await adminAuthService.validateAdminSession(token, ipAddress);
-      if (!validation.isValid || !validation.admin) {
-        res.status(401).json({
-          success: false,
-          error: validation.error || 'Invalid admin session'
+          error: 'Authentication required'
         });
         return;
       }
@@ -1080,7 +960,7 @@ export class AdminUserManagementController {
         offset: (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10)
       };
 
-      const result = await adminUserManagementService.advancedUserSearch(filters, validation.admin.id);
+      const result = await adminUserManagementService.advancedUserSearch(filters, user.id);
 
       res.json({
         success: true,
@@ -1095,6 +975,51 @@ export class AdminUserManagementController {
       res.status(500).json({
         success: false,
         error: 'Failed to perform advanced user search'
+      });
+    }
+  }
+
+  /**
+   * GET /api/admin/users/:id/referrals
+   * Get user's referral list with first payment status
+   */
+  async getUserReferrals(req: Request, res: Response): Promise<void> {
+    try {
+      const user = (req as any).user;
+      const { id } = req.params;
+
+      if (!user) {
+        res.status(401).json({
+          success: false,
+          error: 'Authentication required'
+        });
+        return;
+      }
+
+      if (!id) {
+        res.status(400).json({
+          success: false,
+          error: 'User ID is required'
+        });
+        return;
+      }
+
+      const result = await adminUserManagementService.getUserReferrals(id, user.id);
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error) {
+      logger.error('Get user referrals failed', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.params.id,
+        ipAddress: req.ip
+      });
+
+      res.status(500).json({
+        success: false,
+        error: 'Failed to get user referrals'
       });
     }
   }

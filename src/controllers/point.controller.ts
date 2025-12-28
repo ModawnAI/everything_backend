@@ -18,8 +18,141 @@ export class PointController {
   private supabase = getSupabaseClient();
 
   /**
+   * GET /api/points/balance
+   * Get authenticated user's point balance
+   */
+  async getMyPointBalance(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const balance = await pointTransactionService.getUserPointBalance(userId);
+
+      logger.info('User point balance retrieved', {
+        userId,
+        availableBalance: balance.availableBalance,
+        pendingBalance: balance.pendingBalance
+      });
+
+      res.status(200).json({
+        success: true,
+        data: balance
+      });
+
+    } catch (error) {
+      logger.error('Error getting user point balance', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'POINT_BALANCE_RETRIEVAL_FAILED',
+          message: '포인트 잔액 조회에 실패했습니다.',
+          details: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
+   * GET /api/points/history
+   * Get authenticated user's point transaction history
+   */
+  async getMyTransactionHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
+    try {
+      const userId = req.user?.id;
+
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 20;
+      const transactionType = req.query.transactionType as string;
+      const status = req.query.status as string;
+      const startDate = req.query.startDate as string;
+      const endDate = req.query.endDate as string;
+
+      // Validate pagination parameters
+      if (page < 1 || limit < 1 || limit > 100) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_PAGINATION',
+            message: '잘못된 페이지네이션 파라미터입니다.',
+            details: '페이지는 1 이상, 한도는 1-100 사이여야 합니다.'
+          }
+        });
+        return;
+      }
+
+      const filters = {
+        ...(transactionType && { transactionType: transactionType as any }),
+        ...(status && { status: status as any }),
+        ...(startDate && { startDate }),
+        ...(endDate && { endDate })
+      };
+
+      const history = await pointTransactionService.getUserTransactionHistory(
+        userId,
+        page,
+        limit,
+        filters
+      );
+
+      logger.info('User transaction history retrieved', {
+        userId,
+        transactionCount: history.transactions.length,
+        totalCount: history.totalCount
+      });
+
+      res.status(200).json({
+        success: true,
+        data: history
+      });
+
+    } catch (error) {
+      logger.error('Error getting user transaction history', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id
+      });
+
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'TRANSACTION_HISTORY_RETRIEVAL_FAILED',
+          message: '포인트 내역 조회에 실패했습니다.',
+          details: error instanceof Error ? error.message : '알 수 없는 오류가 발생했습니다.'
+        }
+      });
+    }
+  }
+
+  /**
    * GET /api/users/:userId/points/balance
    * Get user's point balance
+   * @deprecated Use getMyPointBalance instead
    */
   async getUserPointBalance(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
@@ -85,6 +218,7 @@ export class PointController {
   /**
    * GET /api/users/:userId/points/history
    * Get user's point transaction history
+   * @deprecated Use getMyTransactionHistory instead
    */
   async getUserTransactionHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {

@@ -260,8 +260,14 @@ export function rateLimit(options: RateLimitMiddlewareOptions = {}) {
         return next();
       }
 
-      // Check if IP is blocked
-      const blockInfo = await ipBlockingService.isIPBlocked(context.ip);
+      // Check if IP is blocked (with timeout to prevent hanging)
+      const blockCheckPromise = ipBlockingService.isIPBlocked(context.ip);
+      const timeoutPromise = new Promise<null>((resolve) =>
+        setTimeout(() => resolve(null), 500) // 500ms timeout
+      );
+
+      const blockInfo = await Promise.race([blockCheckPromise, timeoutPromise]);
+
       if (blockInfo) {
         logger.warn('Blocked IP attempted access', {
           ip: context.ip,

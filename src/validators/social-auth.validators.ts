@@ -345,11 +345,11 @@ export const userProfileUpdateSchema = Joi.object({
  */
 export const socialLoginSchema = Joi.object({
   provider: Joi.string()
-    .valid('kakao', 'apple', 'google')
+    .valid('kakao', 'apple', 'google', 'naver')
     .required()
     .messages({
       'any.required': 'Provider is required',
-      'any.only': 'Provider must be one of: kakao, apple, google'
+      'any.only': 'Provider must be one of: kakao, apple, google, naver'
     }),
 
   token: Joi.string()
@@ -424,6 +424,21 @@ export const providerTokenValidation = {
       'string.pattern.base': 'Invalid Google token format',
       'string.min': 'Google token is too short',
       'string.max': 'Google token is too long'
+    }),
+
+  /**
+   * Naver access token validation
+   */
+  naver: Joi.string()
+    .trim()
+    .min(20)
+    .max(2000)
+    .pattern(/^[A-Za-z0-9._-]+$/)
+    .required()
+    .messages({
+      'string.pattern.base': 'Invalid Naver token format',
+      'string.min': 'Naver token is too short',
+      'string.max': 'Naver token is too long'
     })
 };
 
@@ -461,10 +476,10 @@ export const fcmTokenRegistrationSchema = Joi.object({
  */
 export const providerQuerySchema = Joi.object({
   provider: Joi.string()
-    .valid('kakao', 'apple', 'google')
+    .valid('kakao', 'apple', 'google', 'naver')
     .optional()
     .messages({
-      'any.only': 'Provider must be one of: kakao, apple, google'
+      'any.only': 'Provider must be one of: kakao, apple, google, naver'
     })
 });
 
@@ -473,7 +488,7 @@ export const providerQuerySchema = Joi.object({
  */
 export const socialLoginAnalyticsSchema = Joi.object({
   provider: Joi.string()
-    .valid('kakao', 'apple', 'google')
+    .valid('kakao', 'apple', 'google', 'naver')
     .required(),
 
   isNewUser: Joi.boolean()
@@ -510,7 +525,7 @@ export const socialLoginAuditSchema = Joi.object({
     .optional(),
 
   provider: Joi.string()
-    .valid('kakao', 'apple', 'google')
+    .valid('kakao', 'apple', 'google', 'naver')
     .required(),
 
   action: Joi.string()

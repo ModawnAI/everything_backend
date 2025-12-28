@@ -153,6 +153,13 @@ export type RetryStatus = 'pending' | 'processing' | 'completed' | 'failed' | 'c
 // TABLE INTERFACES
 // =============================================
 
+export interface BookingPreferences {
+  skinType?: 'normal' | 'dry' | 'oily' | 'combination' | 'sensitive';
+  allergyInfo?: string;
+  preferredStylist?: string;
+  specialRequests?: string;
+}
+
 export interface User {
   id: string; // UUID, references auth.users(id)
   email?: string;
@@ -160,9 +167,11 @@ export interface User {
   phone_verified: boolean;
   name: string;
   nickname?: string;
+  bio?: string; // User biography/description for feed profile
   gender?: UserGender;
   birth_date?: string; // Date string
   profile_image_url?: string;
+  booking_preferences?: BookingPreferences; // JSONB field
   user_role: UserRole;
   user_status: UserStatus;
   is_influencer: boolean;
@@ -282,6 +291,7 @@ export interface Reservation {
   points_used: number;
   points_earned: number;
   special_requests?: string;
+  booking_preferences?: BookingPreferences; // JSONB field - snapshot of user's preferences at time of booking
   cancellation_reason?: string;
   no_show_reason?: string;
   confirmed_at?: string; // Timestamp
@@ -858,12 +868,17 @@ export interface FeedPost {
   hidden_at?: string; // Timestamp
   created_at: string; // Timestamp
   updated_at: string; // Timestamp
-  
+
+  // Source fields for auto-posted content (e.g., from reviews)
+  source_type?: string | null; // 'review', 'promotion', etc.
+  source_id?: string | null; // Reference to source (e.g., review_id)
+
   // Computed/joined fields (not stored in DB)
   author?: Pick<User, 'id' | 'name' | 'nickname' | 'profile_image_url' | 'is_influencer'>;
   images?: PostImage[];
   is_liked_by_user?: boolean; // For current user context
   user_like_id?: string; // For current user context
+  is_saved_by_user?: boolean; // For current user context - saved/bookmarked
 }
 
 /**
@@ -1570,4 +1585,160 @@ export interface BulkOperationResult<T = any> {
     failed: number;
     executionTime: number;
   };
+}
+
+// =============================================
+// USER PAYMENT METHODS (Billing Keys)
+// =============================================
+
+/**
+ * User Payment Method Type
+ * Represents a saved payment method (billing key) from PortOne
+ */
+export interface UserPaymentMethod {
+  id: string;
+  user_id: string;
+
+  // PortOne billing key info
+  billing_key: string;
+  portone_customer_id: string | null;
+  issue_id: string | null;
+  issue_name: string | null;
+
+  // Payment method details
+  payment_method_type: 'CARD' | 'MOBILE' | 'EASY_PAY';
+
+  // Card-specific info
+  card_company: string | null;
+  card_type: 'CREDIT' | 'DEBIT' | 'GIFT' | null;
+  card_number_masked: string | null;
+  card_number_last4: string | null;
+  card_brand: string | null;
+
+  // Display
+  nickname: string | null;
+
+  // Settings
+  is_default: boolean;
+  is_active: boolean;
+
+  // Metadata
+  issued_at: string | null;
+  expires_at: string | null;
+  last_used_at: string | null;
+  usage_count: number;
+  portone_metadata: any;
+
+  // Timestamps
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+/**
+ * Card Type Enum
+ */
+export type CardType = 'CREDIT' | 'DEBIT' | 'GIFT';
+
+/**
+ * Card Brand Enum
+ */
+export type CardBrand =
+  | 'VISA'
+  | 'MASTERCARD'
+  | 'JCB'
+  | 'AMEX'
+  | 'DINERS'
+  | 'UNIONPAY'
+  | 'LOCAL';
+
+/**
+ * Payment Method Type for user_payment_methods table
+ */
+export type UserPaymentMethodType = 'CARD' | 'MOBILE' | 'EASY_PAY';
+
+// =============================================================================
+// FEED ENHANCEMENTS - Saved Feeds, Templates, and User Profiles
+// =============================================================================
+
+/**
+ * Template Category Type
+ * Categories for shop owner feed post templates
+ */
+export type TemplateCategory = 'event' | 'promotion' | 'daily' | 'announcement';
+
+/**
+ * Saved Feed Interface
+ * Represents a user's saved/bookmarked feed post
+ */
+export interface SavedFeed {
+  id: string; // UUID
+  user_id: string; // References users(id)
+  post_id: string; // References feed_posts(id)
+  created_at: string; // Timestamp when saved
+}
+
+/**
+ * Feed Template Interface
+ * Represents a reusable post template for shop owners
+ */
+export interface FeedTemplate {
+  id: string; // UUID
+  shop_id: string; // References shops(id)
+  name: string; // Template name (max 100 chars)
+  content: string; // Template content
+  category: TemplateCategory | null; // event, promotion, daily, announcement
+  is_default: boolean; // Whether this is the default template
+  created_at: string; // Timestamp
+  updated_at: string; // Timestamp
+}
+
+/**
+ * User Feed Profile Interface
+ * Represents a user's public profile for the feed feature
+ */
+export interface UserFeedProfile {
+  id: string; // User ID
+  nickname: string;
+  profile_image_url: string | null;
+  bio: string | null; // User biography/description
+  post_count: number; // Total number of posts
+  posts: FeedPost[]; // User's feed posts
+}
+
+/**
+ * Saved Feed with Post Details
+ * Extended saved feed with joined post data
+ */
+export interface SavedFeedWithPost extends SavedFeed {
+  post: FeedPost & {
+    author?: Pick<User, 'id' | 'nickname' | 'profile_image_url'>;
+    images?: PostImage[];
+  };
+  is_saved: boolean; // Always true for saved feeds
+}
+
+/**
+ * Feed Post Source Type
+ * Indicates the source of auto-posted feed content
+ */
+export type FeedPostSourceType = 'review' | 'promotion' | 'announcement' | null;
+
+/**
+ * Create Feed Template Request
+ */
+export interface CreateFeedTemplateRequest {
+  name: string;
+  content: string;
+  category?: TemplateCategory;
+}
+
+/**
+ * Update Feed Template Request
+ */
+export interface UpdateFeedTemplateRequest {
+  name?: string;
+  content?: string;
+  category?: TemplateCategory;
+  is_default?: boolean;
 } 

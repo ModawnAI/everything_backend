@@ -122,7 +122,7 @@ export class ShopProfileController {
             category,
             price_min,
             price_max,
-            duration,
+            duration_minutes,
             description,
             is_available,
             display_order,

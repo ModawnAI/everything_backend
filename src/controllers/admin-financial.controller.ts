@@ -793,15 +793,18 @@ export class AdminFinancialController {
   async getRefundManagement(req: AuthenticatedRequest, res: Response): Promise<void> {
     try {
       const { status, startDate, endDate, shopId } = req.query;
-      const adminId = req.user?.id;
+      const userId = req.user?.id;
+      const userRole = req.user?.role;
 
-      if (!adminId || req.user?.role !== 'admin') {
-        res.status(403).json({ error: 'Admin access required' });
+      // Allow both admin and shop_owner roles
+      if (!userId || (userRole !== 'admin' && userRole !== 'shop_owner')) {
+        res.status(403).json({ error: 'Admin or shop owner access required' });
         return;
       }
 
       logger.info('Fetching refund management data', {
-        adminId,
+        userId,
+        userRole,
         status,
         startDate,
         endDate,
@@ -820,7 +823,7 @@ export class AdminFinancialController {
             shop_id,
             user_id,
             total_amount,
-            shops!inner(name),
+            shops!inner(name, owner_id),
             users!inner(name, email)
           )
         `)
@@ -831,7 +834,11 @@ export class AdminFinancialController {
         query = query.eq('refund_status', status);
       }
 
-      if (shopId) {
+      // Shop owners can only see refunds for their own shops
+      if (userRole === 'shop_owner') {
+        query = query.eq('reservations.shops.owner_id', userId);
+      } else if (shopId) {
+        // Admins can filter by specific shop
         query = query.eq('reservations.shop_id', shopId);
       }
 
@@ -872,13 +879,14 @@ export class AdminFinancialController {
           createdAt: refund.created_at
         }));
 
-      // Log admin action
-      await this.logAdminAction(adminId, 'refund_management_accessed', {
+      // Log action (admin or shop owner)
+      await this.logAdminAction(userId, 'refund_management_accessed', {
         dateRange: dateFilter,
         status,
         shopId,
         totalRefunds,
-        totalRefundAmount
+        totalRefundAmount,
+        userRole
       });
 
       res.json({

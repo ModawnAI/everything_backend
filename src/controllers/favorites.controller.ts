@@ -10,13 +10,13 @@
  */
 
 import { Request, Response, NextFunction } from 'express';
-import { 
-  favoritesService, 
-  FavoriteShopRequest, 
-  BulkFavoritesRequest 
+import {
+  favoritesService,
+  FavoriteShopRequest,
+  BulkFavoritesRequest
 } from '../services/favorites.service';
 import { logger } from '../utils/logger';
-import { CustomError } from '../utils/error-handler';
+import { BusinessLogicError, ValidationError } from '../middleware/error-handling.middleware';
 import { AuthenticatedRequest } from '../middleware/auth.middleware';
 
 // Request interfaces
@@ -44,6 +44,7 @@ export interface GetFavoritesRequest extends AuthenticatedRequest {
     offset?: string;
     category?: string;
     sortBy?: 'recent' | 'name' | 'bookings';
+    includeShopData?: string;
   };
 }
 
@@ -78,13 +79,13 @@ export class FavoritesController {
       const userId = req.user.id;
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
 
       const result = await favoritesService.addFavorite(userId, shopId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 400);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -119,13 +120,13 @@ export class FavoritesController {
       const userId = req.user.id;
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
 
       const result = await favoritesService.removeFavorite(userId, shopId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 400);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -157,16 +158,35 @@ export class FavoritesController {
     try {
       const { shopId } = req.params;
       const userId = req.user.id;
+      const startTime = Date.now();
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
+
+      logger.info(`[FAVORITE-DEBUG] 🔄 Toggle favorite started`, {
+        userId,
+        shopId,
+        timestamp: new Date().toISOString()
+      });
 
       const result = await favoritesService.toggleFavorite(userId, shopId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 400);
+        throw new BusinessLogicError(result.message);
       }
+
+      const duration = Date.now() - startTime;
+
+      logger.info(`[FAVORITE-DEBUG] ✅ Toggle favorite completed`, {
+        userId,
+        shopId,
+        action: result.isFavorite ? 'ADD' : 'REMOVE',
+        isFavorite: result.isFavorite,
+        favoriteId: result.favoriteId,
+        duration: `${duration}ms`,
+        timestamp: new Date().toISOString()
+      });
 
       res.status(200).json({
         success: true,
@@ -197,19 +217,20 @@ export class FavoritesController {
   public getFavorites = async (req: GetFavoritesRequest, res: Response, next: NextFunction): Promise<void> => {
     try {
       const userId = req.user.id;
-      const { limit, offset, category, sortBy } = req.query;
+      const { limit, offset, category, sortBy, includeShopData } = req.query;
 
       const options = {
         limit: limit ? parseInt(limit, 10) : undefined,
         offset: offset ? parseInt(offset, 10) : undefined,
         category,
-        sortBy: sortBy as 'recent' | 'name' | 'bookings' | undefined
+        sortBy: sortBy as 'recent' | 'name' | 'bookings' | undefined,
+        includeShopData: includeShopData === 'true'
       };
 
       const result = await favoritesService.getUserFavorites(userId, options);
 
       if (!result.success) {
-        throw new CustomError(result.message, 500);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -249,7 +270,7 @@ export class FavoritesController {
       const result = await favoritesService.getFavoritesStats(userId);
 
       if (!result.success) {
-        throw new CustomError(result.message, 500);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -279,21 +300,21 @@ export class FavoritesController {
       const { shopIds, action } = req.body;
 
       if (!shopIds || !Array.isArray(shopIds) || shopIds.length === 0) {
-        throw new CustomError('Shop IDs array is required', 400);
+        throw new ValidationError('Shop IDs array is required');
       }
 
       if (!action || !['add', 'remove'].includes(action)) {
-        throw new CustomError('Action must be either "add" or "remove"', 400);
+        throw new ValidationError('Action must be either "add" or "remove"');
       }
 
       if (shopIds.length > 100) {
-        throw new CustomError('Cannot process more than 100 shops at once', 400);
+        throw new ValidationError('Cannot process more than 100 shops at once');
       }
 
       const result = await favoritesService.bulkUpdateFavorites(userId, shopIds, action);
 
       if (!result.success) {
-        throw new CustomError(result.message, 500);
+        throw new BusinessLogicError(result.message);
       }
 
       res.status(200).json({
@@ -333,11 +354,11 @@ export class FavoritesController {
       const { shopIds } = req.body;
 
       if (!shopIds || !Array.isArray(shopIds) || shopIds.length === 0) {
-        throw new CustomError('Shop IDs array is required', 400);
+        throw new ValidationError('Shop IDs array is required');
       }
 
       if (shopIds.length > 100) {
-        throw new CustomError('Cannot check more than 100 shops at once', 400);
+        throw new ValidationError('Cannot check more than 100 shops at once');
       }
 
       const result = await favoritesService.checkMultipleFavorites(userId, shopIds);
@@ -377,7 +398,7 @@ export class FavoritesController {
       const userId = req.user.id;
 
       if (!shopId) {
-        throw new CustomError('Shop ID is required', 400);
+        throw new ValidationError('Shop ID is required');
       }
 
       const isFavorited = await favoritesService.isFavorite(userId, shopId);
@@ -396,6 +417,96 @@ export class FavoritesController {
         error: error instanceof Error ? error.message : 'Unknown error',
         userId: req.user?.id,
         shopId: req.params.shopId,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+      next(error);
+    }
+  };
+
+  /**
+   * GET /api/user/favorites/ids
+   * Get lightweight list of favorite shop IDs for fast sync
+   */
+  public getFavoriteIds = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user.id;
+
+      const result = await favoritesService.getFavoriteIds(userId);
+
+      if (!result.success) {
+        throw new BusinessLogicError(result.message || 'Failed to retrieve favorite IDs');
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          favoriteIds: result.favoriteIds,
+          count: result.count,
+          timestamp: new Date().toISOString()
+        },
+        message: 'Favorite IDs retrieved successfully'
+      });
+
+    } catch (error) {
+      logger.error('FavoritesController.getFavoriteIds error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id,
+        userAgent: req.get('User-Agent'),
+        ip: req.ip
+      });
+      next(error);
+    }
+  };
+
+  /**
+   * POST /api/user/favorites/batch
+   * Batch toggle multiple favorites (for offline sync)
+   */
+  public batchToggleFavorites = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    try {
+      const userId = req.user.id;
+      const { add = [], remove = [] } = req.body;
+
+      // Validate input
+      if (!Array.isArray(add) || !Array.isArray(remove)) {
+        throw new ValidationError('add and remove must be arrays');
+      }
+
+      if (add.length === 0 && remove.length === 0) {
+        throw new ValidationError('At least one shop ID must be provided in add or remove');
+      }
+
+      // Validate max batch size
+      const maxBatchSize = 50;
+      if (add.length + remove.length > maxBatchSize) {
+        throw new ValidationError(`Batch size cannot exceed ${maxBatchSize} operations`);
+      }
+
+      const result = await favoritesService.batchToggleFavorites(userId, add, remove);
+
+      if (!result.success) {
+        throw new BusinessLogicError(result.message || 'Failed to batch toggle favorites');
+      }
+
+      res.status(200).json({
+        success: true,
+        data: {
+          added: result.added,
+          removed: result.removed,
+          failed: result.failed,
+          favoriteIds: result.favoriteIds,
+          count: result.count
+        },
+        message: 'Batch toggle completed successfully'
+      });
+
+    } catch (error) {
+      logger.error('FavoritesController.batchToggleFavorites error:', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: req.user?.id,
+        addCount: req.body.add?.length || 0,
+        removeCount: req.body.remove?.length || 0,
         userAgent: req.get('User-Agent'),
         ip: req.ip
       });
