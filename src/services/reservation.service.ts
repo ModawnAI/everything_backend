@@ -1024,13 +1024,13 @@ export class ReservationService {
                   duration_minutes
                 )
               ),
-              reservation_payments(
+              payments(
                 id,
                 amount,
                 payment_method,
                 payment_status,
                 paid_at,
-                transaction_id
+                portone_transaction_id
               )
             `)
             .eq('id', reservationId)
@@ -1092,13 +1092,13 @@ export class ReservationService {
             })) || [],
 
             // Payment details
-            payments: data.reservation_payments?.map((p: any) => ({
+            payments: data.payments?.map((p: any) => ({
               id: p.id,
               amount: p.amount,
               paymentMethod: p.payment_method,
               paymentStatus: p.payment_status,
               paidAt: p.paid_at,
-              transactionId: p.transaction_id
+              transactionId: p.portone_transaction_id
             })) || []
           };
         },

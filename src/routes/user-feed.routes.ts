@@ -205,6 +205,43 @@ router.get('/discover',
 
 /**
  * @swagger
+ * /api/user/feed/saved:
+ *   get:
+ *     tags:
+ *       - User Feed
+ *     summary: Get saved (bookmarked) posts
+ *     description: Get posts that the user has saved/bookmarked
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: limit
+ *         schema:
+ *           type: integer
+ *           minimum: 1
+ *           maximum: 50
+ *           default: 10
+ *         description: Items per page
+ *       - in: query
+ *         name: offset
+ *         schema:
+ *           type: integer
+ *           minimum: 0
+ *           default: 0
+ *         description: Offset for pagination
+ *     responses:
+ *       200:
+ *         description: Saved posts retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/saved',
+  generalFeedLimiter,
+  feedController.getSavedPosts.bind(feedController)
+);
+
+/**
+ * @swagger
  * /api/user/feed/posts/{postId}:
  *   get:
  *     tags:
@@ -374,6 +411,92 @@ router.post('/posts/:postId/like',
 router.delete('/posts/:postId/like',
   interactionLimiter, // 100 interactions per 5 minutes
   feedController.unlikePost.bind(feedController)
+);
+
+/**
+ * @swagger
+ * /api/user/feed/posts/{postId}/save:
+ *   post:
+ *     tags:
+ *       - User Feed
+ *     summary: Save (bookmark) a post
+ *     description: Save a post to the user's saved/bookmarked list
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post saved successfully
+ *       400:
+ *         description: Post already saved
+ *       401:
+ *         description: Authentication required
+ */
+router.post('/posts/:postId/save',
+  interactionLimiter,
+  feedController.savePost.bind(feedController)
+);
+
+/**
+ * @swagger
+ * /api/user/feed/posts/{postId}/save:
+ *   delete:
+ *     tags:
+ *       - User Feed
+ *     summary: Unsave (remove bookmark) a post
+ *     description: Remove a post from the user's saved/bookmarked list
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Post unsaved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.delete('/posts/:postId/save',
+  interactionLimiter,
+  feedController.unsavePost.bind(feedController)
+);
+
+/**
+ * @swagger
+ * /api/user/feed/posts/{postId}/saved-status:
+ *   get:
+ *     tags:
+ *       - User Feed
+ *     summary: Check if post is saved
+ *     description: Check if the post is saved/bookmarked by the user
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: postId
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Post ID
+ *     responses:
+ *       200:
+ *         description: Saved status retrieved successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.get('/posts/:postId/saved-status',
+  generalFeedLimiter,
+  feedController.getPostSavedStatus.bind(feedController)
 );
 
 /**

@@ -181,6 +181,17 @@ function extractRefreshTokenFromCookie(cookieHeader: string): string | null {
  */
 function extractTokenFromSupabaseCookie(cookieHeader: string): string | null {
   try {
+    // First, try simple sb-access-token cookie (custom format from frontend)
+    const simpleTokenMatch = cookieHeader.match(/sb-access-token=([^;]+)/);
+    if (simpleTokenMatch && simpleTokenMatch[1]) {
+      const token = simpleTokenMatch[1];
+      // Verify it looks like a JWT (has 3 parts separated by dots)
+      if (token.split('.').length === 3) {
+        console.log('[COOKIE-DEBUG] Successfully extracted token from sb-access-token cookie');
+        return token;
+      }
+    }
+
     // Supabase may split auth token across multiple cookies if it's too large
     // Format: sb-{project-ref}-auth-token.0=base64-{part1}; sb-{project-ref}-auth-token.1={part2}; ...
 
@@ -897,6 +908,132 @@ export async function validateTokenExpiration(tokenPayload: SupabaseJWTPayload):
 }
 
 /**
+ * Auto-create user from JWT token metadata
+ * Used when Flutter native auth creates user in auth.users but not in public.users
+ */
+async function autoCreateUserFromToken(supabase: any, tokenPayload: SupabaseJWTPayload): Promise<any> {
+  try {
+    const metadata = tokenPayload.user_metadata || {};
+    const appMetadata = tokenPayload.app_metadata || {};
+
+    // Detect provider (apple, google, kakao, etc.)
+    const provider = appMetadata.provider || appMetadata.providers?.[0] || 'unknown';
+
+    // Extract name from various sources
+    const name = metadata.full_name ||
+                 metadata.name ||
+                 metadata.kakao_account?.profile?.nickname ||
+                 `${metadata.first_name || ''} ${metadata.last_name || ''}`.trim() ||
+                 tokenPayload.email?.split('@')[0] ||
+                 'User';
+
+    // Extract profile image
+    const profileImageUrl = metadata.avatar_url ||
+                           metadata.picture ||
+                           metadata.kakao_account?.profile?.profile_image_url ||
+                           null;
+
+    // Create user record
+    const newUserData = {
+      id: tokenPayload.sub,
+      email: tokenPayload.email || null,
+      name: name,
+      user_role: 'user',
+      user_status: 'active',
+      is_influencer: false,
+      phone_verified: !!tokenPayload.phone_confirmed_at,
+      profile_image_url: profileImageUrl,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString()
+    };
+
+    logger.info('[autoCreateUserFromToken] Creating user from token', {
+      userId: tokenPayload.sub,
+      email: tokenPayload.email,
+      provider,
+      name
+    });
+
+    // INSERT user
+    const { data: createdUser, error: createError } = await supabase
+      .from('users')
+      .insert(newUserData)
+      .select()
+      .single();
+
+    // Handle race condition (concurrent requests)
+    if (createError?.code === '23505') {
+      // User already exists (unique constraint violation) - fetch and return
+      logger.info('[autoCreateUserFromToken] User already exists, fetching', { userId: tokenPayload.sub });
+      const { data: existingUser } = await supabase
+        .from('users')
+        .select()
+        .eq('id', tokenPayload.sub)
+        .single();
+      return existingUser;
+    }
+
+    if (createError) {
+      logger.error('[autoCreateUserFromToken] Failed to create user', {
+        error: createError.message,
+        userId: tokenPayload.sub
+      });
+      return null;
+    }
+
+    logger.info('[autoCreateUserFromToken] User created successfully', { userId: tokenPayload.sub });
+    return createdUser;
+  } catch (error) {
+    logger.error('[autoCreateUserFromToken] Error', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: tokenPayload.sub
+    });
+    return null;
+  }
+}
+
+/**
+ * Ensure user exists in background (non-blocking)
+ * Used for fast-track endpoints to create user record if missing
+ */
+async function ensureUserExistsInBackground(tokenPayload: SupabaseJWTPayload): Promise<void> {
+  try {
+    const supabase = getSupabaseClient();
+
+    // Quick check if user exists
+    const { data: existingUser, error: checkError } = await supabase
+      .from('users')
+      .select('id')
+      .eq('id', tokenPayload.sub)
+      .single();
+
+    // If user exists, we're done
+    if (existingUser) {
+      return;
+    }
+
+    // If error is not "row not found", log and return
+    if (checkError && checkError.code !== 'PGRST116') {
+      return;
+    }
+
+    // User doesn't exist, create in background
+    logger.info('[ensureUserExistsInBackground] User not found, creating', {
+      userId: tokenPayload.sub,
+      email: tokenPayload.email
+    });
+
+    await autoCreateUserFromToken(supabase, tokenPayload);
+  } catch (error) {
+    // Non-critical, just log
+    logger.debug('[ensureUserExistsInBackground] Failed', {
+      error: error instanceof Error ? error.message : 'Unknown error',
+      userId: tokenPayload.sub
+    });
+  }
+}
+
+/**
  * Get user data from database using token payload
  */
 export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promise<any> {
@@ -935,12 +1072,34 @@ export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promis
       error: error?.message
     });
 
-    if (error || !userData) {
-      logger.error('User not found in database', {
+    // If user not found (PGRST116) or no data, try to auto-create from token
+    if (error?.code === 'PGRST116' || !userData) {
+      logger.info('[getUserFromToken] User not found, attempting auto-create', {
+        userId: tokenPayload.sub,
+        errorCode: error?.code
+      });
+
+      const supabase = getSupabaseClient();
+      const newUser = await autoCreateUserFromToken(supabase, tokenPayload);
+
+      if (newUser) {
+        logger.info('[getUserFromToken] User auto-created successfully', { userId: tokenPayload.sub });
+        return newUser;
+      }
+
+      logger.error('User not found in database and auto-create failed', {
         error: error?.message,
         userId: tokenPayload.sub
       });
       throw new UserNotFoundError('User not found in database');
+    }
+
+    if (error) {
+      logger.error('User query error', {
+        error: error?.message,
+        userId: tokenPayload.sub
+      });
+      throw new UserNotFoundError('Failed to fetch user data');
     }
 
     // Check if user is active
@@ -1159,7 +1318,14 @@ export function authenticateJWT() {
                                  req.path.includes('/refund') ||
                                  req.method === 'DELETE';
 
-      if (isAnalyticsEndpoint || !isCriticalEndpoint) {
+      // User-related endpoints require DB lookup to ensure user record exists
+      const isUserEndpoint = req.path.startsWith('/api/users') ||
+                             req.path.startsWith('/api/points') ||
+                             req.path.startsWith('/api/referrals') ||
+                             req.path.includes('/users/') ||
+                             req.path.includes('/profile');
+
+      if (isAnalyticsEndpoint || (!isCriticalEndpoint && !isUserEndpoint)) {
         // Use token data directly without database lookup for better performance
         userData = {
           id: tokenPayload.sub,
@@ -1180,6 +1346,13 @@ export function authenticateJWT() {
         };
 
         console.log('[AUTH-DEBUG-FAST] Using fast token-only authentication');
+
+        // Background check/create user record (non-blocking)
+        ensureUserExistsInBackground(tokenPayload).catch(err => {
+          logger.debug('[AUTH] Background user check failed (non-critical)', {
+            error: err instanceof Error ? err.message : 'Unknown'
+          });
+        });
       } else {
         console.log('[AUTH-DEBUG-10] Fetching user from database (critical endpoint)');
         logger.info('[AUTH] Fetching user from database');
