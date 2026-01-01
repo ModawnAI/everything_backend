@@ -243,7 +243,7 @@ const notificationController = new NotificationController();
  *         description: Authentication required
  */
 router.post('/register',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // Low rate limit for token registration
   notificationController.registerDeviceToken.bind(notificationController)
 );
@@ -330,7 +330,7 @@ router.post('/register',
  */
 
 router.post('/unregister',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }),
   notificationController.unregisterDeviceToken.bind(notificationController)
 );
@@ -428,7 +428,7 @@ router.post('/unregister',
  *         description: Authentication required
  */
 router.post('/send',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 5 } }), // Very low rate limit for sending notifications
   notificationController.sendNotificationToSelf.bind(notificationController)
 );
@@ -524,7 +524,7 @@ router.post('/send',
  *         description: Authentication required
  */
 router.post('/template',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 5 } }),
   notificationController.sendTemplateNotification.bind(notificationController)
 );
@@ -573,7 +573,7 @@ router.post('/template',
  *         description: Internal server error
  */
 router.get('/templates',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
   notificationController.getNotificationTemplates.bind(notificationController)
 );
@@ -618,7 +618,7 @@ router.get('/templates',
  *         description: Internal server error
  */
 router.get('/settings',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getUserNotificationSettings.bind(notificationController)
 );
@@ -663,7 +663,7 @@ router.get('/settings',
  *         description: Internal server error
  */
 router.get('/preferences',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getUserNotificationSettings.bind(notificationController)
 );
@@ -716,7 +716,7 @@ router.get('/preferences',
  *         description: Internal server error
  */
 router.put('/settings',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
   notificationController.updateUserNotificationSettings.bind(notificationController)
 );
@@ -810,7 +810,7 @@ router.put('/settings',
  *         description: Authentication required
  */
 router.get('/history',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getUserNotificationHistory.bind(notificationController)
 );
@@ -859,7 +859,7 @@ router.get('/history',
  *         description: Internal server error
  */
 router.get('/tokens',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
   notificationController.getUserDeviceTokens.bind(notificationController)
 );
@@ -883,7 +883,7 @@ router.get('/tokens',
  *         description: Unauthorized
  */
 router.get('/unread-count',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getUnreadCount.bind(notificationController)
 );
@@ -904,7 +904,7 @@ router.get('/unread-count',
  *         description: Unauthorized
  */
 router.post('/read-all',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
   notificationController.markAllAsRead.bind(notificationController)
 );
@@ -925,7 +925,7 @@ router.post('/read-all',
  *         description: Unauthorized
  */
 router.delete('/read',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }),
   notificationController.deleteAllRead.bind(notificationController)
 );
@@ -955,7 +955,7 @@ router.delete('/read',
  *         description: Unauthorized
  */
 router.get('/:notificationId',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getNotification.bind(notificationController)
 );
@@ -985,7 +985,7 @@ router.get('/:notificationId',
  *         description: Unauthorized
  */
 router.delete('/:notificationId',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
   notificationController.deleteNotification.bind(notificationController)
 );
@@ -1014,7 +1014,7 @@ router.delete('/:notificationId',
  *         description: Unauthorized
  */
 router.put('/preferences',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
   notificationController.updateUserNotificationSettings.bind(notificationController)
 );
@@ -1149,7 +1149,7 @@ router.put('/preferences',
  *         description: Authentication required
  */
 router.get('/shop/reservations',
-  authenticateJWT,
+  authenticateJWT(),
   ...requireShopOwnerWithShop(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getShopReservationNotifications.bind(notificationController)
@@ -1283,7 +1283,7 @@ router.get('/shop/reservations',
  *         description: Authentication required
  */
 router.post('/shop/send',
-  authenticateJWT,
+  authenticateJWT(),
   ...requireShopOwnerWithShop(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
   notificationController.sendReservationNotificationToCustomer.bind(notificationController)
@@ -1413,7 +1413,7 @@ router.post('/shop/send',
  *         description: Authentication required
  */
 router.get('/shop/preferences',
-  authenticateJWT,
+  authenticateJWT(),
   ...requireShopOwnerWithShop(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getShopOwnerNotificationPreferences.bind(notificationController)
@@ -1554,7 +1554,7 @@ router.get('/shop/preferences',
  *         description: Authentication required
  */
 router.put('/shop/preferences',
-  authenticateJWT,
+  authenticateJWT(),
   ...requireShopOwnerWithShop(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }),
   notificationController.updateShopOwnerNotificationPreferences.bind(notificationController)
@@ -1685,7 +1685,7 @@ router.put('/shop/preferences',
  *         description: Authentication required
  */
 router.get('/shop/analytics',
-  authenticateJWT,
+  authenticateJWT(),
   ...requireShopOwnerWithShop(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }),
   notificationController.getShopNotificationAnalytics.bind(notificationController)

@@ -95,7 +95,7 @@ const notificationController = new NotificationController();
  *         description: Internal server error
  */
 router.get('/',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.getUserNotificationHistory.bind(notificationController)
 );
@@ -127,7 +127,7 @@ router.get('/',
  *         description: Internal server error
  */
 router.put('/:notificationId/read',
-  authenticateJWT,
+  authenticateJWT(),
   rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }),
   notificationController.markAsRead.bind(notificationController)
 );
