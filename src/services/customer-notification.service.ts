@@ -24,7 +24,7 @@ export interface CustomerNotificationPayload {
   depositAmount?: number;
   remainingAmount?: number;
   specialRequests?: string;
-  notificationType: 'reservation_confirmed' | 'reservation_rejected' | 'reservation_cancelled' | 'reservation_completed' | 'reservation_no_show';
+  notificationType: 'reservation_requested' | 'reservation_confirmed' | 'reservation_rejected' | 'reservation_cancelled' | 'reservation_completed' | 'reservation_no_show';
   additionalData?: {
     confirmationNotes?: string;
     rejectionReason?: string;
@@ -173,6 +173,8 @@ export class CustomerNotificationService {
    */
   private generateNotificationTitle(payload: CustomerNotificationPayload): string {
     switch (payload.notificationType) {
+      case 'reservation_requested':
+        return `📝 [${payload.shopName}] 예약 접수`;
       case 'reservation_confirmed':
         return `🎉 [${payload.shopName}] 예약 확정`;
       case 'reservation_rejected':
@@ -198,6 +200,28 @@ export class CustomerNotificationService {
     let message = '';
 
     switch (payload.notificationType) {
+      case 'reservation_requested':
+        message = `📝 예약이 접수되었습니다!
+
+샵: ${payload.shopName}
+예약일시: ${payload.reservationDate} ${timeStr}
+서비스: ${serviceNames}
+총 금액: ${payload.totalAmount.toLocaleString()}원`;
+
+        if (payload.depositAmount && payload.remainingAmount) {
+          message += `
+예약금: ${payload.depositAmount.toLocaleString()}원
+잔금: ${payload.remainingAmount.toLocaleString()}원`;
+        }
+
+        message += `
+
+매장에서 예약을 확인 중입니다.
+확정 시 다시 알림을 보내드리겠습니다.
+
+감사합니다.`;
+        break;
+
       case 'reservation_confirmed':
         message = `🎉 예약이 확정되었습니다!
 

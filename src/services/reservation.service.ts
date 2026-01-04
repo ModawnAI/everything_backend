@@ -252,9 +252,9 @@ export class ReservationService {
         remainingAmount: pricingInfo.remainingAmount || pricingInfo.totalAmount,
         services: serviceDetails,
         specialRequests: specialRequests,
-        notificationType: 'reservation_confirmed',
+        notificationType: 'reservation_requested',
         additionalData: {
-          confirmationNotes: `Reservation status: ${reservation.status}. Awaiting shop confirmation.`
+          confirmationNotes: undefined
         }
       });
 
