@@ -635,43 +635,110 @@ export class ReservationService {
           }
         }
 
+        // Debug: Log raw RPC response
+        console.log('🔍 [RESERVATION-SERVICE] RPC Response:', {
+          reservation,
+          reservationType: typeof reservation,
+          reservationKeys: reservation ? Object.keys(reservation) : [],
+          reservationStringified: JSON.stringify(reservation, null, 2)
+        });
+
         if (!reservation) {
           throw new Error('Failed to create reservation');
         }
 
+        // Handle case where RPC returns just the ID or different structure
+        let reservationId: string | undefined;
+        let reservationData: any = reservation;
+
+        // Check if reservation is just the ID (string or UUID)
+        if (typeof reservation === 'string') {
+          reservationId = reservation;
+          console.log('🔍 [RESERVATION-SERVICE] RPC returned ID as string:', reservationId);
+        }
+        // Check if reservation has 'id' property directly
+        else if (reservation.id) {
+          reservationId = reservation.id;
+        }
+        // Check if reservation is wrapped in another object
+        else if ((reservation as any).data?.id) {
+          reservationId = (reservation as any).data.id;
+          reservationData = (reservation as any).data;
+          console.log('🔍 [RESERVATION-SERVICE] RPC returned wrapped data:', reservationId);
+        }
+        // Check if it's an array with first element
+        else if (Array.isArray(reservation) && reservation[0]?.id) {
+          reservationId = reservation[0].id;
+          reservationData = reservation[0];
+          console.log('🔍 [RESERVATION-SERVICE] RPC returned array:', reservationId);
+        }
+
+        if (!reservationId) {
+          console.error('❌ [RESERVATION-SERVICE] Could not extract reservation ID from RPC response:', {
+            reservation,
+            type: typeof reservation,
+            keys: reservation ? Object.keys(reservation) : []
+          });
+          throw new Error('Failed to get reservation ID from database');
+        }
+
         logger.info('Reservation created successfully', {
-          reservationId: reservation.id,
+          reservationId,
           shopId,
           userId,
           reservationDate,
           reservationTime
         });
 
+        // Ensure we have a proper reservation object with id
+        if (typeof reservationData === 'string') {
+          // If RPC only returned the ID, fetch the full reservation
+          const { data: fullReservation, error: fetchError } = await this.supabase
+            .from('reservations')
+            .select('*')
+            .eq('id', reservationId)
+            .single();
+
+          if (fetchError || !fullReservation) {
+            console.error('❌ [RESERVATION-SERVICE] Failed to fetch created reservation:', fetchError);
+            throw new Error('Failed to retrieve created reservation');
+          }
+          reservationData = fullReservation;
+        } else if (!reservationData.id) {
+          reservationData.id = reservationId;
+        }
+
         // Update reservation with booking preferences snapshot
         if (bookingPreferences && Object.keys(bookingPreferences).length > 0) {
           const { error: updateError } = await this.supabase
             .from('reservations')
             .update({ booking_preferences: bookingPreferences })
-            .eq('id', reservation.id);
+            .eq('id', reservationId);
 
           if (updateError) {
             logger.error('Failed to store booking preferences with reservation', {
-              reservationId: reservation.id,
+              reservationId,
               error: updateError.message
             });
             // Don't fail the reservation, just log the error
           } else {
             logger.info('Booking preferences stored with reservation', {
-              reservationId: reservation.id,
+              reservationId,
               skinType: bookingPreferences.skinType,
               hasAllergyInfo: !!bookingPreferences.allergyInfo
             });
             // Add booking_preferences to the returned reservation object
-            (reservation as any).booking_preferences = bookingPreferences;
+            reservationData.booking_preferences = bookingPreferences;
           }
         }
 
-        return reservation as Reservation;
+        console.log('✅ [RESERVATION-SERVICE] Returning reservation:', {
+          id: reservationData.id,
+          shopId: reservationData.shopId || reservationData.shop_id,
+          status: reservationData.status
+        });
+
+        return reservationData as Reservation;
 
       } catch (error) {
         lastError = error;
@@ -1024,13 +1091,13 @@ export class ReservationService {
                   duration_minutes
                 )
               ),
-              reservation_payments(
+              payments(
                 id,
                 amount,
                 payment_method,
                 payment_status,
                 paid_at,
-                transaction_id
+                portone_transaction_id
               )
             `)
             .eq('id', reservationId)
@@ -1092,13 +1159,13 @@ export class ReservationService {
             })) || [],
 
             // Payment details
-            payments: data.reservation_payments?.map((p: any) => ({
+            payments: data.payments?.map((p: any) => ({
               id: p.id,
               amount: p.amount,
               paymentMethod: p.payment_method,
               paymentStatus: p.payment_status,
               paidAt: p.paid_at,
-              transactionId: p.transaction_id
+              transactionId: p.portone_transaction_id
             })) || []
           };
         },

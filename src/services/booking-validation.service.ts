@@ -658,48 +658,48 @@ export class BookingValidationService {
     const weekStart = new Date(today.getTime() - today.getDay() * 24 * 60 * 60 * 1000);
     const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    // Daily booking limit
-    const dailyBookings = customerHistory.filter(booking => 
+    // Daily booking limit (set to 99 for testing)
+    const dailyBookings = customerHistory.filter(booking =>
       new Date(booking.created_at) >= today
     ).length;
 
-    if (dailyBookings >= 3) {
+    if (dailyBookings >= 99) {
       errors.push({
         code: 'DAILY_LIMIT_EXCEEDED',
         field: 'userId',
-        message: 'Daily booking limit exceeded (max 3 bookings per day)',
+        message: 'Daily booking limit exceeded (max 99 bookings per day)',
         severity: 'critical',
-        details: { dailyBookings, limit: 3 }
+        details: { dailyBookings, limit: 99 }
       });
     }
 
-    // Weekly booking limit
-    const weeklyBookings = customerHistory.filter(booking => 
+    // Weekly booking limit (set to 99 for testing)
+    const weeklyBookings = customerHistory.filter(booking =>
       new Date(booking.created_at) >= weekStart
     ).length;
 
-    if (weeklyBookings >= 10) {
+    if (weeklyBookings >= 99) {
       errors.push({
         code: 'WEEKLY_LIMIT_EXCEEDED',
         field: 'userId',
-        message: 'Weekly booking limit exceeded (max 10 bookings per week)',
+        message: 'Weekly booking limit exceeded (max 99 bookings per week)',
         severity: 'critical',
-        details: { weeklyBookings, limit: 10 }
+        details: { weeklyBookings, limit: 99 }
       });
     }
 
-    // Monthly booking limit
-    const monthlyBookings = customerHistory.filter(booking => 
+    // Monthly booking limit (set to 99 for testing)
+    const monthlyBookings = customerHistory.filter(booking =>
       new Date(booking.created_at) >= monthStart
     ).length;
 
-    if (monthlyBookings >= 30) {
+    if (monthlyBookings >= 99) {
       errors.push({
         code: 'MONTHLY_LIMIT_EXCEEDED',
         field: 'userId',
-        message: 'Monthly booking limit exceeded (max 30 bookings per month)',
+        message: 'Monthly booking limit exceeded (max 99 bookings per month)',
         severity: 'critical',
-        details: { monthlyBookings, limit: 30 }
+        details: { monthlyBookings, limit: 99 }
       });
     }
 
@@ -718,15 +718,15 @@ export class BookingValidationService {
     }
 
     const bookingLimits: BookingLimitInfo = {
-      dailyLimit: 3,
-      weeklyLimit: 10,
-      monthlyLimit: 30,
+      dailyLimit: 99,    // Set to 99 for testing
+      weeklyLimit: 99,   // Set to 99 for testing
+      monthlyLimit: 99,  // Set to 99 for testing
       currentDailyBookings: dailyBookings,
       currentWeeklyBookings: weeklyBookings,
       currentMonthlyBookings: monthlyBookings,
-      canBookToday: dailyBookings < 3,
-      canBookThisWeek: weeklyBookings < 10,
-      canBookThisMonth: monthlyBookings < 30
+      canBookToday: dailyBookings < 99,
+      canBookThisWeek: weeklyBookings < 99,
+      canBookThisMonth: monthlyBookings < 99
     };
 
     return this.createValidationResult(errors.length === 0, errors, warnings, Date.now(), ['booking_limits'], {

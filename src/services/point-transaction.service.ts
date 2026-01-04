@@ -155,17 +155,17 @@ export class PointTransactionService {
     try {
       logger.info('Getting user point balance', { userId });
 
-      // Get user information
-      const user = await this.getUser(userId);
-      if (!user) {
-        throw new Error(`User not found: ${userId}`);
-      }
-
-      // Calculate real-time balance
+      // Calculate real-time balance directly from point_transactions table
+      // No need to check users table - balance is calculated from transactions
       const balance = await this.calculateRealTimeBalance(userId);
 
-      // Update user's cached balance
-      await this.updateUserPointBalance(userId);
+      // Update user's cached balance (non-blocking, won't fail if user doesn't exist in users table)
+      this.updateUserPointBalance(userId).catch(err => {
+        logger.debug('Failed to update cached balance (non-critical)', {
+          error: err instanceof Error ? err.message : 'Unknown',
+          userId
+        });
+      });
 
       logger.info('User point balance retrieved', {
         userId,

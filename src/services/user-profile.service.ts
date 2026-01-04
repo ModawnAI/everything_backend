@@ -141,9 +141,16 @@ export class UserProfileService {
         .eq('id', userId)
         .single();
 
-      if (error) {
+      // PGRST116 = no rows returned (user not found) - return null instead of throwing
+      if (error && error.code !== 'PGRST116') {
         logger.error('Error fetching user profile:', { userId, error });
         throw new Error(`Failed to fetch user profile: ${error.message}`);
+      }
+
+      // User not found - return null
+      if (error?.code === 'PGRST116' || !data) {
+        logger.info('User profile not found:', { userId });
+        return null;
       }
 
       return data;
