@@ -98,6 +98,22 @@ export class StorageService {
       fileSizeLimit: 8 * 1024 * 1024, // 8MB per image
       allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
       accessPolicy: 'authenticated'
+    },
+    'popup-images': {
+      id: 'popup-images',
+      name: 'popup-images',
+      public: true,
+      fileSizeLimit: 10 * 1024 * 1024, // 10MB
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+      accessPolicy: 'authenticated'
+    },
+    'banners': {
+      id: 'banners',
+      name: 'banners',
+      public: true,
+      fileSizeLimit: 10 * 1024 * 1024, // 10MB
+      allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+      accessPolicy: 'authenticated'
     }
   };
 

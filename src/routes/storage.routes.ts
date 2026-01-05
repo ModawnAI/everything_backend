@@ -54,7 +54,9 @@ const upload = multer({
       'profile-images': ['image/jpeg', 'image/png', 'image/webp'],
       'shop-images': ['image/jpeg', 'image/png', 'image/webp'],
       'service-images': ['image/jpeg', 'image/png', 'image/webp'],
-      'business-documents': ['application/pdf', 'image/jpeg', 'image/png']
+      'business-documents': ['application/pdf', 'image/jpeg', 'image/png'],
+      'popup-images': ['image/jpeg', 'image/png', 'image/webp', 'image/gif'],
+      'banners': ['image/jpeg', 'image/png', 'image/webp', 'image/gif']
     };
 
     const bucketAllowedTypes = allowedTypes[bucketId as keyof typeof allowedTypes] || ['image/jpeg', 'image/png', 'image/webp'];
