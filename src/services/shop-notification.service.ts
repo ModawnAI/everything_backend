@@ -51,6 +51,7 @@ class ShopNotificationService {
    * Send notification to all target shops
    */
   async sendNotification(notificationId: string): Promise<{ sentCount: number }> {
+    console.log('🔔 [DEBUG] sendNotification called with ID:', notificationId);
     const supabase = getSupabaseClient();
 
     // Get notification
@@ -59,6 +60,8 @@ class ShopNotificationService {
       .select('*')
       .eq('id', notificationId)
       .single();
+
+    console.log('🔔 [DEBUG] Notification fetched:', notification ? 'found' : 'not found', fetchError?.message);
 
     if (fetchError || !notification) {
       throw new Error('Notification not found');
@@ -72,7 +75,7 @@ class ShopNotificationService {
     let shopsQuery = supabase
       .from('shops')
       .select('id, owner_id, name')
-      .eq('is_active', true);
+      .eq('shop_status', 'active');
 
     // Filter by category if specified
     if (notification.target_categories && notification.target_categories.length > 0) {
@@ -80,6 +83,12 @@ class ShopNotificationService {
     }
 
     const { data: shops, error: shopsError } = await shopsQuery;
+
+    console.log('🔔 [DEBUG] Shops query result:', {
+      shopsCount: shops?.length || 0,
+      error: shopsError?.message,
+      shops: shops?.map(s => ({ id: s.id, name: s.name }))
+    });
 
     if (shopsError) {
       logger.error('Failed to fetch shops for notification', { error: shopsError });
@@ -97,9 +106,13 @@ class ShopNotificationService {
       shop_id: shop.id,
     }));
 
+    console.log('🔔 [DEBUG] Creating receipts for', receipts.length, 'shops');
+
     const { error: receiptError } = await supabase
       .from('shop_notification_receipts')
       .insert(receipts);
+
+    console.log('🔔 [DEBUG] Receipts creation result:', receiptError ? receiptError.message : 'SUCCESS');
 
     if (receiptError) {
       logger.error('Failed to create notification receipts', { error: receiptError });
@@ -134,6 +147,7 @@ class ShopNotificationService {
       }
     }
 
+    console.log('🔔 [DEBUG] Shop notification sent successfully to', shops.length, 'shops');
     logger.info('Shop notification sent', {
       notificationId,
       recipientCount: shops.length

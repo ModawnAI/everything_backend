@@ -1,5 +1,6 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
+import { shopNotificationService } from './shop-notification.service';
 
 export interface AnnouncementData {
   title: string;
@@ -91,6 +92,7 @@ export class AdminAnnouncementService {
 
   /**
    * Create new announcement
+   * If targetUserType includes 'shop_owner', also creates shop notifications
    */
   async createAnnouncement(announcementData: AnnouncementData, adminId: string): Promise<any> {
     try {
@@ -114,6 +116,36 @@ export class AdminAnnouncementService {
       }
 
       logger.info('Announcement created', { adminId, announcementId: data.id });
+
+      // Debug log
+      console.log('🔔 [DEBUG] targetUserType:', announcementData.targetUserType);
+      console.log('🔔 [DEBUG] includes shop_owner:', announcementData.targetUserType?.includes('shop_owner'));
+
+      // If target includes shop_owner, also create shop notification
+      if (announcementData.targetUserType?.includes('shop_owner')) {
+        console.log('🔔 [DEBUG] Creating shop notification...');
+        try {
+          console.log('🔔 [DEBUG] Calling shopNotificationService.createNotification...');
+          const notifResult = await shopNotificationService.createNotification(adminId, {
+            title: announcementData.title,
+            content: announcementData.content,
+            notificationType: 'announcement',
+            priority: announcementData.isImportant ? 'high' : 'normal',
+            sendPush: true,
+            sendInApp: true,
+          });
+          console.log('🔔 [DEBUG] Shop notification result:', notifResult);
+          logger.info('Shop notification created for announcement', { announcementId: data.id });
+        } catch (shopNotifError) {
+          // Log but don't fail - announcement was still created
+          console.log('🔔 [DEBUG] Shop notification ERROR:', shopNotifError);
+          logger.error('Failed to create shop notification for announcement', {
+            error: shopNotifError instanceof Error ? shopNotifError.message : 'Unknown error',
+            announcementId: data.id
+          });
+        }
+        console.log('🔔 [DEBUG] After shop notification block');
+      }
 
       return { announcement: data };
     } catch (error) {

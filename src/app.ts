@@ -394,6 +394,13 @@ app.use('/api/admin/auth', adminAuthRoutes);
 // Shop owner authentication - Auth routes don't need authentication middleware
 app.use('/api/shop-owner/auth', shopOwnerAuthRoutes);
 
+// Shop owner specific routes - MUST come BEFORE general /api/shop-owner route
+// to ensure they are matched first
+app.use('/api/shop-owner/notifications', shopOwnerNotificationRoutes);
+app.use('/api/shop-owner/feed-templates', feedTemplateRoutes);
+app.use('/api/shop-owner/staff', shopStaffRoutes);
+app.use('/api/shop-owner/reservations', staffAssignmentRouter);
+
 // Apply authentication to all other admin routes (supports both Supabase and JWT tokens)
 app.use('/api/admin/*', authenticateJWT(), requireAdmin());
 
@@ -469,10 +476,8 @@ app.use('/api/shop-entry-requests', shopEntryRequestRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/feed', feedRoutes);
 app.use('/api/user/feed', userFeedRoutes);
-app.use('/api/shop-owner/feed-templates', feedTemplateRoutes);
-app.use('/api/shop-owner/notifications', shopOwnerNotificationRoutes);
-app.use('/api/shop-owner/staff', shopStaffRoutes);
-app.use('/api/shop-owner/reservations', staffAssignmentRouter);
+// NOTE: These shop-owner specific routes are now registered earlier in the file
+// before the general /api/shop-owner route to ensure proper route matching
 
 // General /api routes (order matters less since paths are unique)
 app.use('/api', favoritesRoutes);

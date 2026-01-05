@@ -12,7 +12,7 @@ const router = Router();
 
 // All routes require authentication and shop owner status
 router.use(authenticateJWT());
-router.use(requireShopOwnerWithShop);
+router.use(...requireShopOwnerWithShop());
 
 /**
  * GET /api/shop-owner/notifications
