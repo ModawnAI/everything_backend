@@ -223,22 +223,23 @@ export class AdminPaymentService {
       const offset = (page - 1) * limit;
 
       // Build base query with all related information
+      // Note: payments links to users through reservations, not directly
       let query = this.supabase
         .from('payments')
         .select(`
           *,
-          customer:users(
-            id,
-            name,
-            email,
-            phone_number
-          ),
           reservation:reservations(
             id,
             reservation_date,
             reservation_time,
             status,
             total_amount,
+            user:users(
+              id,
+              name,
+              email,
+              phone_number
+            ),
             shop:shops(
               id,
               name,
@@ -301,30 +302,67 @@ export class AdminPaymentService {
       }
 
       // Convert camelCase sortBy to snake_case for database column names
+      // Also validate that sortBy is a valid column to prevent SQL errors
+      console.log('[AdminPaymentService] sortBy input:', sortBy, 'type:', typeof sortBy);
       const sortByMapping: Record<string, string> = {
         'createdAt': 'created_at',
         'paidAt': 'paid_at',
+        'created_at': 'created_at',
+        'paid_at': 'paid_at',
+        'amount': 'amount',
+        'customer_name': 'created_at', // Fall back to created_at for customer_name sort
+        'shop_name': 'created_at', // Fall back to created_at for shop_name sort
       };
-      const sortByColumn = sortByMapping[sortBy] || sortBy;
+
+      // Validate sortBy against known columns, default to 'created_at' if invalid
+      const validSortColumns = ['created_at', 'paid_at', 'amount', 'updated_at'];
+      let sortByColumn = sortByMapping[sortBy] || sortBy;
+
+      // If sortByColumn is not a valid database column, default to 'created_at'
+      if (!validSortColumns.includes(sortByColumn)) {
+        console.warn(`[AdminPaymentService] Invalid sortBy value '${sortBy}' (mapped to '${sortByColumn}'), defaulting to 'created_at'`);
+        sortByColumn = 'created_at';
+      }
+      console.log('[AdminPaymentService] sortByColumn after mapping:', sortByColumn);
 
       // Apply sorting and pagination, then get data with count
+      console.log('[AdminPaymentService] Executing query with:', {
+        sortByColumn,
+        sortOrder,
+        offset,
+        limit,
+        filters: { status, paymentMethod, startDate, endDate }
+      });
+
       const { data: payments, error: paymentsError, count } = await query
         .order(sortByColumn, { ascending: sortOrder === 'asc' })
         .range(offset, offset + limit - 1);
 
+      console.log('[AdminPaymentService] Query result:', {
+        paymentsCount: payments?.length,
+        error: paymentsError,
+        count
+      });
+
       if (paymentsError) {
+        console.error('[AdminPaymentService] Query error details:', paymentsError);
         throw new Error(`Failed to get payments: ${paymentsError.message}`);
       }
 
       // Process and enrich payment data
-      const enrichedPayments = (payments || []).map(payment => {
-        const now = new Date();
-        const paidDate = payment.paid_at ? new Date(payment.paid_at) : null;
-        const daysSincePayment = paidDate ? Math.floor((now.getTime() - paidDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+      console.log('[AdminPaymentService] Processing', payments?.length || 0, 'payments');
 
-        const netAmount = payment.amount - payment.refund_amount;
-        const refundPercentage = payment.amount > 0 ? (payment.refund_amount / payment.amount) * 100 : 0;
-        const isRefundable = payment.payment_status === 'fully_paid' && payment.refund_amount < payment.amount;
+      const enrichedPayments = (payments || []).map((payment, index) => {
+        try {
+          const now = new Date();
+          const paidDate = payment.paid_at ? new Date(payment.paid_at) : null;
+          const daysSincePayment = paidDate ? Math.floor((now.getTime() - paidDate.getTime()) / (1000 * 60 * 60 * 24)) : 0;
+
+          const refundAmount = payment.refund_amount || 0;
+          const amount = payment.amount || 0;
+          const netAmount = amount - refundAmount;
+          const refundPercentage = amount > 0 ? (refundAmount / amount) * 100 : 0;
+          const isRefundable = payment.payment_status === 'fully_paid' && refundAmount < amount;
 
         return {
           id: payment.id,
@@ -332,23 +370,23 @@ export class AdminPaymentService {
           userId: payment.user_id,
           paymentMethod: payment.payment_method,
           paymentStatus: payment.payment_status,
-          amount: payment.amount,
+          amount: amount,
           currency: payment.currency,
           paymentProvider: payment.payment_provider,
           providerTransactionId: payment.provider_transaction_id,
           isDeposit: payment.is_deposit,
           paidAt: payment.paid_at,
           refundedAt: payment.refunded_at,
-          refundAmount: payment.refund_amount,
+          refundAmount: refundAmount,
           failureReason: payment.failure_reason,
           createdAt: payment.created_at,
           updatedAt: payment.updated_at,
-          // Customer information
-          customer: payment.customer ? {
-            id: payment.customer.id,
-            name: payment.customer.name,
-            email: payment.customer.email,
-            phoneNumber: payment.customer.phone_number
+          // Customer information (accessed through reservation)
+          customer: payment.reservation?.user ? {
+            id: payment.reservation.user.id,
+            name: payment.reservation.user.name,
+            email: payment.reservation.user.email,
+            phoneNumber: payment.reservation.user.phone_number
           } : undefined,
           // Shop information (nested under reservation)
           shop: payment.reservation?.shop ? {
@@ -371,6 +409,10 @@ export class AdminPaymentService {
           isRefundable,
           daysSincePayment
         };
+        } catch (mapError) {
+          console.error(`[AdminPaymentService] Error mapping payment at index ${index}:`, mapError, payment);
+          throw mapError;
+        }
       });
 
       const totalPages = Math.ceil((count || 0) / limit);
