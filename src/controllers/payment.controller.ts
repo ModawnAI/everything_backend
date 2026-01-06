@@ -1134,6 +1134,12 @@ export class PaymentController {
    * Get user's payment history
    */
   async getUserPaymentHistory(req: AuthenticatedRequest, res: Response): Promise<void> {
+    const startTime = Date.now();
+    logger.info('[getUserPaymentHistory] 📥 Request started', {
+      userId: req.params.userId,
+      query: req.query
+    });
+
     try {
       const { userId } = req.params;
       const authenticatedUserId = req.user?.id;
@@ -1194,11 +1200,17 @@ export class PaymentController {
 
       const { data: payments, error: paymentsError, count } = await query;
 
+      logger.info('[getUserPaymentHistory] 📊 Query completed', {
+        duration: Date.now() - startTime,
+        paymentCount: payments?.length || 0,
+        totalCount: count
+      });
+
       if (paymentsError) {
         throw paymentsError;
       }
 
-      res.status(200).json({
+      const responseData = {
         success: true,
         data: {
           payments: payments?.map(payment => ({
@@ -1235,7 +1247,14 @@ export class PaymentController {
             totalPages: Math.ceil((count || 0) / Number(limit))
           }
         }
+      };
+
+      logger.info('[getUserPaymentHistory] 📤 Sending response', {
+        totalDuration: Date.now() - startTime,
+        paymentCount: responseData.data.payments.length
       });
+
+      res.status(200).json(responseData);
 
     } catch (error) {
       logger.error('Error in getUserPaymentHistory:', {

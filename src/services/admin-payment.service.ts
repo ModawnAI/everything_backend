@@ -13,7 +13,7 @@ export interface PaymentFilters {
   maxAmount?: number;
   isDeposit?: boolean;
   hasRefund?: boolean;
-  sortBy?: 'paid_at' | 'created_at' | 'amount' | 'customer_name' | 'shop_name';
+  sortBy?: 'paid_at' | 'created_at' | 'amount' | 'customer_name' | 'shop_name' | 'createdAt' | 'paidAt';
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
@@ -227,13 +227,13 @@ export class AdminPaymentService {
         .from('payments')
         .select(`
           *,
-          customer:users!payments_user_id_fkey(
+          customer:users(
             id,
             name,
             email,
             phone_number
           ),
-          reservation:reservations!payments_reservation_id_fkey(
+          reservation:reservations(
             id,
             reservation_date,
             reservation_time,
@@ -300,20 +300,20 @@ export class AdminPaymentService {
         }
       }
 
-      // Get total count first
-      const { count, error: countError } = await query;
+      // Convert camelCase sortBy to snake_case for database column names
+      const sortByMapping: Record<string, string> = {
+        'createdAt': 'created_at',
+        'paidAt': 'paid_at',
+      };
+      const sortByColumn = sortByMapping[sortBy] || sortBy;
 
-      if (countError) {
-        throw new Error(`Failed to get payment count: ${countError.message}`);
-      }
-
-      // Apply sorting and pagination
-      const { data: payments, error } = await query
-        .order(sortBy, { ascending: sortOrder === 'asc' })
+      // Apply sorting and pagination, then get data with count
+      const { data: payments, error: paymentsError, count } = await query
+        .order(sortByColumn, { ascending: sortOrder === 'asc' })
         .range(offset, offset + limit - 1);
 
-      if (error) {
-        throw new Error(`Failed to get payments: ${error.message}`);
+      if (paymentsError) {
+        throw new Error(`Failed to get payments: ${paymentsError.message}`);
       }
 
       // Process and enrich payment data
@@ -449,24 +449,26 @@ export class AdminPaymentService {
         return acc;
       }, {} as Record<PaymentMethod, number>);
 
-      // Get payments by shop
+      // Get payments by shop (through reservations)
       const { data: shopData } = await this.supabase
         .from('payments')
         .select(`
           amount,
           refund_amount,
-          shop:shops!reservations_shop_id_fkey(
-            id,
-            name
+          reservation:reservations(
+            shop:shops(
+              id,
+              name
+            )
           )
         `)
         .gte('created_at', startDate)
         .lte('created_at', endDate);
 
       const shopStats = (shopData || []).reduce((acc, payment) => {
-        const shopId = (payment.shop as any)?.id || 'unknown';
+        const shopId = (payment.reservation as any)?.shop?.id || 'unknown';
         if (!acc[shopId]) {
-          acc[shopId] = { count: 0, amount: 0, refunds: 0, name: (payment.shop as any)?.name || 'Unknown' };
+          acc[shopId] = { count: 0, amount: 0, refunds: 0, name: (payment.reservation as any)?.shop?.name || 'Unknown' };
         }
         acc[shopId].count += 1;
         acc[shopId].amount += payment.amount;
@@ -566,7 +568,7 @@ export class AdminPaymentService {
           id,
           total_amount,
           completed_at,
-          shop:shops!reservations_shop_id_fkey(
+          shop:shops(
             id,
             name,
             shop_type,
@@ -574,7 +576,6 @@ export class AdminPaymentService {
           )
         `)
         .eq('status', 'completed')
-        .eq('shop.shop_type', 'partnered')
         .gte('completed_at', startDate)
         .lte('completed_at', endDate)
         .not('completed_at', 'is', null);
@@ -758,7 +759,7 @@ export class AdminPaymentService {
       const startDate = dateRange?.startDate || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
       const endDate = dateRange?.endDate || new Date().toISOString().split('T')[0];
 
-      // Get all payment data for analytics
+      // Get all payment data for analytics (through reservations)
       const { data: paymentData } = await this.supabase
         .from('payments')
         .select(`
@@ -767,9 +768,11 @@ export class AdminPaymentService {
           payment_status,
           payment_method,
           paid_at,
-          shop:shops!reservations_shop_id_fkey(
-            id,
-            name
+          reservation:reservations(
+            shop:shops(
+              id,
+              name
+            )
           )
         `)
         .gte('created_at', startDate)
@@ -820,13 +823,13 @@ export class AdminPaymentService {
         monthly: [] // Would need more complex aggregation
       };
 
-      // Top performing shops
+      // Top performing shops (through reservations)
       const shopPerformance = (paymentData || []).reduce((acc, payment) => {
-        const shopId = (payment.shop as any)?.id || 'unknown';
+        const shopId = (payment.reservation as any)?.shop?.id || 'unknown';
         if (!acc[shopId]) {
           acc[shopId] = {
             shopId,
-            shopName: (payment.shop as any)?.name || 'Unknown',
+            shopName: (payment.reservation as any)?.shop?.name || 'Unknown',
             revenue: 0,
             transactions: 0
           };

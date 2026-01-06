@@ -53,7 +53,7 @@ const logFormat = winston.format.combine(
 
 // Create logger instance
 export const logger = winston.createLogger({
-  level: config.server.isDevelopment ? 'silent' : config.logging.level,
+  level: config.server.isDevelopment ? 'debug' : config.logging.level,
   format: logFormat,
   defaultMeta: {
     service: 'ebeautything-backend',

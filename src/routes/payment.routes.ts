@@ -109,7 +109,7 @@ const paymentController = new PaymentController();
  */
 router.post(
   '/portone/prepare',
-  authenticateJWT,
+  authenticateJWT(),
   paymentRateLimit(),
   paymentController.preparePayment.bind(paymentController)
 );
@@ -179,7 +179,7 @@ router.post(
  */
 router.post(
   '/portone/confirm',
-  authenticateJWT,
+  authenticateJWT(),
   paymentRateLimit(),
   paymentController.confirmPayment.bind(paymentController)
 );
@@ -192,7 +192,7 @@ router.post(
 // Prepare deposit payment (20-30% of total amount)
 router.post(
   '/deposit/prepare',
-  authenticateJWT,
+  authenticateJWT(),
   paymentRateLimit(),
   paymentController.prepareDepositPayment.bind(paymentController)
 );
@@ -201,7 +201,7 @@ router.post(
 // Prepare final payment (remaining amount after service completion)
 router.post(
   '/final/prepare',
-  authenticateJWT,
+  authenticateJWT(),
   paymentRateLimit(),
   paymentController.prepareFinalPayment.bind(paymentController)
 );
@@ -210,7 +210,7 @@ router.post(
 // Get comprehensive payment status for a reservation
 router.get(
   '/status/:reservationId',
-  authenticateJWT,
+  authenticateJWT(),
   paymentRateLimit(),
   paymentController.getPaymentStatus.bind(paymentController)
 );
@@ -258,15 +258,52 @@ router.post(
 
 /**
  * @swagger
+ * /api/payments/user/{userId}:
+ *   get:
+ *     summary: user payment history 조회
+ *     description: Retrieve payment history for a specific user
+ *
+ *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
+ *
+ *       ---
+ *
+ *     tags: [결제]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: userId
+ *         required: true
+ *         schema:
+ *           type: string
+ *           format: uuid
+ *         description: User UUID
+ *     responses:
+ *       200:
+ *         description: Payment history retrieved successfully
+ *       401:
+ *         description: Authentication required
+ *       403:
+ *         description: Access denied
+ */
+router.get(
+  '/user/:userId',
+  authenticateJWT(),
+  paymentRateLimit(),
+  paymentController.getUserPaymentHistory.bind(paymentController)
+);
+
+/**
+ * @swagger
  * /api/payments/{paymentId}:
  *   get:
  *     summary: payment details 조회
  *     description: Retrieve detailed information about a specific payment
- *       
+ *
  *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
- *       
+ *
  *       ---
- *       
+ *
  *     tags: [결제]
  *     security:
  *       - bearerAuth: []
@@ -318,46 +355,9 @@ router.post(
  */
 router.get(
   '/:paymentId',
-  authenticateJWT,
+  authenticateJWT(),
   paymentRateLimit(),
   paymentController.getPaymentDetails.bind(paymentController)
-);
-
-/**
- * @swagger
- * /api/payments/user/{userId}:
- *   get:
- *     summary: user payment history 조회
- *     description: Retrieve payment history for a specific user
- *       
- *       결제 관련 API입니다. 결제 처리와 관리 기능을 제공합니다.
- *       
- *       ---
- *       
- *     tags: [결제]
- *     security:
- *       - bearerAuth: []
- *     parameters:
- *       - in: path
- *         name: userId
- *         required: true
- *         schema:
- *           type: string
- *           format: uuid
- *         description: User UUID
- *     responses:
- *       200:
- *         description: Payment history retrieved successfully
- *       401:
- *         description: Authentication required
- *       403:
- *         description: Access denied
- */
-router.get(
-  '/user/:userId',
-  authenticateJWT,
-  paymentRateLimit(),
-  paymentController.getUserPaymentHistory.bind(paymentController)
 );
 
 /**
@@ -505,7 +505,7 @@ router.get(
  */
 router.post(
   '/billing-key',
-  authenticateJWT,
+  authenticateJWT(),
   paymentRateLimit(),
   paymentController.payWithBillingKey.bind(paymentController)
 );
