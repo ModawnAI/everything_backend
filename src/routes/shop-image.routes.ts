@@ -154,6 +154,7 @@ const primaryRateLimit = rateLimit({
  *         description: Authentication required
  */
 router.post('/:shopId/images',
+  authenticateJWT(),
   ...enhancedImageUploadSecurity(),
   upload.single('image'),
   (req: any, res: any, next: any) => {
@@ -264,6 +265,7 @@ router.get('/:shopId/images',
  */
 
 router.delete('/:shopId/images/:imageId',
+  authenticateJWT(),
   ...enhancedImageDeleteSecurity(),
   shopImageController.deleteShopImage
 );
@@ -298,6 +300,7 @@ router.delete('/:shopId/images/:imageId',
  */
 
 router.put('/:shopId/images/:imageId',
+  authenticateJWT(),
   ...enhancedImageUpdateSecurity(),
   validateRequestBody(updateShopImageSchema),
   shopImageController.updateShopImage
@@ -333,6 +336,7 @@ router.put('/:shopId/images/:imageId',
  */
 
 router.post('/:shopId/images/:imageId/set-primary',
+  authenticateJWT(),
   ...enhancedImageUpdateSecurity(),
   shopImageController.setPrimaryImage
 );

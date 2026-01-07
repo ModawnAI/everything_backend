@@ -173,11 +173,20 @@ export function validateImageRequestSize(maxSize: number = 10 * 1024 * 1024) {
 
 /**
  * File type validation middleware
+ * Note: For multipart/form-data uploads, this middleware allows the request through.
+ * Actual file type validation happens in multer and the route handler after file parsing.
  */
 export function validateImageFileType(allowedTypes: string[] = ['image/jpeg', 'image/png', 'image/webp']) {
   return (req: Request, res: Response, next: NextFunction): void => {
-    const contentType = req.get('Content-Type');
-    
+    const contentType = req.get('Content-Type') || '';
+
+    // multipart/form-data 요청은 통과시킴 (파일 타입은 multer에서 검증)
+    if (contentType.startsWith('multipart/form-data')) {
+      next();
+      return;
+    }
+
+    // 직접 이미지 전송의 경우 Content-Type 검증
     if (contentType && !allowedTypes.includes(contentType)) {
       res.status(400).json({
         success: false,

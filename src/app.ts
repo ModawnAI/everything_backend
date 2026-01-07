@@ -424,7 +424,7 @@ app.use('/api/service-catalog', serviceCatalogRoutes);
 app.use('/api/shops/search', shopSearchRoutes);
 app.use('/api/search', searchRoutes); // General search (suggestions, autocomplete)
 app.use('/api/shops', shopRoutes);
-app.use('/api/shops/images', shopImageRoutes);
+app.use('/api/shops', shopImageRoutes); // /:shopId/images routes
 app.use('/api/shop/register', shopRegistrationRoutes);
 app.use('/api/shop/profile', shopProfileRoutes);
 app.use('/api/shop/info', shopProfileRoutes); // Alias for /api/shop/profile
