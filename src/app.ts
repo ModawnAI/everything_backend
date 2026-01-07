@@ -134,7 +134,7 @@ const PORT = config.server.port;
 // CORS Configuration - Must be before other middleware
 const corsOrigins = process.env.CORS_ORIGIN
   ? process.env.CORS_ORIGIN.split(',').map(origin => origin.trim())
-  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:4003', 'http://localhost:5173'];
+  : ['http://localhost:3000', 'http://localhost:3001', 'http://localhost:3003', 'http://localhost:3004', 'http://localhost:4003', 'http://localhost:5003', 'http://localhost:5004', 'http://localhost:5173'];
 
 app.use(cors({
   origin: (origin, callback) => {
@@ -399,7 +399,9 @@ app.use('/api/shop-owner/auth', shopOwnerAuthRoutes);
 app.use('/api/shop-owner/notifications', shopOwnerNotificationRoutes);
 app.use('/api/shop-owner/feed-templates', feedTemplateRoutes);
 app.use('/api/shop-owner/staff', shopStaffRoutes);
-app.use('/api/shop-owner/reservations', staffAssignmentRouter);
+// FIXME: staffAssignmentRouter가 /api/shop-owner/reservations와 충돌하여 GET 요청이 타임아웃됨
+// 해당 기능(assign-staff)은 shopOwnerRoutes에 통합 필요
+// app.use('/api/shop-owner/reservations', staffAssignmentRouter);
 
 // Apply authentication to all other admin routes (supports both Supabase and JWT tokens)
 app.use('/api/admin/*', authenticateJWT(), requireAdmin());
