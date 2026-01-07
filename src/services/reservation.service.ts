@@ -1229,7 +1229,27 @@ export class ReservationService {
               special_requests,
               booking_preferences,
               created_at,
-              updated_at
+              updated_at,
+              shop:shops!reservations_shop_id_fkey(
+                id,
+                name,
+                address,
+                phone_number
+              ),
+              services:reservation_services(
+                id,
+                quantity,
+                unit_price,
+                total_price,
+                service:shop_services(
+                  id,
+                  name,
+                  category,
+                  price_min,
+                  price_max,
+                  duration_minutes
+                )
+              )
             `, { count: 'planned' })
             .eq('user_id', userId);
 
@@ -1315,7 +1335,29 @@ export class ReservationService {
             specialRequests: reservation.special_requests,
             bookingPreferences: reservation.booking_preferences,
             createdAt: reservation.created_at,
-            updatedAt: reservation.updated_at
+            updatedAt: reservation.updated_at,
+            // Include shop information
+            shop: reservation.shop ? {
+              id: reservation.shop.id,
+              name: reservation.shop.name,
+              address: reservation.shop.address,
+              phone: reservation.shop.phone_number
+            } : undefined,
+            // Include services information
+            services: (reservation.services || []).map((rs: any) => ({
+              id: rs.id,
+              quantity: rs.quantity,
+              unitPrice: rs.unit_price,
+              totalPrice: rs.total_price,
+              service: rs.service ? {
+                id: rs.service.id,
+                name: rs.service.name,
+                category: rs.service.category,
+                priceMin: rs.service.price_min,
+                priceMax: rs.service.price_max,
+                durationMinutes: rs.service.duration_minutes
+              } : undefined
+            }))
           })) || [];
 
           return {
