@@ -1296,6 +1296,8 @@ export class ReservationService {
             range: `${offset} to ${offset + limit - 1}`
           });
 
+          // Sort by reservation_date descending (upcoming first)
+          query = query.order('reservation_date', { ascending: false });
           query = query.range(offset, offset + limit - 1);
 
           console.log('[SERVICE-DEBUG-1] Executing Supabase query...');
