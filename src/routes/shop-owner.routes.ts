@@ -1163,7 +1163,7 @@ router.get('/payments',
 router.get(
   '/settlement-schedule',
   shopOwnerRateLimit,
-  requireShopOwnerWithShop,
+  ...requireShopOwnerWithShop(),
   async (req: any, res: any) => {
     try {
       await shopOwnerController.getSettlementSchedule(req, res);

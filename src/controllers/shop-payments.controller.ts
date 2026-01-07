@@ -74,21 +74,22 @@ export class ShopPaymentsController {
 
       // Get payments from database - join through reservations to filter by shop_id
       // Note: payments table doesn't have shop_id, must join through reservations
+      // Also: users must be accessed through reservations (payments -> reservations -> users)
       let query = supabase
         .from('payments')
         .select(`
           *,
-          users:user_id (
-            id,
-            name,
-            email
-          ),
           reservations:reservation_id!inner (
             id,
             reservation_date,
             reservation_time,
             status,
             shop_id,
+            user:users (
+              id,
+              name,
+              email
+            ),
             shops (
               id,
               name
@@ -254,16 +255,11 @@ export class ShopPaymentsController {
 
       // Get payment - join through reservations to filter by shop_id
       // Note: payments table doesn't have shop_id, must join through reservations
+      // Also: users must be accessed through reservations (payments -> reservations -> users)
       const { data: payment, error } = await supabase
         .from('payments')
         .select(`
           *,
-          users:user_id (
-            id,
-            name,
-            email,
-            phone
-          ),
           reservations:reservation_id!inner (
             id,
             reservation_date,
@@ -274,6 +270,12 @@ export class ShopPaymentsController {
             remaining_amount,
             special_requests,
             shop_id,
+            user:users (
+              id,
+              name,
+              email,
+              phone
+            ),
             shops (
               id,
               name,
