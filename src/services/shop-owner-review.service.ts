@@ -59,7 +59,7 @@ class ShopOwnerReviewServiceImpl {
           created_at,
           users:user_id (
             nickname,
-            profile_image
+            profile_image_url
           ),
           review_replies (
             id,
@@ -107,8 +107,27 @@ class ShopOwnerReviewServiceImpl {
 
       const { data, error, count } = await query;
 
+      // Debug logging
+      console.log('🔍 [SERVICE] Shop reviews query result', {
+        shopId,
+        status,
+        dataCount: data?.length || 0,
+        totalCount: count,
+        hasError: !!error,
+        errorMessage: error?.message,
+        errorDetails: error?.details,
+        errorHint: error?.hint,
+        errorCode: error?.code
+      });
+
       if (error) {
-        logger.error('Failed to fetch shop reviews', { error: error.message, shopId });
+        logger.error('Failed to fetch shop reviews', {
+          error: error.message,
+          shopId,
+          errorDetails: error.details,
+          errorHint: error.hint,
+          errorCode: error.code
+        });
         throw new ShopOwnerReviewServiceError(
           `Failed to fetch reviews: ${error.message}`,
           'FETCH_REVIEWS_FAILED',
@@ -120,7 +139,7 @@ class ShopOwnerReviewServiceImpl {
         id: review.id,
         userId: review.user_id,
         userName: review.users?.nickname || 'Unknown',
-        userProfileImage: review.users?.profile_image,
+        userProfileImage: review.users?.profile_image_url,
         rating: review.rating,
         content: review.content,
         images: review.images,

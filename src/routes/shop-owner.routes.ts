@@ -1206,11 +1206,19 @@ router.get('/reviews',
   ...requireShopOwnerWithShop(),
   shopOwnerRateLimit,
   async (req, res) => {
+    console.log('🔍 [ROUTE] /reviews handler entered', {
+      shop: (req as any).shop,
+      user: (req as any).user?.id,
+      query: req.query
+    });
     try {
+      console.log('🔍 [ROUTE] Calling controller...');
       await shopOwnerReviewController.getReviews(req as any, res);
+      console.log('🔍 [ROUTE] Controller returned');
     } catch (error) {
-      logger.error('Error in reviews route', {
+      console.error('❌ [ROUTE] Error in reviews route', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
         query: req.query
       });
 
