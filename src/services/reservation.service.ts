@@ -1338,12 +1338,12 @@ export class ReservationService {
             bookingPreferences: reservation.booking_preferences,
             createdAt: reservation.created_at,
             updatedAt: reservation.updated_at,
-            // Include shop information
+            // Include shop information (Supabase returns single FK relation as object or array)
             shop: reservation.shop ? {
-              id: reservation.shop.id,
-              name: reservation.shop.name,
-              address: reservation.shop.address,
-              phone: reservation.shop.phone_number
+              id: (reservation.shop as any).id ?? (reservation.shop as any)?.[0]?.id,
+              name: (reservation.shop as any).name ?? (reservation.shop as any)?.[0]?.name,
+              address: (reservation.shop as any).address ?? (reservation.shop as any)?.[0]?.address,
+              phone: (reservation.shop as any).phone_number ?? (reservation.shop as any)?.[0]?.phone_number
             } : undefined,
             // Include services information
             services: (reservation.services || []).map((rs: any) => ({
