@@ -304,7 +304,7 @@ export class FavoritesService {
   async toggleFavorite(userId: string, shopId: string): Promise<FavoriteShopResponse> {
     try {
       // Check current status
-      const { data: existingFavorite, error: checkError } = await this.supabase
+      const { data: existingFavorite } = await this.supabase
         .from('user_favorites')
         .select('id')
         .eq('user_id', userId)

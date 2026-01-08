@@ -158,35 +158,16 @@ export class FavoritesController {
     try {
       const { shopId } = req.params;
       const userId = req.user.id;
-      const startTime = Date.now();
 
       if (!shopId) {
         throw new ValidationError('Shop ID is required');
       }
-
-      logger.info(`[FAVORITE-DEBUG] 🔄 Toggle favorite started`, {
-        userId,
-        shopId,
-        timestamp: new Date().toISOString()
-      });
 
       const result = await favoritesService.toggleFavorite(userId, shopId);
 
       if (!result.success) {
         throw new BusinessLogicError(result.message);
       }
-
-      const duration = Date.now() - startTime;
-
-      logger.info(`[FAVORITE-DEBUG] ✅ Toggle favorite completed`, {
-        userId,
-        shopId,
-        action: result.isFavorite ? 'ADD' : 'REMOVE',
-        isFavorite: result.isFavorite,
-        favoriteId: result.favoriteId,
-        duration: `${duration}ms`,
-        timestamp: new Date().toISOString()
-      });
 
       res.status(200).json({
         success: true,
