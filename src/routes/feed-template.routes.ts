@@ -68,7 +68,7 @@ async function getShopIdForOwner(userId: string): Promise<string | null> {
  *         description: Not a shop owner
  */
 router.get('/',
-  authenticateJWT,
+  authenticateJWT(),
   templateLimiter,
   async (req: Request, res: Response) => {
     try {
@@ -132,7 +132,7 @@ router.get('/',
  *         description: Template not found
  */
 router.get('/:templateId',
-  authenticateJWT,
+  authenticateJWT(),
   templateLimiter,
   async (req: Request, res: Response) => {
     try {
@@ -208,7 +208,7 @@ router.get('/:templateId',
  *         description: Authentication required
  */
 router.post('/',
-  authenticateJWT,
+  authenticateJWT(),
   templateLimiter,
   async (req: Request, res: Response) => {
     try {
@@ -290,7 +290,7 @@ router.post('/',
  *         description: Template not found
  */
 router.put('/:templateId',
-  authenticateJWT,
+  authenticateJWT(),
   templateLimiter,
   async (req: Request, res: Response) => {
     try {
@@ -362,7 +362,7 @@ router.put('/:templateId',
  *         description: Template not found
  */
 router.delete('/:templateId',
-  authenticateJWT,
+  authenticateJWT(),
   templateLimiter,
   async (req: Request, res: Response) => {
     try {
@@ -417,7 +417,7 @@ router.delete('/:templateId',
  *         description: Authentication required
  */
 router.get('/default/template',
-  authenticateJWT,
+  authenticateJWT(),
   templateLimiter,
   async (req: Request, res: Response) => {
     try {
@@ -478,7 +478,7 @@ router.get('/default/template',
  *         description: Invalid category
  */
 router.get('/category/:category',
-  authenticateJWT,
+  authenticateJWT(),
   templateLimiter,
   async (req: Request, res: Response) => {
     try {
