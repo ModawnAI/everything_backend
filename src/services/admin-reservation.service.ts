@@ -21,6 +21,7 @@ export interface ReservationFilters {
 export interface ReservationListResponse {
   reservations: Array<{
     id: string;
+    userId: string;
     reservationDate: string;
     reservationTime: string;
     reservationDatetime: string;
@@ -318,6 +319,7 @@ export class AdminReservationService {
 
         return {
           id: reservation.id,
+          userId: reservation.user_id,
           reservationDate: reservation.reservation_date,
           reservationTime: reservation.reservation_time,
           reservationDatetime: reservation.reservation_datetime,
