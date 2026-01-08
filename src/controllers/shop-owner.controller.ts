@@ -132,10 +132,22 @@ export class ShopOwnerController {
         logger.error('Failed to get monthly revenue', { error: revenueError.message });
       }
 
-      // Get pending reservations
+      // Get pending reservations with user information
       const { data: pendingReservations, error: pendingError } = await this.supabase
         .from('reservations')
-        .select('*')
+        .select(`
+          *,
+          users!inner(
+            id,
+            name,
+            nickname,
+            email,
+            phone_number
+          ),
+          reservation_services(
+            shop_services!inner(name)
+          )
+        `)
         .in('shop_id', shopIds)
         .eq('status', 'requested')
         .order('created_at', { ascending: false })
