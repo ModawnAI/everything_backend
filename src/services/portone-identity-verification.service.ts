@@ -241,10 +241,12 @@ class PortOneIdentityVerificationService {
 
       // If userId exists (from record or passed in), update user phone verification
       const effectiveUserId = record?.user_id || userId;
-      if (effectiveUserId && verifiedCustomer.phoneNumber) {
+      if (effectiveUserId && verifiedCustomer.ci) {
+        // ✅ Mark as verified if we have CI, even if phoneNumber is null
+        // PortOne sometimes doesn't return phoneNumber in the response
         await this.markUserPhoneAsVerified(
           effectiveUserId,
-          verifiedCustomer.phoneNumber,
+          verifiedCustomer.phoneNumber || undefined, // Allow null/undefined
           verifiedCustomer.ci,
           verifiedCustomer.di
         );
@@ -455,30 +457,43 @@ class PortOneIdentityVerificationService {
 
   /**
    * Mark user's phone as verified
+   * ✅ CI-based verification - phoneNumber is optional (PortOne may not return it)
    */
   private async markUserPhoneAsVerified(
     userId: string,
-    phoneNumber: string,
+    phoneNumber: string | undefined,
     ci: string,
     di?: string
   ): Promise<void> {
-    const normalizedPhone = phoneNumber.replace(/[-.\s]/g, '');
+    const normalizedPhone = phoneNumber ? phoneNumber.replace(/[-.\s]/g, '') : undefined;
 
-    // Update users table
+    // Update users table - always set phone_verified to true if we have CI
+    const updateData: any = {
+      phone_verified: true,
+      updated_at: new Date().toISOString()
+    };
+
+    // Only update phone_number if we have it from PortOne
+    if (normalizedPhone) {
+      updateData.phone_number = normalizedPhone;
+    }
+
     const { error: userError } = await this.supabase
       .from('users')
-      .update({
-        phone_verified: true,
-        phone_number: normalizedPhone,
-        updated_at: new Date().toISOString()
-      })
+      .update(updateData)
       .eq('id', userId);
 
     if (userError) {
       logger.error('Failed to mark user phone as verified', {
         userId,
-        phoneNumber: normalizedPhone,
+        phoneNumber: normalizedPhone || 'not provided',
         error: userError.message
+      });
+    } else {
+      logger.info('User phone marked as verified', {
+        userId,
+        phoneNumber: normalizedPhone || 'not provided',
+        hasPhoneNumber: !!normalizedPhone
       });
     }
 
@@ -489,7 +504,11 @@ class PortOneIdentityVerificationService {
         .upsert({
           user_id: userId,
           verification_type: 'portone_identity',
-          verification_data: { ci, di, phone_number: normalizedPhone },
+          verification_data: {
+            ci,
+            di,
+            phone_number: normalizedPhone || null
+          },
           verified_at: new Date().toISOString(),
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
