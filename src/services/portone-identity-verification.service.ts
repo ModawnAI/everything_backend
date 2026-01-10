@@ -241,7 +241,26 @@ class PortOneIdentityVerificationService {
 
       // If userId exists (from record or passed in), update user phone verification
       const effectiveUserId = record?.user_id || userId;
+
+      logger.info('[DEBUG] Checking user phone verification update conditions', {
+        identityVerificationId,
+        recordUserId: record?.user_id,
+        passedUserId: userId,
+        effectiveUserId,
+        hasCI: !!verifiedCustomer.ci,
+        ci: verifiedCustomer.ci,
+        phoneNumber: verifiedCustomer.phoneNumber,
+        willUpdatePhone: !!(effectiveUserId && verifiedCustomer.ci)
+      });
+
       if (effectiveUserId && verifiedCustomer.ci) {
+        logger.info('[DEBUG] Calling markUserPhoneAsVerified', {
+          userId: effectiveUserId,
+          phoneNumber: verifiedCustomer.phoneNumber || 'null',
+          hasCi: !!verifiedCustomer.ci,
+          hasDi: !!verifiedCustomer.di
+        });
+
         // ✅ Mark as verified if we have CI, even if phoneNumber is null
         // PortOne sometimes doesn't return phoneNumber in the response
         await this.markUserPhoneAsVerified(
@@ -250,6 +269,15 @@ class PortOneIdentityVerificationService {
           verifiedCustomer.ci,
           verifiedCustomer.di
         );
+
+        logger.info('[DEBUG] markUserPhoneAsVerified completed', {
+          userId: effectiveUserId
+        });
+      } else {
+        logger.warn('[DEBUG] Skipping phone verification update - missing userId or CI', {
+          hasUserId: !!effectiveUserId,
+          hasCI: !!verifiedCustomer.ci
+        });
       }
 
       logger.info('Identity verification completed successfully', {
@@ -465,6 +493,14 @@ class PortOneIdentityVerificationService {
     ci: string,
     di?: string
   ): Promise<void> {
+    logger.info('[DEBUG] markUserPhoneAsVerified called', {
+      userId,
+      phoneNumber: phoneNumber || 'undefined',
+      hasCi: !!ci,
+      hasDi: !!di,
+      ciLength: ci?.length || 0
+    });
+
     const normalizedPhone = phoneNumber ? phoneNumber.replace(/[-.\s]/g, '') : undefined;
 
     // Update users table - always set phone_verified to true if we have CI
@@ -478,22 +514,39 @@ class PortOneIdentityVerificationService {
       updateData.phone_number = normalizedPhone;
     }
 
-    const { error: userError } = await this.supabase
+    logger.info('[DEBUG] Updating users table', {
+      userId,
+      updateData,
+      willUpdatePhoneNumber: !!normalizedPhone
+    });
+
+    const { data, error: userError } = await this.supabase
       .from('users')
       .update(updateData)
-      .eq('id', userId);
+      .eq('id', userId)
+      .select();
+
+    logger.info('[DEBUG] Users table update result', {
+      userId,
+      success: !userError,
+      error: userError?.message || null,
+      updatedRows: data?.length || 0,
+      data
+    });
 
     if (userError) {
-      logger.error('Failed to mark user phone as verified', {
+      logger.error('[ERROR] Failed to mark user phone as verified', {
         userId,
         phoneNumber: normalizedPhone || 'not provided',
-        error: userError.message
+        error: userError.message,
+        errorDetails: userError
       });
     } else {
-      logger.info('User phone marked as verified', {
+      logger.info('[SUCCESS] User phone marked as verified', {
         userId,
         phoneNumber: normalizedPhone || 'not provided',
-        hasPhoneNumber: !!normalizedPhone
+        hasPhoneNumber: !!normalizedPhone,
+        updatedData: data
       });
     }
 
