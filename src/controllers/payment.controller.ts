@@ -1254,6 +1254,11 @@ export class PaymentController {
         paymentCount: responseData.data.payments.length
       });
 
+      // 🔍 DEBUG: Log full response data
+      console.log('=============== PAYMENT HISTORY RESPONSE ===============');
+      console.log(JSON.stringify(responseData, null, 2));
+      console.log('========================================================');
+
       res.status(200).json(responseData);
 
     } catch (error) {
