@@ -708,6 +708,15 @@ export class ShopOwnerController {
           const paymentAmount = updatedReservation.total_amount - (updatedReservation.points_used || 0);
           const pointsToAward = Math.floor(paymentAmount * 0.01); // 1% reward
 
+          logger.info('[POINT-DEBUG] Checking point award conditions', {
+            reservationId,
+            totalAmount: updatedReservation.total_amount,
+            pointsUsed: updatedReservation.points_used,
+            paymentAmount,
+            pointsToAward,
+            willAwardPoints: pointsToAward > 0
+          });
+
           if (pointsToAward > 0) {
             await pointService.addPoints(
               updatedReservation.user_id,
