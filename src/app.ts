@@ -419,12 +419,24 @@ app.use('/api/admin/services', adminServiceDetailsRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
 app.use('/api/storage', storageRoutes);
+
+// IMPORTANT: Shop-scoped routes MUST come BEFORE catch-all /api/shops route
+// Shop-scoped routes (requires authentication + shop access validation)
+// Platform admins can access any shop, shop users only their own
+app.use('/api/shops/:shopId/reservations', shopReservationsRoutes);
+app.use('/api/shops/:shopId/payments', shopPaymentsRoutes);
+app.use('/api/shops/:shopId/analytics', shopAnalyticsRoutes);
+app.use('/api/shops/:shopId/users', shopUsersRoutes);
+
+// Then less specific /api/shops routes
 app.use('/api/shops/categories', shopCategoriesRoutes);
 app.use('/api/service-catalog', serviceCatalogRoutes);
 app.use('/api/shops/search', shopSearchRoutes);
 app.use('/api/search', searchRoutes); // General search (suggestions, autocomplete)
-app.use('/api/shops', shopRoutes);
+app.use('/api/shops', shopRoutes); // Catch-all AFTER specific routes
 app.use('/api/shops', shopImageRoutes); // /:shopId/images routes
+
+// Shop management routes (single shop context)
 app.use('/api/shop/register', shopRegistrationRoutes);
 app.use('/api/shop/profile', shopProfileRoutes);
 app.use('/api/shop/info', shopProfileRoutes); // Alias for /api/shop/profile
@@ -433,13 +445,6 @@ app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
 app.use('/api/shop/dashboard', shopDashboardRoutes);
 app.use('/api/shop/images', imageMetadataRoutes);
 app.use('/api/cdn', cdnRoutes);
-
-// Shop-scoped routes (requires authentication + shop access validation)
-// Platform admins can access any shop, shop users only their own
-app.use('/api/shops/:shopId/reservations', shopReservationsRoutes);
-app.use('/api/shops/:shopId/payments', shopPaymentsRoutes);
-app.use('/api/shops/:shopId/analytics', shopAnalyticsRoutes);
-app.use('/api/shops/:shopId/users', shopUsersRoutes);
 
 // IMPORTANT: Routes ordered from MOST SPECIFIC to MOST GENERAL
 // This prevents route conflicts when multiple routers share base paths
