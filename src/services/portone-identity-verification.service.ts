@@ -491,13 +491,14 @@ class PortOneIdentityVerificationService {
     ci: string,
     di?: string
   ): Promise<void> {
-    logger.info('[DEBUG] markUserPhoneAsVerified called', {
-      userId,
-      phoneNumber: phoneNumber || 'undefined',
-      hasCi: !!ci,
-      hasDi: !!di,
-      ciLength: ci?.length || 0
-    });
+    console.log('========================================');
+    console.log('[DEBUG] markUserPhoneAsVerified called');
+    console.log('userId:', userId);
+    console.log('phoneNumber:', phoneNumber || 'undefined');
+    console.log('hasCi:', !!ci);
+    console.log('hasDi:', !!di);
+    console.log('ciLength:', ci?.length || 0);
+    console.log('========================================');
 
     const normalizedPhone = phoneNumber ? phoneNumber.replace(/[-.\s]/g, '') : undefined;
 
@@ -512,11 +513,10 @@ class PortOneIdentityVerificationService {
       updateData.phone_number = normalizedPhone;
     }
 
-    logger.info('[DEBUG] Updating users table', {
-      userId,
-      updateData,
-      willUpdatePhoneNumber: !!normalizedPhone
-    });
+    console.log('[DEBUG] Updating users table');
+    console.log('userId:', userId);
+    console.log('updateData:', JSON.stringify(updateData, null, 2));
+    console.log('willUpdatePhoneNumber:', !!normalizedPhone);
 
     const { data, error: userError } = await this.supabase
       .from('users')
@@ -524,31 +524,29 @@ class PortOneIdentityVerificationService {
       .eq('id', userId)
       .select();
 
-    logger.info('[DEBUG] Users table update result', {
-      userId,
-      success: !userError,
-      error: userError?.message || null,
-      updatedRows: data?.length || 0,
-      data
-    });
+    console.log('[DEBUG] Users table update result');
+    console.log('userId:', userId);
+    console.log('success:', !userError);
+    console.log('error:', userError?.message || null);
+    console.log('updatedRows:', data?.length || 0);
+    console.log('data:', JSON.stringify(data, null, 2));
 
     if (userError) {
-      logger.error('[ERROR] Failed to mark user phone as verified', {
-        userId,
-        phoneNumber: normalizedPhone || 'not provided',
-        error: userError.message,
-        errorDetails: userError
-      });
+      console.error('[ERROR] Failed to mark user phone as verified');
+      console.error('userId:', userId);
+      console.error('phoneNumber:', normalizedPhone || 'not provided');
+      console.error('error:', userError.message);
+      console.error('errorDetails:', JSON.stringify(userError, null, 2));
     } else {
-      logger.info('[SUCCESS] User phone marked as verified', {
-        userId,
-        phoneNumber: normalizedPhone || 'not provided',
-        hasPhoneNumber: !!normalizedPhone,
-        updatedData: data
-      });
+      console.log('[SUCCESS] User phone marked as verified');
+      console.log('userId:', userId);
+      console.log('phoneNumber:', normalizedPhone || 'not provided');
+      console.log('hasPhoneNumber:', !!normalizedPhone);
+      console.log('updatedData:', JSON.stringify(data, null, 2));
     }
 
     // Store verification data in user_verifications
+    console.log('[DEBUG] Storing user verification data in user_verifications table');
     try {
       await this.supabase
         .from('user_verifications')
@@ -564,11 +562,11 @@ class PortOneIdentityVerificationService {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
+      console.log('[DEBUG] User verification data stored successfully');
     } catch (error) {
-      logger.warn('Failed to store user verification data', {
-        userId,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      console.warn('[WARN] Failed to store user verification data');
+      console.warn('userId:', userId);
+      console.warn('error:', error instanceof Error ? error.message : 'Unknown error');
     }
   }
 
