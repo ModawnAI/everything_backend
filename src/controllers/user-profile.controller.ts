@@ -74,10 +74,53 @@ export class UserProfileController {
         return;
       }
 
+      // 🔧 Transform snake_case DB fields to camelCase for frontend
+      const transformedProfile = {
+        ...profile,
+        phoneNumber: profile.phone_number,
+        phoneVerified: profile.phone_verified,
+        birthDate: profile.birth_date,
+        profileImageUrl: profile.profile_image_url,
+        userRole: profile.user_role,
+        userStatus: profile.user_status,
+        isInfluencer: profile.is_influencer,
+        influencerQualifiedAt: profile.influencer_qualified_at,
+        socialProvider: profile.social_provider,
+        socialProviderId: profile.social_provider_id,
+        referralCode: profile.referral_code,
+        referredByCode: profile.referred_by_code,
+        totalPoints: profile.total_points,
+        availablePoints: profile.available_points,
+        totalReferrals: profile.total_referrals,
+        successfulReferrals: profile.successful_referrals,
+        lastLoginAt: profile.last_login_at,
+        lastActiveAt: profile.last_active_at,
+        termsAcceptedAt: profile.terms_accepted_at,
+        privacyAcceptedAt: profile.privacy_accepted_at,
+        marketingConsent: profile.marketing_consent,
+        createdAt: profile.created_at,
+        updatedAt: profile.updated_at,
+        lastQualificationCheck: profile.last_qualification_check,
+        referralRewardsEarned: profile.referral_rewards_earned,
+        isLocked: profile.is_locked,
+        lockedAt: profile.locked_at,
+        lastLoginIp: profile.last_login_ip,
+        shopId: profile.shop_id,
+        shopName: profile.shop_name,
+        bookingPreferences: profile.booking_preferences,
+        bio: profile.bio
+      };
+
+      console.log('[DEBUG] /api/users/me response:', {
+        userId,
+        phone_verified_db: profile.phone_verified,
+        phoneVerified_response: transformedProfile.phoneVerified
+      });
+
       res.status(200).json({
         success: true,
         data: {
-          profile,
+          profile: transformedProfile,
           message: '프로필 정보를 성공적으로 조회했습니다.'
         }
       });
