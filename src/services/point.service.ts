@@ -1,18 +1,35 @@
 /**
  * Point Service
- * 
+ *
  * Handles point-related operations for the referral system
  */
 
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
+import { PointTransactionType } from '../types/database.types';
+
+// Legacy type mapping for backward compatibility
+type LegacyPointType = 'earned' | 'spent' | 'refunded' | 'bonus';
+type LegacyPointSource = 'referral' | 'purchase' | 'admin' | 'system';
+
+/**
+ * Maps legacy type+source combination to PointTransactionType
+ */
+function mapToTransactionType(type: LegacyPointType, source: LegacyPointSource): PointTransactionType {
+  if (type === 'earned' && source === 'referral') return 'earned_referral';
+  if (type === 'earned' && source === 'purchase') return 'earned_service';
+  if (type === 'spent' && source === 'purchase') return 'used_service';
+  if (type === 'bonus') return 'influencer_bonus';
+  if (type === 'refunded') return 'adjusted';
+  // Default fallback
+  return 'earned_service';
+}
 
 export interface PointTransaction {
   id: string;
   user_id: string;
   amount: number;
-  type: 'earned' | 'spent' | 'refunded' | 'bonus';
-  source: 'referral' | 'purchase' | 'admin' | 'system';
+  transaction_type: PointTransactionType;
   description: string;
   created_at: string;
   updated_at: string;
@@ -33,24 +50,34 @@ export class PointService {
    * Add points to user account
    */
   async addPoints(
-    userId: string, 
-    amount: number, 
-    type: PointTransaction['type'], 
-    source: PointTransaction['source'],
+    userId: string,
+    amount: number,
+    type: LegacyPointType,
+    source: LegacyPointSource,
     description: string
   ): Promise<PointTransaction> {
     try {
+      // Map legacy type+source to new transaction_type
+      const transaction_type = mapToTransactionType(type, source);
+
       // Create point transaction record
+      const now = new Date();
+      const availableFrom = now; // Points available immediately
+      const expiresAt = new Date(now);
+      expiresAt.setFullYear(expiresAt.getFullYear() + 1); // Expires in 1 year
+
       const { data: transaction, error } = await this.supabase
         .from('point_transactions')
         .insert({
           user_id: userId,
           amount: Math.abs(amount), // Ensure positive amount
-          type,
-          source,
+          transaction_type,
           description,
-          created_at: new Date().toISOString(),
-          updated_at: new Date().toISOString()
+          status: 'available', // Set status to 'available' so it counts in balance
+          available_from: availableFrom.toISOString(),
+          expires_at: expiresAt.toISOString(),
+          created_at: now.toISOString(),
+          updated_at: now.toISOString()
         })
         .select()
         .single();
@@ -67,6 +94,7 @@ export class PointService {
         amount,
         type,
         source,
+        transaction_type,
         transactionId: transaction.id
       });
 
@@ -87,14 +115,17 @@ export class PointService {
    * Deduct points from user account using FIFO logic
    */
   async deductPoints(
-    userId: string, 
-    amount: number, 
-    type: PointTransaction['type'], 
-    source: PointTransaction['source'],
+    userId: string,
+    amount: number,
+    type: LegacyPointType,
+    source: LegacyPointSource,
     description: string,
     reservationId?: string
   ): Promise<PointTransaction> {
     try {
+      // Map legacy type+source to new transaction_type
+      const transaction_type = mapToTransactionType(type, source);
+
       // Import FIFO service dynamically to avoid circular dependency
       const { fifoPointUsageService } = await import('./fifo-point-usage.service');
 
@@ -107,6 +138,7 @@ export class PointService {
         metadata: {
           type,
           source,
+          transaction_type,
           deductedViaPointService: true
         }
       });
@@ -131,6 +163,7 @@ export class PointService {
         amount,
         type,
         source,
+        transaction_type,
         transactionId: transaction.id,
         transactionsUsed: result.transactionsUsed.length,
         remainingBalance: result.remainingBalance

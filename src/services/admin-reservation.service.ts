@@ -1132,6 +1132,38 @@ export class AdminReservationService {
         return;
       }
 
+      // Create payment record if not exists
+      const { data: existingPayment } = await this.supabase
+        .from('payments')
+        .select('id')
+        .eq('reservation_id', reservationId)
+        .single();
+
+      if (!existingPayment) {
+        const { error: paymentError } = await this.supabase
+          .from('payments')
+          .insert({
+            reservation_id: reservationId,
+            user_id: reservation.user_id,
+            amount: reservation.total_amount,
+            payment_status: 'fully_paid',
+            payment_method: 'card', // Default, can be updated if known
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          });
+
+        if (paymentError) {
+          logger.error('Failed to create payment record', {
+            reservationId,
+            error: paymentError.message
+          });
+        } else {
+          logger.info('Payment record created for completed reservation', {
+            reservationId
+          });
+        }
+      }
+
       // Award points to user (1% of total amount, excluding points used)
       const { PointService } = await import('./point.service');
       const pointService = new PointService();
