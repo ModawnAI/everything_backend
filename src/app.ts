@@ -423,7 +423,7 @@ app.use('/api/storage', storageRoutes);
 // 🚨 DEBUG: Log all PATCH requests to shops
 app.use('/api/shops', (req, res, next) => {
   if (req.method === 'PATCH') {
-    logger.info('🚨 [ROUTE-DEBUG] PATCH request to /api/shops', {
+    console.log('🚨 [ROUTE-DEBUG] PATCH request to /api/shops', {
       method: req.method,
       url: req.url,
       originalUrl: req.originalUrl,
@@ -440,7 +440,7 @@ app.use('/api/shops', (req, res, next) => {
 // Shop-scoped routes (requires authentication + shop access validation)
 // Platform admins can access any shop, shop users only their own
 app.use('/api/shops/:shopId/reservations', (req, res, next) => {
-  logger.info('🚨 [ROUTE-DEBUG] Entering shop-reservations router', {
+  console.log('🚨 [ROUTE-DEBUG] Entering shop-reservations router', {
     method: req.method,
     url: req.url,
     params: req.params
