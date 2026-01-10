@@ -75,10 +75,15 @@ export class UserProfileController {
       }
 
       // 🔧 Transform snake_case DB fields to camelCase for frontend
+      const profileData = profile as any; // Use type assertion for DB fields
       const transformedProfile = {
-        ...profile,
+        id: profile.id,
+        email: profile.email,
         phoneNumber: profile.phone_number,
-        phoneVerified: profile.phone_verified,
+        phoneVerified: profile.phone_verified, // 🔧 Critical: DB phone_verified → frontend phoneVerified
+        name: profile.name,
+        nickname: profile.nickname,
+        gender: profile.gender,
         birthDate: profile.birth_date,
         profileImageUrl: profile.profile_image_url,
         userRole: profile.user_role,
@@ -94,21 +99,17 @@ export class UserProfileController {
         totalReferrals: profile.total_referrals,
         successfulReferrals: profile.successful_referrals,
         lastLoginAt: profile.last_login_at,
-        lastActiveAt: profile.last_active_at,
         termsAcceptedAt: profile.terms_accepted_at,
         privacyAcceptedAt: profile.privacy_accepted_at,
         marketingConsent: profile.marketing_consent,
         createdAt: profile.created_at,
         updatedAt: profile.updated_at,
-        lastQualificationCheck: profile.last_qualification_check,
-        referralRewardsEarned: profile.referral_rewards_earned,
-        isLocked: profile.is_locked,
-        lockedAt: profile.locked_at,
-        lastLoginIp: profile.last_login_ip,
-        shopId: profile.shop_id,
-        shopName: profile.shop_name,
         bookingPreferences: profile.booking_preferences,
-        bio: profile.bio
+        bio: profile.bio,
+        // Additional fields that may exist in DB but not in type definition
+        ...(profileData.last_active_at && { lastActiveAt: profileData.last_active_at }),
+        ...(profileData.shop_id && { shopId: profileData.shop_id }),
+        ...(profileData.shop_name && { shopName: profileData.shop_name })
       };
 
       console.log('[DEBUG] /api/users/me response:', {
