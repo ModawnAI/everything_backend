@@ -13,6 +13,7 @@ import { customerNotificationService } from './customer-notification.service';
 import { queryCacheService } from './query-cache.service';
 import { batchQueryService } from './batch-query.service';
 import { websocketService, ReservationUpdate } from './websocket.service';
+import { PointService } from './point.service';
 
 export interface CreateReservationRequest {
   shopId: string;
@@ -729,6 +730,117 @@ export class ReservationService {
             });
             // Add booking_preferences to the returned reservation object
             reservationData.booking_preferences = bookingPreferences;
+          }
+        }
+
+        // ============================================
+        // Deduct points if used
+        // ============================================
+        if (pointsToUse && pointsToUse > 0) {
+          try {
+            const pointService = new PointService();
+
+            console.log('[RESERVATION-SERVICE] Deducting points:', {
+              userId,
+              pointsToUse,
+              reservationId
+            });
+
+            await pointService.deductPoints(
+              userId,
+              pointsToUse,
+              'spent',
+              'purchase',
+              `예약 ${reservationId}에 포인트 사용`,
+              reservationId
+            );
+
+            logger.info('Points deducted for reservation', {
+              reservationId,
+              userId,
+              pointsUsed: pointsToUse
+            });
+          } catch (error) {
+            logger.error('Failed to deduct points for reservation', {
+              reservationId,
+              userId,
+              pointsToUse,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            // If points deduction fails, delete the reservation
+            await this.supabase
+              .from('reservations')
+              .delete()
+              .eq('id', reservationId);
+
+            throw new Error('포인트 차감에 실패했습니다. 포인트 잔액을 확인해주세요.');
+          }
+        }
+
+        // ============================================
+        // Create payment record
+        // ============================================
+        // TODO: PortOne 결제 연동 시 실제 결제 후 payment 레코드 생성
+        // 현재는 테스트용으로 예약 생성 시 바로 payment 레코드 생성
+        // ============================================
+        if (paymentInfo && paymentInfo.depositAmount && paymentInfo.depositAmount > 0) {
+          try {
+            // Map frontend payment method to database enum
+            const dbPaymentMethod = paymentInfo.paymentMethod === 'bank_transfer'
+              ? 'bank_transfer'
+              : paymentInfo.paymentMethod || 'cash';
+
+            // For non-cash payments, create payment record
+            if (dbPaymentMethod !== 'cash') {
+              const { data: paymentRecord, error: paymentError } = await this.supabase
+                .from('payments')
+                .insert({
+                  reservation_id: reservationId,
+                  user_id: userId,
+                  payment_method: dbPaymentMethod, // 'card' or 'bank_transfer'
+                  payment_status: 'completed', // 테스트용: 바로 completed (실제로는 pending → completed)
+                  amount: paymentInfo.depositAmount,
+                  currency: 'KRW',
+                  payment_provider: 'manual', // TODO: PortOne 연동 시 'portone'으로 변경
+                  provider_order_id: `manual_${reservationId}_${Date.now()}`,
+                  is_deposit: paymentInfo.depositRequired || false,
+                  payment_stage: paymentInfo.depositRequired ? 'deposit' : 'single',
+                  metadata: {
+                    createdAt: new Date().toISOString(),
+                    isTestPayment: true, // 테스트 결제 표시
+                    paymentInfo: paymentInfo
+                  }
+                })
+                .select('id')
+                .single();
+
+              if (paymentError) {
+                logger.error('Failed to create payment record', {
+                  reservationId,
+                  error: paymentError.message,
+                  paymentInfo
+                });
+                // Don't fail the reservation, just log the error
+              } else {
+                logger.info('Payment record created successfully', {
+                  reservationId,
+                  paymentId: paymentRecord.id,
+                  amount: paymentInfo.depositAmount,
+                  method: dbPaymentMethod
+                });
+              }
+            } else {
+              logger.info('Cash payment selected - no payment record created', {
+                reservationId,
+                remainingAmount: paymentInfo.remainingAmount
+              });
+            }
+          } catch (error) {
+            logger.error('Error creating payment record', {
+              reservationId,
+              error: error instanceof Error ? error.message : 'Unknown error'
+            });
+            // Don't fail the reservation
           }
         }
 

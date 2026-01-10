@@ -1114,8 +1114,55 @@ export class AdminReservationService {
    * Process completion actions
    */
   private async processCompletionActions(reservationId: string): Promise<void> {
-    // This would integrate with the point system to award points
-    logger.info('Processing completion actions for reservation', { reservationId });
+    try {
+      logger.info('Processing completion actions for reservation', { reservationId });
+
+      // Get reservation details
+      const { data: reservation, error: reservationError } = await this.supabase
+        .from('reservations')
+        .select('user_id, total_amount, points_used')
+        .eq('id', reservationId)
+        .single();
+
+      if (reservationError || !reservation) {
+        logger.error('Failed to get reservation for point earning', {
+          reservationId,
+          error: reservationError?.message
+        });
+        return;
+      }
+
+      // Award points to user (1% of total amount, excluding points used)
+      const { PointService } = await import('./point.service');
+      const pointService = new PointService();
+
+      // Calculate points to award: 1% of payment amount (not including points used)
+      const paymentAmount = reservation.total_amount - (reservation.points_used || 0);
+      const pointsToAward = Math.floor(paymentAmount * 0.01); // 1% reward
+
+      if (pointsToAward > 0) {
+        await pointService.addPoints(
+          reservation.user_id,
+          pointsToAward,
+          'earned',
+          'purchase',
+          `예약 ${reservationId} 완료 적립`
+        );
+
+        logger.info('Points awarded for completed reservation', {
+          reservationId,
+          userId: reservation.user_id,
+          pointsAwarded: pointsToAward,
+          totalAmount: reservation.total_amount
+        });
+      }
+    } catch (error) {
+      logger.error('Failed to process completion actions', {
+        reservationId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+      // Don't throw - completion should still succeed
+    }
   }
 
   /**
