@@ -30,7 +30,7 @@ export interface CreateReservationRequest {
   paymentInfo?: {
     depositAmount?: number;
     remainingAmount?: number;
-    paymentMethod?: 'card' | 'cash' | 'points' | 'mixed';
+    paymentMethod?: 'card' | 'bank_transfer' | 'cash' | 'points' | 'mixed';
     depositRequired?: boolean;
   };
   // v3.1 Flow - Request-specific metadata
@@ -541,7 +541,7 @@ export class ReservationService {
    * Create reservation with enhanced database locking and v3.1 flow support
    */
   private async createReservationWithLock(request: CreateReservationRequest, pricingInfo?: any, bookingPreferences?: any): Promise<Reservation> {
-    const { shopId, userId, services, reservationDate, reservationTime, specialRequests, pointsToUse = 0 } = request;
+    const { shopId, userId, services, reservationDate, reservationTime, specialRequests, pointsToUse = 0, paymentInfo } = request;
 
     // Enhanced timeout handling with retry logic
     const maxRetries = 3;
