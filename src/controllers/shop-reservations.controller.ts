@@ -350,6 +350,50 @@ export class ShopReservationsController {
         userId
       });
 
+      // Award points if status changed to completed
+      if (status === 'completed' && currentStatus !== 'completed') {
+        try {
+          const { PointService } = await import('../services/point.service');
+          const pointService = new PointService();
+
+          // Get reservation details for point calculation
+          const paymentAmount = updatedReservation.total_amount - (updatedReservation.points_used || 0);
+          const pointsToAward = Math.floor(paymentAmount * 0.01); // 1% reward
+
+          logger.info('[POINT-DEBUG] Checking point award conditions', {
+            reservationId,
+            totalAmount: updatedReservation.total_amount,
+            pointsUsed: updatedReservation.points_used,
+            paymentAmount,
+            pointsToAward,
+            willAwardPoints: pointsToAward > 0
+          });
+
+          if (pointsToAward > 0) {
+            await pointService.addPoints(
+              updatedReservation.user_id,
+              pointsToAward,
+              'earned',
+              'purchase',
+              `예약 ${reservationId} 완료 적립`
+            );
+
+            logger.info('Points awarded for completed reservation', {
+              reservationId,
+              userId: updatedReservation.user_id,
+              pointsAwarded: pointsToAward,
+              totalAmount: updatedReservation.total_amount
+            });
+          }
+        } catch (error) {
+          logger.error('Failed to award points for completed reservation', {
+            reservationId,
+            error: error instanceof Error ? error.message : 'Unknown error'
+          });
+          // Don't fail the status update if point awarding fails
+        }
+      }
+
       // Send customer notification (async, don't wait for completion)
       this.sendCustomerNotification(reservationId, status as any, notes, reason).catch(error => {
         logger.error('Failed to send customer notification', {
