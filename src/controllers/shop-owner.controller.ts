@@ -572,6 +572,13 @@ export class ShopOwnerController {
       const { reservationId } = req.params;
       const { status, notes } = req.body;
 
+      logger.info('[UPDATE-STATUS-START] updateReservationStatus called', {
+        reservationId,
+        status,
+        userId,
+        hasNotes: !!notes
+      });
+
       if (!userId) {
         res.status(401).json({
           error: {
