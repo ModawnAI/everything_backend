@@ -191,13 +191,6 @@ export class ShopReservationsController {
    */
   async updateReservationStatus(req: ShopAccessRequest, res: Response): Promise<void> {
     try {
-      console.log('🚨 [SHOP-RESERVATIONS-ENTRY] updateReservationStatus CALLED', {
-        method: req.method,
-        url: req.url,
-        params: req.params,
-        body: req.body
-      });
-
       const { shopId, reservationId } = req.params;
       const { status, reason, notes } = req.body;
       const userId = req.user?.id;

@@ -420,33 +420,10 @@ app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);
 app.use('/api/storage', storageRoutes);
 
-// 🚨 DEBUG: Log all PATCH requests to shops
-app.use('/api/shops', (req, res, next) => {
-  if (req.method === 'PATCH') {
-    console.log('🚨 [ROUTE-DEBUG] PATCH request to /api/shops', {
-      method: req.method,
-      url: req.url,
-      originalUrl: req.originalUrl,
-      baseUrl: req.baseUrl,
-      path: req.path,
-      params: req.params,
-      query: req.query
-    });
-  }
-  next();
-});
-
 // IMPORTANT: Shop-scoped routes MUST come BEFORE catch-all /api/shops route
 // Shop-scoped routes (requires authentication + shop access validation)
 // Platform admins can access any shop, shop users only their own
-app.use('/api/shops/:shopId/reservations', (req, res, next) => {
-  console.log('🚨 [ROUTE-DEBUG] Entering shop-reservations router', {
-    method: req.method,
-    url: req.url,
-    params: req.params
-  });
-  next();
-}, shopReservationsRoutes);
+app.use('/api/shops/:shopId/reservations', shopReservationsRoutes);
 app.use('/api/shops/:shopId/payments', shopPaymentsRoutes);
 app.use('/api/shops/:shopId/analytics', shopAnalyticsRoutes);
 app.use('/api/shops/:shopId/users', shopUsersRoutes);
