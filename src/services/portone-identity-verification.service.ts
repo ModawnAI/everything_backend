@@ -242,7 +242,19 @@ class PortOneIdentityVerificationService {
       // If userId exists (from record or passed in), update user phone verification
       const effectiveUserId = record?.user_id || userId;
 
-      logger.info('[DEBUG] Checking user phone verification update conditions', {
+      console.log('========================================');
+      console.log('[DEBUG] Checking user phone verification update conditions');
+      console.log('identityVerificationId:', identityVerificationId);
+      console.log('recordUserId:', record?.user_id);
+      console.log('passedUserId:', userId);
+      console.log('effectiveUserId:', effectiveUserId);
+      console.log('hasCI:', !!verifiedCustomer.ci);
+      console.log('ci:', verifiedCustomer.ci);
+      console.log('phoneNumber:', verifiedCustomer.phoneNumber);
+      console.log('willUpdatePhone:', !!(effectiveUserId && verifiedCustomer.ci));
+      console.log('========================================');
+
+      logger.warn('[DEBUG] Checking user phone verification update conditions', {
         identityVerificationId,
         recordUserId: record?.user_id,
         passedUserId: userId,
