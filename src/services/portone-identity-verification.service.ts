@@ -254,24 +254,13 @@ class PortOneIdentityVerificationService {
       console.log('willUpdatePhone:', !!(effectiveUserId && verifiedCustomer.ci));
       console.log('========================================');
 
-      logger.warn('[DEBUG] Checking user phone verification update conditions', {
-        identityVerificationId,
-        recordUserId: record?.user_id,
-        passedUserId: userId,
-        effectiveUserId,
-        hasCI: !!verifiedCustomer.ci,
-        ci: verifiedCustomer.ci,
-        phoneNumber: verifiedCustomer.phoneNumber,
-        willUpdatePhone: !!(effectiveUserId && verifiedCustomer.ci)
-      });
 
       if (effectiveUserId && verifiedCustomer.ci) {
-        logger.info('[DEBUG] Calling markUserPhoneAsVerified', {
-          userId: effectiveUserId,
-          phoneNumber: verifiedCustomer.phoneNumber || 'null',
-          hasCi: !!verifiedCustomer.ci,
-          hasDi: !!verifiedCustomer.di
-        });
+        console.log('[DEBUG] Calling markUserPhoneAsVerified');
+        console.log('userId:', effectiveUserId);
+        console.log('phoneNumber:', verifiedCustomer.phoneNumber || 'undefined');
+        console.log('hasCi:', !!verifiedCustomer.ci);
+        console.log('hasDi:', !!verifiedCustomer.di);
 
         // ✅ Mark as verified if we have CI, even if phoneNumber is null
         // PortOne sometimes doesn't return phoneNumber in the response
@@ -282,14 +271,11 @@ class PortOneIdentityVerificationService {
           verifiedCustomer.di
         );
 
-        logger.info('[DEBUG] markUserPhoneAsVerified completed', {
-          userId: effectiveUserId
-        });
+        console.log('[DEBUG] markUserPhoneAsVerified completed for userId:', effectiveUserId);
       } else {
-        logger.warn('[DEBUG] Skipping phone verification update - missing userId or CI', {
-          hasUserId: !!effectiveUserId,
-          hasCI: !!verifiedCustomer.ci
-        });
+        console.log('[DEBUG] Skipping phone verification update - missing userId or CI');
+        console.log('hasUserId:', !!effectiveUserId);
+        console.log('hasCI:', !!verifiedCustomer.ci);
       }
 
       logger.info('Identity verification completed successfully', {
