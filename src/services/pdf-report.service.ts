@@ -6,10 +6,6 @@
 import { TDocumentDefinitions, Content, TableCell } from 'pdfmake/interfaces';
 import { logger } from '../utils/logger';
 
-// pdfmake CommonJS require
-// eslint-disable-next-line @typescript-eslint/no-var-requires
-const PdfPrinter = require('pdfmake');
-
 // Font definitions for pdfmake
 const fonts = {
   Helvetica: {
@@ -20,7 +16,17 @@ const fonts = {
   },
 };
 
-const printer = new PdfPrinter(fonts);
+// Lazy initialization to avoid startup errors
+let printer: any = null;
+
+function getPrinter() {
+  if (!printer) {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const PdfPrinter = require('pdfmake');
+    printer = new PdfPrinter(fonts);
+  }
+  return printer;
+}
 
 export interface ShopAnalyticsReportData {
   shopName: string;
@@ -288,7 +294,7 @@ export class PdfReportService {
 
       return new Promise((resolve, reject) => {
         try {
-          const pdfDoc = printer.createPdfKitDocument(docDefinition);
+          const pdfDoc = getPrinter().createPdfKitDocument(docDefinition);
           const chunks: Buffer[] = [];
 
           pdfDoc.on('data', (chunk: Buffer) => {
