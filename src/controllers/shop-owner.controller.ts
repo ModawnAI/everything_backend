@@ -134,12 +134,12 @@ export class ShopOwnerController {
         logger.error('Failed to get monthly revenue', { error: revenueError.message });
       }
 
-      // Get pending reservations with user information
-      const { data: pendingReservations, error: pendingError } = await this.supabase
+      // Get recent reservations with user and service information (left join for optional data)
+      const { data: recentReservations, error: recentError } = await this.supabase
         .from('reservations')
         .select(`
           *,
-          users!inner(
+          users(
             id,
             name,
             nickname,
@@ -147,29 +147,30 @@ export class ShopOwnerController {
             phone_number
           ),
           reservation_services(
-            shop_services!inner(name)
+            shop_services(name)
           )
         `)
         .in('shop_id', shopIds)
-        .eq('status', 'requested')
+        .in('status', ['requested', 'confirmed', 'completed', 'cancelled_by_user', 'cancelled_by_shop'])
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(10);
 
-      if (pendingError) {
-        logger.error('Failed to get pending reservations', { error: pendingError.message });
+      if (recentError) {
+        logger.error('Failed to get recent reservations', { error: recentError.message });
       }
 
       // Calculate metrics
       const totalRevenue = monthlyRevenue?.reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
       const todayCount = todayReservations?.length || 0;
-      const pendingCount = pendingReservations?.length || 0;
+      // Count only 'requested' status for pending count
+      const pendingCount = recentReservations?.filter(r => r.status === 'requested').length || 0;
 
       const dashboard = {
         shops: shops.length,
         todayReservations: todayCount,
         pendingReservations: pendingCount,
         monthlyRevenue: totalRevenue,
-        recentPendingReservations: pendingReservations || []
+        recentPendingReservations: recentReservations || []
       };
 
       logger.info('Shop owner dashboard retrieved', { userId, shopCount: shops.length });
