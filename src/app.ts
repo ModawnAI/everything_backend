@@ -85,6 +85,7 @@ import shopSearchRoutes from './routes/shop-search.routes';
 import searchRoutes from './routes/search.routes';
 import shopProfileRoutes from './routes/shop-profile.routes';
 import shopServiceRoutes from './routes/shop-service.routes';
+import serviceImageRoutes from './routes/service-image.routes';
 import shopOperatingHoursRoutes from './routes/shop-operating-hours.routes';
 import shopDashboardRoutes from './routes/shop-dashboard.routes';
 import imageMetadataRoutes from './routes/image-metadata.routes';
@@ -123,6 +124,8 @@ import adminShopEntryRequestRoutes from './routes/admin-shop-entry-request.route
 import adminShopNotificationRoutes from './routes/admin-shop-notification.routes';
 import shopOwnerNotificationRoutes from './routes/shop-owner-notification.routes';
 import shopStaffRoutes, { staffAssignmentRouter } from './routes/shop-staff.routes';
+import staffScheduleRoutes from './routes/staff-schedule.routes';
+import { couponUserRoutes, couponAdminRoutes, couponShopOwnerRoutes } from './routes/coupon.routes';
 
 // Import services
 import { initializeWebSocketService } from './services/websocket.service';
@@ -399,6 +402,8 @@ app.use('/api/shop-owner/auth', shopOwnerAuthRoutes);
 app.use('/api/shop-owner/notifications', shopOwnerNotificationRoutes);
 app.use('/api/shop-owner/feed-templates', feedTemplateRoutes);
 app.use('/api/shop-owner/staff', shopStaffRoutes);
+app.use('/api/shop-owner/staff', staffScheduleRoutes); // Schedule and day off management
+app.use('/api/shop-owner/coupons', couponShopOwnerRoutes); // Shop coupon management
 // FIXME: staffAssignmentRouter가 /api/shop-owner/reservations와 충돌하여 GET 요청이 타임아웃됨
 // 해당 기능(assign-staff)은 shopOwnerRoutes에 통합 필요
 // app.use('/api/shop-owner/reservations', staffAssignmentRouter);
@@ -441,6 +446,7 @@ app.use('/api/shop/register', shopRegistrationRoutes);
 app.use('/api/shop/profile', shopProfileRoutes);
 app.use('/api/shop/info', shopProfileRoutes); // Alias for /api/shop/profile
 app.use('/api/shop/services', shopServiceRoutes);
+app.use('/api/shop/services', serviceImageRoutes); // Service image routes (nested under services)
 app.use('/api/shop/operating-hours', shopOperatingHoursRoutes);
 app.use('/api/shop/dashboard', shopDashboardRoutes);
 app.use('/api/shop/images', imageMetadataRoutes);
@@ -458,6 +464,7 @@ app.use('/api/split-payments', splitPaymentRoutes);
 app.use('/api/identity-verification', identityVerificationRoutes);
 app.use('/api/payment-security', paymentSecurityRoutes);
 app.use('/api/points', pointRoutes);
+app.use('/api/coupons', couponUserRoutes);
 
 // Admin routes (specific paths first)
 app.use('/api/admin/no-show', noShowDetectionRoutes);
@@ -467,6 +474,7 @@ app.use('/api/admin/influencer-bonus', influencerBonusRoutes);
 app.use('/api/admin/influencers', adminInfluencersRoutes);
 app.use('/api/admin', adminModerationRoutes);
 app.use('/api/admin/points', adminPointPolicyRoutes);
+app.use('/api/admin/coupons', couponAdminRoutes);
 app.use('/api/admin/announcements', adminAnnouncementRoutes);
 app.use('/api/admin/push', adminPushNotificationRoutes);
 app.use('/api/admin/editor-picks', adminEditorPicksRoutes);

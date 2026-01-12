@@ -265,6 +265,43 @@ router.get('/analytics',
 );
 
 /**
+ * GET /api/shop-owner/analytics/export-pdf
+ * Export analytics data as PDF report
+ *
+ * Query Parameters:
+ * - period: Analysis period ('day', 'week', 'month', 'year') (optional, default: 'month')
+ * - startDate: Custom start date (optional)
+ * - endDate: Custom end date (optional)
+ *
+ * Returns:
+ * - PDF file download with analytics report
+ *
+ * Example: GET /api/shop-owner/analytics/export-pdf?period=month
+ */
+router.get('/analytics/export-pdf',
+  analyticsRateLimit,
+  validateRequestBody(analyticsQuerySchema),
+  async (req, res) => {
+    try {
+      await shopOwnerController.exportAnalyticsPdf(req, res);
+    } catch (error) {
+      logger.error('Error in analytics PDF export route', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        query: req.query
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'PDF 리포트 생성 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
  * GET /api/shop-owner/reservations
  * Get shop reservations with filtering and pagination
  * 

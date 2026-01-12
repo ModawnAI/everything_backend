@@ -12,6 +12,7 @@ import { Request, Response } from 'express';
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { ReservationStatus, PaymentStatus } from '../types/database.types';
+import { PdfReportService, ShopAnalyticsReportData } from '../services/pdf-report.service';
 
 // Request interfaces
 interface ShopOwnerRequest extends Request {
@@ -2272,6 +2273,235 @@ export class ShopOwnerController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '정산 일정 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+
+  /**
+   * GET /api/shop-owner/analytics/export-pdf
+   * Export analytics data as PDF report
+   */
+  async exportAnalyticsPdf(req: AnalyticsRequest, res: Response): Promise<void> {
+    try {
+      const userId = (req as any).user?.id;
+      if (!userId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            details: '로그인 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      const { period = 'month', startDate, endDate } = req.query;
+
+      // Get user's shops
+      const { data: shops, error: shopsError } = await this.supabase
+        .from('shops')
+        .select('id, name')
+        .eq('owner_id', userId)
+        .eq('shop_status', 'active');
+
+      if (shopsError || !shops || shops.length === 0) {
+        res.status(404).json({
+          error: {
+            code: 'NO_SHOPS_FOUND',
+            message: '활성화된 샵이 없습니다.',
+            details: '샵을 등록하거나 활성화해주세요.'
+          }
+        });
+        return;
+      }
+
+      const shopIds = shops.map(shop => shop.id);
+      const shopName = shops[0]?.name || '내 샵';
+
+      // Calculate date range
+      const now = new Date();
+      let startDateObj: Date;
+      let endDateObj: Date;
+
+      if (startDate && endDate) {
+        startDateObj = new Date(startDate);
+        endDateObj = new Date(endDate);
+      } else {
+        switch (period) {
+          case 'day':
+            startDateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+            endDateObj = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+            break;
+          case 'week':
+            const dayOfWeek = now.getDay();
+            const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+            startDateObj = new Date(now.getTime() - daysToSubtract * 24 * 60 * 60 * 1000);
+            endDateObj = new Date(startDateObj.getTime() + 7 * 24 * 60 * 60 * 1000);
+            break;
+          case 'year':
+            startDateObj = new Date(now.getFullYear(), 0, 1);
+            endDateObj = new Date(now.getFullYear() + 1, 0, 1);
+            break;
+          default: // month
+            startDateObj = new Date(now.getFullYear(), now.getMonth(), 1);
+            endDateObj = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+        }
+      }
+
+      // Get reservations in date range
+      const { data: reservations, error: reservationsError } = await this.supabase
+        .from('reservations')
+        .select(`
+          id, reservation_date, status, total_amount, points_earned,
+          staff_id,
+          staff:shop_staff(name),
+          reservation_services(
+            service:services(name, price)
+          )
+        `)
+        .in('shop_id', shopIds)
+        .gte('reservation_date', startDateObj.toISOString().split('T')[0])
+        .lt('reservation_date', endDateObj.toISOString().split('T')[0]);
+
+      if (reservationsError) {
+        logger.error('Failed to get reservations for PDF export', { error: reservationsError.message });
+        res.status(500).json({
+          error: {
+            code: 'PDF_EXPORT_FAILED',
+            message: 'PDF 리포트 생성에 실패했습니다.',
+            details: '잠시 후 다시 시도해주세요.'
+          }
+        });
+        return;
+      }
+
+      // Calculate analytics
+      const totalReservations = reservations?.length || 0;
+      const completedReservations = reservations?.filter(r => r.status === 'completed').length || 0;
+      const cancelledReservations = reservations?.filter(r => r.status === 'cancelled' || r.status === 'cancelled_by_shop').length || 0;
+      const noShowCount = reservations?.filter(r => r.status === 'no_show').length || 0;
+      const totalRevenue = reservations?.filter(r => r.status === 'completed')
+        .reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
+
+      // Group by date for chart data
+      const dailyData = new Map<string, { reservations: number; revenue: number }>();
+      reservations?.forEach(reservation => {
+        const date = reservation.reservation_date;
+        const existing = dailyData.get(date) || { reservations: 0, revenue: 0 };
+        existing.reservations++;
+        if (reservation.status === 'completed') {
+          existing.revenue += reservation.total_amount || 0;
+        }
+        dailyData.set(date, existing);
+      });
+
+      const chartData = Array.from(dailyData.entries()).map(([date, data]) => ({
+        date,
+        reservations: data.reservations,
+        revenue: data.revenue
+      })).sort((a, b) => a.date.localeCompare(b.date));
+
+      // Service breakdown
+      const serviceMap = new Map<string, { count: number; revenue: number }>();
+      reservations?.filter(r => r.status === 'completed').forEach(r => {
+        const services = (r as any).reservation_services || [];
+        services.forEach((rs: any) => {
+          const serviceName = rs.service?.name || '기타';
+          const existing = serviceMap.get(serviceName) || { count: 0, revenue: 0 };
+          existing.count++;
+          existing.revenue += rs.service?.price || 0;
+          serviceMap.set(serviceName, existing);
+        });
+      });
+      const topServices = Array.from(serviceMap.entries())
+        .map(([name, data]) => ({ name, count: data.count, revenue: data.revenue }))
+        .sort((a, b) => b.revenue - a.revenue);
+
+      // Staff performance
+      const staffMap = new Map<string, { name: string; count: number; revenue: number; completed: number }>();
+      reservations?.forEach(r => {
+        const staffId = r.staff_id;
+        if (staffId) {
+          const staffName = (r as any).staff?.name || '미지정';
+          const existing = staffMap.get(staffId) || { name: staffName, count: 0, revenue: 0, completed: 0 };
+          existing.count++;
+          if (r.status === 'completed') {
+            existing.revenue += r.total_amount || 0;
+            existing.completed++;
+          }
+          staffMap.set(staffId, existing);
+        }
+      });
+      const staffPerformance = Array.from(staffMap.values()).map(staff => ({
+        name: staff.name,
+        reservationCount: staff.count,
+        revenue: staff.revenue,
+        completionRate: staff.count > 0 ? (staff.completed / staff.count) * 100 : 0
+      })).sort((a, b) => b.revenue - a.revenue);
+
+      // Calculate growth rate (compared to previous period)
+      const periodDays = Math.ceil((endDateObj.getTime() - startDateObj.getTime()) / (1000 * 60 * 60 * 24));
+      const prevStartDate = new Date(startDateObj.getTime() - periodDays * 24 * 60 * 60 * 1000);
+
+      const { data: prevReservations } = await this.supabase
+        .from('reservations')
+        .select('total_amount, status')
+        .in('shop_id', shopIds)
+        .gte('reservation_date', prevStartDate.toISOString().split('T')[0])
+        .lt('reservation_date', startDateObj.toISOString().split('T')[0]);
+
+      const prevRevenue = prevReservations?.filter(r => r.status === 'completed')
+        .reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
+      const growthRate = prevRevenue > 0 ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0;
+
+      // Prepare report data
+      const reportData: ShopAnalyticsReportData = {
+        shopName,
+        period,
+        dateRange: {
+          start: startDateObj.toISOString().split('T')[0],
+          end: endDateObj.toISOString().split('T')[0]
+        },
+        overview: {
+          totalReservations,
+          completedReservations,
+          cancelledReservations,
+          noShowCount,
+          completionRate: totalReservations > 0 ? (completedReservations / totalReservations) * 100 : 0,
+          totalRevenue,
+          averageOrderValue: completedReservations > 0 ? totalRevenue / completedReservations : 0,
+          growthRate
+        },
+        chartData,
+        topServices: topServices.slice(0, 10),
+        staffPerformance: staffPerformance.slice(0, 10)
+      };
+
+      // Generate PDF
+      const pdfBuffer = await PdfReportService.generateShopAnalyticsReport(reportData);
+
+      // Send PDF response
+      const filename = `analytics_report_${startDateObj.toISOString().split('T')[0]}_${endDateObj.toISOString().split('T')[0]}.pdf`;
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      logger.info('PDF analytics report generated', { userId, period, filename });
+
+      res.send(pdfBuffer);
+
+    } catch (error) {
+      logger.error('Error in exportAnalyticsPdf', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        userId: (req as any).user?.id
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: 'PDF 리포트 생성 중 오류가 발생했습니다.',
           details: '잠시 후 다시 시도해주세요.'
         }
       });
