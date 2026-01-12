@@ -159,6 +159,22 @@ export class ShopOwnerController {
         logger.error('Failed to get recent reservations', { error: recentError.message });
       }
 
+      // Debug: Log sample reservation data to check field availability
+      if (recentReservations && recentReservations.length > 0) {
+        const sample = recentReservations[0];
+        logger.info('📊 [DEBUG] Sample reservation data:', {
+          id: sample.id,
+          reservation_date: sample.reservation_date,
+          reservation_time: sample.reservation_time,
+          total_amount: sample.total_amount,
+          status: sample.status,
+          users: sample.users,
+          reservation_services: sample.reservation_services,
+          // Check all available fields
+          allFields: Object.keys(sample)
+        });
+      }
+
       // Calculate metrics
       const totalRevenue = monthlyRevenue?.reduce((sum, r) => sum + (r.total_amount || 0), 0) || 0;
       const todayCount = todayReservations?.length || 0;
