@@ -436,6 +436,144 @@ router.get('/reservations/pending',
 );
 
 /**
+ * GET /api/shop-owner/reservations/:reservationId
+ * Get detailed information about a specific reservation
+ *
+ * Path Parameters:
+ * - reservationId: Reservation UUID (required)
+ *
+ * Returns:
+ * - Detailed reservation information including customer, services, payment info
+ */
+router.get('/reservations/:reservationId',
+  ...requireShopOwnerWithShop(),
+  shopOwnerRateLimit,
+  async (req, res) => {
+    try {
+      const shopId = (req as any).user?.shopId;
+      const { reservationId } = req.params;
+
+      if (!shopId) {
+        res.status(401).json({
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      // Fetch reservation with all related data
+      const { data: reservation, error } = await supabase
+        .from('reservations')
+        .select(`
+          *,
+          users:user_id (
+            id,
+            name,
+            nickname,
+            email,
+            phone_number,
+            profile_image_url,
+            total_points,
+            birth_date,
+            gender
+          ),
+          reservation_services (
+            id,
+            service_id,
+            quantity,
+            unit_price,
+            total_price,
+            shop_services:service_id (
+              id,
+              name,
+              price,
+              duration
+            )
+          )
+        `)
+        .eq('id', reservationId)
+        .eq('shop_id', shopId)
+        .single();
+
+      if (error || !reservation) {
+        logger.error('Reservation not found', { reservationId, shopId, error });
+        res.status(404).json({
+          error: {
+            code: 'RESERVATION_NOT_FOUND',
+            message: '예약을 찾을 수 없습니다.'
+          }
+        });
+        return;
+      }
+
+      // Transform data for frontend
+      const transformedReservation = {
+        id: reservation.id,
+        status: reservation.status,
+        reservation_date: reservation.reservation_date,
+        reservation_time: reservation.reservation_time,
+        total_amount: reservation.total_amount,
+        total_price: reservation.total_amount,
+        deposit_amount: reservation.deposit_amount || 0,
+        remaining_amount: (reservation.total_amount || 0) - (reservation.deposit_amount || 0),
+        points_used: reservation.points_used || 0,
+        points_earned: reservation.points_earned || 0,
+        special_requests: reservation.special_requests,
+        shop_notes: reservation.shop_notes,
+        cancellation_reason: reservation.cancellation_reason,
+        customer: reservation.users ? {
+          id: reservation.users.id,
+          name: reservation.users.name || reservation.users.nickname || '고객',
+          email: reservation.users.email,
+          phone_number: reservation.users.phone_number,
+          profile_image_url: reservation.users.profile_image_url,
+          total_points: reservation.users.total_points,
+          birth_date: reservation.users.birth_date,
+          gender: reservation.users.gender
+        } : null,
+        customer_name: reservation.users?.name || reservation.users?.nickname || '고객',
+        customer_email: reservation.users?.email,
+        customer_phone: reservation.users?.phone_number,
+        user_id: reservation.user_id,
+        services: reservation.reservation_services?.map((rs: any) => ({
+          id: rs.id,
+          service_id: rs.service_id,
+          name: rs.shop_services?.name || '서비스',
+          service_name: rs.shop_services?.name || '서비스',
+          quantity: rs.quantity || 1,
+          unit_price: rs.unit_price || 0,
+          total_price: rs.total_price || 0,
+          price: rs.total_price || 0,
+          duration: rs.shop_services?.duration
+        })) || [],
+        created_at: reservation.created_at,
+        updated_at: reservation.updated_at
+      };
+
+      res.status(200).json({
+        success: true,
+        reservation: transformedReservation
+      });
+    } catch (error) {
+      logger.error('Error fetching reservation detail', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        reservationId: req.params.reservationId
+      });
+
+      res.status(500).json({
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '예약 상세 조회 중 오류가 발생했습니다.',
+          details: '잠시 후 다시 시도해주세요.'
+        }
+      });
+    }
+  }
+);
+
+/**
  * PUT /api/shop-owner/reservations/:reservationId/confirm
  * Confirm a pending reservation (requested -> confirmed)
  * 
