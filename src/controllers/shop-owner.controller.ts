@@ -159,6 +159,13 @@ export class ShopOwnerController {
         logger.error('Failed to get recent reservations', { error: recentError.message });
       }
 
+      // Debug: Always log reservation query results
+      logger.info('📊 [DEBUG] Dashboard reservation query result:', {
+        shopIds,
+        reservationCount: recentReservations?.length || 0,
+        hasData: !!recentReservations && recentReservations.length > 0
+      });
+
       // Debug: Log sample reservation data to check field availability
       if (recentReservations && recentReservations.length > 0) {
         const sample = recentReservations[0];
