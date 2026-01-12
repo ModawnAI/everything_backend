@@ -12,7 +12,8 @@ import { Request, Response } from 'express';
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { ReservationStatus, PaymentStatus } from '../types/database.types';
-import { PdfReportService, ShopAnalyticsReportData } from '../services/pdf-report.service';
+// PDF service is dynamically imported to avoid startup errors
+import type { ShopAnalyticsReportData } from '../services/pdf-report.service';
 
 // Request interfaces
 interface ShopOwnerRequest extends Request {
@@ -2479,7 +2480,8 @@ export class ShopOwnerController {
         staffPerformance: staffPerformance.slice(0, 10)
       };
 
-      // Generate PDF
+      // Generate PDF (dynamic import to avoid startup errors with pdfmake)
+      const { PdfReportService } = await import('../services/pdf-report.service');
       const pdfBuffer = await PdfReportService.generateShopAnalyticsReport(reportData);
 
       // Send PDF response
