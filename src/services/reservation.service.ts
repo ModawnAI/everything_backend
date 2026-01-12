@@ -734,6 +734,45 @@ export class ReservationService {
         }
 
         // ============================================
+        // Insert reservation services
+        // ============================================
+        if (services && services.length > 0) {
+          try {
+            const serviceRecords = services.map((service: any) => ({
+              reservation_id: reservationId,
+              service_id: service.serviceId || service.id,
+              quantity: service.quantity || 1,
+              unit_price: service.price || service.unitPrice || 0,
+              total_price: (service.price || service.unitPrice || 0) * (service.quantity || 1),
+              version: 1
+            }));
+
+            const { error: servicesError } = await this.supabase
+              .from('reservation_services')
+              .insert(serviceRecords);
+
+            if (servicesError) {
+              logger.error('Failed to insert reservation services', {
+                reservationId,
+                servicesCount: services.length,
+                error: servicesError.message
+              });
+              // Don't fail the reservation, just log the error
+            } else {
+              logger.info('Reservation services inserted', {
+                reservationId,
+                servicesCount: services.length
+              });
+            }
+          } catch (serviceInsertError) {
+            logger.error('Error inserting reservation services', {
+              reservationId,
+              error: serviceInsertError instanceof Error ? serviceInsertError.message : 'Unknown error'
+            });
+          }
+        }
+
+        // ============================================
         // Deduct points if used
         // ============================================
         if (pointsToUse && pointsToUse > 0) {
