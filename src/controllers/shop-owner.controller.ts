@@ -138,7 +138,15 @@ export class ShopOwnerController {
       const { data: recentReservations, error: recentError } = await this.supabase
         .from('reservations')
         .select(`
-          *,
+          id,
+          user_id,
+          shop_id,
+          reservation_date,
+          reservation_time,
+          total_amount,
+          deposit_amount,
+          status,
+          created_at,
           users(
             id,
             name,
@@ -147,7 +155,10 @@ export class ShopOwnerController {
             phone_number
           ),
           reservation_services(
-            shop_services(name)
+            service_id,
+            quantity,
+            unit_price,
+            shop_services(id, name)
           )
         `)
         .in('shop_id', shopIds)
@@ -159,27 +170,25 @@ export class ShopOwnerController {
         logger.error('Failed to get recent reservations', { error: recentError.message });
       }
 
-      // Debug: Always log reservation query results
-      logger.info('📊 [DEBUG] Dashboard reservation query result:', {
+      // Debug: Always log reservation query results (using console.log for immediate visibility)
+      console.log('📊 [DEBUG] Dashboard reservation query:', {
         shopIds,
         reservationCount: recentReservations?.length || 0,
-        hasData: !!recentReservations && recentReservations.length > 0
+        error: recentError?.message || null
       });
 
       // Debug: Log sample reservation data to check field availability
       if (recentReservations && recentReservations.length > 0) {
         const sample = recentReservations[0];
-        logger.info('📊 [DEBUG] Sample reservation data:', {
+        console.log('📊 [DEBUG] Sample reservation:', JSON.stringify({
           id: sample.id,
           reservation_date: sample.reservation_date,
           reservation_time: sample.reservation_time,
           total_amount: sample.total_amount,
           status: sample.status,
           users: sample.users,
-          reservation_services: sample.reservation_services,
-          // Check all available fields
-          allFields: Object.keys(sample)
-        });
+          reservation_services: sample.reservation_services
+        }, null, 2));
       }
 
       // Calculate metrics
