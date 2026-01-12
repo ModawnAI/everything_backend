@@ -3,12 +3,12 @@
  * Generates PDF reports for analytics and business data
  */
 
-import * as PdfMake from 'pdfmake/build/pdfmake';
 import { TDocumentDefinitions, Content, TableCell } from 'pdfmake/interfaces';
 import { logger } from '../utils/logger';
 
-// pdfmake CommonJS compatibility
-const PdfPrinter = (PdfMake as any).default || PdfMake;
+// pdfmake CommonJS require
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const PdfPrinter = require('pdfmake');
 
 // Font definitions for pdfmake
 const fonts = {
