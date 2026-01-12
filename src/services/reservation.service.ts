@@ -761,11 +761,12 @@ export class ReservationService {
               pointsUsed: pointsToUse
             });
           } catch (error) {
+            const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error('Failed to deduct points for reservation', {
               reservationId,
               userId,
               pointsToUse,
-              error: error instanceof Error ? error.message : 'Unknown error'
+              error: errorMessage
             });
             // If points deduction fails, delete the reservation
             await this.supabase
@@ -773,7 +774,8 @@ export class ReservationService {
               .delete()
               .eq('id', reservationId);
 
-            throw new Error('포인트 차감에 실패했습니다. 포인트 잔액을 확인해주세요.');
+            // Include actual error message for debugging
+            throw new Error(`포인트 차감에 실패했습니다: ${errorMessage}`);
           }
         }
 
