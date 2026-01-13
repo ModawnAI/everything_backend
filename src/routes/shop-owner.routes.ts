@@ -464,6 +464,7 @@ router.get('/reservations/:reservationId',
       }
 
       // Fetch reservation with all related data
+      const supabase = require('../config/database').getSupabaseClient();
       const { data: reservation, error } = await supabase
         .from('reservations')
         .select(`
