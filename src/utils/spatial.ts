@@ -200,18 +200,100 @@ export async function findNearbyShops(
     }
     
     const client = getSupabaseClient();
-    
-    // Use optimized secure query builder with composite indexes
-    const spatialResults = await executeSpatialQuery({
-      userLocation,
-      radiusKm,
-      category,
-      shopType,
-      onlyFeatured,
-      limit,
-      offset
-    });
-    
+
+    // Try PostGIS-based query first, fallback to Haversine if RPC not available
+    let spatialResults: any[] = [];
+    let usedFallback = false;
+
+    try {
+      // Use optimized secure query builder with composite indexes
+      spatialResults = await executeSpatialQuery({
+        userLocation,
+        radiusKm,
+        category,
+        shopType,
+        onlyFeatured,
+        limit,
+        offset
+      });
+    } catch (rpcError) {
+      // Fallback to simple Supabase query with client-side distance calculation
+      logger.warn('PostGIS RPC not available, using Haversine fallback', {
+        error: rpcError instanceof Error ? rpcError.message : 'Unknown error'
+      });
+      usedFallback = true;
+
+      // Build a simple query without PostGIS
+      let query = client
+        .from('shops')
+        .select(`
+          id, name, address, detailed_address, latitude, longitude,
+          shop_type, shop_status, main_category, sub_categories,
+          is_featured, featured_until, partnership_started_at,
+          phone_number, description, operating_hours, payment_methods,
+          total_bookings, commission_rate, created_at, updated_at
+        `)
+        .eq('shop_status', 'active')
+        .not('latitude', 'is', null)
+        .not('longitude', 'is', null);
+
+      // Apply category filter
+      if (category) {
+        query = query.eq('main_category', category);
+      }
+
+      // Apply shop type filter
+      if (shopType) {
+        query = query.eq('shop_type', shopType);
+      }
+
+      // Apply featured filter
+      if (onlyFeatured) {
+        query = query.eq('is_featured', true);
+      }
+
+      const { data: rawShops, error: queryError } = await query;
+
+      if (queryError) {
+        throw queryError;
+      }
+
+      // Calculate distance using Haversine formula and filter by radius
+      spatialResults = (rawShops || [])
+        .map((shop: any) => {
+          const distanceKm = calculateHaversineDistance(
+            userLocation,
+            { latitude: shop.latitude, longitude: shop.longitude }
+          );
+          return {
+            ...shop,
+            distance_km: distanceKm,
+            distance_m: distanceKm * 1000
+          };
+        })
+        .filter((shop: any) => shop.distance_km <= radiusKm)
+        .sort((a: any, b: any) => {
+          // PRD 2.1 sorting: partnered first, then by partnership date, featured, distance
+          if (a.shop_type === 'partnered' && b.shop_type !== 'partnered') return -1;
+          if (b.shop_type === 'partnered' && a.shop_type !== 'partnered') return 1;
+
+          // Both partnered - sort by partnership date (newest first)
+          if (a.shop_type === 'partnered' && b.shop_type === 'partnered') {
+            const aDate = a.partnership_started_at ? new Date(a.partnership_started_at).getTime() : 0;
+            const bDate = b.partnership_started_at ? new Date(b.partnership_started_at).getTime() : 0;
+            if (aDate !== bDate) return bDate - aDate;
+          }
+
+          // Featured shops next
+          if (a.is_featured && !b.is_featured) return -1;
+          if (b.is_featured && !a.is_featured) return 1;
+
+          // Finally by distance
+          return a.distance_km - b.distance_km;
+        })
+        .slice(offset, offset + limit);
+    }
+
     // Transform secure query results to expected format with enhanced data
     const results = spatialResults.map((row: any) => ({
       id: row.id,
@@ -239,7 +321,7 @@ export async function findNearbyShops(
       updated_at: row.updated_at
     }));
     
-    logger.info('Found nearby shops with optimization', {
+    logger.info('Found nearby shops', {
       userLocation,
       radiusKm,
       resultCount: results.length,
@@ -247,7 +329,8 @@ export async function findNearbyShops(
       shopType,
       onlyFeatured,
       withinSeoulBoundary: isWithinSeoulBoundary(userLocation),
-      indexesUsed: [
+      usedHaversineFallback: usedFallback,
+      indexesUsed: usedFallback ? ['haversine_fallback'] : [
         category ? 'idx_shops_active_category_location' : null,
         shopType ? 'idx_shops_type_status_location' : null,
         onlyFeatured ? 'idx_shops_featured_location' : null
