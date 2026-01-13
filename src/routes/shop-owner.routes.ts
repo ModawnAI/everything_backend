@@ -449,6 +449,10 @@ router.get('/reservations/:reservationId',
   ...requireShopOwnerWithShop(),
   shopOwnerRateLimit,
   async (req, res) => {
+    logger.info('🔍 [RESERVATION-DETAIL] Handler called', {
+      reservationId: req.params.reservationId,
+      shopId: (req as any).user?.shopId
+    });
     try {
       const shopId = (req as any).user?.shopId;
       const { reservationId } = req.params;
