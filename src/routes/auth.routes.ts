@@ -4,6 +4,7 @@ import { rateLimit, loginRateLimit } from '../middleware/rate-limit.middleware';
 import AuthController from '../controllers/auth.controller';
 import { socialAuthController } from '../controllers/social-auth.controller';
 import { naverAuthController } from '../controllers/naver-auth.controller';
+import { kakaoAuthController } from '../controllers/kakao-auth.controller';
 import { validateRequestBody } from '../middleware/validation.middleware';
 import {
   socialLoginSchema,
@@ -931,6 +932,155 @@ router.delete('/naver/unlink',
 router.get('/naver/status',
   rateLimit(),
   naverAuthController.getStatus
+);
+
+// ============================================
+// Kakao OAuth Routes (Direct Implementation)
+// ============================================
+
+/**
+ * @swagger
+ * /api/auth/kakao:
+ *   get:
+ *     tags:
+ *       - Authentication
+ *       - Kakao OAuth
+ *     summary: Initiate Kakao OAuth login
+ *     description: Redirects user to Kakao authorization page for OAuth login (scopes: profile_nickname, profile_image)
+ *     parameters:
+ *       - in: query
+ *         name: returnUrl
+ *         schema:
+ *           type: string
+ *         description: URL to redirect after successful authentication
+ *     responses:
+ *       302:
+ *         description: Redirect to Kakao authorization page
+ *       503:
+ *         description: Kakao OAuth not configured
+ */
+router.get('/kakao',
+  rateLimit(),
+  kakaoAuthController.initiateAuth
+);
+
+/**
+ * @swagger
+ * /api/auth/kakao/callback:
+ *   get:
+ *     tags:
+ *       - Authentication
+ *       - Kakao OAuth
+ *     summary: Handle Kakao OAuth callback
+ *     description: Processes OAuth callback from Kakao and creates/updates user session
+ *     parameters:
+ *       - in: query
+ *         name: code
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Authorization code from Kakao
+ *       - in: query
+ *         name: state
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: State parameter for CSRF protection
+ *     responses:
+ *       302:
+ *         description: Redirect to success or error page
+ */
+router.get('/kakao/callback',
+  rateLimit(),
+  kakaoAuthController.handleCallback
+);
+
+/**
+ * @swagger
+ * /api/auth/kakao/token:
+ *   post:
+ *     tags:
+ *       - Authentication
+ *       - Kakao OAuth
+ *     summary: Authenticate with Kakao access token (Mobile App)
+ *     description: Authenticate user using Kakao access token obtained from mobile SDK
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - accessToken
+ *             properties:
+ *               accessToken:
+ *                 type: string
+ *                 description: Kakao access token from mobile SDK
+ *               fcmToken:
+ *                 type: string
+ *                 description: Firebase FCM token for push notifications
+ *               deviceInfo:
+ *                 type: object
+ *                 properties:
+ *                   deviceId:
+ *                     type: string
+ *                   platform:
+ *                     type: string
+ *                     enum: [ios, android, web]
+ *     responses:
+ *       200:
+ *         description: Authentication successful
+ *       400:
+ *         description: Missing access token
+ *       401:
+ *         description: Invalid or expired token
+ *       403:
+ *         description: Account is inactive
+ */
+router.post('/kakao/token',
+  loginRateLimit(),
+  kakaoAuthController.authenticateWithToken
+);
+
+/**
+ * @swagger
+ * /api/auth/kakao/unlink:
+ *   delete:
+ *     tags:
+ *       - Authentication
+ *       - Kakao OAuth
+ *     summary: Unlink Kakao account
+ *     description: Unlink Kakao account from user profile
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Account unlinked successfully
+ *       401:
+ *         description: Authentication required
+ */
+router.delete('/kakao/unlink',
+  rateLimit(),
+  authenticateJWT(),
+  kakaoAuthController.unlinkAccount
+);
+
+/**
+ * @swagger
+ * /api/auth/kakao/status:
+ *   get:
+ *     tags:
+ *       - Authentication
+ *       - Kakao OAuth
+ *     summary: Check Kakao OAuth status
+ *     description: Check if Kakao OAuth is configured and available
+ *     responses:
+ *       200:
+ *         description: Status retrieved
+ */
+router.get('/kakao/status',
+  rateLimit(),
+  kakaoAuthController.getStatus
 );
 
 export default router; 

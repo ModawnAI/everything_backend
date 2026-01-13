@@ -63,6 +63,7 @@ const envSchema = Joi.object({
   // Kakao OAuth
   KAKAO_CLIENT_ID: Joi.string().optional(),
   KAKAO_CLIENT_SECRET: Joi.string().optional(),
+  KAKAO_CALLBACK_URL: Joi.string().uri().optional(),
   
   // Apple OAuth
   APPLE_CLIENT_ID: Joi.string().optional(),
@@ -212,6 +213,7 @@ export const config = {
     kakao: {
       clientId: envVars.KAKAO_CLIENT_ID as string,
       clientSecret: envVars.KAKAO_CLIENT_SECRET as string,
+      callbackUrl: envVars.KAKAO_CALLBACK_URL as string,
     },
     apple: {
       clientId: envVars.APPLE_CLIENT_ID as string,
