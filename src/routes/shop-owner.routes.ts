@@ -511,11 +511,19 @@ router.get('/reservations/:reservationId',
         .single();
 
       if (error || !reservation) {
+        console.log('❌ [RESERVATION-DETAIL] Reservation not found', {
+          reservationId,
+          shopId,
+          error: error?.message,
+          errorCode: error?.code
+        });
         logger.error('Reservation not found', { reservationId, shopId, error });
         res.status(404).json({
+          success: false,
           error: {
             code: 'RESERVATION_NOT_FOUND',
-            message: '예약을 찾을 수 없습니다.'
+            message: '예약을 찾을 수 없습니다.',
+            details: { reservationId, shopId, dbError: error?.message }
           }
         });
         return;
