@@ -501,8 +501,9 @@ router.get('/reservations/:reservationId',
             shop_services:service_id (
               id,
               name,
-              price,
-              duration
+              price_min,
+              price_max,
+              duration_minutes
             )
           )
         `)
@@ -567,7 +568,7 @@ router.get('/reservations/:reservationId',
           unit_price: rs.unit_price || 0,
           total_price: rs.total_price || 0,
           price: rs.total_price || 0,
-          duration: rs.shop_services?.duration
+          duration: rs.shop_services?.duration_minutes
         })) || [],
         created_at: reservation.created_at,
         updated_at: reservation.updated_at
