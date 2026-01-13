@@ -136,14 +136,14 @@ export async function calculateDistance(
 }
 
 /**
- * Seoul city boundary coordinates for geofencing validation
- * Approximate bounding box for Seoul metropolitan area
+ * Seoul metropolitan area boundary coordinates for geofencing validation
+ * Extended bounding box to include greater Seoul area (수도권)
  */
 const SEOUL_BOUNDARY = {
-  north: 37.7013,   // 북쪽 경계 (의정부 근처)
-  south: 37.4269,   // 남쪽 경계 (과천 근처)  
-  east: 127.1839,   // 동쪽 경계 (하남 근처)
-  west: 126.7344    // 서쪽 경계 (김포 근처)
+  north: 37.9,      // 북쪽 경계 (파주, 양주 포함)
+  south: 37.2,      // 남쪽 경계 (수원, 용인 포함)
+  east: 127.4,      // 동쪽 경계 (남양주, 광주 포함)
+  west: 126.5       // 서쪽 경계 (인천 포함)
 };
 
 /**
