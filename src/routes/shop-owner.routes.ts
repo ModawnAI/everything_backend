@@ -25,7 +25,7 @@ const shopOperatingHoursController = new ShopOperatingHoursController();
 import { validateRequestBody } from '../middleware/validation.middleware';
 import { authenticateJWT } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
-import { requireShopOwnerWithShop, requireSpecificShopOwnership } from '../middleware/shop-owner-auth.middleware';
+import { requireShopOwnerWithShop, requireSpecificShopOwnership, requireShopOwnerRole, requireShopOwnership } from '../middleware/shop-owner-auth.middleware';
 import { logger } from '../utils/logger';
 
 // Validation schemas
@@ -446,15 +446,23 @@ router.get('/reservations/pending',
  * - Detailed reservation information including customer, services, payment info
  */
 router.get('/reservations/:reservationId',
-  ...requireShopOwnerWithShop(),
+  authenticateJWT(),
+  requireShopOwnerRole(),
+  requireShopOwnership(),
   shopOwnerRateLimit,
   async (req, res) => {
+    console.log('🔍 [RESERVATION-DETAIL] Handler called', {
+      reservationId: req.params.reservationId,
+      shopId: (req as any).user?.shopId,
+      shop: (req as any).shop?.id
+    });
     logger.info('🔍 [RESERVATION-DETAIL] Handler called', {
       reservationId: req.params.reservationId,
       shopId: (req as any).user?.shopId
     });
     try {
-      const shopId = (req as any).user?.shopId;
+      // Get shopId from middleware (req.shop) or from token (req.user.shopId)
+      const shopId = (req as any).shop?.id || (req as any).user?.shopId;
       const { reservationId } = req.params;
 
       if (!shopId) {
