@@ -449,9 +449,9 @@ class KakaoAuthService {
 
     console.log('[KAKAO] Auth user created:', authData.user.id);
 
-    // Now create the public.users profile using the auth user's ID
-    const newUser = {
-      id: authData.user.id, // Use the ID from auth.users
+    // Supabase trigger may have already created the public.users row
+    // Try to update the existing row first, or insert if it doesn't exist
+    const userProfileData = {
       email: kakaoEmail || null,
       name: nickname,
       nickname: nickname,
@@ -462,25 +462,45 @@ class KakaoAuthService {
       user_status: 'active',
       is_influencer: false,
       phone_verified: false,
-      created_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
       last_login_at: new Date().toISOString(),
     };
 
-    const { data: createdUser, error: createError } = await this.supabase
+    // First, try to update (in case trigger created the row)
+    const { data: updatedUser, error: updateError } = await this.supabase
       .from('users')
-      .insert(newUser)
+      .update(userProfileData)
+      .eq('id', authData.user.id)
       .select()
       .single();
 
+    let createdUser = updatedUser;
+    let createError = updateError;
+
+    // If update failed (row doesn't exist), try insert
+    if (updateError && updateError.code === 'PGRST116') {
+      console.log('[KAKAO] No existing user row, inserting new one');
+      const { data: insertedUser, error: insertError } = await this.supabase
+        .from('users')
+        .insert({
+          id: authData.user.id,
+          ...userProfileData,
+          created_at: new Date().toISOString(),
+        })
+        .select()
+        .single();
+
+      createdUser = insertedUser;
+      createError = insertError;
+    }
+
     if (createError) {
-      console.error('[KAKAO DB ERROR] Failed to create user profile:', {
+      console.error('[KAKAO DB ERROR] Failed to create/update user profile:', {
         error: createError,
         code: createError.code,
         message: createError.message,
         details: createError.details,
         hint: createError.hint,
-        newUser,
       });
 
       // Cleanup: delete the auth user if profile creation fails
