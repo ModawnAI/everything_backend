@@ -139,7 +139,9 @@ class KakaoAuthController {
       }
 
       // Authenticate with Kakao
+      logger.info('Kakao token auth: Starting authentication');
       const { user, isNewUser, kakaoUserId } = await kakaoAuthService.authenticateWithKakao(accessToken);
+      logger.info('Kakao token auth: User authenticated', { userId: user.id, isNewUser });
 
       // Check if user is active
       if (user.user_status !== 'active') {
@@ -154,7 +156,9 @@ class KakaoAuthController {
       }
 
       // Generate JWT tokens
+      logger.info('Kakao token auth: Generating JWT tokens', { userId: user.id });
       const tokens = await refreshTokenService.generateTokenPair(user.id);
+      logger.info('Kakao token auth: JWT tokens generated');
 
       // Update FCM token if provided
       if (fcmToken) {
@@ -189,6 +193,8 @@ class KakaoAuthController {
     } catch (error) {
       logger.error('Kakao token authentication failed', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined,
+        name: error instanceof Error ? error.name : undefined,
       });
 
       if (error instanceof KakaoAuthError) {
