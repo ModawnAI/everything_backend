@@ -184,13 +184,22 @@ class KakaoAuthService {
       });
 
       return response.data;
-    } catch (error) {
+    } catch (error: any) {
       if (error instanceof KakaoUserInfoError) {
         throw error;
       }
 
+      // Log detailed error info from Kakao API
+      console.error('[KAKAO API ERROR]', {
+        message: error?.message,
+        status: error?.response?.status,
+        statusText: error?.response?.statusText,
+        data: error?.response?.data,
+      });
+
       logger.error('Failed to get Kakao user profile', {
         error: error instanceof Error ? error.message : 'Unknown error',
+        kakaoError: error?.response?.data,
       });
 
       throw new KakaoUserInfoError('Failed to retrieve user profile');
