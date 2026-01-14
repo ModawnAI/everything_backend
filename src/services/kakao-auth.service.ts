@@ -435,6 +435,14 @@ class KakaoAuthService {
       .single();
 
     if (createError) {
+      console.error('[KAKAO DB ERROR] Failed to create user:', {
+        error: createError,
+        code: createError.code,
+        message: createError.message,
+        details: createError.details,
+        hint: createError.hint,
+        newUser,
+      });
       logger.error('Failed to create Kakao user', {
         error: createError.message,
         kakaoId: kakaoUserId,
