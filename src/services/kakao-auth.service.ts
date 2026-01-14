@@ -307,6 +307,7 @@ class KakaoAuthService {
 
   /**
    * Authenticate with Kakao and create/update user in database
+   * Uses Supabase Admin Auth to create user in auth.users first (for FK constraint)
    */
   async authenticateWithKakao(accessToken: string): Promise<{
     user: UserProfile;
@@ -403,16 +404,54 @@ class KakaoAuthService {
       }
     }
 
-    // Create new user
-    const newUserId = crypto.randomUUID();
+    // Create new user using Supabase Admin Auth API
+    // This creates a user in auth.users first, which satisfies the FK constraint
     const nickname = kakaoUser.kakao_account?.profile?.nickname ||
       kakaoUser.properties?.nickname ||
       'Kakao User';
     const profileImage = kakaoUser.kakao_account?.profile?.profile_image_url ||
       kakaoUser.properties?.profile_image;
 
+    // Generate a placeholder email for auth.users (required by Supabase)
+    // Use kakaoEmail if available, otherwise generate a placeholder
+    const authEmail = kakaoEmail || `kakao_${kakaoUserId}@kakao.placeholder`;
+
+    console.log('[KAKAO] Creating auth user with email:', authEmail);
+
+    // Create user in auth.users using admin API
+    const { data: authData, error: authError } = await this.supabase.auth.admin.createUser({
+      email: authEmail,
+      email_confirm: true, // Auto-confirm email
+      user_metadata: {
+        provider: 'kakao',
+        provider_id: kakaoUserId,
+        full_name: nickname,
+        avatar_url: profileImage,
+      },
+      app_metadata: {
+        provider: 'kakao',
+        providers: ['kakao'],
+      },
+    });
+
+    if (authError) {
+      console.error('[KAKAO AUTH ERROR] Failed to create auth user:', {
+        error: authError,
+        message: authError.message,
+        status: authError.status,
+      });
+      logger.error('Failed to create Kakao auth user', {
+        error: authError.message,
+        kakaoId: kakaoUserId,
+      });
+      throw new KakaoAuthError('Failed to create auth user', 'AUTH_USER_CREATION_FAILED', 500);
+    }
+
+    console.log('[KAKAO] Auth user created:', authData.user.id);
+
+    // Now create the public.users profile using the auth user's ID
     const newUser = {
-      id: newUserId,
+      id: authData.user.id, // Use the ID from auth.users
       email: kakaoEmail || null,
       name: nickname,
       nickname: nickname,
@@ -435,7 +474,7 @@ class KakaoAuthService {
       .single();
 
     if (createError) {
-      console.error('[KAKAO DB ERROR] Failed to create user:', {
+      console.error('[KAKAO DB ERROR] Failed to create user profile:', {
         error: createError,
         code: createError.code,
         message: createError.message,
@@ -443,7 +482,11 @@ class KakaoAuthService {
         hint: createError.hint,
         newUser,
       });
-      logger.error('Failed to create Kakao user', {
+
+      // Cleanup: delete the auth user if profile creation fails
+      await this.supabase.auth.admin.deleteUser(authData.user.id);
+
+      logger.error('Failed to create Kakao user profile', {
         error: createError.message,
         kakaoId: kakaoUserId,
       });
