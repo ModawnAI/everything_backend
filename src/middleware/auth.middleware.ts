@@ -327,10 +327,13 @@ export async function verifySupabaseTokenLocal(token: string): Promise<SupabaseJ
       decoded = jwt.verify(token, jwtSecret) as SupabaseJWTPayload;
     }
 
-    // Validate required fields
-    if (!decoded.sub) {
+    // Validate required fields (support both 'sub' and 'userId' for compatibility)
+    const userId = decoded.sub || (decoded as any).userId;
+    if (!userId) {
       throw new InvalidTokenError('Token missing user ID');
     }
+    // Normalize to use 'sub' field
+    decoded.sub = userId;
 
     if (!decoded.exp || decoded.exp < Date.now() / 1000) {
       throw new TokenExpiredError('Token has expired');

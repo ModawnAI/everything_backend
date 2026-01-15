@@ -58,7 +58,7 @@ class RefreshTokenService {
       }
 
       const accessToken = jwt.sign(
-        { userId, type: 'access' },
+        { sub: userId, userId, type: 'access' },
         config.auth.jwtSecret,
         { expiresIn: this.ACCESS_TOKEN_EXPIRY }
       );
@@ -109,7 +109,7 @@ class RefreshTokenService {
         .eq('id', tokenData.id);
 
       const accessToken = jwt.sign(
-        { userId: tokenData.user_id, type: 'access' },
+        { sub: tokenData.user_id, userId: tokenData.user_id, type: 'access' },
         config.auth.jwtSecret,
         { expiresIn: this.ACCESS_TOKEN_EXPIRY }
       );
