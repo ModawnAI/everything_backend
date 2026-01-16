@@ -111,8 +111,9 @@ class PopupService {
         .eq('dismiss_type', 'never_show');
 
       // Build OR condition for user_id or device_id
+      // Supabase PostgREST 필터 문법: UUID 값은 따옴표로 감싸야 함
       if (userId && deviceId) {
-        query = query.or(`user_id.eq.${userId},device_id.eq.${deviceId}`);
+        query = query.or(`user_id.eq."${userId}",device_id.eq."${deviceId}"`);
       } else if (userId) {
         query = query.eq('user_id', userId);
       } else if (deviceId) {
