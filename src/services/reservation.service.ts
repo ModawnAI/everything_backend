@@ -1415,10 +1415,13 @@ export class ReservationService {
                 .in('status', ['requested', 'confirmed'])
                 .gte('reservation_date', today);
             }
-            // Map "past" to any reservation with a date before today
+            // Map "past" to:
+            // 1. Any reservation with a date before today (regardless of status)
+            // 2. Any completed/cancelled/no_show reservation (regardless of date)
             else if ((filters.status as string) === 'past') {
               const today = new Date().toISOString().split('T')[0];
-              query = query.lt('reservation_date', today);
+              // Use OR filter: past date OR completed/cancelled/no_show status
+              query = query.or(`reservation_date.lt.${today},status.in.(completed,cancelled,no_show)`);
             }
             else {
               query = query.eq('status', filters.status as ReservationStatus);
