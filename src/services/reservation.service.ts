@@ -1421,7 +1421,8 @@ export class ReservationService {
             else if ((filters.status as string) === 'past') {
               const today = new Date().toISOString().split('T')[0];
               // Use OR filter: past date OR completed/cancelled/no_show status
-              query = query.or(`reservation_date.lt.${today},status.in.(completed,cancelled,no_show)`);
+              // Note: cancelled statuses are 'cancelled_by_shop' and 'cancelled_by_user' in the database
+              query = query.or(`reservation_date.lt.${today},status.in.(completed,cancelled_by_shop,cancelled_by_user,no_show)`);
             }
             else {
               query = query.eq('status', filters.status as ReservationStatus);
