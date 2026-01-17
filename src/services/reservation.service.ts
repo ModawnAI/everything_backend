@@ -202,6 +202,17 @@ export class ReservationService {
       remainingAmount: paymentInfo?.remainingAmount
     });
 
+    // Invalidate user's reservation list cache to ensure new reservation is immediately visible
+    try {
+      await queryCacheService.invalidatePattern(`qc:reservation:*:list:${userId}:*`);
+      logger.debug('Invalidated reservation cache for user', { userId });
+    } catch (cacheError) {
+      logger.warn('Failed to invalidate reservation cache', {
+        error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
+        userId
+      });
+    }
+
     // Send notification to shop owner for new reservation request (v3.1 flow)
     try {
       await this.notifyShopOwnerOfNewRequest(reservation, request, pricingInfo);
