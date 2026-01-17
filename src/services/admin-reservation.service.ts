@@ -517,12 +517,29 @@ export class AdminReservationService {
         }
       };
 
-      logger.info('Reservation status updated successfully', { 
-        adminId, 
-        reservationId, 
+      logger.info('Reservation status updated successfully', {
+        adminId,
+        reservationId,
         previousStatus,
-        newStatus: request.status 
+        newStatus: request.status
       });
+
+      // Invalidate user's reservation list cache to ensure updated status is immediately visible
+      try {
+        const { queryCacheService } = await import('./query-cache.service');
+        await queryCacheService.invalidatePattern(`qc:reservation:*:list:${reservation.user_id}:*`);
+        logger.debug('Invalidated reservation cache for user after status update', {
+          userId: reservation.user_id,
+          reservationId,
+          newStatus: request.status
+        });
+      } catch (cacheError) {
+        logger.warn('Failed to invalidate reservation cache after status update', {
+          error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
+          userId: reservation.user_id,
+          reservationId
+        });
+      }
 
       return result;
     } catch (error) {

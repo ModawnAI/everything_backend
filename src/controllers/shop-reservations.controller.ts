@@ -350,6 +350,23 @@ export class ShopReservationsController {
         userId
       });
 
+      // Invalidate user's reservation list cache to ensure updated status is immediately visible
+      try {
+        const { queryCacheService } = await import('../services/query-cache.service');
+        await queryCacheService.invalidatePattern(`qc:reservation:*:list:${reservation.user_id}:*`);
+        logger.debug('Invalidated reservation cache for user after status update', {
+          userId: reservation.user_id,
+          reservationId,
+          newStatus: status
+        });
+      } catch (cacheError) {
+        logger.warn('Failed to invalidate reservation cache after status update', {
+          error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
+          userId: reservation.user_id,
+          reservationId
+        });
+      }
+
       // Award points if status changed to completed
       if (status === 'completed' && currentStatus !== 'completed') {
         try {
