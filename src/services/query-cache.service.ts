@@ -229,17 +229,22 @@ export class QueryCacheService {
    */
   async invalidatePattern(pattern: string): Promise<void> {
     if (!this.isEnabled || !this.redis) {
+      logger.info('[CACHE] invalidatePattern skipped - cache not enabled', { pattern, isEnabled: this.isEnabled, hasRedis: !!this.redis });
       return;
     }
 
     try {
+      logger.info('[CACHE] invalidatePattern called', { pattern });
       const keys = await this.redis.keys(pattern);
+      logger.info('[CACHE] Found keys to invalidate', { pattern, keysFound: keys.length, keys: keys.slice(0, 5) }); // Log first 5 keys
       if (keys.length > 0) {
         await this.redis.del(...keys);
-        logger.info('Cache pattern invalidated', { pattern, count: keys.length });
+        logger.info('[CACHE] Cache pattern invalidated successfully', { pattern, count: keys.length });
+      } else {
+        logger.info('[CACHE] No keys found for pattern', { pattern });
       }
     } catch (error) {
-      logger.error('Cache pattern invalidation error', {
+      logger.error('[CACHE] Cache pattern invalidation error', {
         pattern,
         error: error instanceof Error ? error.message : 'Unknown error',
       });

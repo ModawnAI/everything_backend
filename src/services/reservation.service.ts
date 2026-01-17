@@ -204,10 +204,12 @@ export class ReservationService {
 
     // Invalidate user's reservation list cache to ensure new reservation is immediately visible
     try {
-      await queryCacheService.invalidatePattern(`reservation:*:list:${userId}:*`);
-      logger.debug('Invalidated reservation cache for user', { userId });
+      const pattern = `reservation:*:list:${userId}:*`;
+      logger.info('[CACHE] Attempting to invalidate reservation cache after creation', { pattern, userId });
+      await queryCacheService.invalidatePattern(pattern);
+      logger.info('[CACHE] Reservation cache invalidation completed after creation', { userId });
     } catch (cacheError) {
-      logger.warn('Failed to invalidate reservation cache', {
+      logger.error('[CACHE] Failed to invalidate reservation cache after creation', {
         error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
         userId
       });

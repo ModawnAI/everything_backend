@@ -527,14 +527,21 @@ export class AdminReservationService {
       // Invalidate user's reservation list cache to ensure updated status is immediately visible
       try {
         const { queryCacheService } = await import('./query-cache.service');
-        await queryCacheService.invalidatePattern(`reservation:*:list:${reservation.user_id}:*`);
-        logger.debug('Invalidated reservation cache for user after status update', {
+        const pattern = `reservation:*:list:${reservation.user_id}:*`;
+        logger.info('[CACHE] Attempting to invalidate reservation cache (admin status update)', {
+          pattern,
+          userId: reservation.user_id,
+          reservationId,
+          newStatus: request.status
+        });
+        await queryCacheService.invalidatePattern(pattern);
+        logger.info('[CACHE] Reservation cache invalidation completed (admin status update)', {
           userId: reservation.user_id,
           reservationId,
           newStatus: request.status
         });
       } catch (cacheError) {
-        logger.warn('Failed to invalidate reservation cache after status update', {
+        logger.error('[CACHE] Failed to invalidate reservation cache after admin status update', {
           error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
           userId: reservation.user_id,
           reservationId
