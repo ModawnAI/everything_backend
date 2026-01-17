@@ -527,7 +527,7 @@ export class AdminReservationService {
       // Invalidate user's reservation list cache to ensure updated status is immediately visible
       try {
         const { queryCacheService } = await import('./query-cache.service');
-        await queryCacheService.invalidatePattern(`qc:reservation:*:list:${reservation.user_id}:*`);
+        await queryCacheService.invalidatePattern(`reservation:*:list:${reservation.user_id}:*`);
         logger.debug('Invalidated reservation cache for user after status update', {
           userId: reservation.user_id,
           reservationId,

@@ -204,7 +204,7 @@ export class ReservationService {
 
     // Invalidate user's reservation list cache to ensure new reservation is immediately visible
     try {
-      await queryCacheService.invalidatePattern(`qc:reservation:*:list:${userId}:*`);
+      await queryCacheService.invalidatePattern(`reservation:*:list:${userId}:*`);
       logger.debug('Invalidated reservation cache for user', { userId });
     } catch (cacheError) {
       logger.warn('Failed to invalidate reservation cache', {
