@@ -235,25 +235,28 @@ export class QueryCacheService {
 
     try {
       logger.info('[CACHE] invalidatePattern called', { pattern });
-      const keys = await this.redis.keys(pattern);
-      logger.info('[CACHE] Found keys to invalidate', { pattern, keysFound: keys.length, keys: keys.slice(0, 5) }); // Log first 5 keys
-      if (keys.length > 0) {
-        // ioredis keyPrefix 이중 적용 문제 해결:
-        // - keys() 결과에는 keyPrefix('qc:')가 포함되어 반환됨
-        // - del()에 전달 시 keyPrefix가 다시 추가되어 'qc:qc:...' 가 됨
-        // - 따라서 keys 결과에서 keyPrefix를 제거한 후 del 호출
-        const keyPrefix = 'qc:';
-        const keysWithoutPrefix = keys.map(key =>
-          key.startsWith(keyPrefix) ? key.slice(keyPrefix.length) : key
-        );
-        logger.info('[CACHE] Keys after removing prefix for del', {
-          originalKeys: keys.slice(0, 3),
-          keysWithoutPrefix: keysWithoutPrefix.slice(0, 3)
+
+      // Debug: Check Redis connection status
+      const redisStatus = this.redis.status;
+      logger.info('[CACHE] Redis connection status', { status: redisStatus, keyPrefix: 'qc:' });
+
+      // Use sendCommand to bypass keyPrefix for debugging
+      const fullPattern = `qc:${pattern}`;
+      const keysRaw = await this.redis.call('KEYS', fullPattern) as string[];
+      logger.info('[CACHE] Raw KEYS command result', { fullPattern, keysFound: keysRaw?.length || 0, keys: keysRaw?.slice(0, 5) });
+
+      // Use keysRaw (from raw KEYS command) for reliable deletion
+      // This bypasses ioredis keyPrefix issues completely
+      if (keysRaw && keysRaw.length > 0) {
+        logger.info('[CACHE] Using raw keys for deletion', {
+          keysToDelete: keysRaw.slice(0, 5),
+          totalCount: keysRaw.length
         });
-        await this.redis.del(...keysWithoutPrefix);
-        logger.info('[CACHE] Cache pattern invalidated successfully', { pattern, count: keys.length });
+        // Use raw DEL command with full key names (including qc: prefix)
+        await this.redis.call('DEL', ...keysRaw);
+        logger.info('[CACHE] Cache pattern invalidated successfully', { pattern, count: keysRaw.length });
       } else {
-        logger.info('[CACHE] No keys found for pattern', { pattern });
+        logger.info('[CACHE] No keys found for pattern', { pattern, fullPattern });
       }
     } catch (error) {
       logger.error('[CACHE] Cache pattern invalidation error', {
