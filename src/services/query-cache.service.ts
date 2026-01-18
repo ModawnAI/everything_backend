@@ -162,7 +162,7 @@ export class QueryCacheService {
   }
 
   /**
-   * Get value from cache
+   * Get value from cache with timeout
    */
   private async get<T>(key: string): Promise<T | null> {
     if (!this.isEnabled || !this.redis) {
@@ -170,12 +170,18 @@ export class QueryCacheService {
     }
 
     try {
-      const value = await this.redis.get(key);
-      if (!value) {
-        return null;
-      }
+      // Add 2 second timeout to prevent blocking
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), 2000);
+      });
 
-      return JSON.parse(value) as T;
+      const getPromise = this.redis.get(key).then(value => {
+        if (!value) return null;
+        return JSON.parse(value) as T;
+      });
+
+      const result = await Promise.race([getPromise, timeoutPromise]);
+      return result;
     } catch (error) {
       logger.error('Cache get error', {
         key,
@@ -186,7 +192,7 @@ export class QueryCacheService {
   }
 
   /**
-   * Set value in cache
+   * Set value in cache with timeout (fire and forget with safety)
    */
   private async set<T>(key: string, value: T, ttl: number): Promise<void> {
     if (!this.isEnabled || !this.redis) {
@@ -195,7 +201,15 @@ export class QueryCacheService {
 
     try {
       const serialized = JSON.stringify(value);
-      await this.redis.setex(key, ttl, serialized);
+
+      // Add 2 second timeout to prevent blocking
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 2000);
+      });
+
+      const setPromise = this.redis.setex(key, ttl, serialized).then(() => {});
+
+      await Promise.race([setPromise, timeoutPromise]);
     } catch (error) {
       logger.error('Cache set error', {
         key,
