@@ -192,8 +192,8 @@ export const REDIS_RATE_LIMIT_CONFIG: RedisRateLimitConfig = {
   ...(process.env.REDIS_PASSWORD && { password: process.env.REDIS_PASSWORD }),
   db: parseInt(process.env.REDIS_RATE_LIMIT_DB || '0'), // Use database 0 for rate limiting
   keyPrefix: 'rl:', // Rate limit key prefix
-  maxRetriesPerRequest: 3,
-  connectTimeout: 5000,
+  maxRetriesPerRequest: 1,    // 3 → 1: 빠른 fallback
+  connectTimeout: 1000,       // 5000 → 1000: 1초 타임아웃
   lazyConnect: false, // Changed to false to prevent hanging requests
   maxmemoryPolicy: 'allkeys-lru'
 };

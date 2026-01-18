@@ -49,13 +49,12 @@ export class FeedRankingCacheService {
     this.redis = createClient({
       url: process.env.REDIS_URL || 'redis://localhost:6379',
       socket: {
-        connectTimeout: 5000,
+        connectTimeout: 1000,  // 5000 → 1000: 1초 타임아웃
         reconnectStrategy: (retries) => {
-          if (retries > 10) {
-            logger.error('Redis reconnection failed after 10 attempts');
+          if (retries > 3) {  // 10 → 3: 빠른 fallback
             return new Error('Max reconnection attempts reached');
           }
-          return Math.min(retries * 100, 3000);
+          return Math.min(retries * 100, 1000);  // 최대 1초
         }
       }
     }) as RedisClientType;

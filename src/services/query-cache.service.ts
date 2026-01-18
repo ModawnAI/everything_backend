@@ -81,17 +81,18 @@ export class QueryCacheService {
       const redisOptions: any = {
         password: config.redis.password || undefined,
         db: config.redis.db,
-        maxRetriesPerRequest: 2,
+        maxRetriesPerRequest: 1,    // 2 → 1: 빠른 fallback
         retryStrategy: (times) => {
-          if (times > 2) {
+          if (times > 1) {
             return null;
           }
-          return Math.min(times * 100, 500);
+          return 100;
         },
-        connectTimeout: 2000,
+        connectTimeout: 1000,       // 2000 → 1000: 1초 타임아웃
         lazyConnect: false,
         keyPrefix: 'qc:', // Query cache prefix
         enableOfflineQueue: false,
+        commandTimeout: 500,        // 500ms 명령 타임아웃 추가
       };
 
       // Use URL if provided, otherwise fall back to localhost

@@ -22,8 +22,8 @@ const REDIS_RATE_LIMIT_CONFIG: RedisRateLimitConfig = {
   password: config.redis.password,
   db: config.redis.db,
   keyPrefix: 'rate_limit:',
-  maxRetriesPerRequest: 3,
-  connectTimeout: 5000,
+  maxRetriesPerRequest: 1,    // 3 → 1: 빠른 fallback
+  connectTimeout: 1000,       // 5000 → 1000: 1초 타임아웃
   lazyConnect: true, // Connect lazily to prevent blocking initialization
 };
 
