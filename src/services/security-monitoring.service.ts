@@ -69,6 +69,7 @@ export interface SecurityAlert {
  */
 class SecurityMonitoringService {
   private supabase = getSupabaseClient();
+  private schemaErrorLogged = false; // 스키마 에러 중복 로그 방지
 
   /**
    * Log security event and trigger threat detection
@@ -100,14 +101,21 @@ class SecurityMonitoringService {
         .single();
 
       if (error) {
-        logger.error('Failed to store security event', {
-          error: error.message,
-          code: error.code,
-          event_type: securityEvent.event_type,
-          hint: error.code === 'PGRST204' ?
-            'PostgREST schema cache issue. Reload schema in Supabase Dashboard: Settings → API → Reload Schema' :
-            undefined
-        });
+        // 스키마 캐시 에러는 warn 레벨로 한번만 출력 (반복 로그 방지)
+        if (error.code === 'PGRST204') {
+          if (!this.schemaErrorLogged) {
+            this.schemaErrorLogged = true;
+            logger.warn('security_events table schema issue - events will be logged locally only', {
+              hint: 'Reload schema in Supabase Dashboard: Settings → API → Reload Schema'
+            });
+          }
+        } else {
+          logger.error('Failed to store security event', {
+            error: error.message,
+            code: error.code,
+            event_type: securityEvent.event_type
+          });
+        }
         return;
       }
 

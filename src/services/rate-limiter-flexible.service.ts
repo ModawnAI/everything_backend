@@ -28,9 +28,11 @@ export class RateLimiterFlexibleService {
   private rateLimiters: Map<string, RateLimiterRedis | RateLimiterMemory> = new Map();
   private isConnected = false;
   private fallbackMode = false;
+  private redisErrorLogged = false; // 에러 로그 중복 방지
+  private initPromise: Promise<void> | null = null;
 
   constructor() {
-    this.initializeRedis();
+    this.initPromise = this.initializeRedis();
   }
 
   /**
@@ -146,24 +148,29 @@ export class RateLimiterFlexibleService {
    */
   private getRateLimiter(config: RateLimitConfig, context: RateLimitContext): RateLimiterRedis | RateLimiterMemory {
     const key = this.generateLimiterKey(config, context);
-    
+
     if (this.rateLimiters.has(key)) {
       return this.rateLimiters.get(key)!;
     }
 
     const limiterConfig = this.mapConfigToRateLimiterFlexible(config, context);
-    
+
     let limiter: RateLimiterRedis | RateLimiterMemory;
-    
-    if (this.fallbackMode || !this.isConnected) {
+
+    // Redis가 없거나 연결 안됐으면 메모리 fallback 사용
+    if (this.fallbackMode || !this.isConnected || !this.redisClient) {
       // Use memory-based limiter as fallback
       limiter = new RateLimiterMemory(limiterConfig);
-      logger.warn('Using memory-based rate limiter due to Redis unavailability', { key });
+      // 로그는 한번만 출력
+      if (!this.redisErrorLogged) {
+        this.redisErrorLogged = true;
+        logger.info('Using memory-based rate limiter (Redis unavailable)');
+      }
     } else {
       // Use Redis-based limiter
       limiter = new RateLimiterRedis({
         ...limiterConfig,
-        storeClient: this.redisClient!,
+        storeClient: this.redisClient,
         keyPrefix: REDIS_RATE_LIMIT_CONFIG.keyPrefix
       });
     }
@@ -254,19 +261,31 @@ export class RateLimiterFlexibleService {
     config: RateLimitConfig
   ): Promise<RateLimitResult> {
     try {
+      // 초기화 완료 대기
+      if (this.initPromise) {
+        await this.initPromise;
+      }
+
       const limiter = this.getRateLimiter(config, context);
       const key = this.generateKeyPrefix(config, context);
-      
+
       const result = await limiter.consume(key);
-      
+
       return this.mapRateLimiterResult(result, config);
 
     } catch (error) {
-      logger.error('Rate limit check failed', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        context,
-        config
-      });
+      // RateLimiterRes rejection (limit exceeded)인 경우 정상 처리
+      if (error && typeof error === 'object' && 'remainingPoints' in error) {
+        return this.mapRateLimiterResult(error as RateLimiterRes, config);
+      }
+
+      // 실제 에러는 한번만 로그
+      if (!this.redisErrorLogged) {
+        this.redisErrorLogged = true;
+        logger.warn('Rate limit check failed, using graceful degradation', {
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
 
       // Graceful degradation - allow request if rate limiting fails
       return {
