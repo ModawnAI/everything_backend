@@ -126,47 +126,105 @@ export class PointService {
       // Map legacy type+source to new transaction_type
       const transaction_type = mapToTransactionType(type, source);
 
-      // Import FIFO service dynamically to avoid circular dependency
-      const { fifoPointUsageService } = await import('./fifo-point-usage.service');
+      // Try FIFO service first
+      try {
+        const { fifoPointUsageService } = await import('./fifo-point-usage.service');
 
-      // Use FIFO point usage service
-      const result = await fifoPointUsageService.usePointsFIFO({
-        userId,
-        amountToUse: amount,
-        reservationId,
-        description,
-        metadata: {
-          type,
-          source,
-          transaction_type,
-          deductedViaPointService: true
+        const result = await fifoPointUsageService.usePointsFIFO({
+          userId,
+          amountToUse: amount,
+          reservationId,
+          description,
+          metadata: {
+            type,
+            source,
+            transaction_type,
+            deductedViaPointService: true
+          }
+        });
+
+        if (result.success) {
+          const { data: transaction, error } = await this.supabase
+            .from('point_transactions')
+            .select('*')
+            .eq('id', result.newTransactionId)
+            .single();
+
+          if (!error && transaction) {
+            logger.info('Points deducted successfully using FIFO', {
+              userId,
+              amount,
+              transactionId: transaction.id
+            });
+            return transaction;
+          }
         }
-      });
-
-      if (!result.success) {
-        throw new Error('Failed to deduct points using FIFO logic');
+      } catch (fifoError) {
+        logger.warn('FIFO point deduction failed, using fallback', {
+          userId,
+          amount,
+          error: fifoError instanceof Error ? fifoError.message : 'Unknown error'
+        });
       }
 
-      // Get the created transaction
-      const { data: transaction, error } = await this.supabase
-        .from('point_transactions')
-        .select('*')
-        .eq('id', result.newTransactionId)
+      // Fallback: Direct point deduction without FIFO RPC
+      logger.info('Using fallback point deduction', { userId, amount });
+
+      // 1. Check user's available points
+      const { data: user, error: userError } = await this.supabase
+        .from('users')
+        .select('available_points')
+        .eq('id', userId)
         .single();
 
-      if (error || !transaction) {
-        throw new Error('Failed to retrieve created transaction');
+      if (userError || !user) {
+        throw new Error('사용자 정보를 찾을 수 없습니다');
       }
 
-      logger.info('Points deducted successfully using FIFO', {
+      if ((user.available_points || 0) < amount) {
+        throw new Error('포인트가 부족합니다');
+      }
+
+      // 2. Create point transaction record
+      const { data: transaction, error: txError } = await this.supabase
+        .from('point_transactions')
+        .insert({
+          user_id: userId,
+          amount: -amount,
+          transaction_type: transaction_type,
+          description: description,
+          reference_type: reservationId ? 'reservation' : null,
+          reference_id: reservationId || null,
+          status: 'completed'
+        })
+        .select()
+        .single();
+
+      if (txError || !transaction) {
+        throw new Error('포인트 거래 기록 생성에 실패했습니다');
+      }
+
+      // 3. Update user's available points
+      const { error: updateError } = await this.supabase
+        .from('users')
+        .update({
+          available_points: (user.available_points || 0) - amount
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        // Rollback transaction if update fails
+        await this.supabase
+          .from('point_transactions')
+          .delete()
+          .eq('id', transaction.id);
+        throw new Error('포인트 차감에 실패했습니다');
+      }
+
+      logger.info('Points deducted successfully using fallback', {
         userId,
         amount,
-        type,
-        source,
-        transaction_type,
-        transactionId: transaction.id,
-        transactionsUsed: result.transactionsUsed.length,
-        remainingBalance: result.remainingBalance
+        transactionId: transaction.id
       });
 
       return transaction;
