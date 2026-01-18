@@ -1416,7 +1416,7 @@ export class ReservationService {
                   duration_minutes
                 )
               )
-            `, { count: 'planned' })
+            `, { count: 'exact' })
             .eq('user_id', userId);
 
           // Apply filters
