@@ -1348,6 +1348,7 @@ export class ReservationService {
       const result = await queryCacheService.getCachedQuery(
         cacheKey,
         async () => {
+          // 🔧 Simplified query - removed explicit FK name to let Supabase infer the relationship
           let query = this.supabase
             .from('reservations')
             .select(`
@@ -1365,18 +1366,18 @@ export class ReservationService {
               booking_preferences,
               created_at,
               updated_at,
-              shop:shops!reservations_shop_id_fkey(
+              shops(
                 id,
                 name,
                 address,
                 phone_number
               ),
-              services:reservation_services(
+              reservation_services(
                 id,
                 quantity,
                 unit_price,
                 total_price,
-                service:shop_services(
+                shop_services(
                   id,
                   name,
                   category,
@@ -1456,25 +1457,28 @@ export class ReservationService {
             createdAt: reservation.created_at,
             updatedAt: reservation.updated_at,
             // Include shop information (Supabase returns single FK relation as object or array)
-            shop: reservation.shop ? {
-              id: (reservation.shop as any).id ?? (reservation.shop as any)?.[0]?.id,
-              name: (reservation.shop as any).name ?? (reservation.shop as any)?.[0]?.name,
-              address: (reservation.shop as any).address ?? (reservation.shop as any)?.[0]?.address,
-              phone: (reservation.shop as any).phone_number ?? (reservation.shop as any)?.[0]?.phone_number
+            // Changed from reservation.shop to reservation.shops to match simplified query
+            shop: reservation.shops ? {
+              id: (reservation.shops as any).id ?? (reservation.shops as any)?.[0]?.id,
+              name: (reservation.shops as any).name ?? (reservation.shops as any)?.[0]?.name,
+              address: (reservation.shops as any).address ?? (reservation.shops as any)?.[0]?.address,
+              phone: (reservation.shops as any).phone_number ?? (reservation.shops as any)?.[0]?.phone_number
             } : undefined,
             // Include services information
-            services: (reservation.services || []).map((rs: any) => ({
+            // Changed from reservation.services to reservation.reservation_services
+            services: (reservation.reservation_services || []).map((rs: any) => ({
               id: rs.id,
               quantity: rs.quantity,
               unitPrice: rs.unit_price,
               totalPrice: rs.total_price,
-              service: rs.service ? {
-                id: rs.service.id,
-                name: rs.service.name,
-                category: rs.service.category,
-                priceMin: rs.service.price_min,
-                priceMax: rs.service.price_max,
-                durationMinutes: rs.service.duration_minutes
+              // Changed from rs.service to rs.shop_services
+              service: rs.shop_services ? {
+                id: rs.shop_services.id,
+                name: rs.shop_services.name,
+                category: rs.shop_services.category,
+                priceMin: rs.shop_services.price_min,
+                priceMax: rs.shop_services.price_max,
+                durationMinutes: rs.shop_services.duration_minutes
               } : undefined
             }))
           })) || [];
