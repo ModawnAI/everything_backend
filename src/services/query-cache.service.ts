@@ -162,20 +162,34 @@ export class QueryCacheService {
   }
 
   /**
+   * Check if Redis is actually ready for commands
+   */
+  private isRedisReady(): boolean {
+    if (!this.isEnabled || !this.redis) {
+      return false;
+    }
+    // Only allow commands when Redis is in 'ready' state
+    // Other states like 'reconnecting', 'connecting' can cause blocking
+    const status = this.redis.status;
+    return status === 'ready';
+  }
+
+  /**
    * Get value from cache with timeout
    */
   private async get<T>(key: string): Promise<T | null> {
-    if (!this.isEnabled || !this.redis) {
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return null;
     }
 
     try {
-      // Add 2 second timeout to prevent blocking
+      // Add 500ms timeout to prevent blocking (reduced from 2s for faster fallback)
       const timeoutPromise = new Promise<null>((resolve) => {
-        setTimeout(() => resolve(null), 2000);
+        setTimeout(() => resolve(null), 500);
       });
 
-      const getPromise = this.redis.get(key).then(value => {
+      const getPromise = this.redis!.get(key).then(value => {
         if (!value) return null;
         return JSON.parse(value) as T;
       });
@@ -195,19 +209,20 @@ export class QueryCacheService {
    * Set value in cache with timeout (fire and forget with safety)
    */
   private async set<T>(key: string, value: T, ttl: number): Promise<void> {
-    if (!this.isEnabled || !this.redis) {
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return;
     }
 
     try {
       const serialized = JSON.stringify(value);
 
-      // Add 2 second timeout to prevent blocking
+      // Add 500ms timeout to prevent blocking (reduced from 2s for faster fallback)
       const timeoutPromise = new Promise<void>((resolve) => {
-        setTimeout(() => resolve(), 2000);
+        setTimeout(() => resolve(), 500);
       });
 
-      const setPromise = this.redis.setex(key, ttl, serialized).then(() => {});
+      const setPromise = this.redis!.setex(key, ttl, serialized).then(() => {});
 
       await Promise.race([setPromise, timeoutPromise]);
     } catch (error) {
@@ -222,13 +237,22 @@ export class QueryCacheService {
    * Delete specific cache key
    */
   async invalidate(key: string, namespace = ''): Promise<void> {
-    if (!this.isEnabled || !this.redis) {
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return;
     }
 
     try {
       const fullKey = namespace ? `${namespace}:${key}` : key;
-      await this.redis.del(fullKey);
+
+      // Add timeout to prevent blocking
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 500);
+      });
+
+      const delPromise = this.redis!.del(fullKey).then(() => {});
+      await Promise.race([delPromise, timeoutPromise]);
+
       logger.debug('Cache invalidated', { key: fullKey });
     } catch (error) {
       logger.error('Cache invalidation error', {
@@ -242,8 +266,14 @@ export class QueryCacheService {
    * Delete all cache keys matching a pattern
    */
   async invalidatePattern(pattern: string): Promise<void> {
-    if (!this.isEnabled || !this.redis) {
-      logger.info('[CACHE] invalidatePattern skipped - cache not enabled', { pattern, isEnabled: this.isEnabled, hasRedis: !!this.redis });
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
+      logger.info('[CACHE] invalidatePattern skipped - Redis not ready', {
+        pattern,
+        isEnabled: this.isEnabled,
+        hasRedis: !!this.redis,
+        status: this.redis?.status
+      });
       return;
     }
 
@@ -251,12 +281,20 @@ export class QueryCacheService {
       logger.info('[CACHE] invalidatePattern called', { pattern });
 
       // Debug: Check Redis connection status
-      const redisStatus = this.redis.status;
+      const redisStatus = this.redis!.status;
       logger.info('[CACHE] Redis connection status', { status: redisStatus, keyPrefix: 'qc:' });
 
       // Use sendCommand to bypass keyPrefix for debugging
       const fullPattern = `qc:${pattern}`;
-      const keysRaw = await this.redis.call('KEYS', fullPattern) as string[];
+
+      // Add timeout to prevent blocking
+      const timeoutPromise = new Promise<string[]>((resolve) => {
+        setTimeout(() => resolve([]), 500);
+      });
+
+      const keysPromise = this.redis!.call('KEYS', fullPattern) as Promise<string[]>;
+      const keysRaw = await Promise.race([keysPromise, timeoutPromise]);
+
       logger.info('[CACHE] Raw KEYS command result', { fullPattern, keysFound: keysRaw?.length || 0, keys: keysRaw?.slice(0, 5) });
 
       // Use keysRaw (from raw KEYS command) for reliable deletion
@@ -266,8 +304,15 @@ export class QueryCacheService {
           keysToDelete: keysRaw.slice(0, 5),
           totalCount: keysRaw.length
         });
-        // Use raw DEL command with full key names (including qc: prefix)
-        await this.redis.call('DEL', ...keysRaw);
+
+        // Add timeout for DEL command
+        const delTimeoutPromise = new Promise<void>((resolve) => {
+          setTimeout(() => resolve(), 500);
+        });
+
+        const delPromise = (this.redis!.call('DEL', ...keysRaw) as Promise<number>).then(() => {});
+        await Promise.race([delPromise, delTimeoutPromise]);
+
         logger.info('[CACHE] Cache pattern invalidated successfully', { pattern, count: keysRaw.length });
       } else {
         logger.info('[CACHE] No keys found for pattern', { pattern, fullPattern });
@@ -291,12 +336,20 @@ export class QueryCacheService {
    * Clear all cache
    */
   async clear(): Promise<void> {
-    if (!this.isEnabled || !this.redis) {
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return;
     }
 
     try {
-      await this.redis.flushdb();
+      // Add timeout to prevent blocking
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 500);
+      });
+
+      const flushPromise = this.redis!.flushdb().then(() => {});
+      await Promise.race([flushPromise, timeoutPromise]);
+
       logger.info('Query cache cleared');
     } catch (error) {
       logger.error('Cache clear error', {
@@ -340,10 +393,10 @@ export class QueryCacheService {
   }
 
   /**
-   * Check if caching is enabled
+   * Check if caching is enabled and Redis is ready
    */
   isReady(): boolean {
-    return this.isEnabled;
+    return this.isRedisReady();
   }
 
   /**
