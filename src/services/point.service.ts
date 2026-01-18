@@ -192,9 +192,7 @@ export class PointService {
           user_id: userId,
           amount: -amount,
           transaction_type: transaction_type,
-          description: description,
-          reference_type: reservationId ? 'reservation' : null,
-          reference_id: reservationId || null,
+          description: reservationId ? `${description} (예약: ${reservationId})` : description,
           status: 'completed'
         })
         .select()
