@@ -61,46 +61,40 @@ export class RateLimiterFlexibleService {
         port: REDIS_RATE_LIMIT_CONFIG.port,
         password: REDIS_RATE_LIMIT_CONFIG.password,
         db: REDIS_RATE_LIMIT_CONFIG.db,
-        maxRetriesPerRequest: 2,
+        maxRetriesPerRequest: 1, // Reduced to minimize blocking
         retryStrategy: (times) => {
-          // Stop retrying after 2 attempts
-          if (times > 2) {
-            logger.error('Redis rate limiter connection failed after retries, using memory fallback');
+          // Stop retrying immediately to prevent blocking
+          if (times > 1) {
+            logger.warn('Redis rate limiter connection failed, using memory fallback');
             return null; // Stop retrying
           }
-          return Math.min(times * 100, 500); // Wait 100ms, 200ms
+          return 100; // Wait 100ms once
         },
-        connectTimeout: 2000, // Reduced from 5000 to 2000
-        lazyConnect: false, // FIXED: Connect immediately to set isConnected properly
+        connectTimeout: 1000, // Reduced to 1 second
+        lazyConnect: true, // Use lazy connect to manually control connection
         keyPrefix: REDIS_RATE_LIMIT_CONFIG.keyPrefix,
-        enableOfflineQueue: false // Don't queue commands when disconnected
+        enableOfflineQueue: false, // Don't queue commands when disconnected
+        commandTimeout: 500, // 500ms timeout for commands
       });
 
+      // Only log errors once to prevent log spam
+      let errorLogged = false;
       this.redisClient.on('error', (error) => {
-        logger.error('Redis rate limiter connection error', {
-          error: error.message,
-          stack: error.stack
-        });
+        if (!errorLogged) {
+          errorLogged = true;
+          logger.warn('Redis rate limiter error, using memory fallback', {
+            error: error.message
+          });
+        }
         this.isConnected = false;
         this.fallbackMode = true;
       });
 
-      this.redisClient.on('connect', () => {
-        logger.info('Redis rate limiter connected');
-        this.isConnected = true;
-        this.fallbackMode = false;
-      });
-
+      // Don't reset fallbackMode on connect events - only trust explicit success
       this.redisClient.on('disconnect', () => {
         logger.warn('Redis rate limiter disconnected');
         this.isConnected = false;
         this.fallbackMode = true;
-      });
-
-      this.redisClient.on('ready', () => {
-        logger.info('Redis rate limiter ready');
-        this.isConnected = true;
-        this.fallbackMode = false;
       });
 
       // Try to connect with timeout
@@ -108,12 +102,18 @@ export class RateLimiterFlexibleService {
         await Promise.race([
           this.redisClient.connect(),
           new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Connection timeout')), 2000)
+            setTimeout(() => reject(new Error('Connection timeout')), 1000)
           )
         ]);
 
-        // Test connection with ping
-        await this.redisClient.ping();
+        // Test connection with ping (also with timeout)
+        await Promise.race([
+          this.redisClient.ping(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Ping timeout')), 500)
+          )
+        ]);
+
         this.isConnected = true;
         this.fallbackMode = false;
         logger.info('Redis rate limiter connected and tested successfully');
@@ -124,7 +124,11 @@ export class RateLimiterFlexibleService {
         this.fallbackMode = true;
         this.isConnected = false;
         if (this.redisClient) {
-          this.redisClient.disconnect();
+          try {
+            this.redisClient.disconnect();
+          } catch (e) {
+            // Ignore disconnect errors
+          }
           this.redisClient = null;
         }
       }
@@ -144,22 +148,46 @@ export class RateLimiterFlexibleService {
   }
 
   /**
+   * Check if Redis is actually ready for commands
+   */
+  private isRedisReady(): boolean {
+    if (this.fallbackMode || !this.isConnected || !this.redisClient) {
+      return false;
+    }
+    // Only use Redis when status is 'ready'
+    const status = this.redisClient.status;
+    return status === 'ready';
+  }
+
+  /**
    * Get or create rate limiter for a specific configuration
    */
   private getRateLimiter(config: RateLimitConfig, context: RateLimitContext): RateLimiterRedis | RateLimiterMemory {
     const key = this.generateLimiterKey(config, context);
+    const useRedis = this.isRedisReady();
 
+    // If we have a cached limiter, check if it's still valid
     if (this.rateLimiters.has(key)) {
-      return this.rateLimiters.get(key)!;
+      const cached = this.rateLimiters.get(key)!;
+      const isRedisBased = cached instanceof RateLimiterRedis;
+
+      // If Redis is not ready but we have a Redis limiter, create a new memory limiter
+      if (!useRedis && isRedisBased) {
+        const limiterConfig = this.mapConfigToRateLimiterFlexible(config, context);
+        const memoryLimiter = new RateLimiterMemory(limiterConfig);
+        this.rateLimiters.set(key, memoryLimiter);
+        return memoryLimiter;
+      }
+
+      return cached;
     }
 
     const limiterConfig = this.mapConfigToRateLimiterFlexible(config, context);
 
     let limiter: RateLimiterRedis | RateLimiterMemory;
 
-    // Redis가 없거나 연결 안됐으면 메모리 fallback 사용
-    if (this.fallbackMode || !this.isConnected || !this.redisClient) {
-      // Use memory-based limiter as fallback
+    // Use memory-based limiter unless Redis is confirmed ready
+    if (!useRedis) {
       limiter = new RateLimiterMemory(limiterConfig);
       // 로그는 한번만 출력
       if (!this.redisErrorLogged) {
@@ -167,10 +195,10 @@ export class RateLimiterFlexibleService {
         logger.info('Using memory-based rate limiter (Redis unavailable)');
       }
     } else {
-      // Use Redis-based limiter
+      // Use Redis-based limiter only when confirmed ready
       limiter = new RateLimiterRedis({
         ...limiterConfig,
-        storeClient: this.redisClient,
+        storeClient: this.redisClient!,
         keyPrefix: REDIS_RATE_LIMIT_CONFIG.keyPrefix
       });
     }
