@@ -1466,10 +1466,13 @@ export class ReservationService {
             range: `${offset} to ${offset + limit - 1}`
           });
 
-          // Sort by reservation_date and reservation_time descending (most recent first)
+          // Sort based on status:
+          // - 'past': most recent past reservation first (descending)
+          // - 'upcoming': nearest future reservation first (ascending)
+          const isAscending = filters.status === 'upcoming';
           query = query
-            .order('reservation_date', { ascending: false })
-            .order('reservation_time', { ascending: false });
+            .order('reservation_date', { ascending: isAscending })
+            .order('reservation_time', { ascending: isAscending });
           query = query.range(offset, offset + limit - 1);
 
           console.log('[SERVICE-DEBUG-1] Executing Supabase query...');
