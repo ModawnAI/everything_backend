@@ -1342,14 +1342,12 @@ export class ReservationService {
       const limit = filters.limit || 10;
       const offset = (page - 1) * limit;
 
-      // Create cache key based on query parameters
-      const cacheKey = `list:${userId}:${filters.status || 'all'}:${filters.startDate || ''}:${filters.endDate || ''}:${filters.shopId || 'all'}:${page}:${limit}`;
+      // 🔧 PERFORMANCE FIX: Bypass cache service to avoid Redis connection delays
+      // Direct query without caching for faster response
+      const startTime = Date.now();
 
-      const result = await queryCacheService.getCachedQuery(
-        cacheKey,
-        async () => {
-          // 🔧 Simplified query - removed explicit FK name to let Supabase infer the relationship
-          let query = this.supabase
+      // 🔧 Simplified query - removed explicit FK name to let Supabase infer the relationship
+      let query = this.supabase
             .from('reservations')
             .select(`
               id,
@@ -1483,20 +1481,15 @@ export class ReservationService {
             }))
           })) || [];
 
-          return {
-            reservations: formattedReservations,
-            total: count || 0
-          };
-        },
-        {
-          namespace: 'reservation',
-          ttl: 300, // 5 minutes
-        }
-      );
+      logger.info('getUserReservations query completed', {
+        userId,
+        duration: Date.now() - startTime,
+        count: formattedReservations.length
+      });
 
       return {
-        reservations: result.reservations,
-        total: result.total,
+        reservations: formattedReservations,
+        total: count || 0,
         page,
         limit
       };
