@@ -10,8 +10,17 @@ import { rateLimit } from '../middleware/rate-limit.middleware';
 
 const router = Router();
 
+// Rate limiting configuration - use fixed_window strategy to avoid blocking issues
+const publicRateLimit = rateLimit({
+  config: {
+    windowMs: 15 * 60 * 1000, // 15 minutes
+    max: 200, // limit each IP to 200 requests per windowMs
+    strategy: 'fixed_window'
+  }
+});
+
 // Apply rate limiting to all routes
-router.use(rateLimit());
+router.use(publicRateLimit);
 
 /**
  * GET /api/home/sections
