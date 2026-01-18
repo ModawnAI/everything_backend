@@ -238,7 +238,19 @@ export class QueryCacheService {
       const keys = await this.redis.keys(pattern);
       logger.info('[CACHE] Found keys to invalidate', { pattern, keysFound: keys.length, keys: keys.slice(0, 5) }); // Log first 5 keys
       if (keys.length > 0) {
-        await this.redis.del(...keys);
+        // ioredis keyPrefix 이중 적용 문제 해결:
+        // - keys() 결과에는 keyPrefix('qc:')가 포함되어 반환됨
+        // - del()에 전달 시 keyPrefix가 다시 추가되어 'qc:qc:...' 가 됨
+        // - 따라서 keys 결과에서 keyPrefix를 제거한 후 del 호출
+        const keyPrefix = 'qc:';
+        const keysWithoutPrefix = keys.map(key =>
+          key.startsWith(keyPrefix) ? key.slice(keyPrefix.length) : key
+        );
+        logger.info('[CACHE] Keys after removing prefix for del', {
+          originalKeys: keys.slice(0, 3),
+          keysWithoutPrefix: keysWithoutPrefix.slice(0, 3)
+        });
+        await this.redis.del(...keysWithoutPrefix);
         logger.info('[CACHE] Cache pattern invalidated successfully', { pattern, count: keys.length });
       } else {
         logger.info('[CACHE] No keys found for pattern', { pattern });
