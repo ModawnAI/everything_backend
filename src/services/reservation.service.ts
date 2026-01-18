@@ -1342,12 +1342,17 @@ export class ReservationService {
       const limit = filters.limit || 10;
       const offset = (page - 1) * limit;
 
-      // 🔧 PERFORMANCE FIX: Bypass cache service to avoid Redis connection delays
-      // Direct query without caching for faster response
-      const startTime = Date.now();
+      // Build cache key that matches invalidation pattern: reservation:*:list:${userId}:*
+      const filterKey = `${filters.status || 'all'}_${filters.startDate || ''}_${filters.endDate || ''}_${filters.shopId || ''}_p${page}_l${limit}`;
+      const cacheKey = `list:${userId}:${filterKey}`;
 
-      // 🔧 Simplified query - removed explicit FK name to let Supabase infer the relationship
-      let query = this.supabase
+      return await queryCacheService.getCachedQuery(
+        cacheKey,
+        async () => {
+          const startTime = Date.now();
+
+          // 🔧 Simplified query - removed explicit FK name to let Supabase infer the relationship
+          let query = this.supabase
             .from('reservations')
             .select(`
               id,
@@ -1481,18 +1486,24 @@ export class ReservationService {
             }))
           })) || [];
 
-      logger.info('getUserReservations query completed', {
-        userId,
-        duration: Date.now() - startTime,
-        count: formattedReservations.length
-      });
+          logger.info('getUserReservations query completed', {
+            userId,
+            duration: Date.now() - startTime,
+            count: formattedReservations.length
+          });
 
-      return {
-        reservations: formattedReservations,
-        total: count || 0,
-        page,
-        limit
-      };
+          return {
+            reservations: formattedReservations,
+            total: count || 0,
+            page,
+            limit
+          };
+        },
+        {
+          namespace: 'reservation',
+          ttl: 300, // 5 minutes - short TTL for reservation lists
+        }
+      );
     } catch (error) {
       logger.error('Error in getUserReservations', { userId, error: (error as Error).message });
       throw error;
@@ -1615,6 +1626,18 @@ export class ReservationService {
         refundPercentage: refundCalculation?.refundPercentage || 0,
         refundEligibility: refundCalculation?.isEligible || false
       });
+
+      // Invalidate user's reservation cache after cancellation
+      try {
+        const pattern = `reservation:*:list:${userId}:*`;
+        await queryCacheService.invalidatePattern(pattern);
+        logger.info('[CACHE] Reservation cache invalidated after cancellation', { userId, reservationId });
+      } catch (cacheError) {
+        logger.error('[CACHE] Failed to invalidate reservation cache after cancellation', {
+          error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
+          userId
+        });
+      }
 
       return {
         id: reservation.id,
