@@ -583,7 +583,6 @@ export class ReservationService {
           p_reservation_time: reservationTime,
           p_total_amount: totalAmount,
           p_deposit_amount: depositAmount,
-          p_points_used: pointsToUse || 0,
           p_special_requests: specialRequests || null
         });
 
@@ -807,6 +806,12 @@ export class ReservationService {
               `예약 ${reservationId}에 포인트 사용`,
               reservationId
             );
+
+            // Update reservation with points_used value
+            await this.supabase
+              .from('reservations')
+              .update({ points_used: pointsToUse })
+              .eq('id', reservationId);
 
             logger.info('Points deducted for reservation', {
               reservationId,
