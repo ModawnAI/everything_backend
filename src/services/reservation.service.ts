@@ -583,6 +583,7 @@ export class ReservationService {
           p_reservation_time: reservationTime,
           p_total_amount: totalAmount,
           p_deposit_amount: depositAmount,
+          p_points_used: pointsToUse || 0,
           p_special_requests: specialRequests || null
         });
 
