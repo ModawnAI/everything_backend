@@ -201,7 +201,15 @@ export class PointService {
         .single();
 
       if (txError || !transaction) {
-        throw new Error('포인트 거래 기록 생성에 실패했습니다');
+        logger.error('Point transaction insert failed', {
+          userId,
+          amount,
+          txError: txError?.message,
+          txErrorDetails: txError?.details,
+          txErrorHint: txError?.hint,
+          txErrorCode: txError?.code
+        });
+        throw new Error(`포인트 거래 기록 생성에 실패했습니다: ${txError?.message || 'Unknown error'}`);
       }
 
       // 3. Update user's available points
