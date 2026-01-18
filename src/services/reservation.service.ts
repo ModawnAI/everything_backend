@@ -134,24 +134,9 @@ export class ReservationService {
     // Validate that user has filled out required booking preferences
     // UPDATED: Make skin type and allergy info optional (not everyone needs to provide this)
     if (!bookingPreferences.skinType || !bookingPreferences.allergyInfo) {
-      logger.info('User booking preferences incomplete but allowing reservation', {
-        userId,
-        hasPreferences: !!userData?.booking_preferences,
-        hasSkinType: !!bookingPreferences.skinType,
-        hasAllergyInfo: !!bookingPreferences.allergyInfo,
-        note: 'Skin type and allergy info are optional - proceeding with reservation'
-      });
       // Don't throw error - these fields are now optional
       // Users can still make reservations without this info
     }
-
-    logger.info('User booking preferences validated', {
-      userId,
-      skinType: bookingPreferences.skinType,
-      hasAllergyInfo: !!bookingPreferences.allergyInfo,
-      hasPreferredStylist: !!bookingPreferences.preferredStylist,
-      hasSpecialRequests: !!bookingPreferences.specialRequests
-    });
 
     // Check if slot is still available using enhanced validation
     const slotValidation = await timeSlotService.validateSlotAvailability(
@@ -172,16 +157,6 @@ export class ReservationService {
       throw new Error(`Selected time slot is no longer available: ${slotValidation.conflictReason}`);
     }
 
-    // Log v3.1 flow metadata for tracking
-    if (requestMetadata) {
-      logger.info('Reservation request with v3.1 metadata:', {
-        shopId,
-        userId,
-        source: requestMetadata.source,
-        userAgent: requestMetadata.userAgent,
-        ipAddress: requestMetadata.ipAddress
-      });
-    }
 
     // Calculate pricing with v3.1 flow support
     const pricingInfo = await this.calculatePricingWithDeposit(request);
@@ -189,17 +164,6 @@ export class ReservationService {
     // Acquire lock and create reservation with enhanced retry logic
     const reservation = await this.withEnhancedRetry(async () => {
       return await this.createReservationWithLock(request, pricingInfo, bookingPreferences);
-    });
-
-    // Log successful v3.1 flow reservation creation
-    logger.info('v3.1 flow reservation created successfully:', {
-      reservationId: reservation.id,
-      shopId,
-      userId,
-      status: reservation.status,
-      totalAmount: reservation.totalAmount,
-      depositAmount: paymentInfo?.depositAmount,
-      remainingAmount: paymentInfo?.remainingAmount
     });
 
     // NOTE: 예약 목록 캐시 우회됨 - 캐시 무효화 불필요
@@ -261,13 +225,6 @@ export class ReservationService {
           confirmationNotes: undefined
         }
       });
-
-      logger.info('Customer notification sent for new reservation', {
-        reservationId: reservation.id,
-        customerId: userId,
-        shopId,
-        shopName: shopData?.name
-      });
     } catch (customerNotificationError) {
       // Log error but don't fail the reservation
       logger.error('Failed to send customer notification', {
@@ -315,12 +272,6 @@ export class ReservationService {
         };
 
         websocketService.broadcastReservationUpdate(reservationUpdate);
-
-        logger.info('Real-time WebSocket notification sent to shop owner with customer info', {
-          reservationId: reservation.id,
-          shopId: reservation.shopId,
-          customerName: customer?.name || customer?.nickname
-        });
       }
     } catch (wsError) {
       // Log WebSocket error but don't fail the reservation creation
@@ -552,15 +503,6 @@ export class ReservationService {
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       try {
-        logger.info('Attempting reservation creation with lock', {
-          shopId,
-          userId,
-          reservationDate,
-          reservationTime,
-          attempt,
-          maxRetries
-        });
-
         // Calculate total_amount from deposit + remaining
         const depositAmount = pricingInfo?.depositAmount || 0;
         const remainingAmount = pricingInfo?.remainingAmount || 0;
@@ -584,14 +526,12 @@ export class ReservationService {
             throw new Error('Time slot is no longer available due to concurrent booking');
           } else if (error.message?.includes('ADVISORY_LOCK_TIMEOUT')) {
             if (attempt < maxRetries) {
-              logger.warn('Advisory lock timeout, retrying', { attempt, maxRetries });
               await this.delay(100 * attempt); // Exponential backoff
               continue;
             }
             throw new Error('Unable to acquire time slot lock - please try again');
           } else if (error.message?.includes('LOCK_TIMEOUT')) {
             if (attempt < maxRetries) {
-              logger.warn('Lock timeout, retrying', { attempt, maxRetries });
               await this.delay(200 * attempt); // Exponential backoff
               continue;
             }
@@ -600,7 +540,6 @@ export class ReservationService {
             throw new Error('System is busy - please try again in a moment');
           } else if (error.message?.includes('deadlock')) {
             if (attempt < maxRetries) {
-              logger.warn('Deadlock detected, retrying', { attempt, maxRetries });
               await this.delay(300 * attempt); // Exponential backoff
               continue;
             }
@@ -661,14 +600,6 @@ export class ReservationService {
           throw new Error('Failed to get reservation ID from database');
         }
 
-        logger.info('Reservation created successfully', {
-          reservationId,
-          shopId,
-          userId,
-          reservationDate,
-          reservationTime
-        });
-
         // Ensure we have a proper reservation object with id
         if (typeof reservationData === 'string') {
           // If RPC only returned the ID, fetch the full reservation
@@ -701,11 +632,6 @@ export class ReservationService {
             });
             // Don't fail the reservation, just log the error
           } else {
-            logger.info('Booking preferences stored with reservation', {
-              reservationId,
-              skinType: bookingPreferences.skinType,
-              hasAllergyInfo: !!bookingPreferences.allergyInfo
-            });
             // Add booking_preferences to the returned reservation object
             reservationData.booking_preferences = bookingPreferences;
           }
@@ -736,11 +662,6 @@ export class ReservationService {
                 error: servicesError.message
               });
               // Don't fail the reservation, just log the error
-            } else {
-              logger.info('Reservation services inserted', {
-                reservationId,
-                servicesCount: services.length
-              });
             }
           } catch (serviceInsertError) {
             logger.error('Error inserting reservation services', {
@@ -771,12 +692,6 @@ export class ReservationService {
               .from('reservations')
               .update({ points_used: pointsToUse })
               .eq('id', reservationId);
-
-            logger.info('Points deducted for reservation', {
-              reservationId,
-              userId,
-              pointsUsed: pointsToUse
-            });
           } catch (error) {
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
             logger.error('Failed to deduct points for reservation', {
@@ -840,19 +755,7 @@ export class ReservationService {
                   paymentInfo
                 });
                 // Don't fail the reservation, just log the error
-              } else {
-                logger.info('Payment record created successfully', {
-                  reservationId,
-                  paymentId: paymentRecord.id,
-                  amount: paymentInfo.depositAmount,
-                  method: dbPaymentMethod
-                });
               }
-            } else {
-              logger.info('Cash payment selected - no payment record created', {
-                reservationId,
-                remainingAmount: paymentInfo.remainingAmount
-              });
             }
           } catch (error) {
             logger.error('Error creating payment record', {
@@ -869,11 +772,6 @@ export class ReservationService {
         lastError = error;
         
         if (attempt < maxRetries) {
-          logger.warn('Reservation creation attempt failed, retrying', {
-            attempt,
-            maxRetries,
-            error: error instanceof Error ? error.message : 'Unknown error'
-          });
           await this.delay(100 * attempt); // Exponential backoff
           continue;
         }
@@ -915,13 +813,6 @@ export class ReservationService {
 
         // Calculate delay with exponential backoff
         const delay = this.calculateRetryDelay(retryCount, error as Error);
-        
-        logger.warn('Retrying reservation operation', {
-          retryCount,
-          delay,
-          error: (error as Error).message,
-          maxRetries: this.MAX_RETRIES
-        });
 
         // Wait before retry
         await this.sleep(delay);
@@ -1101,11 +992,6 @@ export class ReservationService {
 
       // Send notification to shop owner
       await shopOwnerNotificationService.notifyShopOwnerOfNewRequest(notificationPayload);
-
-      logger.info('Shop owner notification sent successfully', {
-        reservationId: reservation.id,
-        shopId: reservation.shopId
-      });
 
     } catch (error) {
       logger.error('Failed to send shop owner notification', {
@@ -1331,7 +1217,6 @@ export class ReservationService {
       const page = filters.page || 1;
       const limit = filters.limit || 10;
       const offset = (page - 1) * limit;
-      const startTime = Date.now();
 
       // 캐시 우회: 예약 데이터는 실시간성이 중요하므로 직접 쿼리
       // admin에서 예약 변경 시 푸시 알림과 함께 즉시 반영되어야 함
@@ -1466,12 +1351,6 @@ export class ReservationService {
         }))
       })) || [];
 
-      logger.info('getUserReservations query completed (cache bypassed)', {
-        userId,
-        duration: Date.now() - startTime,
-        count: formattedReservations.length
-      });
-
       return {
         reservations: formattedReservations,
         total: count || 0,
@@ -1519,33 +1398,10 @@ export class ReservationService {
         };
 
         refundCalculation = await timezoneRefundService.calculateRefundAmount(dynamicRefundRequest);
-        
-        logger.info('Dynamic refund calculation completed', {
-          reservationId,
-          refundAmount: refundCalculation.refundAmount,
-          refundPercentage: refundCalculation.refundPercentage,
-          isEligible: refundCalculation.isEligible,
-          cancellationWindow: refundCalculation.cancellationWindow
-        });
 
         // Process refunds if eligible
         if (refundCalculation.isEligible && refundCalculation.refundAmount > 0) {
           refundResult = await refundService.processDynamicRefund(dynamicRefundRequest);
-          
-          logger.info('Automatic refund processing completed', {
-            reservationId,
-            refundAmount: refundCalculation.refundAmount,
-            refundPercentage: refundCalculation.refundPercentage,
-            refundId: refundResult.refundId,
-            refundStatus: refundResult.status
-          });
-        } else {
-          logger.info('Refund not eligible or amount is zero', {
-            reservationId,
-            reason: refundCalculation.reason,
-            isEligible: refundCalculation.isEligible,
-            refundAmount: refundCalculation.refundAmount
-          });
         }
 
       } catch (refundError) {
@@ -1588,17 +1444,6 @@ export class ReservationService {
         refundCalculation,
         refundResult,
         canCancelResult: canCancel
-      });
-
-      logger.info('Reservation cancelled successfully with enhanced refund processing', {
-        reservationId,
-        userId,
-        reason,
-        cancellationType,
-        refundProcessed: !!refundResult,
-        refundAmount: refundCalculation?.refundAmount || 0,
-        refundPercentage: refundCalculation?.refundPercentage || 0,
-        refundEligibility: refundCalculation?.isEligible || false
       });
 
       // NOTE: 예약 목록 캐시 우회됨 - 캐시 무효화 불필요
@@ -1666,13 +1511,6 @@ export class ReservationService {
           refund_processing_details: params.refundResult || null,
           created_at: formatKoreanDateTime(getCurrentKoreanTime())
         });
-
-      logger.info('Enhanced cancellation audit trail created', {
-        reservationId: params.reservationId,
-        cancellationType: params.cancellationType,
-        refundAmount: params.refundCalculation?.refundAmount || 0,
-        refundProcessed: !!params.refundResult
-      });
 
     } catch (error) {
       logger.error('Failed to create enhanced cancellation audit trail', {

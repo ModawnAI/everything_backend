@@ -41,7 +41,6 @@ export class RateLimiterFlexibleService {
   private async initializeRedis(): Promise<void> {
     // Check if rate limiting is disabled
     if (process.env.DISABLE_RATE_LIMIT === 'true') {
-      logger.info("Rate limiting is disabled, skipping Redis initialization");
       this.redisClient = null;
       this.fallbackMode = true;
       return;
@@ -49,7 +48,6 @@ export class RateLimiterFlexibleService {
 
     // Check if Redis is enabled
     if (!config.redis.enabled) {
-      logger.info("Redis rate limiter is disabled, using in-memory fallback");
       this.redisClient = null;
       this.fallbackMode = true;
       return;
@@ -65,7 +63,6 @@ export class RateLimiterFlexibleService {
         retryStrategy: (times) => {
           // Stop retrying immediately to prevent blocking
           if (times > 1) {
-            logger.warn('Redis rate limiter connection failed, using memory fallback');
             return null; // Stop retrying
           }
           return 100; // Wait 100ms once
@@ -77,22 +74,12 @@ export class RateLimiterFlexibleService {
         commandTimeout: 500, // 500ms timeout for commands
       });
 
-      // Only log errors once to prevent log spam
-      let errorLogged = false;
-      this.redisClient.on('error', (error) => {
-        if (!errorLogged) {
-          errorLogged = true;
-          logger.warn('Redis rate limiter error, using memory fallback', {
-            error: error.message
-          });
-        }
+      this.redisClient.on('error', () => {
         this.isConnected = false;
         this.fallbackMode = true;
       });
 
-      // Don't reset fallbackMode on connect events - only trust explicit success
       this.redisClient.on('disconnect', () => {
-        logger.warn('Redis rate limiter disconnected');
         this.isConnected = false;
         this.fallbackMode = true;
       });
@@ -116,11 +103,7 @@ export class RateLimiterFlexibleService {
 
         this.isConnected = true;
         this.fallbackMode = false;
-        logger.info('Redis rate limiter connected and tested successfully');
       } catch (connectError) {
-        logger.warn('Redis connection or ping failed, using in-memory fallback', {
-          error: connectError instanceof Error ? connectError.message : 'Unknown error'
-        });
         this.fallbackMode = true;
         this.isConnected = false;
         if (this.redisClient) {
@@ -134,9 +117,6 @@ export class RateLimiterFlexibleService {
       }
 
     } catch (error) {
-      logger.warn('Redis initialization failed, using in-memory fallback', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
       this.fallbackMode = true;
       this.isConnected = false;
       // Close the failed client
@@ -189,11 +169,6 @@ export class RateLimiterFlexibleService {
     // Use memory-based limiter unless Redis is confirmed ready
     if (!useRedis) {
       limiter = new RateLimiterMemory(limiterConfig);
-      // 로그는 한번만 출력
-      if (!this.redisErrorLogged) {
-        this.redisErrorLogged = true;
-        logger.info('Using memory-based rate limiter (Redis unavailable)');
-      }
     } else {
       // Use Redis-based limiter only when confirmed ready
       limiter = new RateLimiterRedis({
@@ -307,14 +282,6 @@ export class RateLimiterFlexibleService {
         return this.mapRateLimiterResult(error as RateLimiterRes, config);
       }
 
-      // 실제 에러는 한번만 로그
-      if (!this.redisErrorLogged) {
-        this.redisErrorLogged = true;
-        logger.warn('Rate limit check failed, using graceful degradation', {
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-
       // Graceful degradation - allow request if rate limiting fails
       return {
         allowed: true,
@@ -366,11 +333,6 @@ export class RateLimiterFlexibleService {
       return this.mapRateLimiterResult(result, config);
 
     } catch (error) {
-      logger.error('Failed to get rate limit status', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        context
-      });
-
       return {
         allowed: true,
         totalHits: 0,
@@ -392,15 +354,9 @@ export class RateLimiterFlexibleService {
       const key = this.generateKeyPrefix(config, context);
       
       await limiter.delete(key);
-      
-      logger.info('Rate limit reset', { key, context });
       return true;
 
     } catch (error) {
-      logger.error('Failed to reset rate limit', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        context
-      });
       return false;
     }
   }
@@ -420,18 +376,9 @@ export class RateLimiterFlexibleService {
       // Add penalty points
       const penaltyPoints = Math.floor(config.max * penaltyMultiplier);
       await limiter.penalty(key, penaltyPoints);
-      
-      logger.warn('User penalized for rate limit violations', {
-        key,
-        penaltyPoints,
-        context
-      });
 
     } catch (error) {
-      logger.error('Failed to penalize user', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-        context
-      });
+      // Silently fail
     }
   }
 
@@ -468,13 +415,9 @@ export class RateLimiterFlexibleService {
       
       this.isConnected = false;
       this.fallbackMode = false;
-      
-      logger.info('Rate limiter flexible service cleaned up');
 
     } catch (error) {
-      logger.error('Error during rate limiter cleanup', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
+      // Silently fail
     }
   }
 
@@ -486,14 +429,11 @@ export class RateLimiterFlexibleService {
       if (!this.redisClient) {
         return false;
       }
-      
+
       const result = await this.redisClient.ping();
       return result === 'PONG';
 
     } catch (error) {
-      logger.error('Redis connection test failed', {
-        error: error instanceof Error ? error.message : 'Unknown error'
-      });
       return false;
     }
   }

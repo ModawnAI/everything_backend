@@ -56,7 +56,6 @@ export class CacheService {
   private async initializeRedis(): Promise<void> {
     // Check if Redis is enabled
     if (!config.redis.enabled) {
-      logger.info("Redis cache service is disabled");
       this.client = null;
       return;
     }
@@ -82,20 +81,11 @@ export class CacheService {
 
       this.client = new Redis(redisConfig);
 
-      this.client.on('connect', () => {
-        logger.info('Redis cache service connected');
-      });
-
       this.client.on('error', (error) => {
-        logger.error('Redis cache service error', { error: error.message });
-      });
-
-      this.client.on('close', () => {
-        logger.warn('Redis cache service disconnected');
+        logger.error('Redis cache error', { error: error.message });
       });
 
       await this.client.connect();
-      logger.info('Redis cache service initialized');
     } catch (error) {
       logger.error('Failed to initialize Redis cache service', { error: (error as Error).message });
       this.client = null;
@@ -161,10 +151,8 @@ export class CacheService {
       if (tags.length > 0) {
         this.storeTags(cacheKey, tags).catch(() => {});
       }
-
-      logger.debug('Cache set', { key: cacheKey, ttl, tags });
     } catch (error) {
-      logger.error('Cache set failed', { key, error: (error as Error).message });
+      // Silently fail - cache is not critical
     }
   }
 
@@ -202,14 +190,13 @@ export class CacheService {
         }
 
         this.stats.hits++;
-        logger.debug('Cache hit', { key: cacheKey });
         return entry.data;
       });
 
       const result = await Promise.race([getPromise, timeoutPromise]);
       return result;
     } catch (error) {
-      logger.error('Cache get failed', { key, error: (error as Error).message });
+      // Silently fail - cache is not critical
       this.stats.misses++;
       return null;
     }
@@ -237,10 +224,8 @@ export class CacheService {
 
       // Remove tags (fire and forget)
       this.removeTags(cacheKey).catch(() => {});
-
-      logger.debug('Cache deleted', { key: cacheKey });
     } catch (error) {
-      logger.error('Cache delete failed', { key, error: (error as Error).message });
+      // Silently fail - cache is not critical
     }
   }
 
@@ -271,13 +256,12 @@ export class CacheService {
 
         if (keysToDelete.length > 0) {
           await this.client!.del(...keysToDelete);
-          logger.info('Cache invalidated by tags', { tags, keysDeleted: keysToDelete.length });
         }
       })();
 
       await Promise.race([invalidatePromise, timeoutPromise]);
     } catch (error) {
-      logger.error('Cache invalidation failed', { tags, error: (error as Error).message });
+      // Silently fail - cache is not critical
     }
   }
 
@@ -286,7 +270,6 @@ export class CacheService {
    */
   async clear(): Promise<void> {
     if (!this.client) {
-      logger.warn('Redis cache not available, skipping cache clear');
       return;
     }
 
@@ -301,10 +284,8 @@ export class CacheService {
       if (tagKeys.length > 0) {
         await this.client.del(...tagKeys);
       }
-
-      logger.info('Cache cleared', { keysDeleted: keys.length });
     } catch (error) {
-      logger.error('Cache clear failed', { error: (error as Error).message });
+      // Silently fail
     }
   }
 
@@ -339,7 +320,6 @@ export class CacheService {
         hitRate,
       };
     } catch (error) {
-      logger.error('Failed to get cache stats', { error: (error as Error).message });
       return {
         hits: this.stats.hits,
         misses: this.stats.misses,
@@ -363,7 +343,7 @@ export class CacheService {
         await this.client.expire(tagKey, this.defaultTTL);
       }
     } catch (error) {
-      logger.error('Failed to store cache tags', { cacheKey, tags, error: (error as Error).message });
+      // Silently fail
     }
   }
 
@@ -379,7 +359,7 @@ export class CacheService {
         await this.client.srem(tagKey, cacheKey);
       }
     } catch (error) {
-      logger.error('Failed to remove cache tags', { cacheKey, error: (error as Error).message });
+      // Silently fail
     }
   }
 
@@ -401,7 +381,6 @@ export class CacheService {
       
       return null;
     } catch (error) {
-      logger.error('Failed to acquire lock', { key, error: (error as Error).message });
       return null;
     }
   }
@@ -421,11 +400,10 @@ export class CacheService {
           return 0
         end
       `;
-      
+
       const result = await this.client.eval(script, 1, lockKey, lockValue);
       return result === 1;
     } catch (error) {
-      logger.error('Failed to release lock', { key, error: (error as Error).message });
       return false;
     }
   }
@@ -441,9 +419,8 @@ export class CacheService {
     try {
       const data = await dataProvider();
       await this.set(key, data, options);
-      logger.info('Cache warmed', { key });
     } catch (error) {
-      logger.error('Cache warming failed', { key, error: (error as Error).message });
+      // Silently fail
     }
   }
 
@@ -454,7 +431,6 @@ export class CacheService {
     if (this.client) {
       await this.client.quit();
       this.client = null;
-      logger.info('Redis cache service connection closed');
     }
   }
 }
@@ -487,7 +463,6 @@ export function cacheMiddleware(options: CacheOptions = {}) {
 
       next();
     } catch (error) {
-      logger.error('Cache middleware error', { error: (error as Error).message });
       next();
     }
   };

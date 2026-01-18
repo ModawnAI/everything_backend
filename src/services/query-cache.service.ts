@@ -68,13 +68,11 @@ export class QueryCacheService {
   private async initializeRedis(): Promise<void> {
     // Check if caching is disabled
     if (process.env.DISABLE_QUERY_CACHE === 'true') {
-      logger.info('Query caching is disabled');
       return;
     }
 
     // Check if Redis is enabled
     if (!config.redis.enabled) {
-      logger.info('Redis is disabled, query caching unavailable');
       return;
     }
 
@@ -86,7 +84,6 @@ export class QueryCacheService {
         maxRetriesPerRequest: 2,
         retryStrategy: (times) => {
           if (times > 2) {
-            logger.error('Redis query cache connection failed after retries');
             return null;
           }
           return Math.min(times * 100, 500);
@@ -102,24 +99,19 @@ export class QueryCacheService {
         ? new Redis(config.redis.url, redisOptions)
         : new Redis(redisOptions);
 
-      this.redis.on('error', (error) => {
-        logger.error('Redis query cache error', { error: error.message });
+      this.redis.on('error', () => {
         this.isEnabled = false;
       });
 
       this.redis.on('connect', () => {
-        logger.info('Redis query cache connected');
         this.isEnabled = true;
       });
 
       this.redis.on('disconnect', () => {
-        logger.warn('Redis query cache disconnected');
         this.isEnabled = false;
       });
     } catch (error) {
-      logger.error('Failed to initialize Redis query cache', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      // Silently fail - cache is not critical
     }
   }
 
@@ -151,12 +143,7 @@ export class QueryCacheService {
     const result = await queryFn();
 
     // Cache the result (fire and forget)
-    this.set(fullKey, result, ttl).catch((error) => {
-      logger.warn('Failed to cache query result', {
-        key: fullKey,
-        error: error.message,
-      });
-    });
+    this.set(fullKey, result, ttl).catch(() => {});
 
     return result;
   }
@@ -197,10 +184,6 @@ export class QueryCacheService {
       const result = await Promise.race([getPromise, timeoutPromise]);
       return result;
     } catch (error) {
-      logger.error('Cache get error', {
-        key,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
       return null;
     }
   }
@@ -226,10 +209,7 @@ export class QueryCacheService {
 
       await Promise.race([setPromise, timeoutPromise]);
     } catch (error) {
-      logger.error('Cache set error', {
-        key,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      // Silently fail
     }
   }
 
@@ -252,13 +232,8 @@ export class QueryCacheService {
 
       const delPromise = this.redis!.del(fullKey).then(() => {});
       await Promise.race([delPromise, timeoutPromise]);
-
-      logger.debug('Cache invalidated', { key: fullKey });
     } catch (error) {
-      logger.error('Cache invalidation error', {
-        key,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      // Silently fail
     }
   }
 
@@ -268,23 +243,10 @@ export class QueryCacheService {
   async invalidatePattern(pattern: string): Promise<void> {
     // Strict check: only proceed if Redis is actually ready
     if (!this.isRedisReady()) {
-      logger.info('[CACHE] invalidatePattern skipped - Redis not ready', {
-        pattern,
-        isEnabled: this.isEnabled,
-        hasRedis: !!this.redis,
-        status: this.redis?.status
-      });
       return;
     }
 
     try {
-      logger.info('[CACHE] invalidatePattern called', { pattern });
-
-      // Debug: Check Redis connection status
-      const redisStatus = this.redis!.status;
-      logger.info('[CACHE] Redis connection status', { status: redisStatus, keyPrefix: 'qc:' });
-
-      // Use sendCommand to bypass keyPrefix for debugging
       const fullPattern = `qc:${pattern}`;
 
       // Add timeout to prevent blocking
@@ -295,16 +257,7 @@ export class QueryCacheService {
       const keysPromise = this.redis!.call('KEYS', fullPattern) as Promise<string[]>;
       const keysRaw = await Promise.race([keysPromise, timeoutPromise]);
 
-      logger.info('[CACHE] Raw KEYS command result', { fullPattern, keysFound: keysRaw?.length || 0, keys: keysRaw?.slice(0, 5) });
-
-      // Use keysRaw (from raw KEYS command) for reliable deletion
-      // This bypasses ioredis keyPrefix issues completely
       if (keysRaw && keysRaw.length > 0) {
-        logger.info('[CACHE] Using raw keys for deletion', {
-          keysToDelete: keysRaw.slice(0, 5),
-          totalCount: keysRaw.length
-        });
-
         // Add timeout for DEL command
         const delTimeoutPromise = new Promise<void>((resolve) => {
           setTimeout(() => resolve(), 500);
@@ -312,16 +265,9 @@ export class QueryCacheService {
 
         const delPromise = (this.redis!.call('DEL', ...keysRaw) as Promise<number>).then(() => {});
         await Promise.race([delPromise, delTimeoutPromise]);
-
-        logger.info('[CACHE] Cache pattern invalidated successfully', { pattern, count: keysRaw.length });
-      } else {
-        logger.info('[CACHE] No keys found for pattern', { pattern, fullPattern });
       }
     } catch (error) {
-      logger.error('[CACHE] Cache pattern invalidation error', {
-        pattern,
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      // Silently fail
     }
   }
 
@@ -349,12 +295,8 @@ export class QueryCacheService {
 
       const flushPromise = this.redis!.flushdb().then(() => {});
       await Promise.race([flushPromise, timeoutPromise]);
-
-      logger.info('Query cache cleared');
     } catch (error) {
-      logger.error('Cache clear error', {
-        error: error instanceof Error ? error.message : 'Unknown error',
-      });
+      // Silently fail
     }
   }
 
@@ -419,7 +361,6 @@ export class QueryCacheService {
   async disconnect(): Promise<void> {
     if (this.redis) {
       await this.redis.quit();
-      logger.info('Redis query cache disconnected');
     }
   }
 }
