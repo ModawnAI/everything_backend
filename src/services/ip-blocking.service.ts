@@ -148,22 +148,24 @@ export class IPBlockingService {
       
       if (!countData) return;
       
-      const { count, lastViolation, violations } = countData as any;
+      const { count, lastViolation, violations = [] } = countData as any;
       const now = new Date();
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
       const oneDayAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-      
+
+      const violationsList = Array.isArray(violations) ? violations : [];
+
       // Count recent violations
-      const recentViolations = violations.filter((v: any) => 
+      const recentViolations = violationsList.filter((v: any) =>
         new Date(v.timestamp) > oneHourAgo
       );
-      
-      const dailyViolations = violations.filter((v: any) => 
+
+      const dailyViolations = violationsList.filter((v: any) =>
         new Date(v.timestamp) > oneDayAgo
       );
-      
+
       // Check for critical violations
-      const criticalViolations = violations.filter((v: any) => 
+      const criticalViolations = violationsList.filter((v: any) =>
         v.severity === 'critical'
       );
       
@@ -306,9 +308,9 @@ export class IPBlockingService {
         return null;
       }
 
-      // Whitelist localhost and local IPs
-      const localIPs = ['127.0.0.1', '::1', 'localhost'];
-      if (localIPs.includes(ip)) {
+      // Whitelist localhost and local IPs (including IPv4-mapped IPv6)
+      const localIPs = ['127.0.0.1', '::1', 'localhost', '::ffff:127.0.0.1'];
+      if (localIPs.includes(ip) || ip.startsWith('::ffff:127.')) {
         return null;
       }
 
@@ -358,15 +360,17 @@ export class IPBlockingService {
         };
       }
       
-      const { count, lastViolation, violations } = countData as any;
+      const { count, lastViolation, violations = [] } = countData as any;
       const now = new Date();
       const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-      
-      const recentViolations = violations.filter((v: any) => 
+
+      const violationsList = Array.isArray(violations) ? violations : [];
+
+      const recentViolations = violationsList.filter((v: any) =>
         new Date(v.timestamp) > oneHourAgo
       );
-      
-      const criticalViolations = violations.filter((v: any) => 
+
+      const criticalViolations = violationsList.filter((v: any) =>
         v.severity === 'critical'
       );
       
@@ -375,7 +379,7 @@ export class IPBlockingService {
         recentViolations: recentViolations.length,
         criticalViolations: criticalViolations.length,
         lastViolation: lastViolation ? new Date(lastViolation) : undefined,
-        violations
+        violations: violationsList
       };
       
     } catch (error) {
