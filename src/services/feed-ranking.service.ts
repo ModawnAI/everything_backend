@@ -9,8 +9,9 @@
 import { logger } from '../utils/logger';
 import { getSupabaseClient } from '../config/database';
 import { FeedPost, User } from '../types/database.types';
-import { createClient } from 'redis';
+import { createClient, RedisClientType } from 'redis';
 import { performance } from 'perf_hooks';
+import { config } from '../config/environment';
 
 export interface FeedRankingWeights {
   recency: number;      // 40% - How recent the post is
@@ -85,9 +86,19 @@ export interface TrendingContent {
 
 class FeedRankingService {
   private supabase = getSupabaseClient();
-  private redis = createClient({
-    url: process.env.REDIS_URL || 'redis://localhost:6379'
-  });
+  private redis: RedisClientType | null = config.redis.enabled
+    ? createClient({
+        url: process.env.REDIS_URL || 'redis://localhost:6379',
+        socket: {
+          connectTimeout: 1000,
+          reconnectStrategy: (retries) => {
+            if (retries > 3) return new Error('Max retries reached');
+            return Math.min(retries * 100, 1000);
+          }
+        }
+      }) as RedisClientType
+    : null;
+  private redisConnected = false;
 
   // Default ranking weights based on research and A/B testing
   private defaultWeights: FeedRankingWeights = {
@@ -473,20 +484,27 @@ class FeedRankingService {
    */
   private async getUserPreferences(userId: string): Promise<UserPreferences> {
     try {
-      // Try cache first
+      // Try cache first (only if Redis is available)
       const cacheKey = `user_preferences:${userId}`;
-      const cached = await this.redis.get(cacheKey);
-      
-      if (cached) {
-        return JSON.parse(cached.toString());
+      if (this.redis && this.redisConnected) {
+        try {
+          const cached = await this.redis.get(cacheKey);
+          if (cached) {
+            return JSON.parse(cached.toString());
+          }
+        } catch {
+          // Ignore cache errors
+        }
       }
 
       // Build preferences from user data and interaction history
       const preferences = await this.buildUserPreferences(userId);
-      
-      // Cache the result
-      await this.redis.setEx(cacheKey, this.cacheTTL.userPreferences, String(JSON.stringify(preferences)));
-      
+
+      // Cache the result (only if Redis is available)
+      if (this.redis && this.redisConnected) {
+        this.redis.setEx(cacheKey, this.cacheTTL.userPreferences, String(JSON.stringify(preferences))).catch(() => {});
+      }
+
       return preferences;
 
     } catch (error) {
@@ -906,6 +924,8 @@ class FeedRankingService {
     metrics: ContentMetrics[],
     weights: FeedRankingWeights
   ): Promise<void> {
+    if (!this.redis || !this.redisConnected) return;
+
     try {
       const cacheKey = `feed_ranking:${userId}`;
       const cacheData = {
@@ -921,7 +941,7 @@ class FeedRankingService {
       );
 
     } catch (error) {
-      logger.warn('Failed to cache feed results', { userId, error });
+      // Silently fail
     }
   }
 
@@ -936,21 +956,26 @@ class FeedRankingService {
   } = {}): Promise<TrendingContent[]> {
     try {
       const cacheKey = `trending:${JSON.stringify(options)}`;
-      const cached = await this.redis.get(cacheKey);
-      
-      if (cached) {
-        return JSON.parse(cached.toString());
+
+      // Try cache first (only if Redis is available)
+      if (this.redis && this.redisConnected) {
+        try {
+          const cached = await this.redis.get(cacheKey);
+          if (cached) {
+            return JSON.parse(cached.toString());
+          }
+        } catch {
+          // Ignore cache errors
+        }
       }
 
       // Calculate trending content
       const trending = await this.calculateTrendingContent(options);
-      
-      // Cache results
-      await this.redis.setex(
-        cacheKey,
-        this.cacheTTL.trendingContent,
-        JSON.stringify(trending)
-      );
+
+      // Cache results (only if Redis is available)
+      if (this.redis && this.redisConnected) {
+        this.redis.setEx(cacheKey, this.cacheTTL.trendingContent, JSON.stringify(trending)).catch(() => {});
+      }
 
       return trending;
 
@@ -1078,18 +1103,14 @@ class FeedRankingService {
     }
   ): Promise<void> {
     try {
-      // Invalidate cache
-      const cacheKey = `user_preferences:${userId}`;
-      await this.redis.del(cacheKey);
-
-      // Log interaction for future preference building
-      logger.info('User interaction recorded for preference update', {
-        userId,
-        interaction
-      });
+      // Invalidate cache (only if Redis is available)
+      if (this.redis && this.redisConnected) {
+        const cacheKey = `user_preferences:${userId}`;
+        await this.redis.del(cacheKey);
+      }
 
     } catch (error) {
-      logger.warn('Failed to update user preferences', { userId, error });
+      // Silently fail
     }
   }
 

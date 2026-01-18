@@ -8,6 +8,7 @@
 import { createClient, RedisClientType } from 'redis';
 import { logger } from '../utils/logger';
 import { feedRankingPerformanceMonitor } from './feed-ranking-performance';
+import { config } from '../config/environment';
 
 export interface CacheOptions {
   ttl?: number;          // Time to live in seconds
@@ -26,8 +27,9 @@ export interface CacheStats {
 }
 
 export class FeedRankingCacheService {
-  private redis: RedisClientType;
+  private redis: RedisClientType | null = null;
   private connected: boolean = false;
+  private disabled: boolean = false;
   private stats = {
     hits: 0,
     misses: 0,
@@ -46,12 +48,18 @@ export class FeedRankingCacheService {
   };
 
   constructor() {
+    // Skip Redis initialization if disabled
+    if (!config.redis.enabled) {
+      this.disabled = true;
+      return;
+    }
+
     this.redis = createClient({
       url: process.env.REDIS_URL || 'redis://localhost:6379',
       socket: {
-        connectTimeout: 1000,  // 5000 → 1000: 1초 타임아웃
+        connectTimeout: 1000,  // 1초 타임아웃
         reconnectStrategy: (retries) => {
-          if (retries > 3) {  // 10 → 3: 빠른 fallback
+          if (retries > 3) {  // 빠른 fallback
             return new Error('Max reconnection attempts reached');
           }
           return Math.min(retries * 100, 1000);  // 최대 1초
@@ -66,14 +74,16 @@ export class FeedRankingCacheService {
    * Initialize Redis connection
    */
   private async initializeRedis(): Promise<void> {
+    if (this.disabled || !this.redis) {
+      return;
+    }
+
     try {
-      this.redis.on('error', (err) => {
-        logger.error('Redis connection error', { error: err });
+      this.redis.on('error', () => {
         this.connected = false;
       });
 
       this.redis.on('connect', () => {
-        logger.info('Redis connected for feed ranking cache');
         this.connected = true;
       });
 
@@ -88,8 +98,7 @@ export class FeedRankingCacheService {
    * Get cached data with performance tracking
    */
   async get<T>(key: string, options?: CacheOptions): Promise<T | null> {
-    if (!this.connected) {
-      logger.warn('Redis not connected, skipping cache get');
+    if (this.disabled || !this.connected || !this.redis) {
       return null;
     }
 
@@ -121,8 +130,7 @@ export class FeedRankingCacheService {
    * Set cached data with automatic TTL and performance tracking
    */
   async set<T>(key: string, value: T, options?: CacheOptions): Promise<void> {
-    if (!this.connected) {
-      logger.warn('Redis not connected, skipping cache set');
+    if (this.disabled || !this.connected || !this.redis) {
       return;
     }
 
@@ -151,7 +159,7 @@ export class FeedRankingCacheService {
    * Delete cached entry
    */
   async delete(key: string, options?: CacheOptions): Promise<void> {
-    if (!this.connected) return;
+    if (this.disabled || !this.connected || !this.redis) return;
 
     try {
       const fullKey = this.buildKey(key, options?.prefix);
@@ -166,7 +174,7 @@ export class FeedRankingCacheService {
    * Delete multiple cached entries by pattern
    */
   async deletePattern(pattern: string): Promise<number> {
-    if (!this.connected) return 0;
+    if (this.disabled || !this.connected || !this.redis) return 0;
 
     try {
       const keys = await this.redis.keys(pattern);
@@ -212,7 +220,7 @@ export class FeedRankingCacheService {
    * Warm cache by pre-loading frequently accessed data
    */
   async warmCache(userId: string): Promise<void> {
-    if (!this.connected) return;
+    if (this.disabled || !this.connected || !this.redis) return;
 
     logger.info('Starting cache warming for user', { userId });
 
@@ -295,7 +303,7 @@ export class FeedRankingCacheService {
     let totalKeys = 0;
     let memoryUsed = 'N/A';
 
-    if (this.connected) {
+    if (!this.disabled && this.connected && this.redis) {
       try {
         const keys = await this.redis.keys('feed:*');
         totalKeys = keys.length;
@@ -306,7 +314,7 @@ export class FeedRankingCacheService {
           memoryUsed = match[1].trim();
         }
       } catch (error) {
-        logger.error('Failed to get cache stats', { error });
+        // Silently fail
       }
     }
 
@@ -338,17 +346,16 @@ export class FeedRankingCacheService {
    * Check if Redis is connected
    */
   isConnected(): boolean {
-    return this.connected;
+    return !this.disabled && this.connected;
   }
 
   /**
    * Gracefully close Redis connection
    */
   async close(): Promise<void> {
-    if (this.connected) {
+    if (!this.disabled && this.connected && this.redis) {
       await this.redis.quit();
       this.connected = false;
-      logger.info('Redis connection closed for feed ranking cache');
     }
   }
 
@@ -356,7 +363,7 @@ export class FeedRankingCacheService {
    * Batch get multiple keys
    */
   async mget<T>(keys: string[], options?: CacheOptions): Promise<(T | null)[]> {
-    if (!this.connected || keys.length === 0) {
+    if (this.disabled || !this.connected || !this.redis || keys.length === 0) {
       return keys.map(() => null);
     }
 
@@ -383,7 +390,7 @@ export class FeedRankingCacheService {
    * Batch set multiple keys
    */
   async mset<T>(entries: Array<{ key: string; value: T }>, options?: CacheOptions): Promise<void> {
-    if (!this.connected || entries.length === 0) return;
+    if (this.disabled || !this.connected || !this.redis || entries.length === 0) return;
 
     try {
       const ttl = options?.ttl || this.DEFAULT_TTLS.feedRankings;
@@ -408,7 +415,7 @@ export class FeedRankingCacheService {
    * Get cache key TTL (time remaining)
    */
   async getTTL(key: string, options?: CacheOptions): Promise<number> {
-    if (!this.connected) return -1;
+    if (this.disabled || !this.connected || !this.redis) return -1;
 
     try {
       const fullKey = this.buildKey(key, options?.prefix);
@@ -423,7 +430,7 @@ export class FeedRankingCacheService {
    * Extend TTL for existing key
    */
   async extendTTL(key: string, additionalSeconds: number, options?: CacheOptions): Promise<void> {
-    if (!this.connected) return;
+    if (this.disabled || !this.connected || !this.redis) return;
 
     try {
       const fullKey = this.buildKey(key, options?.prefix);
