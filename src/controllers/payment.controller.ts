@@ -1173,11 +1173,12 @@ export class PaymentController {
       const offset = (Number(page) - 1) * Number(limit);
 
       // Build query - include points_used and points_earned from reservations
+      // LEFT JOIN으로 변경 - !inner 제거하여 reservations/shops가 없는 결제도 조회
       let query = this.supabase
         .from('payments')
         .select(`
           *,
-          reservations!inner(
+          reservations(
             id,
             reservation_date,
             reservation_time,
@@ -1186,7 +1187,7 @@ export class PaymentController {
             status,
             points_used,
             points_earned,
-            shops!inner(name, address)
+            shops(name, address)
           )
         `, { count: 'exact' })
         .eq('user_id', userId)
@@ -1225,7 +1226,8 @@ export class PaymentController {
             refundAmount: payment.refund_amount,
             failureReason: payment.failure_reason,
             createdAt: payment.created_at,
-            reservation: {
+            // reservation이 null일 수 있음 (LEFT JOIN)
+            reservation: payment.reservations ? {
               id: payment.reservations.id,
               date: payment.reservations.reservation_date,
               time: payment.reservations.reservation_time,
@@ -1234,11 +1236,12 @@ export class PaymentController {
               status: payment.reservations.status,
               pointsUsed: payment.reservations.points_used || 0,
               pointsEarned: payment.reservations.points_earned || 0,
-              shop: {
+              // shop도 null일 수 있음 (LEFT JOIN)
+              shop: payment.reservations.shops ? {
                 name: payment.reservations.shops.name,
                 address: payment.reservations.shops.address
-              }
-            }
+              } : null
+            } : null
           })) || [],
           pagination: {
             page: Number(page),
