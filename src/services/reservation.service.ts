@@ -624,19 +624,6 @@ export class ReservationService {
           } else if (error.message?.includes('INSUFFICIENT_AMOUNT')) {
             throw new Error('Points used cannot exceed total amount');
           } else {
-            console.log('❌ [RESERVATION-SERVICE] RPC Error Details:', {
-              error: error,
-              errorMessage: error.message,
-              errorCode: error.code,
-              errorDetails: error.details,
-              errorHint: error.hint,
-              shopId,
-              userId,
-              reservationDate,
-              reservationTime,
-              attempt
-            });
-
             logger.error('Reservation creation failed', {
               error: error.message,
               shopId,
@@ -649,14 +636,6 @@ export class ReservationService {
           }
         }
 
-        // Debug: Log raw RPC response
-        console.log('🔍 [RESERVATION-SERVICE] RPC Response:', {
-          reservation,
-          reservationType: typeof reservation,
-          reservationKeys: reservation ? Object.keys(reservation) : [],
-          reservationStringified: JSON.stringify(reservation, null, 2)
-        });
-
         if (!reservation) {
           throw new Error('Failed to create reservation');
         }
@@ -668,7 +647,6 @@ export class ReservationService {
         // Check if reservation is just the ID (string or UUID)
         if (typeof reservation === 'string') {
           reservationId = reservation;
-          console.log('🔍 [RESERVATION-SERVICE] RPC returned ID as string:', reservationId);
         }
         // Check if reservation has 'id' property directly
         else if (reservation.id) {
@@ -678,18 +656,15 @@ export class ReservationService {
         else if ((reservation as any).data?.id) {
           reservationId = (reservation as any).data.id;
           reservationData = (reservation as any).data;
-          console.log('🔍 [RESERVATION-SERVICE] RPC returned wrapped data:', reservationId);
         }
         // Check if it's an array with first element
         else if (Array.isArray(reservation) && reservation[0]?.id) {
           reservationId = reservation[0].id;
           reservationData = reservation[0];
-          console.log('🔍 [RESERVATION-SERVICE] RPC returned array:', reservationId);
         }
 
         if (!reservationId) {
-          console.error('❌ [RESERVATION-SERVICE] Could not extract reservation ID from RPC response:', {
-            reservation,
+          logger.error('Could not extract reservation ID from RPC response', {
             type: typeof reservation,
             keys: reservation ? Object.keys(reservation) : []
           });
@@ -714,7 +689,7 @@ export class ReservationService {
             .single();
 
           if (fetchError || !fullReservation) {
-            console.error('❌ [RESERVATION-SERVICE] Failed to fetch created reservation:', fetchError);
+            logger.error('Failed to fetch created reservation', { error: fetchError?.message, reservationId });
             throw new Error('Failed to retrieve created reservation');
           }
           reservationData = fullReservation;
@@ -791,12 +766,6 @@ export class ReservationService {
         if (pointsToUse && pointsToUse > 0) {
           try {
             const pointService = new PointService();
-
-            console.log('[RESERVATION-SERVICE] Deducting points:', {
-              userId,
-              pointsToUse,
-              reservationId
-            });
 
             await pointService.deductPoints(
               userId,
@@ -903,12 +872,6 @@ export class ReservationService {
             // Don't fail the reservation
           }
         }
-
-        console.log('✅ [RESERVATION-SERVICE] Returning reservation:', {
-          id: reservationData.id,
-          shopId: reservationData.shopId || reservationData.shop_id,
-          status: reservationData.status
-        });
 
         return reservationData as Reservation;
 
@@ -1460,33 +1423,11 @@ export class ReservationService {
             query = query.eq('shop_id', filters.shopId);
           }
 
-          console.log('[SERVICE-DEBUG-0] Query filters applied:', {
-            userId,
-            status: filters.status,
-            shopId: filters.shopId,
-            startDate: filters.startDate,
-            endDate: filters.endDate,
-            page,
-            limit,
-            offset,
-            range: `${offset} to ${offset + limit - 1}`
-          });
-
           // Sort by created_at (reservation request time) descending - most recent request first
           query = query.order('created_at', { ascending: false });
           query = query.range(offset, offset + limit - 1);
 
-          console.log('[SERVICE-DEBUG-1] Executing Supabase query...');
           const { data: reservations, error, count } = await query;
-          console.log('[SERVICE-DEBUG-2] Query result:', {
-            hasData: !!reservations,
-            dataLength: reservations?.length,
-            hasError: !!error,
-            errorMessage: error?.message,
-            errorDetails: error?.details,
-            errorHint: error?.hint,
-            count
-          });
 
           if (error) {
             logger.error('Error fetching user reservations', {

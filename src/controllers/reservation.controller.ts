@@ -405,12 +405,8 @@ export class ReservationController {
         notificationPreferences
       };
 
-      console.log('🔍 [CONTROLLER] Creating reservation with request:', JSON.stringify(reservationRequest, null, 2));
-
       // Create reservation with concurrent booking prevention and v3.1 flow
       const reservation = await reservationService.createReservation(reservationRequest);
-
-      console.log('✅ [CONTROLLER] Reservation created successfully:', reservation.id);
 
       logger.info('v3.1 flow reservation created successfully', {
         reservationId: reservation.id,
@@ -480,12 +476,6 @@ export class ReservationController {
       });
 
     } catch (error) {
-      console.log('❌ [CONTROLLER] Error caught:', {
-        errorType: error instanceof Error ? 'Error' : typeof error,
-        message: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
-      });
-
       logger.error('Error in createReservation', {
         error: error instanceof Error ? error.message : 'Unknown error',
         body: req.body
@@ -573,12 +563,8 @@ export class ReservationController {
    */
   async getReservations(req: Request, res: Response): Promise<void> {
     try {
-      console.log('[RESERVATION-DEBUG-1] getReservations called');
-      console.log('[RESERVATION-DEBUG-2] req.user:', (req as any).user);
-
       const userId = (req as any).user?.id;
       if (!userId) {
-        console.log('[RESERVATION-DEBUG-3] No userId found, returning 401');
         res.status(401).json({
           error: {
             code: 'UNAUTHORIZED',
@@ -588,8 +574,6 @@ export class ReservationController {
         });
         return;
       }
-
-      console.log('[RESERVATION-DEBUG-4] userId:', userId);
 
       const {
         status,
@@ -609,12 +593,7 @@ export class ReservationController {
         limit: parseInt(limit as string) || 20
       };
 
-      console.log('[RESERVATION-DEBUG-5] filters:', filters);
-      console.log('[RESERVATION-DEBUG-6] Calling reservationService.getUserReservations');
-
       const result = await reservationService.getUserReservations(userId, filters);
-
-      console.log('[RESERVATION-DEBUG-7] Service returned:', { total: result.total, count: result.reservations.length });
 
       res.status(200).json({
         success: true,
@@ -629,10 +608,7 @@ export class ReservationController {
         }
       });
 
-      console.log('[RESERVATION-DEBUG-8] Response sent successfully');
-
     } catch (error) {
-      console.error('[RESERVATION-DEBUG-ERROR] Error caught:', error);
       logger.error('Error in getReservations', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined,

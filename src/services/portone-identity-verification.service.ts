@@ -242,26 +242,17 @@ class PortOneIdentityVerificationService {
       // If userId exists (from record or passed in), update user phone verification
       const effectiveUserId = record?.user_id || userId;
 
-      console.log('========================================');
-      console.log('[DEBUG] Checking user phone verification update conditions');
-      console.log('identityVerificationId:', identityVerificationId);
-      console.log('recordUserId:', record?.user_id);
-      console.log('passedUserId:', userId);
-      console.log('effectiveUserId:', effectiveUserId);
-      console.log('hasCI:', !!verifiedCustomer.ci);
-      console.log('ci:', verifiedCustomer.ci);
-      console.log('phoneNumber:', verifiedCustomer.phoneNumber);
-      console.log('willUpdatePhone:', !!(effectiveUserId && verifiedCustomer.ci));
-      console.log('========================================');
-
+      logger.debug('Checking user phone verification update conditions', {
+        identityVerificationId,
+        recordUserId: record?.user_id,
+        passedUserId: userId,
+        effectiveUserId,
+        hasCI: !!verifiedCustomer.ci,
+        phoneNumber: verifiedCustomer.phoneNumber,
+        willUpdatePhone: !!(effectiveUserId && verifiedCustomer.ci)
+      });
 
       if (effectiveUserId && verifiedCustomer.ci) {
-        console.log('[DEBUG] Calling markUserPhoneAsVerified');
-        console.log('userId:', effectiveUserId);
-        console.log('phoneNumber:', verifiedCustomer.phoneNumber || 'undefined');
-        console.log('hasCi:', !!verifiedCustomer.ci);
-        console.log('hasDi:', !!verifiedCustomer.di);
-
         // ✅ Mark as verified if we have CI, even if phoneNumber is null
         // PortOne sometimes doesn't return phoneNumber in the response
         await this.markUserPhoneAsVerified(
@@ -271,11 +262,12 @@ class PortOneIdentityVerificationService {
           verifiedCustomer.di
         );
 
-        console.log('[DEBUG] markUserPhoneAsVerified completed for userId:', effectiveUserId);
+        logger.debug('markUserPhoneAsVerified completed', { userId: effectiveUserId });
       } else {
-        console.log('[DEBUG] Skipping phone verification update - missing userId or CI');
-        console.log('hasUserId:', !!effectiveUserId);
-        console.log('hasCI:', !!verifiedCustomer.ci);
+        logger.debug('Skipping phone verification update - missing userId or CI', {
+          hasUserId: !!effectiveUserId,
+          hasCI: !!verifiedCustomer.ci
+        });
       }
 
       logger.info('Identity verification completed successfully', {
@@ -491,14 +483,12 @@ class PortOneIdentityVerificationService {
     ci: string,
     di?: string
   ): Promise<void> {
-    console.log('========================================');
-    console.log('[DEBUG] markUserPhoneAsVerified called');
-    console.log('userId:', userId);
-    console.log('phoneNumber:', phoneNumber || 'undefined');
-    console.log('hasCi:', !!ci);
-    console.log('hasDi:', !!di);
-    console.log('ciLength:', ci?.length || 0);
-    console.log('========================================');
+    logger.debug('markUserPhoneAsVerified called', {
+      userId,
+      phoneNumber: phoneNumber || 'undefined',
+      hasCi: !!ci,
+      hasDi: !!di
+    });
 
     const normalizedPhone = phoneNumber ? phoneNumber.replace(/[-.\s]/g, '') : undefined;
 
@@ -513,40 +503,27 @@ class PortOneIdentityVerificationService {
       updateData.phone_number = normalizedPhone;
     }
 
-    console.log('[DEBUG] Updating users table');
-    console.log('userId:', userId);
-    console.log('updateData:', JSON.stringify(updateData, null, 2));
-    console.log('willUpdatePhoneNumber:', !!normalizedPhone);
-
     const { data, error: userError } = await this.supabase
       .from('users')
       .update(updateData)
       .eq('id', userId)
       .select();
 
-    console.log('[DEBUG] Users table update result');
-    console.log('userId:', userId);
-    console.log('success:', !userError);
-    console.log('error:', userError?.message || null);
-    console.log('updatedRows:', data?.length || 0);
-    console.log('data:', JSON.stringify(data, null, 2));
-
     if (userError) {
-      console.error('[ERROR] Failed to mark user phone as verified');
-      console.error('userId:', userId);
-      console.error('phoneNumber:', normalizedPhone || 'not provided');
-      console.error('error:', userError.message);
-      console.error('errorDetails:', JSON.stringify(userError, null, 2));
+      logger.error('Failed to mark user phone as verified', {
+        userId,
+        phoneNumber: normalizedPhone || 'not provided',
+        error: userError.message
+      });
     } else {
-      console.log('[SUCCESS] User phone marked as verified');
-      console.log('userId:', userId);
-      console.log('phoneNumber:', normalizedPhone || 'not provided');
-      console.log('hasPhoneNumber:', !!normalizedPhone);
-      console.log('updatedData:', JSON.stringify(data, null, 2));
+      logger.info('User phone marked as verified', {
+        userId,
+        phoneNumber: normalizedPhone || 'not provided',
+        updatedRows: data?.length || 0
+      });
     }
 
     // Store verification data in user_verifications
-    console.log('[DEBUG] Storing user verification data in user_verifications table');
     try {
       await this.supabase
         .from('user_verifications')
@@ -562,11 +539,12 @@ class PortOneIdentityVerificationService {
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString()
         });
-      console.log('[DEBUG] User verification data stored successfully');
+      logger.debug('User verification data stored successfully', { userId });
     } catch (error) {
-      console.warn('[WARN] Failed to store user verification data');
-      console.warn('userId:', userId);
-      console.warn('error:', error instanceof Error ? error.message : 'Unknown error');
+      logger.warn('Failed to store user verification data', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
     }
   }
 
