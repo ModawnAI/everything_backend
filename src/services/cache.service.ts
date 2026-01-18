@@ -68,11 +68,12 @@ export class CacheService {
         port: parseInt(redisUrl.split(':')[2] || '6379'),
         db: config.redis.db,
         retryDelayOnFailover: 100,
-        maxRetriesPerRequest: 3,
+        maxRetriesPerRequest: 1,    // 3 → 1: 빠른 fallback을 위해 재시도 최소화
         lazyConnect: true,
         keepAlive: 30000,
-        connectTimeout: 10000,
-        commandTimeout: 5000,
+        connectTimeout: 1000,       // 10000 → 1000: 1초 연결 타임아웃
+        commandTimeout: 500,        // 5000 → 500: 500ms 명령 타임아웃
+        enableOfflineQueue: false,  // 연결 끊김 시 명령 큐잉 비활성화
       };
 
       if (config.redis.password) {
@@ -102,6 +103,20 @@ export class CacheService {
   }
 
   /**
+   * Check if Redis is actually ready for commands
+   * Only allow commands when Redis status is 'ready' to prevent blocking
+   */
+  private isRedisReady(): boolean {
+    if (!this.client) {
+      return false;
+    }
+    // Only use Redis when status is 'ready'
+    // Other states like 'reconnecting', 'connecting' can cause blocking
+    const status = this.client.status;
+    return status === 'ready';
+  }
+
+  /**
    * Generate cache key
    */
   private generateKey(key: string, prefix?: string): string {
@@ -110,15 +125,15 @@ export class CacheService {
   }
 
   /**
-   * Set cache entry
+   * Set cache entry with timeout protection
    */
   async set<T>(
     key: string,
     data: T,
     options: CacheOptions = {}
   ): Promise<void> {
-    if (!this.client) {
-      logger.warn('Redis cache not available, skipping cache set');
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return;
     }
 
@@ -133,11 +148,18 @@ export class CacheService {
       };
 
       const serialized = JSON.stringify(entry);
-      await this.client.setex(cacheKey, ttl, serialized);
 
-      // Store tags for invalidation
+      // Add 500ms timeout to prevent blocking
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 500);
+      });
+
+      const setPromise = this.client!.setex(cacheKey, ttl, serialized).then(() => {});
+      await Promise.race([setPromise, timeoutPromise]);
+
+      // Store tags for invalidation (fire and forget)
       if (tags.length > 0) {
-        await this.storeTags(cacheKey, tags);
+        this.storeTags(cacheKey, tags).catch(() => {});
       }
 
       logger.debug('Cache set', { key: cacheKey, ttl, tags });
@@ -147,36 +169,45 @@ export class CacheService {
   }
 
   /**
-   * Get cache entry
+   * Get cache entry with timeout protection
    */
   async get<T>(key: string, prefix?: string): Promise<T | null> {
-    if (!this.client) {
-      logger.warn('Redis cache not available, skipping cache get');
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return null;
     }
 
     try {
       const cacheKey = this.generateKey(key, prefix);
-      const serialized = await this.client.get(cacheKey);
 
-      if (!serialized) {
-        this.stats.misses++;
-        return null;
-      }
+      // Add 500ms timeout to prevent blocking
+      const timeoutPromise = new Promise<null>((resolve) => {
+        setTimeout(() => resolve(null), 500);
+      });
 
-      const entry: CacheEntry<T> = JSON.parse(serialized);
-      const now = Date.now();
+      const getPromise = this.client!.get(cacheKey).then((serialized) => {
+        if (!serialized) {
+          this.stats.misses++;
+          return null;
+        }
 
-      // Check if entry is expired
-      if (now - entry.timestamp > entry.ttl * 1000) {
-        await this.client.del(cacheKey);
-        this.stats.misses++;
-        return null;
-      }
+        const entry: CacheEntry<T> = JSON.parse(serialized);
+        const now = Date.now();
 
-      this.stats.hits++;
-      logger.debug('Cache hit', { key: cacheKey });
-      return entry.data;
+        // Check if entry is expired
+        if (now - entry.timestamp > entry.ttl * 1000) {
+          this.client!.del(cacheKey).catch(() => {}); // Fire and forget
+          this.stats.misses++;
+          return null;
+        }
+
+        this.stats.hits++;
+        logger.debug('Cache hit', { key: cacheKey });
+        return entry.data;
+      });
+
+      const result = await Promise.race([getPromise, timeoutPromise]);
+      return result;
     } catch (error) {
       logger.error('Cache get failed', { key, error: (error as Error).message });
       this.stats.misses++;
@@ -185,18 +216,27 @@ export class CacheService {
   }
 
   /**
-   * Delete cache entry
+   * Delete cache entry with timeout protection
    */
   async delete(key: string, prefix?: string): Promise<void> {
-    if (!this.client) {
-      logger.warn('Redis cache not available, skipping cache delete');
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return;
     }
 
     try {
       const cacheKey = this.generateKey(key, prefix);
-      await this.client.del(cacheKey);
-      await this.removeTags(cacheKey);
+
+      // Add 500ms timeout to prevent blocking
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 500);
+      });
+
+      const delPromise = this.client!.del(cacheKey).then(() => {});
+      await Promise.race([delPromise, timeoutPromise]);
+
+      // Remove tags (fire and forget)
+      this.removeTags(cacheKey).catch(() => {});
 
       logger.debug('Cache deleted', { key: cacheKey });
     } catch (error) {
@@ -205,28 +245,37 @@ export class CacheService {
   }
 
   /**
-   * Invalidate cache by tags
+   * Invalidate cache by tags with timeout protection
    */
   async invalidateByTags(tags: string[]): Promise<void> {
-    if (!this.client) {
-      logger.warn('Redis cache not available, skipping cache invalidation');
+    // Strict check: only proceed if Redis is actually ready
+    if (!this.isRedisReady()) {
       return;
     }
 
     try {
-      const keysToDelete: string[] = [];
+      // Add 500ms timeout to prevent blocking
+      const timeoutPromise = new Promise<void>((resolve) => {
+        setTimeout(() => resolve(), 500);
+      });
 
-      for (const tag of tags) {
-        const tagKey = `tags:${tag}`;
-        const keys = await this.client.smembers(tagKey);
-        keysToDelete.push(...keys);
-        await this.client.del(tagKey);
-      }
+      const invalidatePromise = (async () => {
+        const keysToDelete: string[] = [];
 
-      if (keysToDelete.length > 0) {
-        await this.client.del(...keysToDelete);
-        logger.info('Cache invalidated by tags', { tags, keysDeleted: keysToDelete.length });
-      }
+        for (const tag of tags) {
+          const tagKey = `tags:${tag}`;
+          const keys = await this.client!.smembers(tagKey);
+          keysToDelete.push(...keys);
+          await this.client!.del(tagKey);
+        }
+
+        if (keysToDelete.length > 0) {
+          await this.client!.del(...keysToDelete);
+          logger.info('Cache invalidated by tags', { tags, keysDeleted: keysToDelete.length });
+        }
+      })();
+
+      await Promise.race([invalidatePromise, timeoutPromise]);
     } catch (error) {
       logger.error('Cache invalidation failed', { tags, error: (error as Error).message });
     }

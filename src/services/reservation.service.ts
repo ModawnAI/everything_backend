@@ -202,18 +202,8 @@ export class ReservationService {
       remainingAmount: paymentInfo?.remainingAmount
     });
 
-    // Invalidate user's reservation list cache to ensure new reservation is immediately visible
-    try {
-      const pattern = `reservation:*:list:${userId}:*`;
-      logger.info('[CACHE] Attempting to invalidate reservation cache after creation', { pattern, userId });
-      await queryCacheService.invalidatePattern(pattern);
-      logger.info('[CACHE] Reservation cache invalidation completed after creation', { userId });
-    } catch (cacheError) {
-      logger.error('[CACHE] Failed to invalidate reservation cache after creation', {
-        error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
-        userId
-      });
-    }
+    // NOTE: 예약 목록 캐시 우회됨 - 캐시 무효화 불필요
+    // 실시간 업데이트를 위해 getUserReservations()는 항상 직접 DB 쿼리
 
     // Send notification to shop owner for new reservation request (v3.1 flow)
     try {
@@ -1319,7 +1309,7 @@ export class ReservationService {
 
   /**
    * Get user reservations with filtering
-   * Optimized: Added caching for frequently accessed reservation lists
+   * NOTE: Cache bypassed for real-time updates (admin changes, push notifications)
    */
   async getUserReservations(
     userId: string,
@@ -1341,169 +1331,153 @@ export class ReservationService {
       const page = filters.page || 1;
       const limit = filters.limit || 10;
       const offset = (page - 1) * limit;
+      const startTime = Date.now();
 
-      // Build cache key that matches invalidation pattern: reservation:*:list:${userId}:*
-      const filterKey = `${filters.status || 'all'}_${filters.startDate || ''}_${filters.endDate || ''}_${filters.shopId || ''}_p${page}_l${limit}`;
-      const cacheKey = `list:${userId}:${filterKey}`;
-
-      return await queryCacheService.getCachedQuery(
-        cacheKey,
-        async () => {
-          const startTime = Date.now();
-
-          // 🔧 Simplified query - removed explicit FK name to let Supabase infer the relationship
-          let query = this.supabase
-            .from('reservations')
-            .select(`
+      // 캐시 우회: 예약 데이터는 실시간성이 중요하므로 직접 쿼리
+      // admin에서 예약 변경 시 푸시 알림과 함께 즉시 반영되어야 함
+      let query = this.supabase
+        .from('reservations')
+        .select(`
+          id,
+          shop_id,
+          user_id,
+          reservation_date,
+          reservation_time,
+          status,
+          total_amount,
+          deposit_amount,
+          remaining_amount,
+          points_used,
+          special_requests,
+          booking_preferences,
+          created_at,
+          updated_at,
+          shops(
+            id,
+            name,
+            address,
+            phone_number
+          ),
+          reservation_services(
+            id,
+            quantity,
+            unit_price,
+            total_price,
+            shop_services(
               id,
-              shop_id,
-              user_id,
-              reservation_date,
-              reservation_time,
-              status,
-              total_amount,
-              deposit_amount,
-              remaining_amount,
-              points_used,
-              special_requests,
-              booking_preferences,
-              created_at,
-              updated_at,
-              shops(
-                id,
-                name,
-                address,
-                phone_number
-              ),
-              reservation_services(
-                id,
-                quantity,
-                unit_price,
-                total_price,
-                shop_services(
-                  id,
-                  name,
-                  category,
-                  price_min,
-                  price_max,
-                  duration_minutes
-                )
-              )
-            `, { count: 'exact' })
-            .eq('user_id', userId);
+              name,
+              category,
+              price_min,
+              price_max,
+              duration_minutes
+            )
+          )
+        `, { count: 'exact' })
+        .eq('user_id', userId);
 
-          // Apply filters
-          if (filters.status) {
-            // Map "upcoming" to database statuses (requested or confirmed) with future dates
-            if ((filters.status as string) === 'upcoming') {
-              const today = new Date().toISOString().split('T')[0];
-              query = query
-                .in('status', ['requested', 'confirmed'])
-                .gte('reservation_date', today);
-            }
-            // Map "past" to:
-            // 1. Any reservation with a date before today (regardless of status)
-            // 2. Any completed/cancelled/no_show reservation (regardless of date)
-            else if ((filters.status as string) === 'past') {
-              const today = new Date().toISOString().split('T')[0];
-              // Use OR filter: past date OR completed/cancelled/no_show status
-              // Note: cancelled statuses are 'cancelled_by_shop' and 'cancelled_by_user' in the database
-              query = query.or(`reservation_date.lt.${today},status.in.(completed,cancelled_by_shop,cancelled_by_user,no_show)`);
-            }
-            else {
-              query = query.eq('status', filters.status as ReservationStatus);
-            }
-          }
-
-          if (filters.startDate) {
-            query = query.gte('reservation_date', filters.startDate);
-          }
-
-          if (filters.endDate) {
-            query = query.lte('reservation_date', filters.endDate);
-          }
-
-          if (filters.shopId) {
-            query = query.eq('shop_id', filters.shopId);
-          }
-
-          // Sort by created_at (reservation request time) descending - most recent request first
-          query = query.order('created_at', { ascending: false });
-          query = query.range(offset, offset + limit - 1);
-
-          const { data: reservations, error, count } = await query;
-
-          if (error) {
-            logger.error('Error fetching user reservations', {
-              userId,
-              error: error.message,
-              details: error.details,
-              hint: error.hint,
-              code: error.code
-            });
-            throw new Error(`Failed to fetch reservations: ${error.message}`);
-          }
-
-          const formattedReservations = reservations?.map(reservation => ({
-            id: reservation.id,
-            shopId: reservation.shop_id,
-            userId: reservation.user_id,
-            reservationDate: reservation.reservation_date,
-            reservationTime: reservation.reservation_time,
-            status: reservation.status,
-            totalAmount: reservation.total_amount,
-            depositAmount: reservation.deposit_amount,
-            remainingAmount: reservation.remaining_amount,
-            pointsUsed: reservation.points_used,
-            specialRequests: reservation.special_requests,
-            bookingPreferences: reservation.booking_preferences,
-            createdAt: reservation.created_at,
-            updatedAt: reservation.updated_at,
-            // Include shop information (Supabase returns single FK relation as object or array)
-            // Changed from reservation.shop to reservation.shops to match simplified query
-            shop: reservation.shops ? {
-              id: (reservation.shops as any).id ?? (reservation.shops as any)?.[0]?.id,
-              name: (reservation.shops as any).name ?? (reservation.shops as any)?.[0]?.name,
-              address: (reservation.shops as any).address ?? (reservation.shops as any)?.[0]?.address,
-              phone: (reservation.shops as any).phone_number ?? (reservation.shops as any)?.[0]?.phone_number
-            } : undefined,
-            // Include services information
-            // Changed from reservation.services to reservation.reservation_services
-            services: (reservation.reservation_services || []).map((rs: any) => ({
-              id: rs.id,
-              quantity: rs.quantity,
-              unitPrice: rs.unit_price,
-              totalPrice: rs.total_price,
-              // Changed from rs.service to rs.shop_services
-              service: rs.shop_services ? {
-                id: rs.shop_services.id,
-                name: rs.shop_services.name,
-                category: rs.shop_services.category,
-                priceMin: rs.shop_services.price_min,
-                priceMax: rs.shop_services.price_max,
-                durationMinutes: rs.shop_services.duration_minutes
-              } : undefined
-            }))
-          })) || [];
-
-          logger.info('getUserReservations query completed', {
-            userId,
-            duration: Date.now() - startTime,
-            count: formattedReservations.length
-          });
-
-          return {
-            reservations: formattedReservations,
-            total: count || 0,
-            page,
-            limit
-          };
-        },
-        {
-          namespace: 'reservation',
-          ttl: 300, // 5 minutes - short TTL for reservation lists
+      // Apply filters
+      if (filters.status) {
+        // Map "upcoming" to database statuses (requested or confirmed) with future dates
+        if ((filters.status as string) === 'upcoming') {
+          const today = new Date().toISOString().split('T')[0];
+          query = query
+            .in('status', ['requested', 'confirmed'])
+            .gte('reservation_date', today);
         }
-      );
+        // Map "past" to:
+        // 1. Any reservation with a date before today (regardless of status)
+        // 2. Any completed/cancelled/no_show reservation (regardless of date)
+        else if ((filters.status as string) === 'past') {
+          const today = new Date().toISOString().split('T')[0];
+          // Use OR filter: past date OR completed/cancelled/no_show status
+          // Note: cancelled statuses are 'cancelled_by_shop' and 'cancelled_by_user' in the database
+          query = query.or(`reservation_date.lt.${today},status.in.(completed,cancelled_by_shop,cancelled_by_user,no_show)`);
+        }
+        else {
+          query = query.eq('status', filters.status as ReservationStatus);
+        }
+      }
+
+      if (filters.startDate) {
+        query = query.gte('reservation_date', filters.startDate);
+      }
+
+      if (filters.endDate) {
+        query = query.lte('reservation_date', filters.endDate);
+      }
+
+      if (filters.shopId) {
+        query = query.eq('shop_id', filters.shopId);
+      }
+
+      // Sort by created_at (reservation request time) descending - most recent request first
+      query = query.order('created_at', { ascending: false });
+      query = query.range(offset, offset + limit - 1);
+
+      const { data: reservations, error, count } = await query;
+
+      if (error) {
+        logger.error('Error fetching user reservations', {
+          userId,
+          error: error.message,
+          details: error.details,
+          hint: error.hint,
+          code: error.code
+        });
+        throw new Error(`Failed to fetch reservations: ${error.message}`);
+      }
+
+      const formattedReservations = reservations?.map(reservation => ({
+        id: reservation.id,
+        shopId: reservation.shop_id,
+        userId: reservation.user_id,
+        reservationDate: reservation.reservation_date,
+        reservationTime: reservation.reservation_time,
+        status: reservation.status,
+        totalAmount: reservation.total_amount,
+        depositAmount: reservation.deposit_amount,
+        remainingAmount: reservation.remaining_amount,
+        pointsUsed: reservation.points_used,
+        specialRequests: reservation.special_requests,
+        bookingPreferences: reservation.booking_preferences,
+        createdAt: reservation.created_at,
+        updatedAt: reservation.updated_at,
+        // Include shop information (Supabase returns single FK relation as object or array)
+        shop: reservation.shops ? {
+          id: (reservation.shops as any).id ?? (reservation.shops as any)?.[0]?.id,
+          name: (reservation.shops as any).name ?? (reservation.shops as any)?.[0]?.name,
+          address: (reservation.shops as any).address ?? (reservation.shops as any)?.[0]?.address,
+          phone: (reservation.shops as any).phone_number ?? (reservation.shops as any)?.[0]?.phone_number
+        } : undefined,
+        // Include services information
+        services: (reservation.reservation_services || []).map((rs: any) => ({
+          id: rs.id,
+          quantity: rs.quantity,
+          unitPrice: rs.unit_price,
+          totalPrice: rs.total_price,
+          service: rs.shop_services ? {
+            id: rs.shop_services.id,
+            name: rs.shop_services.name,
+            category: rs.shop_services.category,
+            priceMin: rs.shop_services.price_min,
+            priceMax: rs.shop_services.price_max,
+            durationMinutes: rs.shop_services.duration_minutes
+          } : undefined
+        }))
+      })) || [];
+
+      logger.info('getUserReservations query completed (cache bypassed)', {
+        userId,
+        duration: Date.now() - startTime,
+        count: formattedReservations.length
+      });
+
+      return {
+        reservations: formattedReservations,
+        total: count || 0,
+        page,
+        limit
+      };
     } catch (error) {
       logger.error('Error in getUserReservations', { userId, error: (error as Error).message });
       throw error;
@@ -1627,17 +1601,8 @@ export class ReservationService {
         refundEligibility: refundCalculation?.isEligible || false
       });
 
-      // Invalidate user's reservation cache after cancellation
-      try {
-        const pattern = `reservation:*:list:${userId}:*`;
-        await queryCacheService.invalidatePattern(pattern);
-        logger.info('[CACHE] Reservation cache invalidated after cancellation', { userId, reservationId });
-      } catch (cacheError) {
-        logger.error('[CACHE] Failed to invalidate reservation cache after cancellation', {
-          error: cacheError instanceof Error ? cacheError.message : 'Unknown error',
-          userId
-        });
-      }
+      // NOTE: 예약 목록 캐시 우회됨 - 캐시 무효화 불필요
+      // 실시간 업데이트를 위해 getUserReservations()는 항상 직접 DB 쿼리
 
       return {
         id: reservation.id,
