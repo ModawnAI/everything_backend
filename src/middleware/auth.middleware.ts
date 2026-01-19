@@ -233,7 +233,7 @@ export async function verifySupabaseToken(token: string): Promise<SupabaseJWTPay
   try {
     const supabase = getSupabaseClient();
 
-    logger.info('[verifySupabaseToken] Starting Supabase token verification');
+    logger.debug('[verifySupabaseToken] Starting Supabase token verification');
 
     // Use Supabase's built-in token verification with timeout
     const verificationPromise = supabase.auth.getUser(token);
@@ -248,7 +248,7 @@ export async function verifySupabaseToken(token: string): Promise<SupabaseJWTPay
       timeoutPromise
     ]) as any;
 
-    logger.info('[verifySupabaseToken] Verification completed', {
+    logger.debug('[verifySupabaseToken] Verification completed', {
       success: !error,
       hasUser: !!user,
       error: error?.message
@@ -927,7 +927,7 @@ export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promis
   try {
     const supabase = getSupabaseClient();
 
-    logger.info('[getUserFromToken] Querying user from database', { userId: tokenPayload.sub });
+    logger.debug('[getUserFromToken] Querying user from database', { userId: tokenPayload.sub });
 
     // Query user data from our users table with timeout
     const queryPromise = supabase
@@ -953,7 +953,7 @@ export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promis
 
     const { data: userData, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
-    logger.info('[getUserFromToken] Query completed', {
+    logger.debug('[getUserFromToken] Query completed', {
       success: !error,
       hasData: !!userData,
       error: error?.message
