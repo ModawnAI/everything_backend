@@ -686,8 +686,8 @@ export async function validateAndTrackSession(
         userAgent: req.headers['user-agent']
       });
 
-      // Log security event for new device
-      await securityMonitoringService.logSecurityEvent({
+      // Log security event for new device (non-blocking, fire-and-forget)
+      securityMonitoringService.logSecurityEvent({
         event_type: 'suspicious_activity',
         user_id: userId,
         source_ip: req.ip || 'unknown',
@@ -705,6 +705,8 @@ export async function validateAndTrackSession(
             platform: enhancedFingerprint.platform
           }
         }
+      }).catch(err => {
+        logger.debug('Security event logging failed (non-critical)', { error: err instanceof Error ? err.message : 'Unknown' });
       });
     } else {
       // Existing session
