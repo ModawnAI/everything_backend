@@ -860,6 +860,9 @@ class ReferralServiceImpl {
     nickname: string;
     maskedNickname: string;
     referralCode: string;
+    setAt: string;
+    canChangeAt?: string;
+    isChangeable: boolean;
   } | null> {
     try {
       logger.debug('[getMyReferrer] Starting', { userId });
@@ -867,7 +870,7 @@ class ReferralServiceImpl {
       // Get user's referred_by_code with timeout
       const userQueryPromise = this.supabase
         .from('users')
-        .select('referred_by_code, updated_at')
+        .select('referred_by_code, referrer_set_at, updated_at')
         .eq('id', userId)
         .single();
 
@@ -922,11 +925,22 @@ class ReferralServiceImpl {
       const visibleLength = Math.min(3, Math.ceil(displayName.length * 0.5));
       const maskedNickname = displayName.substring(0, visibleLength) + '**';
 
+      // Calculate setAt, canChangeAt, isChangeable
+      const setAt = user.referrer_set_at || user.updated_at || new Date().toISOString();
+      const setAtDate = new Date(setAt);
+      const canChangeAtDate = new Date(setAtDate);
+      canChangeAtDate.setMonth(canChangeAtDate.getMonth() + 3); // 3 months later
+      const canChangeAt = canChangeAtDate.toISOString();
+      const isChangeable = new Date() >= canChangeAtDate;
+
       return {
         id: referrer.id,
         nickname: displayName,
         maskedNickname,
-        referralCode: referrer.referral_code
+        referralCode: referrer.referral_code,
+        setAt,
+        canChangeAt,
+        isChangeable
       };
 
     } catch (error) {
@@ -1020,6 +1034,7 @@ class ReferralServiceImpl {
         .from('users')
         .update({
           referred_by_code: normalizedCode,
+          referrer_set_at: now.toISOString(),
           updated_at: now.toISOString()
         })
         .eq('id', userId);
