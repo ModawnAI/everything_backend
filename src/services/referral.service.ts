@@ -283,7 +283,7 @@ class ReferralServiceImpl {
    */
   async getReferralStats(userId: string): Promise<ReferralStats> {
     try {
-      logger.info('[getReferralStats] Starting for user', { userId });
+      logger.debug('[getReferralStats] Starting', { userId });
 
       // Get user's referral code with timeout
       const userQueryPromise = this.supabase
@@ -301,7 +301,7 @@ class ReferralServiceImpl {
         userTimeoutPromise
       ]) as any;
 
-      logger.info('[getReferralStats] User query completed', { userId, hasUser: !!user, error: userError?.message });
+      logger.debug('[getReferralStats] User query completed', { userId, hasUser: !!user, error: userError?.message });
 
       if (userError || !user) {
         throw new ReferralValidationError('userId', '사용자를 찾을 수 없습니다.');
@@ -322,7 +322,7 @@ class ReferralServiceImpl {
         referralsTimeoutPromise
       ]) as any;
 
-      logger.info('[getReferralStats] Referrals query completed', { userId, count: referrals?.length, error: referralsError?.message });
+      logger.debug('[getReferralStats] Referrals query completed', { userId, count: referrals?.length, error: referralsError?.message });
 
       if (referralsError) {
         throw new ReferralError(
@@ -374,7 +374,7 @@ class ReferralServiceImpl {
     limit: number = 20
   ): Promise<{ referrals: ReferralHistoryItem[]; pagination: any }> {
     try {
-      logger.info('[getReferralHistory] Starting for user', { userId, page, limit });
+      logger.debug('[getReferralHistory] Starting', { userId, page, limit });
       const offset = (page - 1) * limit;
 
       // Get total count with timeout
@@ -392,7 +392,7 @@ class ReferralServiceImpl {
         countTimeoutPromise
       ]) as any;
 
-      logger.info('[getReferralHistory] Count query completed', { userId, count });
+      logger.debug('[getReferralHistory] Count query completed', { userId, count });
 
       if (countError) {
         throw new ReferralError(
@@ -427,7 +427,7 @@ class ReferralServiceImpl {
         referralsTimeoutPromise
       ]) as any;
 
-      logger.info('[getReferralHistory] Referrals query completed', { userId, count: referrals?.length });
+      logger.debug('[getReferralHistory] Referrals query completed', { userId, count: referrals?.length });
 
       if (referralsError) {
         throw new ReferralError(
@@ -834,7 +834,7 @@ class ReferralServiceImpl {
     isChangeable: boolean;
   } | null> {
     try {
-      logger.info('[getMyReferrer] Starting for user', { userId });
+      logger.debug('[getMyReferrer] Starting', { userId });
 
       // Get user's referrer info with timeout
       const userQueryPromise = this.supabase
@@ -852,7 +852,7 @@ class ReferralServiceImpl {
         userTimeoutPromise
       ]) as any;
 
-      logger.info('[getMyReferrer] User query completed', { userId, hasUser: !!user, referredBy: user?.referred_by });
+      logger.debug('[getMyReferrer] User query completed', { userId, hasUser: !!user, referredBy: user?.referred_by });
 
       if (userError || !user) {
         throw new ReferralValidationError('userId', '사용자를 찾을 수 없습니다.');
@@ -860,7 +860,7 @@ class ReferralServiceImpl {
 
       // If no referrer set
       if (!user.referred_by) {
-        logger.info('[getMyReferrer] No referrer set', { userId });
+        logger.debug('[getMyReferrer] No referrer set', { userId });
         return null;
       }
 
@@ -880,7 +880,7 @@ class ReferralServiceImpl {
         referrerTimeoutPromise
       ]) as any;
 
-      logger.info('[getMyReferrer] Referrer query completed', { userId, hasReferrer: !!referrer });
+      logger.debug('[getMyReferrer] Referrer query completed', { userId, hasReferrer: !!referrer });
 
       if (referrerError || !referrer) {
         logger.warn('Referrer not found', { referrerId: user.referred_by });
