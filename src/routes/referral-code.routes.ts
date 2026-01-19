@@ -71,7 +71,7 @@ router.post('/generate',
 /**
  * @route GET /api/referral-codes/validate/:code
  * @desc Validate a referral code
- * @access Public
+ * @access Public (no authentication required)
  */
 /**
  * @swagger
@@ -79,14 +79,12 @@ router.post('/generate',
  *   get:
  *     summary: /validate/:code 조회
  *     description: GET endpoint for /validate/:code
- *       
+ *
  *       추천 시스템 API입니다. 추천 코드와 리워드 관리를 제공합니다.
- *       
+ *
  *       ---
- *       
+ *
  *     tags: [Referral System]
- *     security:
- *       - bearerAuth: []
  *     responses:
  *       200:
  *         description: Success
@@ -94,12 +92,9 @@ router.post('/generate',
  *         description: Bad Request
  *       500:
  *         description: Internal Server Error
- *       401:
- *         description: Authentication required
  */
 
 router.get('/validate/:code',
-  referralCodeController.referralCodeRateLimit,
   referralCodeController.validateReferralCode
 );
 

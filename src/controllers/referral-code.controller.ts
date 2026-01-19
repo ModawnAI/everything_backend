@@ -89,7 +89,16 @@ export class ReferralCodeController {
     try {
       const { code } = req.params;
 
+      logger.info('[DEBUG] Referral code validation started', {
+        code,
+        params: req.params,
+        query: req.query,
+        path: req.path,
+        method: req.method
+      });
+
       if (!code) {
+        logger.warn('[DEBUG] Missing referral code');
         return res.status(400).json({
           error: 'Referral code is required',
           code: 'MISSING_REFERRAL_CODE'
@@ -98,6 +107,7 @@ export class ReferralCodeController {
 
       // Validate code format
       if (code.length < 4 || code.length > 12) {
+        logger.warn('[DEBUG] Invalid code length', { code, length: code.length });
         return res.status(400).json({
           error: 'Referral code must be between 4 and 12 characters',
           code: 'INVALID_REFERRAL_CODE_LENGTH'
@@ -105,12 +115,14 @@ export class ReferralCodeController {
       }
 
       if (!/^[A-Z0-9]+$/.test(code)) {
+        logger.warn('[DEBUG] Invalid code format', { code });
         return res.status(400).json({
           error: 'Referral code must contain only uppercase letters and numbers',
           code: 'INVALID_REFERRAL_CODE_FORMAT'
         });
       }
 
+      logger.info('[DEBUG] Code format valid, checking with service', { code });
       const result = await referralCodeService.validateReferralCode(code);
 
       logger.info('Referral code validation', {
