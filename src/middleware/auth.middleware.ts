@@ -387,9 +387,15 @@ export async function verifyUnifiedAuthToken(token: string): Promise<SupabaseJWT
       throw new InvalidTokenError('Invalid token type');
     }
 
-    // Validate session (legacy tokens might not have session)
+    // Validate session (legacy tokens might not have session) - with timeout
     const sessionRepo = new SessionRepository();
-    const session = await sessionRepo.findByToken(token);
+
+    // Add 3 second timeout to session query
+    const sessionQueryPromise = sessionRepo.findByToken(token);
+    const sessionTimeoutPromise = new Promise<null>((resolve) =>
+      setTimeout(() => resolve(null), 3000)
+    );
+    const session = await Promise.race([sessionQueryPromise, sessionTimeoutPromise]);
 
     if (!session) {
       // Legacy token without session - allow if token is still valid by expiry
@@ -438,18 +444,29 @@ export async function verifyUnifiedAuthToken(token: string): Promise<SupabaseJWT
         throw new InvalidTokenError('Invalid user role');
     }
 
-    const { data: user, error: userError } = await userQuery;
+    // Add 3 second timeout to user query
+    const userQueryPromise = userQuery;
+    const userTimeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error('User query timeout')), 3000)
+    );
+
+    const { data: user, error: userError } = await Promise.race([
+      userQueryPromise,
+      userTimeoutPromise
+    ]) as any;
 
     if (userError || !user) {
       throw new InvalidTokenError('User not found');
     }
 
     // Convert to Supabase-compatible payload format
+    // Use session timestamps if available, otherwise use current time
+    const now = Math.floor(Date.now() / 1000);
     const payload: SupabaseJWTPayload = {
       sub: decoded.userId,
       aud: 'authenticated',
-      exp: Math.floor(session.expires_at.getTime() / 1000),
-      iat: Math.floor(session.created_at.getTime() / 1000),
+      exp: session?.expires_at ? Math.floor(session.expires_at.getTime() / 1000) : now + 3600,
+      iat: session?.created_at ? Math.floor(session.created_at.getTime() / 1000) : now,
       iss: config.auth.issuer,
       email: user.email,
       role: decoded.role,
@@ -624,8 +641,8 @@ export function generateDeviceFingerprint(req: Request): string {
  * Validate and track user session
  */
 export async function validateAndTrackSession(
-  userId: string, 
-  token: string, 
+  userId: string,
+  token: string,
   req: Request
 ): Promise<{
   sessionId: string;
@@ -635,13 +652,27 @@ export async function validateAndTrackSession(
   lastActivity: Date;
   enhancedFingerprint: EnhancedDeviceFingerprint;
 }> {
-  const supabase = getSupabaseClient();
+  const now = new Date();
   const enhancedFingerprint = generateEnhancedDeviceFingerprint(req, {
     timezone: req.headers['x-timezone'],
     screenResolution: req.headers['x-screen-resolution']
   });
   const deviceFingerprint = enhancedFingerprint.fingerprint;
-  const now = new Date();
+
+  // Check if session tracking is disabled for performance
+  const skipSessionTracking = process.env.SKIP_SESSION_TRACKING === 'true';
+  if (skipSessionTracking) {
+    return {
+      sessionId: `skip_${Date.now()}`,
+      deviceId: `skip_device_${Date.now()}`,
+      deviceFingerprint,
+      isNewDevice: false,
+      lastActivity: now,
+      enhancedFingerprint
+    };
+  }
+
+  const supabase = getSupabaseClient();
 
   try {
     // Check if we have an active session for this token with timeout
@@ -656,9 +687,10 @@ export async function validateAndTrackSession(
       .limit(1)
       .single();
 
-    // Add 5 second timeout to prevent hanging
+    // Add configurable timeout to prevent hanging (default: 2 seconds)
+    const sessionQueryTimeoutMs = parseInt(process.env.SESSION_QUERY_TIMEOUT_MS || '2000', 10);
     const timeoutPromise = new Promise((_, reject) =>
-      setTimeout(() => reject(new Error('Session query timeout')), 5000)
+      setTimeout(() => reject(new Error('Session query timeout')), sessionQueryTimeoutMs)
     );
 
     const { data: existingSession, error: sessionError } = await Promise.race([
@@ -1014,6 +1046,59 @@ export async function getUserFromToken(tokenPayload: SupabaseJWTPayload): Promis
 }
 
 /**
+ * Simplified token verification with parallel execution
+ * Returns token payload and source
+ * Uses Promise.any for parallel verification - first success wins
+ */
+async function verifyTokenWithFallbacks(
+  token: string,
+  tokenSource: string,
+  cookieHeader: string | undefined
+): Promise<{ payload: SupabaseJWTPayload; source: string }> {
+  // Build verification promises for parallel execution
+  const verificationPromises: Promise<{ payload: SupabaseJWTPayload; source: string }>[] = [];
+
+  // Primary: Supabase verification
+  verificationPromises.push(
+    verifySupabaseToken(token).then(payload => ({ payload, source: tokenSource }))
+  );
+
+  // Secondary: Local JWT verification (for admin tokens)
+  verificationPromises.push(
+    verifySupabaseTokenLocal(token).then(payload => ({ payload, source: tokenSource }))
+  );
+
+  // Tertiary: Unified auth token (only for header tokens)
+  if (tokenSource === 'header') {
+    verificationPromises.push(
+      verifyUnifiedAuthToken(token).then(payload => ({ payload, source: 'unified-auth' }))
+    );
+  }
+
+  // Try parallel verification - first success wins
+  try {
+    const result = await Promise.any(verificationPromises);
+    return result;
+  } catch (aggregateError) {
+    // All parallel attempts failed, try cookie fallback as last resort
+    if (tokenSource === 'header' && cookieHeader) {
+      const cookieToken = extractTokenFromSupabaseCookie(cookieHeader);
+      if (cookieToken && cookieToken !== token) {
+        try {
+          const payload = await verifySupabaseToken(cookieToken);
+          return { payload, source: 'cookie-fallback' };
+        } catch (cookieError) {
+          // Final fallback failed
+        }
+      }
+    }
+  }
+
+  // All verification attempts failed
+  throw new InvalidTokenError('Token verification failed after all fallbacks');
+}
+
+/**
  * Main JWT authentication middleware
  */
 export function authenticateJWT() {
@@ -1030,252 +1115,39 @@ export function authenticateJWT() {
       console.log('[AUTH] Request:', req.method, req.originalUrl);
     }
 
+    // Global timeout for entire authentication process (configurable, default: 5 seconds)
+    const AUTH_TIMEOUT = parseInt(process.env.AUTH_TIMEOUT_MS || '5000', 10);
+    let authTimeoutId: NodeJS.Timeout | undefined;
+
     try {
-      // Extract token from Authorization header OR Supabase cookie
-      const authHeader = req.headers.authorization;
+      // Create a timeout promise
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        authTimeoutId = setTimeout(() => {
+          reject(new AuthenticationError('Authentication timeout - please try again', 408, 'AUTH_TIMEOUT'));
+        }, AUTH_TIMEOUT);
+      });
 
-      let token = extractTokenFromHeader(authHeader);
-      let tokenSource = 'none';
+      // Run authentication with timeout
+      const authResult = await Promise.race([
+        performAuthentication(req, res, DEBUG_AUTH),
+        timeoutPromise
+      ]);
 
-      // FALLBACK: Try extracting from Supabase cookie if header is missing
-      if (!token && req.headers.cookie) {
-        token = extractTokenFromSupabaseCookie(req.headers.cookie);
-        if (token) {
-          tokenSource = 'cookie';
-        }
-      } else if (token) {
-        tokenSource = 'header';
-      }
+      // Clear timeout on success
+      if (authTimeoutId) clearTimeout(authTimeoutId);
 
-      if (!token) {
-        throw new AuthenticationError('Missing authorization token', 401, 'MISSING_TOKEN');
-      }
-
-
-      // Verify the JWT token using Supabase's official method (recommended approach)
-      let tokenPayload: SupabaseJWTPayload | null = null;
-      let verificationError: Error | null = null;
-
-      try {
-        tokenPayload = await verifySupabaseToken(token);
-      } catch (supabaseError) {
-        verificationError = supabaseError as Error;
-
-        try {
-          // Fallback to local JWT verification for admin tokens
-          tokenPayload = await verifySupabaseTokenLocal(token);
-          verificationError = null;
-        } catch (localError) {
-          verificationError = localError as Error;
-
-          // Try unified auth token verification
-          if (tokenSource === 'header') {
-            try {
-              tokenPayload = await verifyUnifiedAuthToken(token);
-              tokenSource = 'unified-auth';
-              verificationError = null;
-            } catch (unifiedAuthError) {
-              // Continue to cookie fallback
-            }
-          }
-
-          // If token was from header and verification failed, try cookie as last resort
-          if (!tokenPayload && tokenSource === 'header' && req.headers.cookie) {
-            const cookieToken = extractTokenFromSupabaseCookie(req.headers.cookie);
-
-            if (cookieToken && cookieToken !== token) {
-              try {
-                tokenPayload = await verifySupabaseToken(cookieToken);
-                tokenSource = 'cookie-fallback';
-                verificationError = null;
-              } catch (cookieError) {
-                // Don't clear verificationError yet, will try refresh next
-              }
-            }
-          }
-
-          // If we have cookie but no valid token source yet, try from cookie first
-          if (!tokenPayload && !tokenSource.includes('cookie') && tokenSource !== 'refreshed' && req.headers.cookie) {
-            const cookieToken = extractTokenFromSupabaseCookie(req.headers.cookie);
-
-            if (cookieToken) {
-              try {
-                tokenPayload = await verifySupabaseToken(cookieToken);
-                tokenSource = 'cookie';
-                verificationError = null;
-              } catch (cookieError) {
-                // Will try refresh next
-              }
-            }
-          }
-
-          // If all verification attempts failed, try token refresh as last resort
-          if (!tokenPayload && verificationError && req.headers.cookie) {
-            const refreshToken = extractRefreshTokenFromCookie(req.headers.cookie);
-
-            if (refreshToken) {
-              try {
-                const { data: refreshData, error: refreshError } = await getSupabaseClient()
-                  .auth.refreshSession({ refresh_token: refreshToken });
-
-                if (!refreshError && refreshData.session) {
-                  const newAccessToken = refreshData.session.access_token;
-                  tokenPayload = await verifySupabaseToken(newAccessToken);
-                  tokenSource = 'refreshed';
-                  verificationError = null;
-
-                  // Set the new token in response header for client to update
-                  res.setHeader('X-Refreshed-Token', newAccessToken);
-                  res.setHeader('X-Refreshed-Refresh-Token', refreshData.session.refresh_token);
-                }
-              } catch (refreshError) {
-                // Keep the original verificationError
-              }
-            }
-          }
-
-          // If all verification attempts failed, throw the error
-          if (!tokenPayload || verificationError) {
-            throw verificationError || new InvalidTokenError('Token verification failed');
-          }
-        }
-      }
-
-      // Enhanced token validation with expiration checks
-      await validateTokenExpiration(tokenPayload);
-
-      // Performance optimization: Skip expensive database lookup for analytics endpoints
-      // The JWT token is already cryptographically verified, so we can trust its contents
-      const isAnalyticsEndpoint = req.path.startsWith('/analytics/') ||
-                                   req.path.startsWith('/dashboard/') ||
-                                   req.path.includes('/analytics/');
-
-
-      let userData: any;
-      let sessionInfo: any;
-
-      // Performance optimization: Use token data directly for most endpoints
-      // Only fetch full user data for critical operations
-      const isCriticalEndpoint = req.path.startsWith('/payment') ||
-                                 req.path.includes('/cancel') ||
-                                 req.path.includes('/refund') ||
-                                 req.method === 'DELETE';
-
-      // User-related endpoints require DB lookup to ensure user record exists
-      const isUserEndpoint = req.path.startsWith('/api/users') ||
-                             req.path.startsWith('/api/points') ||
-                             req.path.startsWith('/api/referrals') ||
-                             req.path.includes('/users/') ||
-                             req.path.includes('/profile');
-
-      if (isAnalyticsEndpoint || (!isCriticalEndpoint && !isUserEndpoint)) {
-        // Use token data directly without database lookup for better performance
-        userData = {
-          id: tokenPayload.sub,
-          email: tokenPayload.email,
-          user_role: tokenPayload.role || 'user',
-          user_status: 'active', // Token wouldn't be valid if user was inactive
-          name: tokenPayload.user_metadata?.name || tokenPayload.email,
-          is_influencer: tokenPayload.user_metadata?.is_influencer || false,
-          phone_verified: !!tokenPayload.phone_confirmed_at,
-        };
-
-        // Minimal session tracking
-        sessionInfo = {
-          sessionId: tokenPayload.session_id || crypto.randomUUID(),
-          deviceId: 'fast-track',
-          deviceFingerprint: undefined,
-          isNewDevice: false
-        };
-
-        // Background check/create user record (non-blocking)
-        ensureUserExistsInBackground(tokenPayload).catch(() => {});
-      } else {
-        try {
-          // Get user data from database for critical endpoints
-          userData = await getUserFromToken(tokenPayload);
-
-          // Validate and track session with device fingerprinting
-          sessionInfo = await validateAndTrackSession(userData.id, token, req);
-        } catch (dbError) {
-          // Fallback to token data if database query fails
-          userData = {
-            id: tokenPayload.sub,
-            email: tokenPayload.email,
-            user_role: tokenPayload.role || 'user',
-            user_status: 'active',
-            name: tokenPayload.user_metadata?.name || tokenPayload.email,
-            is_influencer: tokenPayload.user_metadata?.is_influencer || false,
-            phone_verified: !!tokenPayload.phone_confirmed_at,
-          };
-          sessionInfo = {
-            sessionId: tokenPayload.session_id || crypto.randomUUID(),
-            deviceId: 'fallback',
-            deviceFingerprint: undefined,
-            isNewDevice: false
-          };
-        }
-      }
-
-
-      // Log authentication event for security monitoring (non-blocking, fire-and-forget)
-      // Don't await this to prevent blocking the request
-      if (!isAnalyticsEndpoint) {
-        securityMonitoringService.logSecurityEvent({
-          event_type: 'auth_success',
-          user_id: userData.id,
-          source_ip: req.ip || 'unknown',
-          user_agent: req.headers['user-agent'] || 'unknown',
-          endpoint: req.path,
-          severity: 'low',
-          details: {
-            deviceFingerprint: sessionInfo.deviceFingerprint,
-            isNewDevice: sessionInfo.isNewDevice,
-            sessionId: sessionInfo.sessionId
-          }
-        }).catch(err => {
-          // Silent failure for security logging to not block authentication
-          logger.debug('Security event logging failed (non-critical)', { error: err instanceof Error ? err.message : 'Unknown' });
-        });
-      }
-
-      // Populate request with user information
-      req.user = {
-        id: userData.id,
-        email: userData.email,
-        role: userData.user_role,
-        user_role: userData.user_role,  // Alias for compatibility
-        status: userData.user_status,
-        aud: tokenPayload.aud,
-        exp: tokenPayload.exp,
-        iat: tokenPayload.iat,
-        iss: tokenPayload.iss,
-        sub: tokenPayload.sub,
-        ...(tokenPayload.email_confirmed_at && { email_confirmed_at: tokenPayload.email_confirmed_at }),
-        ...(tokenPayload.phone_confirmed_at && { phone_confirmed_at: tokenPayload.phone_confirmed_at }),
-        ...(tokenPayload.last_sign_in_at && { last_sign_in_at: tokenPayload.last_sign_in_at }),
-        ...(tokenPayload.user_metadata && { user_metadata: tokenPayload.user_metadata }),
-        ...(tokenPayload.app_metadata && { app_metadata: tokenPayload.app_metadata }),
-        // Shop fields from JWT token payload for dashboard toggle and access validation
-        ...(tokenPayload.shopId && { shopId: tokenPayload.shopId }),
-        ...(tokenPayload.shopId && { shop_id: tokenPayload.shopId }),
-      };
-
-      req.token = token;
-      req.session = {
-        id: sessionInfo.sessionId,
-        deviceId: sessionInfo.deviceId,
-        deviceFingerprint: sessionInfo.deviceFingerprint,
-        lastActivity: sessionInfo.lastActivity,
-        isNewDevice: sessionInfo.isNewDevice
-      };
+      // Apply auth result to request
+      req.user = authResult.user;
+      req.token = authResult.token;
+      req.session = authResult.session;
 
       next();
     } catch (error) {
-      if (error instanceof AuthenticationError) {
+      // Clear timeout on error
+      if (authTimeoutId) clearTimeout(authTimeoutId);
 
+      if (error instanceof AuthenticationError) {
         // Log authentication failure for security monitoring (non-blocking, fire-and-forget)
-        // Don't await to prevent blocking the response
         setImmediate(() => {
           securityMonitoringService.logSecurityEvent({
             event_type: 'auth_failure',
@@ -1289,7 +1161,6 @@ export function authenticateJWT() {
               deviceFingerprint: generateDeviceFingerprint(req)
             }
           }).catch(err => {
-            // Silent failure for security logging
             logger.debug('Security event logging failed (non-critical)', { error: err instanceof Error ? err.message : 'Unknown' });
           });
         });
@@ -1329,6 +1200,174 @@ export function authenticateJWT() {
       });
     }
   };
+}
+
+/**
+ * Core authentication logic (extracted for timeout wrapper)
+ */
+async function performAuthentication(
+  req: AuthenticatedRequest,
+  res: Response,
+  DEBUG_AUTH: boolean
+): Promise<{
+  user: AuthenticatedRequest['user'];
+  token: string;
+  session: AuthenticatedRequest['session'];
+}> {
+  // Extract token from Authorization header OR Supabase cookie
+  const authHeader = req.headers.authorization;
+
+  let token = extractTokenFromHeader(authHeader);
+  let tokenSource = 'none';
+
+  // FALLBACK: Try extracting from Supabase cookie if header is missing
+  if (!token && req.headers.cookie) {
+    token = extractTokenFromSupabaseCookie(req.headers.cookie);
+    if (token) {
+      tokenSource = 'cookie';
+    }
+  } else if (token) {
+    tokenSource = 'header';
+  }
+
+  if (!token) {
+    throw new AuthenticationError('Missing authorization token', 401, 'MISSING_TOKEN');
+  }
+
+  // Verify token with simplified fallback chain
+  const { payload: tokenPayload, source: finalSource } = await verifyTokenWithFallbacks(
+    token,
+    tokenSource,
+    req.headers.cookie
+  );
+  tokenSource = finalSource;
+
+  // Enhanced token validation with expiration checks
+  await validateTokenExpiration(tokenPayload);
+
+  // Performance optimization: Skip expensive database lookup for analytics endpoints
+  // The JWT token is already cryptographically verified, so we can trust its contents
+  const isAnalyticsEndpoint = req.path.startsWith('/analytics/') ||
+                               req.path.startsWith('/dashboard/') ||
+                               req.path.includes('/analytics/');
+
+  let userData: any;
+  let sessionInfo: any;
+
+  // Performance optimization: Use token data directly for most endpoints
+  // Only fetch full user data for critical operations
+  const isCriticalEndpoint = req.path.startsWith('/payment') ||
+                             req.path.includes('/cancel') ||
+                             req.path.includes('/refund') ||
+                             req.method === 'DELETE';
+
+  // User-related endpoints require DB lookup to ensure user record exists
+  // Note: /api/referrals removed to reduce unnecessary DB queries for stats endpoints
+  const isUserEndpoint = req.path.startsWith('/api/users') ||
+                         req.path.startsWith('/api/points') ||
+                         req.path.includes('/profile');
+
+  if (isAnalyticsEndpoint || (!isCriticalEndpoint && !isUserEndpoint)) {
+    // Use token data directly without database lookup for better performance
+    userData = {
+      id: tokenPayload.sub,
+      email: tokenPayload.email,
+      user_role: tokenPayload.role || 'user',
+      user_status: 'active', // Token wouldn't be valid if user was inactive
+      name: tokenPayload.user_metadata?.name || tokenPayload.email,
+      is_influencer: tokenPayload.user_metadata?.is_influencer || false,
+      phone_verified: !!tokenPayload.phone_confirmed_at,
+    };
+
+    // Minimal session tracking
+    sessionInfo = {
+      sessionId: tokenPayload.session_id || crypto.randomUUID(),
+      deviceId: 'fast-track',
+      deviceFingerprint: undefined,
+      isNewDevice: false
+    };
+
+    // Background check/create user record (non-blocking)
+    ensureUserExistsInBackground(tokenPayload).catch(() => {});
+  } else {
+    try {
+      // Get user data from database for critical endpoints
+      userData = await getUserFromToken(tokenPayload);
+
+      // Validate and track session with device fingerprinting
+      sessionInfo = await validateAndTrackSession(userData.id, token, req);
+    } catch (dbError) {
+      // Fallback to token data if database query fails
+      userData = {
+        id: tokenPayload.sub,
+        email: tokenPayload.email,
+        user_role: tokenPayload.role || 'user',
+        user_status: 'active',
+        name: tokenPayload.user_metadata?.name || tokenPayload.email,
+        is_influencer: tokenPayload.user_metadata?.is_influencer || false,
+        phone_verified: !!tokenPayload.phone_confirmed_at,
+      };
+      sessionInfo = {
+        sessionId: tokenPayload.session_id || crypto.randomUUID(),
+        deviceId: 'fallback',
+        deviceFingerprint: undefined,
+        isNewDevice: false
+      };
+    }
+  }
+
+  // Log authentication event for security monitoring (non-blocking, fire-and-forget)
+  // Don't await this to prevent blocking the request
+  if (!isAnalyticsEndpoint) {
+    securityMonitoringService.logSecurityEvent({
+      event_type: 'auth_success',
+      user_id: userData.id,
+      source_ip: req.ip || 'unknown',
+      user_agent: req.headers['user-agent'] || 'unknown',
+      endpoint: req.path,
+      severity: 'low',
+      details: {
+        deviceFingerprint: sessionInfo.deviceFingerprint,
+        isNewDevice: sessionInfo.isNewDevice,
+        sessionId: sessionInfo.sessionId
+      }
+    }).catch(err => {
+      // Silent failure for security logging to not block authentication
+      logger.debug('Security event logging failed (non-critical)', { error: err instanceof Error ? err.message : 'Unknown' });
+    });
+  }
+
+  // Build and return user information
+  const user: AuthenticatedRequest['user'] = {
+    id: userData.id,
+    email: userData.email,
+    role: userData.user_role,
+    user_role: userData.user_role,  // Alias for compatibility
+    status: userData.user_status,
+    aud: tokenPayload.aud,
+    exp: tokenPayload.exp,
+    iat: tokenPayload.iat,
+    iss: tokenPayload.iss,
+    sub: tokenPayload.sub,
+    ...(tokenPayload.email_confirmed_at && { email_confirmed_at: tokenPayload.email_confirmed_at }),
+    ...(tokenPayload.phone_confirmed_at && { phone_confirmed_at: tokenPayload.phone_confirmed_at }),
+    ...(tokenPayload.last_sign_in_at && { last_sign_in_at: tokenPayload.last_sign_in_at }),
+    ...(tokenPayload.user_metadata && { user_metadata: tokenPayload.user_metadata }),
+    ...(tokenPayload.app_metadata && { app_metadata: tokenPayload.app_metadata }),
+    // Shop fields from JWT token payload for dashboard toggle and access validation
+    ...(tokenPayload.shopId && { shopId: tokenPayload.shopId }),
+    ...(tokenPayload.shopId && { shop_id: tokenPayload.shopId }),
+  };
+
+  const session: AuthenticatedRequest['session'] = {
+    id: sessionInfo.sessionId,
+    deviceId: sessionInfo.deviceId,
+    deviceFingerprint: sessionInfo.deviceFingerprint,
+    lastActivity: sessionInfo.lastActivity,
+    isNewDevice: sessionInfo.isNewDevice
+  };
+
+  return { user, token, session };
 }
 
 /**

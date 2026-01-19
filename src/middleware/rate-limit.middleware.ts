@@ -260,32 +260,39 @@ export function rateLimit(options: RateLimitMiddlewareOptions = {}) {
         return next();
       }
 
-      // Check if IP is blocked (with timeout to prevent hanging)
-      const blockCheckPromise = ipBlockingService.isIPBlocked(context.ip);
-      const timeoutPromise = new Promise<null>((resolve) =>
-        setTimeout(() => resolve(null), 500) // 500ms timeout
-      );
+      // Check if IP blocking is disabled via environment
+      const disableIpBlocking = process.env.DISABLE_IP_BLOCKING === 'true';
+      if (disableIpBlocking) {
+        // Skip IP blocking check entirely
+      } else {
+        // Check if IP is blocked (with configurable timeout to prevent hanging)
+        const ipBlockTimeout = parseInt(process.env.IP_BLOCK_CHECK_TIMEOUT_MS || '100', 10);
+        const blockCheckPromise = ipBlockingService.isIPBlocked(context.ip);
+        const timeoutPromise = new Promise<null>((resolve) =>
+          setTimeout(() => resolve(null), ipBlockTimeout)
+        );
 
-      const blockInfo = await Promise.race([blockCheckPromise, timeoutPromise]);
+        const blockInfo = await Promise.race([blockCheckPromise, timeoutPromise]);
 
-      if (blockInfo) {
-        logger.warn('Blocked IP attempted access', {
-          ip: context.ip,
-          endpoint: context.endpoint,
-          blockedAt: blockInfo.blockedAt,
-          blockedUntil: blockInfo.blockedUntil,
-          reason: blockInfo.reason
-        });
-
-        res.status(403).json({
-          error: {
-            code: 'IP_BLOCKED',
-            message: 'Your IP address has been temporarily blocked due to suspicious activity.',
-            blockedUntil: blockInfo.blockedUntil.toISOString(),
+        if (blockInfo) {
+          logger.warn('Blocked IP attempted access', {
+            ip: context.ip,
+            endpoint: context.endpoint,
+            blockedAt: blockInfo.blockedAt,
+            blockedUntil: blockInfo.blockedUntil,
             reason: blockInfo.reason
-          }
-        });
-        return;
+          });
+
+          res.status(403).json({
+            error: {
+              code: 'IP_BLOCKED',
+              message: 'Your IP address has been temporarily blocked due to suspicious activity.',
+              blockedUntil: blockInfo.blockedUntil.toISOString(),
+              reason: blockInfo.reason
+            }
+          });
+          return;
+        }
       }
 
       // Determine rate limit configuration

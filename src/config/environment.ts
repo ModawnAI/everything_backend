@@ -147,6 +147,14 @@ const envSchema = Joi.object({
   TRUSTED_PROXIES: Joi.string().default('127.0.0.1,::1'),
   SESSION_SECRET: Joi.string().optional(),
   ENCRYPTION_KEY: Joi.string().optional(),
+
+  // Performance & Timeout Configuration
+  AUTH_TIMEOUT_MS: Joi.number().default(5000),
+  SUPABASE_TIMEOUT_MS: Joi.number().default(3000),
+  SESSION_QUERY_TIMEOUT_MS: Joi.number().default(2000),
+  IP_BLOCK_CHECK_TIMEOUT_MS: Joi.number().default(100),
+  SKIP_SESSION_TRACKING: Joi.boolean().default(false),
+  DISABLE_IP_BLOCKING: Joi.boolean().default(false),
 }).unknown();
 
 // Validate environment variables
@@ -315,6 +323,15 @@ export const config = {
   monitoring: {
     sentryDsn: envVars.SENTRY_DSN as string,
     analyticsApiKey: envVars.ANALYTICS_API_KEY as string,
+  },
+
+  performance: {
+    authTimeoutMs: envVars.AUTH_TIMEOUT_MS as number,
+    supabaseTimeoutMs: envVars.SUPABASE_TIMEOUT_MS as number,
+    sessionQueryTimeoutMs: envVars.SESSION_QUERY_TIMEOUT_MS as number,
+    ipBlockCheckTimeoutMs: envVars.IP_BLOCK_CHECK_TIMEOUT_MS as number,
+    skipSessionTracking: envVars.SKIP_SESSION_TRACKING as boolean,
+    disableIpBlocking: envVars.DISABLE_IP_BLOCKING as boolean,
   },
 };
 
