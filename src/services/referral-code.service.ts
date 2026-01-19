@@ -446,17 +446,23 @@ class ReferralCodeService {
     error?: string;
     errorCode?: string;
   }> {
-    // Check if referrer account is too new (prevent abuse)
-    const accountAge = Date.now() - new Date(referrer.created_at).getTime();
-    const minimumAccountAge = 24 * 60 * 60 * 1000; // 24 hours
+    // ========================================
+    // TODO: 테스트 후 복원 필요!!! (2026-01-19)
+    // ========================================
+    // TEMPORARILY DISABLED FOR TESTING
+    // RESTORE AFTER TESTING COMPLETE
 
-    if (accountAge < minimumAccountAge) {
-      return {
-        isValid: false,
-        error: 'Referrer account is too new',
-        errorCode: 'ACCOUNT_TOO_NEW'
-      };
-    }
+    // Check if referrer account is too new (prevent abuse)
+    // const accountAge = Date.now() - new Date(referrer.created_at).getTime();
+    // const minimumAccountAge = 24 * 60 * 60 * 1000; // 24 hours
+
+    // if (accountAge < minimumAccountAge) {
+    //   return {
+    //     isValid: false,
+    //     error: 'Referrer account is too new',
+    //     errorCode: 'ACCOUNT_TOO_NEW'
+    //   };
+    // }
 
     // Additional checks can be added here
     // - Check if referrer has been banned
