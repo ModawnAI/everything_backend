@@ -136,7 +136,7 @@ const setReferrerSchema = Joi.object({
  *         description: Authentication required
  */
 router.get('/stats',
-  rateLimit(),
+  // rateLimit(), // 임시 비활성화 - 성능 테스트
   authenticateJWT(),
   referralController.getReferralStats
 );

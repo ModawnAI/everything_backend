@@ -301,10 +301,33 @@ class ReferralServiceImpl {
         userTimeoutPromise
       ]) as any;
 
-      logger.debug('[getReferralStats] User query completed', { userId, hasUser: !!user, error: userError?.message });
+      logger.info('[getReferralStats] User query completed', {
+        userId,
+        hasUser: !!user,
+        referralCode: user?.referral_code || 'null/empty',
+        error: userError?.message
+      });
 
       if (userError || !user) {
         throw new ReferralValidationError('userId', '사용자를 찾을 수 없습니다.');
+      }
+
+      // Auto-generate referral code if user doesn't have one
+      let referralCode = user.referral_code;
+      if (!referralCode) {
+        logger.info('[getReferralStats] User has no referral code, generating one', { userId });
+        try {
+          const result = await this.generateReferralCode(userId);
+          if (result?.code) {
+            referralCode = result.code;
+            logger.info('[getReferralStats] Generated new referral code', { userId, code: referralCode });
+          }
+        } catch (genError) {
+          logger.warn('[getReferralStats] Failed to generate referral code, continuing without it', {
+            userId,
+            error: genError instanceof Error ? genError.message : 'Unknown error'
+          });
+        }
       }
 
       // Get referral statistics with timeout
@@ -338,12 +361,18 @@ class ReferralServiceImpl {
         pendingReferrals: referrals?.filter(r => r.status === 'pending').length || 0,
         totalBonusEarned: referrals?.reduce((sum, r) => sum + (r.bonus_amount || 0), 0) || 0,
         totalBonusPaid: referrals?.filter(r => r.bonus_paid).reduce((sum, r) => sum + (r.bonus_amount || 0), 0) || 0,
-        referralCode: user.referral_code || '',
+        referralCode: referralCode || '',
         lastReferralDate: referrals?.length ? referrals[referrals.length - 1]?.created_at : undefined,
-        ...(this.calculateAverageCompletionTime(referrals || []) && { 
-          averageCompletionTime: this.calculateAverageCompletionTime(referrals || []) 
+        ...(this.calculateAverageCompletionTime(referrals || []) && {
+          averageCompletionTime: this.calculateAverageCompletionTime(referrals || [])
         })
       };
+
+      logger.info('[getReferralStats] Stats response', {
+        userId,
+        referralCode: stats.referralCode || 'empty',
+        totalReferrals: stats.totalReferrals
+      });
 
       return stats;
 

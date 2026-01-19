@@ -1103,6 +1103,14 @@ async function verifyTokenWithFallbacks(
  */
 export function authenticateJWT() {
   return async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    // ⏱️ 타이밍 측정 시작
+    const authStartTime = Date.now();
+    logger.info('[⏱️ AUTH-TIMING] Authentication started', {
+      path: req.path,
+      method: req.method,
+      timestamp: new Date().toISOString()
+    });
+
     // Skip authentication for OPTIONS requests (CORS preflight)
     if (req.method === 'OPTIONS') {
       return next();
@@ -1127,11 +1135,19 @@ export function authenticateJWT() {
         }, AUTH_TIMEOUT);
       });
 
+      logger.info('[⏱️ AUTH-TIMING] Before performAuthentication', {
+        elapsed: Date.now() - authStartTime
+      });
+
       // Run authentication with timeout
       const authResult = await Promise.race([
         performAuthentication(req, res, DEBUG_AUTH),
         timeoutPromise
       ]);
+
+      logger.info('[⏱️ AUTH-TIMING] After performAuthentication', {
+        elapsed: Date.now() - authStartTime
+      });
 
       // Clear timeout on success
       if (authTimeoutId) clearTimeout(authTimeoutId);
@@ -1140,6 +1156,11 @@ export function authenticateJWT() {
       req.user = authResult.user;
       req.token = authResult.token;
       req.session = authResult.session;
+
+      logger.info('[⏱️ AUTH-TIMING] Before calling next()', {
+        elapsed: Date.now() - authStartTime,
+        totalAuthTime: Date.now() - authStartTime
+      });
 
       next();
     } catch (error) {
@@ -1214,6 +1235,8 @@ async function performAuthentication(
   token: string;
   session: AuthenticatedRequest['session'];
 }> {
+  const perfStartTime = Date.now();
+
   // Extract token from Authorization header OR Supabase cookie
   const authHeader = req.headers.authorization;
 
@@ -1234,13 +1257,25 @@ async function performAuthentication(
     throw new AuthenticationError('Missing authorization token', 401, 'MISSING_TOKEN');
   }
 
+  logger.info('[⏱️ PERF-AUTH] Token extracted', {
+    elapsed: Date.now() - perfStartTime,
+    tokenSource
+  });
+
   // Verify token with simplified fallback chain
+  const verifyStartTime = Date.now();
   const { payload: tokenPayload, source: finalSource } = await verifyTokenWithFallbacks(
     token,
     tokenSource,
     req.headers.cookie
   );
   tokenSource = finalSource;
+
+  logger.info('[⏱️ PERF-AUTH] Token verified', {
+    elapsed: Date.now() - perfStartTime,
+    verifyTime: Date.now() - verifyStartTime,
+    finalSource
+  });
 
   // Enhanced token validation with expiration checks
   await validateTokenExpiration(tokenPayload);
@@ -1268,6 +1303,11 @@ async function performAuthentication(
                          req.path.includes('/profile');
 
   if (isAnalyticsEndpoint || (!isCriticalEndpoint && !isUserEndpoint)) {
+    logger.info('[⏱️ PERF-AUTH] Using fast-track (no DB lookup)', {
+      elapsed: Date.now() - perfStartTime,
+      path: req.path
+    });
+
     // Use token data directly without database lookup for better performance
     userData = {
       id: tokenPayload.sub,
@@ -1290,12 +1330,31 @@ async function performAuthentication(
     // Background check/create user record (non-blocking)
     ensureUserExistsInBackground(tokenPayload).catch(() => {});
   } else {
+    logger.info('[⏱️ PERF-AUTH] Fetching user from database', {
+      elapsed: Date.now() - perfStartTime,
+      path: req.path
+    });
+
     try {
+      const dbStartTime = Date.now();
+
       // Get user data from database for critical endpoints
       userData = await getUserFromToken(tokenPayload);
 
+      logger.info('[⏱️ PERF-AUTH] User data fetched', {
+        elapsed: Date.now() - perfStartTime,
+        dbTime: Date.now() - dbStartTime
+      });
+
+      const sessionStartTime = Date.now();
+
       // Validate and track session with device fingerprinting
       sessionInfo = await validateAndTrackSession(userData.id, token, req);
+
+      logger.info('[⏱️ PERF-AUTH] Session tracked', {
+        elapsed: Date.now() - perfStartTime,
+        sessionTime: Date.now() - sessionStartTime
+      });
     } catch (dbError) {
       // Fallback to token data if database query fails
       userData = {
