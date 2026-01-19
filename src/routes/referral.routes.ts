@@ -176,7 +176,7 @@ router.get('/stats',
  */
 
 router.get('/history',
-  rateLimit(),
+  // rateLimit(), // 임시 비활성화 - 성능 테스트
   authenticateJWT(),
   validateQueryParams(referralHistoryQuerySchema),
   referralController.getReferralHistory
