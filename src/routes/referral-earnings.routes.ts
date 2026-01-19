@@ -47,7 +47,7 @@ const topEarnersSchema = Joi.object({
 router.post(
   '/calculate',
   referralEarningsController.referralEarningsRateLimit,
-  authenticateJWT,
+  authenticateJWT(),
   validateRequestBody(calculateEarningsSchema),
   referralEarningsController.calculateReferralEarnings
 );
@@ -60,7 +60,7 @@ router.post(
 router.post(
   '/payout',
   referralEarningsController.referralEarningsRateLimit,
-  authenticateJWT,
+  authenticateJWT(),
   validateRequestBody(processPayoutSchema),
   referralEarningsController.processReferralPayout
 );
@@ -73,7 +73,7 @@ router.post(
 router.get(
   '/summary/:userId?',
   referralEarningsController.referralEarningsRateLimit,
-  authenticateJWT,
+  authenticateJWT(),
   referralEarningsController.getReferralEarningsSummary
 );
 
@@ -85,7 +85,7 @@ router.get(
 router.post(
   '/bulk-payouts',
   referralEarningsController.referralEarningsRateLimit,
-  authenticateJWT,
+  authenticateJWT(),
   requireRole(UserRole.ADMIN),
   validateRequestBody(bulkPayoutsSchema),
   referralEarningsController.processBulkReferralPayouts
@@ -99,7 +99,7 @@ router.post(
 router.get(
   '/stats',
   referralEarningsController.referralEarningsRateLimit,
-  authenticateJWT,
+  authenticateJWT(),
   requireRole(UserRole.ADMIN),
   validateRequestBody(earningsStatsSchema),
   referralEarningsController.getReferralEarningsStats
@@ -113,7 +113,7 @@ router.get(
 router.get(
   '/top-earners',
   referralEarningsController.referralEarningsRateLimit,
-  authenticateJWT,
+  authenticateJWT(),
   requireRole(UserRole.ADMIN),
   validateRequestBody(topEarnersSchema),
   referralEarningsController.getTopEarners
