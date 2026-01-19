@@ -225,7 +225,7 @@ const reservationIdSchema = Joi.object({
  */
 
 router.get('/shops/:shopId/available-slots',
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100, strategy: 'fixed_window' } }), // 100 requests per 15 minutes
   async (req, res) => {
     try {
       await reservationController.getAvailableSlots(req, res);
@@ -364,7 +364,7 @@ router.get('/shops/:shopId/available-slots',
 
 router.post('/',
   authenticateJWT(),
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20 } }), // 20 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 20, strategy: 'fixed_window' } }), // 20 requests per 15 minutes
   (req, res, next) => {
     console.log('🔍 [BEFORE-VALIDATION] Request body:', JSON.stringify(req.body, null, 2));
     next();
@@ -503,7 +503,7 @@ router.post('/',
 
 router.get('/',
   authenticateJWT(),
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100, strategy: 'fixed_window' } }), // 100 requests per 15 minutes
   async (req, res) => {
     try {
       await reservationController.getReservations(req, res);
@@ -569,7 +569,7 @@ router.get('/',
  */
 router.get('/:id',
   authenticateJWT(),
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100, strategy: 'fixed_window' } }), // 100 requests per 15 minutes
   async (req, res) => {
     try {
       await reservationController.getReservationById(req, res);
@@ -773,7 +773,7 @@ const cancelReservationSchema = Joi.object({
  */
 router.get('/:id/refund-preview',
   authenticateJWT(),
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 30 } }), // 30 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 30, strategy: 'fixed_window' } }), // 30 requests per 15 minutes
   async (req, res) => {
     try {
       await reservationController.getRefundPreview(req, res);
@@ -796,7 +796,7 @@ router.get('/:id/refund-preview',
 
 router.put('/:id/cancel',
   authenticateJWT(),
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10 } }), // 10 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 10, strategy: 'fixed_window' } }), // 10 requests per 15 minutes
   validateRequestBody(cancelReservationSchema),
   async (req, res) => {
     try {
