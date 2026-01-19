@@ -107,22 +107,10 @@ export class RateLimiterFlexibleService {
         this.fallbackMode = true;
       });
 
-      // Try to connect with timeout
+      // Connect to Redis (uses connectTimeout from config)
       try {
-        await Promise.race([
-          this.redisClient.connect(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Connection timeout')), 3000)
-          )
-        ]);
-
-        // Test connection with ping
-        await Promise.race([
-          this.redisClient.ping(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('Ping timeout')), 2000)
-          )
-        ]);
+        await this.redisClient.connect();
+        await this.redisClient.ping();
 
         this.isConnected = true;
         this.fallbackMode = false;
