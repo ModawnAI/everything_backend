@@ -55,17 +55,26 @@ export class RateLimiterFlexibleService {
   private async initializeRedis(): Promise<void> {
     // Check if rate limiting is disabled
     if (process.env.DISABLE_RATE_LIMIT === 'true') {
+      logger.info('Rate limiting disabled by DISABLE_RATE_LIMIT flag');
       this.redisClient = null;
       this.fallbackMode = true;
       return;
     }
 
-    // Check if Redis is enabled
-    if (!config.redis.enabled) {
+    // Check if Redis is enabled via REDIS_ENABLED or REDIS_HOST
+    const redisEnabled = process.env.REDIS_ENABLED === 'true' || process.env.REDIS_HOST;
+    if (!redisEnabled) {
+      logger.info('Redis disabled - no REDIS_ENABLED or REDIS_HOST set');
       this.redisClient = null;
       this.fallbackMode = true;
       return;
     }
+
+    logger.info('Initializing Redis for rate limiting', {
+      host: REDIS_RATE_LIMIT_CONFIG.host,
+      port: REDIS_RATE_LIMIT_CONFIG.port,
+      enabled: redisEnabled
+    });
 
     try {
       this.redisClient = new Redis({
