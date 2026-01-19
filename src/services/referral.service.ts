@@ -1000,7 +1000,7 @@ class ReferralServiceImpl {
       // 4. Get current user's referrer info
       const { data: currentUser, error: currentUserError } = await this.supabase
         .from('users')
-        .select('referred_by_code')
+        .select('referred_by_code, referrer_set_at, updated_at')
         .eq('id', userId)
         .single();
 
@@ -1011,12 +1011,24 @@ class ReferralServiceImpl {
         };
       }
 
-      // 5. Check if already has referrer (once set, cannot be changed)
+      // 5. Check if already has referrer and if it can be changed
       if (currentUser.referred_by_code) {
-        return {
-          success: false,
-          message: '이미 추천인이 설정되어 있습니다. 추천인은 변경할 수 없습니다.'
-        };
+        // Check if 3 months have passed since the referrer was set
+        const setAt = currentUser.referrer_set_at || currentUser.updated_at;
+        if (setAt) {
+          const setAtDate = new Date(setAt);
+          const canChangeAtDate = new Date(setAtDate);
+          canChangeAtDate.setMonth(canChangeAtDate.getMonth() + 3); // 3 months later
+          const now = new Date();
+
+          if (now < canChangeAtDate) {
+            const daysUntilChange = Math.ceil((canChangeAtDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+            return {
+              success: false,
+              message: `추천인은 설정 후 3개월이 지나야 변경할 수 있습니다. (${daysUntilChange}일 후 변경 가능)`
+            };
+          }
+        }
       }
 
       // 6. Check for circular reference (prevent A->B->A)
