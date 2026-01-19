@@ -283,22 +283,46 @@ class ReferralServiceImpl {
    */
   async getReferralStats(userId: string): Promise<ReferralStats> {
     try {
-      // Get user's referral code
-      const { data: user, error: userError } = await this.supabase
+      logger.info('[getReferralStats] Starting for user', { userId });
+
+      // Get user's referral code with timeout
+      const userQueryPromise = this.supabase
         .from('users')
         .select('referral_code, total_referrals')
         .eq('id', userId)
         .single();
 
+      const userTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('User query timeout')), 5000)
+      );
+
+      const { data: user, error: userError } = await Promise.race([
+        userQueryPromise,
+        userTimeoutPromise
+      ]) as any;
+
+      logger.info('[getReferralStats] User query completed', { userId, hasUser: !!user, error: userError?.message });
+
       if (userError || !user) {
         throw new ReferralValidationError('userId', '사용자를 찾을 수 없습니다.');
       }
 
-      // Get referral statistics
-      const { data: referrals, error: referralsError } = await this.supabase
+      // Get referral statistics with timeout
+      const referralsQueryPromise = this.supabase
         .from('referrals')
         .select('status, bonus_amount, bonus_paid, created_at, updated_at')
         .eq('referrer_id', userId);
+
+      const referralsTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Referrals query timeout')), 5000)
+      );
+
+      const { data: referrals, error: referralsError } = await Promise.race([
+        referralsQueryPromise,
+        referralsTimeoutPromise
+      ]) as any;
+
+      logger.info('[getReferralStats] Referrals query completed', { userId, count: referrals?.length, error: referralsError?.message });
 
       if (referralsError) {
         throw new ReferralError(
@@ -350,13 +374,25 @@ class ReferralServiceImpl {
     limit: number = 20
   ): Promise<{ referrals: ReferralHistoryItem[]; pagination: any }> {
     try {
+      logger.info('[getReferralHistory] Starting for user', { userId, page, limit });
       const offset = (page - 1) * limit;
 
-      // Get total count
-      const { count, error: countError } = await this.supabase
+      // Get total count with timeout
+      const countQueryPromise = this.supabase
         .from('referrals')
         .select('*', { count: 'exact', head: true })
         .eq('referrer_id', userId);
+
+      const countTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Count query timeout')), 5000)
+      );
+
+      const { count, error: countError } = await Promise.race([
+        countQueryPromise,
+        countTimeoutPromise
+      ]) as any;
+
+      logger.info('[getReferralHistory] Count query completed', { userId, count });
 
       if (countError) {
         throw new ReferralError(
@@ -366,8 +402,8 @@ class ReferralServiceImpl {
         );
       }
 
-      // Get referral records with referred user info
-      const { data: referrals, error: referralsError } = await this.supabase
+      // Get referral records with timeout
+      const referralsQueryPromise = this.supabase
         .from('referrals')
         .select(`
           id,
@@ -382,6 +418,17 @@ class ReferralServiceImpl {
         .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
+      const referralsTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Referrals query timeout')), 5000)
+      );
+
+      const { data: referrals, error: referralsError } = await Promise.race([
+        referralsQueryPromise,
+        referralsTimeoutPromise
+      ]) as any;
+
+      logger.info('[getReferralHistory] Referrals query completed', { userId, count: referrals?.length });
+
       if (referralsError) {
         throw new ReferralError(
           '추천 기록 조회에 실패했습니다.',
@@ -390,15 +437,24 @@ class ReferralServiceImpl {
         );
       }
 
-      // Fetch referred user details separately
-      const referredUserIds = (referrals || []).map(r => r.referred_id);
+      // Fetch referred user details separately with timeout
+      const referredUserIds = (referrals || []).map((r: any) => r.referred_id);
       const usersMap = new Map();
 
       if (referredUserIds.length > 0) {
-        const { data: users } = await this.supabase
+        const usersQueryPromise = this.supabase
           .from('users')
           .select('id, name, nickname, email, phone_number')
           .in('id', referredUserIds);
+
+        const usersTimeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Users query timeout')), 5000)
+        );
+
+        const { data: users } = await Promise.race([
+          usersQueryPromise,
+          usersTimeoutPromise
+        ]) as any;
 
         users?.forEach(user => {
           usersMap.set(user.id, user);
@@ -778,14 +834,25 @@ class ReferralServiceImpl {
     isChangeable: boolean;
   } | null> {
     try {
-      logger.info('Getting my referrer info', { userId });
+      logger.info('[getMyReferrer] Starting for user', { userId });
 
-      // Get user's referrer info
-      const { data: user, error: userError } = await this.supabase
+      // Get user's referrer info with timeout
+      const userQueryPromise = this.supabase
         .from('users')
         .select('referred_by, referrer_set_at')
         .eq('id', userId)
         .single();
+
+      const userTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('User query timeout')), 5000)
+      );
+
+      const { data: user, error: userError } = await Promise.race([
+        userQueryPromise,
+        userTimeoutPromise
+      ]) as any;
+
+      logger.info('[getMyReferrer] User query completed', { userId, hasUser: !!user, referredBy: user?.referred_by });
 
       if (userError || !user) {
         throw new ReferralValidationError('userId', '사용자를 찾을 수 없습니다.');
@@ -793,15 +860,27 @@ class ReferralServiceImpl {
 
       // If no referrer set
       if (!user.referred_by) {
+        logger.info('[getMyReferrer] No referrer set', { userId });
         return null;
       }
 
-      // Get referrer's info
-      const { data: referrer, error: referrerError } = await this.supabase
+      // Get referrer's info with timeout
+      const referrerQueryPromise = this.supabase
         .from('users')
         .select('id, nickname, name')
         .eq('id', user.referred_by)
         .single();
+
+      const referrerTimeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error('Referrer query timeout')), 5000)
+      );
+
+      const { data: referrer, error: referrerError } = await Promise.race([
+        referrerQueryPromise,
+        referrerTimeoutPromise
+      ]) as any;
+
+      logger.info('[getMyReferrer] Referrer query completed', { userId, hasReferrer: !!referrer });
 
       if (referrerError || !referrer) {
         logger.warn('Referrer not found', { referrerId: user.referred_by });
