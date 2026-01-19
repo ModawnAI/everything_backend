@@ -32,7 +32,21 @@ export class RateLimiterFlexibleService {
   private initPromise: Promise<void> | null = null;
 
   constructor() {
+    // ✅ Non-blocking: 백그라운드에서 초기화
+    // 실패해도 서비스는 계속 (메모리 기반 fallback)
     this.initPromise = this.initializeRedis();
+
+    // 초기화 실패 시 자동으로 fallback 모드로 전환
+    this.initPromise.catch((error) => {
+      logger.warn('Redis initialization failed, using memory-based rate limiter', {
+        error: error instanceof Error ? error.message : 'Unknown'
+      });
+      this.fallbackMode = true;
+      this.isConnected = false;
+    }).finally(() => {
+      // 초기화 완료 후 Promise 참조 제거
+      this.initPromise = null;
+    });
   }
 
   /**
@@ -103,9 +117,18 @@ export class RateLimiterFlexibleService {
 
         this.isConnected = true;
         this.fallbackMode = false;
+        logger.info('Redis connected successfully for rate limiting', {
+          host: REDIS_RATE_LIMIT_CONFIG.host,
+          port: REDIS_RATE_LIMIT_CONFIG.port
+        });
       } catch (connectError) {
         this.fallbackMode = true;
         this.isConnected = false;
+        logger.warn('Redis connection failed, using memory-based rate limiter', {
+          error: connectError instanceof Error ? connectError.message : 'Unknown',
+          host: REDIS_RATE_LIMIT_CONFIG.host,
+          port: REDIS_RATE_LIMIT_CONFIG.port
+        });
         if (this.redisClient) {
           try {
             this.redisClient.disconnect();
@@ -119,6 +142,9 @@ export class RateLimiterFlexibleService {
     } catch (error) {
       this.fallbackMode = true;
       this.isConnected = false;
+      logger.error('Redis initialization error, using memory-based rate limiter', {
+        error: error instanceof Error ? error.message : 'Unknown'
+      });
       // Close the failed client
       if (this.redisClient) {
         this.redisClient.disconnect();
@@ -264,11 +290,28 @@ export class RateLimiterFlexibleService {
     config: RateLimitConfig
   ): Promise<RateLimitResult> {
     try {
-      // 초기화 완료 대기
-      if (this.initPromise) {
-        await this.initPromise;
+      // ✅ Non-blocking: initPromise를 기다리지 않음
+      // Redis 연결 상태는 isRedisReady()로 즉시 확인
+      // 연결 안 되어 있으면 자동으로 메모리 limiter 사용
+
+      // Graceful degradation: 초기화 실패 시 즉시 처리
+      if (this.fallbackMode && !this.isRedisReady()) {
+        // 메모리 기반 rate limiter 사용 (즉시 응답)
+        const limiter = this.getRateLimiter(config, context);
+        const key = this.generateKeyPrefix(config, context);
+
+        try {
+          const result = await limiter.consume(key);
+          return this.mapRateLimiterResult(result, config);
+        } catch (error) {
+          if (error && typeof error === 'object' && 'remainingPoints' in error) {
+            return this.mapRateLimiterResult(error as RateLimiterRes, config);
+          }
+          throw error;
+        }
       }
 
+      // Redis 사용 가능한 경우
       const limiter = this.getRateLimiter(config, context);
       const key = this.generateKeyPrefix(config, context);
 
@@ -283,6 +326,12 @@ export class RateLimiterFlexibleService {
       }
 
       // Graceful degradation - allow request if rate limiting fails
+      logger.debug('Rate limiting failed, allowing request', {
+        error: error instanceof Error ? error.message : 'Unknown',
+        endpoint: context.endpoint,
+        ip: context.ip
+      });
+
       return {
         allowed: true,
         totalHits: 0,
