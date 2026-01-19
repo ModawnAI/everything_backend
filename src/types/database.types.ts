@@ -73,12 +73,13 @@ export type PaymentMethod =
   | 'convenience_store'        // Convenience store
   | 'point';                   // Point payment
 
-export type PointTransactionType = 
-  | 'earned_service' 
-  | 'earned_referral' 
-  | 'used_service' 
-  | 'expired' 
-  | 'adjusted' 
+export type PointTransactionType =
+  | 'earned_service'
+  | 'earned_referral'
+  | 'earned_review'
+  | 'used_service'
+  | 'expired'
+  | 'adjusted'
   | 'influencer_bonus';
 
 export type PointStatus = 'pending' | 'available' | 'used' | 'expired';

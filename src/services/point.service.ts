@@ -10,7 +10,7 @@ import { PointTransactionType } from '../types/database.types';
 
 // Legacy type mapping for backward compatibility
 type LegacyPointType = 'earned' | 'spent' | 'refunded' | 'bonus';
-type LegacyPointSource = 'referral' | 'purchase' | 'admin' | 'system';
+type LegacyPointSource = 'referral' | 'purchase' | 'admin' | 'system' | 'review';
 
 /**
  * Maps legacy type+source combination to PointTransactionType
@@ -18,6 +18,7 @@ type LegacyPointSource = 'referral' | 'purchase' | 'admin' | 'system';
 function mapToTransactionType(type: LegacyPointType, source: LegacyPointSource): PointTransactionType {
   if (type === 'earned' && source === 'referral') return 'earned_referral';
   if (type === 'earned' && source === 'purchase') return 'earned_service';
+  if (type === 'earned' && source === 'review') return 'earned_review';
   if (type === 'spent' && source === 'purchase') return 'used_service';
   if (type === 'bonus') return 'influencer_bonus';
   if (type === 'refunded') return 'adjusted';
