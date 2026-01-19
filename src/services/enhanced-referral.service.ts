@@ -395,7 +395,7 @@ export class EnhancedReferralService {
       const expiresAt = new Date();
       expiresAt.setDate(expiresAt.getDate() + this.REFERRAL_CODE_EXPIRY_DAYS);
 
-      // Store the generated code
+      // Store the generated code in referral_codes table
       const { error: insertError } = await this.supabase
         .from('referral_codes')
         .insert({
@@ -408,6 +408,24 @@ export class EnhancedReferralService {
 
       if (insertError) {
         throw new Error(`Failed to store referral code: ${insertError.message}`);
+      }
+
+      // ✅ CRITICAL FIX: Update users table with the referral code
+      // This ensures subsequent queries to users.referral_code return the code
+      const { error: updateError } = await this.supabase
+        .from('users')
+        .update({ referral_code: code })
+        .eq('id', userId);
+
+      if (updateError) {
+        logger.error('Failed to update user referral_code, but code is stored in referral_codes table', {
+          userId,
+          code,
+          error: updateError.message
+        });
+        // Don't throw - code is already saved in referral_codes table
+      } else {
+        logger.info('User referral_code updated successfully', { userId, code });
       }
 
       const result: ReferralCodeGeneration = {
