@@ -82,7 +82,7 @@ export class RateLimiterFlexibleService {
           return 100; // Wait 100ms once
         },
         connectTimeout: 3000, // 3 seconds for localhost connection initialization
-        lazyConnect: false, // Eager connect for immediate availability
+        lazyConnect: true, // Manual connect to control error handling
         keyPrefix: REDIS_RATE_LIMIT_CONFIG.keyPrefix,
         enableOfflineQueue: false, // Don't queue commands when disconnected
         commandTimeout: 500, // 500ms timeout for commands
@@ -98,8 +98,16 @@ export class RateLimiterFlexibleService {
         this.fallbackMode = true;
       });
 
-      // Test connection with ping (lazyConnect: false connects automatically)
+      // Try to connect with timeout
       try {
+        await Promise.race([
+          this.redisClient.connect(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('Connection timeout')), 3000)
+          )
+        ]);
+
+        // Test connection with ping
         await Promise.race([
           this.redisClient.ping(),
           new Promise((_, reject) =>
