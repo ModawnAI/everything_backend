@@ -96,6 +96,21 @@ export class ReferralCodeController {
         });
       }
 
+      // Validate code format
+      if (code.length < 4 || code.length > 12) {
+        return res.status(400).json({
+          error: 'Referral code must be between 4 and 12 characters',
+          code: 'INVALID_REFERRAL_CODE_LENGTH'
+        });
+      }
+
+      if (!/^[A-Z0-9]+$/.test(code)) {
+        return res.status(400).json({
+          error: 'Referral code must contain only uppercase letters and numbers',
+          code: 'INVALID_REFERRAL_CODE_FORMAT'
+        });
+      }
+
       const result = await referralCodeService.validateReferralCode(code);
 
       logger.info('Referral code validation', {

@@ -100,7 +100,6 @@ router.post('/generate',
 
 router.get('/validate/:code',
   referralCodeController.referralCodeRateLimit,
-  validateQueryParams(validateReferralCodeSchema),
   referralCodeController.validateReferralCode
 );
 
