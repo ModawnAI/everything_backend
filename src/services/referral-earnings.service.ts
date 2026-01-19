@@ -329,17 +329,23 @@ class ReferralEarningsService {
     try {
       logger.info('Getting referral earnings summary', { userId });
 
-      // Get total earnings
-      const { data: earnings, error: earningsError } = await this.supabase
-        .from('referral_earnings')
+      // Get referral earnings from point_transactions with type 'referral'
+      const { data: pointTransactions, error: pointError } = await this.supabase
+        .from('point_transactions')
         .select('*')
-        .eq('referrer_id', userId);
+        .eq('user_id', userId)
+        .eq('type', 'referral')
+        .order('created_at', { ascending: false });
 
-      if (earningsError) {
-        throw new Error(`Failed to get earnings: ${earningsError.message}`);
+      if (pointError) {
+        logger.error('Failed to get point transactions', {
+          error: pointError.message,
+          userId
+        });
+        // Don't throw, just log and continue with empty data
       }
 
-      // Get payout history
+      // Get referral payouts if table exists (optional)
       const { data: payouts, error: payoutsError } = await this.supabase
         .from('referral_payouts')
         .select('*')
@@ -347,30 +353,37 @@ class ReferralEarningsService {
         .order('created_at', { ascending: false });
 
       if (payoutsError) {
-        throw new Error(`Failed to get payouts: ${payoutsError.message}`);
+        logger.warn('Failed to get payouts (table may not exist)', {
+          error: payoutsError.message,
+          userId
+        });
       }
 
-      // Calculate summary
-      const totalEarnings = earnings?.reduce((sum, earning) => sum + earning.amount, 0) || 0;
+      // Calculate summary from point transactions
+      const earnings = pointTransactions || [];
+      const completedEarnings = earnings.filter(e => e.status === 'completed' || !e.status);
+      const pendingEarnings = earnings.filter(e => e.status === 'pending');
+
+      const totalEarnings = completedEarnings.reduce((sum, earning) => sum + (earning.amount || 0), 0);
+      const pendingAmount = pendingEarnings.reduce((sum, earning) => sum + (earning.amount || 0), 0);
       const totalPayouts = payouts?.filter(p => p.status === 'completed').reduce((sum, payout) => sum + payout.amount, 0) || 0;
-      const pendingEarnings = earnings?.filter(e => e.status === 'pending').reduce((sum, earning) => sum + earning.amount, 0) || 0;
       const availableBalance = totalEarnings - totalPayouts;
 
-      // Group earnings by type
+      // Group earnings by type (all are points since from point_transactions)
       const earningsByType = {
-        points: earnings?.filter(e => e.payout_type === 'points').reduce((sum, earning) => sum + earning.amount, 0) || 0,
-        cash: earnings?.filter(e => e.payout_type === 'cash').reduce((sum, earning) => sum + earning.amount, 0) || 0,
-        discount: earnings?.filter(e => e.payout_type === 'discount').reduce((sum, earning) => sum + earning.amount, 0) || 0
+        points: totalEarnings,
+        cash: 0,
+        discount: 0
       };
 
       // Get recent earnings
-      const recentEarnings = (earnings || [])
+      const recentEarnings = earnings
         .slice(0, 10)
         .map(earning => ({
-          referralId: earning.referral_id,
-          amount: earning.amount,
-          type: earning.payout_type,
-          status: earning.status,
+          referralId: earning.reference_id || earning.id,
+          amount: earning.amount || 0,
+          type: 'points',
+          status: earning.status || 'completed',
           earnedAt: earning.created_at
         }));
 
@@ -389,7 +402,7 @@ class ReferralEarningsService {
         userId,
         totalEarnings,
         totalPayouts,
-        pendingEarnings,
+        pendingEarnings: pendingAmount,
         availableBalance,
         earningsByType,
         recentEarnings,
@@ -400,7 +413,8 @@ class ReferralEarningsService {
       logger.info('Referral earnings summary retrieved', {
         userId,
         totalEarnings,
-        availableBalance
+        availableBalance,
+        transactionCount: earnings.length
       });
 
       return summary;
