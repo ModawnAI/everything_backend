@@ -824,22 +824,21 @@ class ReferralServiceImpl {
 
   /**
    * Get the referrer info for a user (who referred this user)
+   * Note: Uses referred_by_code column which stores the referrer's referral code
    */
   async getMyReferrer(userId: string): Promise<{
     id: string;
     nickname: string;
     maskedNickname: string;
-    setAt: string;
-    canChangeAt: string;
-    isChangeable: boolean;
+    referralCode: string;
   } | null> {
     try {
       logger.debug('[getMyReferrer] Starting', { userId });
 
-      // Get user's referrer info with timeout
+      // Get user's referred_by_code with timeout
       const userQueryPromise = this.supabase
         .from('users')
-        .select('referred_by, referrer_set_at')
+        .select('referred_by_code, updated_at')
         .eq('id', userId)
         .single();
 
@@ -852,23 +851,25 @@ class ReferralServiceImpl {
         userTimeoutPromise
       ]) as any;
 
-      logger.debug('[getMyReferrer] User query completed', { userId, hasUser: !!user, referredBy: user?.referred_by });
+      logger.debug('[getMyReferrer] User query completed', { userId, hasUser: !!user, referredByCode: user?.referred_by_code });
 
-      if (userError || !user) {
-        throw new ReferralValidationError('userId', '사용자를 찾을 수 없습니다.');
+      if (userError) {
+        logger.error('[getMyReferrer] User query error', { userId, error: userError.message });
+        // Return null instead of throwing error for graceful handling
+        return null;
       }
 
       // If no referrer set
-      if (!user.referred_by) {
+      if (!user || !user.referred_by_code) {
         logger.debug('[getMyReferrer] No referrer set', { userId });
         return null;
       }
 
-      // Get referrer's info with timeout
+      // Get referrer's info by their referral_code with timeout
       const referrerQueryPromise = this.supabase
         .from('users')
-        .select('id, nickname, name')
-        .eq('id', user.referred_by)
+        .select('id, nickname, name, referral_code')
+        .eq('referral_code', user.referred_by_code)
         .single();
 
       const referrerTimeoutPromise = new Promise<never>((_, reject) =>
@@ -883,15 +884,9 @@ class ReferralServiceImpl {
       logger.debug('[getMyReferrer] Referrer query completed', { userId, hasReferrer: !!referrer });
 
       if (referrerError || !referrer) {
-        logger.warn('Referrer not found', { referrerId: user.referred_by });
+        logger.warn('Referrer not found by code', { referralCode: user.referred_by_code });
         return null;
       }
-
-      // Calculate canChangeAt (3 months from setAt)
-      const setAt = new Date(user.referrer_set_at || new Date());
-      const canChangeAt = new Date(setAt);
-      canChangeAt.setMonth(canChangeAt.getMonth() + 3);
-      const now = new Date();
 
       // Mask nickname (show first 2-3 characters + **)
       const displayName = referrer.nickname || referrer.name || 'Unknown';
@@ -902,9 +897,7 @@ class ReferralServiceImpl {
         id: referrer.id,
         nickname: displayName,
         maskedNickname,
-        setAt: setAt.toISOString(),
-        canChangeAt: canChangeAt.toISOString(),
-        isChangeable: now >= canChangeAt
+        referralCode: referrer.referral_code
       };
 
     } catch (error) {
@@ -913,20 +906,14 @@ class ReferralServiceImpl {
         error: error instanceof Error ? error.message : 'Unknown error'
       });
 
-      if (error instanceof ReferralError) {
-        throw error;
-      }
-
-      throw new ReferralError(
-        '추천인 정보 조회 중 오류가 발생했습니다.',
-        'GET_REFERRER_ERROR',
-        500
-      );
+      // Return null for graceful handling instead of throwing
+      return null;
     }
   }
 
   /**
    * Set referrer by referral code
+   * Note: Uses referred_by_code column which stores the referrer's referral code
    */
   async setReferrerByCode(userId: string, referralCode: string): Promise<{
     success: boolean;
@@ -935,9 +922,7 @@ class ReferralServiceImpl {
       id: string;
       nickname: string;
       maskedNickname: string;
-      setAt: string;
-      canChangeAt: string;
-      isChangeable: boolean;
+      referralCode: string;
     };
   }> {
     try {
@@ -972,7 +957,7 @@ class ReferralServiceImpl {
       // 4. Get current user's referrer info
       const { data: currentUser, error: currentUserError } = await this.supabase
         .from('users')
-        .select('referred_by, referrer_set_at')
+        .select('referred_by_code')
         .eq('id', userId)
         .single();
 
@@ -983,20 +968,12 @@ class ReferralServiceImpl {
         };
       }
 
-      // 5. Check if already has referrer and if changeable (3 months)
-      if (currentUser.referred_by) {
-        const setAt = new Date(currentUser.referrer_set_at);
-        const canChangeAt = new Date(setAt);
-        canChangeAt.setMonth(canChangeAt.getMonth() + 3);
-        const now = new Date();
-
-        if (now < canChangeAt) {
-          const daysRemaining = Math.ceil((canChangeAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-          return {
-            success: false,
-            message: `추천인 변경은 ${daysRemaining}일 후에 가능합니다.`
-          };
-        }
+      // 5. Check if already has referrer (once set, cannot be changed)
+      if (currentUser.referred_by_code) {
+        return {
+          success: false,
+          message: '이미 추천인이 설정되어 있습니다. 추천인은 변경할 수 없습니다.'
+        };
       }
 
       // 6. Check for circular reference (prevent A->B->A)
@@ -1008,13 +985,12 @@ class ReferralServiceImpl {
         };
       }
 
-      // 7. Update user's referrer
+      // 7. Update user's referrer (store referral code, not user id)
       const now = new Date();
       const { error: updateError } = await this.supabase
         .from('users')
         .update({
-          referred_by: referrer.id,
-          referrer_set_at: now.toISOString(),
+          referred_by_code: normalizedCode,
           updated_at: now.toISOString()
         })
         .eq('id', userId);
@@ -1022,7 +998,7 @@ class ReferralServiceImpl {
       if (updateError) {
         logger.error('Failed to update user referrer', {
           userId,
-          referrerId: referrer.id,
+          referralCode: normalizedCode,
           error: updateError.message
         });
         return {
@@ -1047,10 +1023,10 @@ class ReferralServiceImpl {
         // Don't fail the operation if relationship creation fails
       }
 
-      // 9. Calculate response data
-      const canChangeAt = new Date(now);
-      canChangeAt.setMonth(canChangeAt.getMonth() + 3);
+      // 9. Increment referrer's total_referrals count
+      await this.incrementReferralCount(referrer.id);
 
+      // 10. Calculate response data
       const displayName = referrer.nickname || referrer.name || 'Unknown';
       const visibleLength = Math.min(3, Math.ceil(displayName.length * 0.5));
       const maskedNickname = displayName.substring(0, visibleLength) + '**';
@@ -1068,9 +1044,7 @@ class ReferralServiceImpl {
           id: referrer.id,
           nickname: displayName,
           maskedNickname,
-          setAt: now.toISOString(),
-          canChangeAt: canChangeAt.toISOString(),
-          isChangeable: false
+          referralCode: normalizedCode
         }
       };
 
