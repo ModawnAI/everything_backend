@@ -116,7 +116,7 @@ router.use(validateShopAccess);
  *         description: Internal server error
  */
 router.get('/',
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100 } }), // 100 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 100, strategy: 'fixed_window' } }), // 100 requests per 15 minutes
   async (req, res) => {
     try {
       await controller.getShopReservations(req as any, res);
@@ -218,7 +218,7 @@ router.get('/',
  *         description: Internal server error
  */
 router.patch('/:reservationId',
-  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50 } }), // 50 requests per 15 minutes
+  rateLimit({ config: { windowMs: 15 * 60 * 1000, max: 50, strategy: 'fixed_window' } }), // 50 requests per 15 minutes
   async (req, res) => {
     try {
       await controller.updateReservationStatus(req as any, res);
