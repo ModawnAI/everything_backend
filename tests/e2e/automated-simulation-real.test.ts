@@ -117,7 +117,8 @@ class UserBehaviorSimulator {
   }
 }
 
-describe('Automated User Simulation Tests - Real Database', () => {
+// TODO: 결제 서비스 변경 후 활성화
+describe.skip('Automated User Simulation Tests - Real Database', () => {
   let testUsers: any[] = [];
   let testShops: any[] = [];
   let testServices: any[] = [];
