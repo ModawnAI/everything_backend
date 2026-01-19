@@ -12,6 +12,7 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { pointService } from './point.service';
+import { notificationService } from './notification.service';
 import { POINT_POLICY_V32, POINT_CALCULATIONS } from '../constants/point-policies';
 
 export interface ReferralRewardCalculation {
@@ -574,6 +575,28 @@ export class EnhancedReferralService {
         'referral',
         `추천 보상: ${rewardCalculation.referralRewardAmount}포인트`
       );
+
+      // Get the referred user's nickname for notification
+      const { data: referredUser } = await this.supabase
+        .from('users')
+        .select('name, nickname')
+        .eq('id', referredId)
+        .single();
+
+      const friendNickname = referredUser?.nickname || referredUser?.name || '친구';
+
+      // Send push notification to referrer
+      await notificationService.sendReferralPointNotification(
+        referrerId,
+        friendNickname,
+        rewardCalculation.referralRewardAmount
+      );
+
+      logger.info('Referral point notification sent', {
+        referrerId,
+        friendNickname,
+        pointsEarned: rewardCalculation.referralRewardAmount
+      });
 
       // Check and promote to influencer if qualified
       const influencerResult = await this.checkAndPromoteInfluencer(referrerId);

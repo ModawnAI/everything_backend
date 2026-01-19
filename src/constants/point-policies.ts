@@ -41,6 +41,12 @@ export const POINT_POLICY_V32 = {
   FIRST_TIME_USER_BONUS: 2000, // Bonus points for first-time users
   BIRTHDAY_BONUS_MULTIPLIER: 2.0, // 2x points on user's birthday month
   HOLIDAY_BONUS_MULTIPLIER: 1.5, // 1.5x points during special holidays
+
+  // Review rewards
+  REVIEW_POINTS: {
+    NORMAL: 100, // Points for normal text review
+    PHOTO: 500, // Points for photo review
+  } as const,
   
   // Tier system multipliers
   TIER_MULTIPLIERS: {

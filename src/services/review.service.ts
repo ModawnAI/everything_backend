@@ -7,6 +7,8 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { feedService } from './feed.service';
+import { pointService } from './point.service';
+import { POINT_POLICY_V32 } from '../constants/point-policies';
 
 export interface Review {
   id: string;
@@ -167,6 +169,40 @@ export class ReviewService {
         rating: data.rating,
         autoPosted: autoPostToFeed && !!feedPostId
       });
+
+      // Award review points
+      const hasPhotos = data.images && data.images.length > 0;
+      const reviewPoints = hasPhotos
+        ? POINT_POLICY_V32.REVIEW_POINTS.PHOTO
+        : POINT_POLICY_V32.REVIEW_POINTS.NORMAL;
+
+      const pointDescription = hasPhotos
+        ? `포토 리뷰 작성 포인트 (${shop.name})`
+        : `리뷰 작성 포인트 (${shop.name})`;
+
+      try {
+        await pointService.addPoints(
+          data.user_id,
+          reviewPoints,
+          'earned',
+          'review',
+          pointDescription
+        );
+
+        logger.info('Review points awarded', {
+          userId: data.user_id,
+          reviewId: review.id,
+          points: reviewPoints,
+          hasPhotos
+        });
+      } catch (pointError) {
+        // Log error but don't fail the review creation
+        logger.error('Failed to award review points', {
+          error: pointError instanceof Error ? pointError.message : 'Unknown error',
+          userId: data.user_id,
+          reviewId: review.id
+        });
+      }
 
       return {
         success: true,
