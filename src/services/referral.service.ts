@@ -913,10 +913,16 @@ class ReferralServiceImpl {
         referrerTimeoutPromise
       ]) as any;
 
-      logger.debug('[getMyReferrer] Referrer query completed', { userId, hasReferrer: !!referrer });
+      logger.debug('[getMyReferrer] Referrer query completed', { userId, hasReferrer: !!referrer, referrerError: referrerError?.message });
 
       if (referrerError || !referrer) {
-        logger.warn('Referrer not found by code', { referralCode: user.referred_by_code });
+        logger.warn('Referrer not found by code', {
+          userId,
+          referralCode: user.referred_by_code,
+          error: referrerError?.message,
+          errorCode: referrerError?.code,
+          errorDetails: referrerError?.details
+        });
         return null;
       }
 
