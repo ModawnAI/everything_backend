@@ -51,6 +51,12 @@ interface ReferralBonusPayoutRequest extends AuthenticatedRequest {
   };
 }
 
+interface SetReferrerRequest extends AuthenticatedRequest {
+  body: {
+    referralCode: string;
+  };
+}
+
 /**
  * Referral Controller Class
  */
@@ -517,6 +523,189 @@ export class ReferralController {
         error: {
           code: 'INTERNAL_SERVER_ERROR',
           message: '추천 분석 조회 중 오류가 발생했습니다.',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  };
+
+  /**
+   * GET /api/referrals/my-referrer
+   * Get the referrer info for authenticated user (who referred this user)
+   */
+  public getMyReferrer = async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+    const requestId = `my-referrer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      logger.info('Get my referrer request', {
+        userId,
+        requestId
+      });
+
+      // Get referrer info
+      const referrer = await referralService.getMyReferrer(userId);
+
+      const duration = Date.now() - startTime;
+      logger.info('My referrer info retrieved successfully', {
+        userId,
+        hasReferrer: !!referrer,
+        duration,
+        requestId
+      });
+
+      res.status(200).json({
+        success: true,
+        data: referrer
+      });
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      logger.error('Failed to get my referrer', {
+        requestId,
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      // Handle specific error types
+      if (error instanceof ReferralError) {
+        res.status(error.statusCode).json({
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // Generic error
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '추천인 정보 조회 중 오류가 발생했습니다.',
+          timestamp: new Date().toISOString()
+        }
+      });
+    }
+  };
+
+  /**
+   * POST /api/referrals/set-referrer
+   * Set referrer using referral code
+   */
+  public setReferrer = async (req: SetReferrerRequest, res: Response, next: NextFunction): Promise<void> => {
+    const requestId = `set-referrer-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const startTime = Date.now();
+
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      const { referralCode } = req.body;
+
+      if (!referralCode || typeof referralCode !== 'string') {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_REFERRAL_CODE',
+            message: '추천 코드를 입력해주세요.',
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      logger.info('Set referrer request', {
+        userId,
+        referralCode: referralCode.substring(0, 4) + '****', // Mask code in logs
+        requestId
+      });
+
+      // Set referrer
+      const result = await referralService.setReferrerByCode(userId, referralCode);
+
+      const duration = Date.now() - startTime;
+      logger.info('Set referrer completed', {
+        userId,
+        success: result.success,
+        duration,
+        requestId
+      });
+
+      if (result.success) {
+        res.status(200).json({
+          success: true,
+          message: result.message,
+          data: result.referrer
+        });
+      } else {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'SET_REFERRER_FAILED',
+            message: result.message,
+            timestamp: new Date().toISOString()
+          }
+        });
+      }
+
+    } catch (error) {
+      const duration = Date.now() - startTime;
+
+      logger.error('Failed to set referrer', {
+        requestId,
+        duration,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      // Handle specific error types
+      if (error instanceof ReferralError) {
+        res.status(error.statusCode).json({
+          success: false,
+          error: {
+            code: error.code,
+            message: error.message,
+            timestamp: new Date().toISOString()
+          }
+        });
+        return;
+      }
+
+      // Generic error
+      res.status(500).json({
+        success: false,
+        error: {
+          code: 'INTERNAL_SERVER_ERROR',
+          message: '추천인 설정 중 오류가 발생했습니다.',
           timestamp: new Date().toISOString()
         }
       });

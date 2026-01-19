@@ -88,6 +88,20 @@ const referralHistoryQuerySchema = Joi.object({
     })
 });
 
+const setReferrerSchema = Joi.object({
+  referralCode: Joi.string()
+    .trim()
+    .min(4)
+    .max(12)
+    .required()
+    .messages({
+      'any.required': '추천 코드는 필수입니다.',
+      'string.empty': '추천 코드를 입력해주세요.',
+      'string.min': '추천 코드는 최소 4자 이상이어야 합니다.',
+      'string.max': '추천 코드는 최대 12자까지 가능합니다.'
+    })
+});
+
 /**
  * GET /api/referrals/stats
  * Get referral statistics for authenticated user
@@ -287,6 +301,96 @@ router.get('/analytics',
   rateLimit(),
   authenticateJWT(),
   referralController.getReferralAnalytics
+);
+
+/**
+ * GET /api/referrals/my-referrer
+ * Get the referrer info for authenticated user (who referred this user)
+ *
+ * Rate limited: Standard rate limiting
+ * Requires: Authentication
+ * Returns: Referrer info or null if not set
+ */
+/**
+ * @swagger
+ * /my-referrer:
+ *   get:
+ *     summary: 나를 추천한 친구 정보 조회
+ *     description: GET endpoint for /my-referrer
+ *
+ *       현재 로그인한 사용자를 추천한 친구(추천인) 정보를 조회합니다.
+ *
+ *       ---
+ *
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     responses:
+ *       200:
+ *         description: Success - returns referrer info or null
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: Internal Server Error
+ */
+router.get('/my-referrer',
+  rateLimit(),
+  authenticateJWT(),
+  referralController.getMyReferrer
+);
+
+/**
+ * POST /api/referrals/set-referrer
+ * Set referrer using referral code
+ *
+ * Rate limited: Standard rate limiting
+ * Requires: Authentication
+ * Body: { referralCode: string }
+ * Returns: Success status and referrer info
+ */
+/**
+ * @swagger
+ * /set-referrer:
+ *   post:
+ *     summary: 추천인 설정 (추천 코드 사용)
+ *     description: POST endpoint for /set-referrer
+ *
+ *       추천 코드를 사용하여 추천인을 설정합니다.
+ *       추천인은 설정 후 3개월이 지나야 변경할 수 있습니다.
+ *
+ *       ---
+ *
+ *     tags: [Referral System]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - referralCode
+ *             properties:
+ *               referralCode:
+ *                 type: string
+ *                 description: 추천 코드 (4-12자)
+ *                 example: "ABC12345"
+ *     responses:
+ *       200:
+ *         description: Success - referrer set successfully
+ *       400:
+ *         description: Bad Request - invalid code, self-referral, or change not allowed
+ *       401:
+ *         description: Authentication required
+ *       500:
+ *         description: Internal Server Error
+ */
+router.post('/set-referrer',
+  rateLimit(),
+  authenticateJWT(),
+  validateRequestBody(setReferrerSchema),
+  referralController.setReferrer
 );
 
 export default router; 

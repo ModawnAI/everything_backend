@@ -765,6 +765,254 @@ class ReferralServiceImpl {
       reservationId
     );
   }
+
+  /**
+   * Get the referrer info for a user (who referred this user)
+   */
+  async getMyReferrer(userId: string): Promise<{
+    id: string;
+    nickname: string;
+    maskedNickname: string;
+    setAt: string;
+    canChangeAt: string;
+    isChangeable: boolean;
+  } | null> {
+    try {
+      logger.info('Getting my referrer info', { userId });
+
+      // Get user's referrer info
+      const { data: user, error: userError } = await this.supabase
+        .from('users')
+        .select('referred_by, referrer_set_at')
+        .eq('id', userId)
+        .single();
+
+      if (userError || !user) {
+        throw new ReferralValidationError('userId', '사용자를 찾을 수 없습니다.');
+      }
+
+      // If no referrer set
+      if (!user.referred_by) {
+        return null;
+      }
+
+      // Get referrer's info
+      const { data: referrer, error: referrerError } = await this.supabase
+        .from('users')
+        .select('id, nickname, name')
+        .eq('id', user.referred_by)
+        .single();
+
+      if (referrerError || !referrer) {
+        logger.warn('Referrer not found', { referrerId: user.referred_by });
+        return null;
+      }
+
+      // Calculate canChangeAt (3 months from setAt)
+      const setAt = new Date(user.referrer_set_at || new Date());
+      const canChangeAt = new Date(setAt);
+      canChangeAt.setMonth(canChangeAt.getMonth() + 3);
+      const now = new Date();
+
+      // Mask nickname (show first 2-3 characters + **)
+      const displayName = referrer.nickname || referrer.name || 'Unknown';
+      const visibleLength = Math.min(3, Math.ceil(displayName.length * 0.5));
+      const maskedNickname = displayName.substring(0, visibleLength) + '**';
+
+      return {
+        id: referrer.id,
+        nickname: displayName,
+        maskedNickname,
+        setAt: setAt.toISOString(),
+        canChangeAt: canChangeAt.toISOString(),
+        isChangeable: now >= canChangeAt
+      };
+
+    } catch (error) {
+      logger.error('Failed to get my referrer', {
+        userId,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      if (error instanceof ReferralError) {
+        throw error;
+      }
+
+      throw new ReferralError(
+        '추천인 정보 조회 중 오류가 발생했습니다.',
+        'GET_REFERRER_ERROR',
+        500
+      );
+    }
+  }
+
+  /**
+   * Set referrer by referral code
+   */
+  async setReferrerByCode(userId: string, referralCode: string): Promise<{
+    success: boolean;
+    message: string;
+    referrer?: {
+      id: string;
+      nickname: string;
+      maskedNickname: string;
+      setAt: string;
+      canChangeAt: string;
+      isChangeable: boolean;
+    };
+  }> {
+    try {
+      logger.info('Setting referrer by code', { userId, referralCode });
+
+      // 1. Normalize the referral code
+      const normalizedCode = referralCode.trim().toUpperCase();
+
+      // 2. Validate the referral code and get referrer info
+      const { data: referrer, error: referrerError } = await this.supabase
+        .from('users')
+        .select('id, nickname, name, referral_code, user_status')
+        .eq('referral_code', normalizedCode)
+        .eq('user_status', 'active')
+        .single();
+
+      if (referrerError || !referrer) {
+        return {
+          success: false,
+          message: '유효하지 않은 추천 코드입니다.'
+        };
+      }
+
+      // 3. Check if it's user's own code
+      if (referrer.id === userId) {
+        return {
+          success: false,
+          message: '본인의 추천 코드는 사용할 수 없습니다.'
+        };
+      }
+
+      // 4. Get current user's referrer info
+      const { data: currentUser, error: currentUserError } = await this.supabase
+        .from('users')
+        .select('referred_by, referrer_set_at')
+        .eq('id', userId)
+        .single();
+
+      if (currentUserError || !currentUser) {
+        return {
+          success: false,
+          message: '사용자 정보를 찾을 수 없습니다.'
+        };
+      }
+
+      // 5. Check if already has referrer and if changeable (3 months)
+      if (currentUser.referred_by) {
+        const setAt = new Date(currentUser.referrer_set_at);
+        const canChangeAt = new Date(setAt);
+        canChangeAt.setMonth(canChangeAt.getMonth() + 3);
+        const now = new Date();
+
+        if (now < canChangeAt) {
+          const daysRemaining = Math.ceil((canChangeAt.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            success: false,
+            message: `추천인 변경은 ${daysRemaining}일 후에 가능합니다.`
+          };
+        }
+      }
+
+      // 6. Check for circular reference (prevent A->B->A)
+      const chainValidation = await this.validateReferralChain(referrer.id, userId);
+      if (!chainValidation.isValid) {
+        return {
+          success: false,
+          message: '순환 참조가 발생할 수 있어 이 추천인을 설정할 수 없습니다.'
+        };
+      }
+
+      // 7. Update user's referrer
+      const now = new Date();
+      const { error: updateError } = await this.supabase
+        .from('users')
+        .update({
+          referred_by: referrer.id,
+          referrer_set_at: now.toISOString(),
+          updated_at: now.toISOString()
+        })
+        .eq('id', userId);
+
+      if (updateError) {
+        logger.error('Failed to update user referrer', {
+          userId,
+          referrerId: referrer.id,
+          error: updateError.message
+        });
+        return {
+          success: false,
+          message: '추천인 설정 중 오류가 발생했습니다.'
+        };
+      }
+
+      // 8. Create referral relationship record
+      try {
+        await referralRelationshipService.createReferralRelationship(
+          referrer.id,
+          userId,
+          normalizedCode
+        );
+      } catch (relationshipError) {
+        logger.warn('Failed to create referral relationship, but referrer was set', {
+          referrerId: referrer.id,
+          referredId: userId,
+          error: relationshipError instanceof Error ? relationshipError.message : 'Unknown error'
+        });
+        // Don't fail the operation if relationship creation fails
+      }
+
+      // 9. Calculate response data
+      const canChangeAt = new Date(now);
+      canChangeAt.setMonth(canChangeAt.getMonth() + 3);
+
+      const displayName = referrer.nickname || referrer.name || 'Unknown';
+      const visibleLength = Math.min(3, Math.ceil(displayName.length * 0.5));
+      const maskedNickname = displayName.substring(0, visibleLength) + '**';
+
+      logger.info('Referrer set successfully', {
+        userId,
+        referrerId: referrer.id,
+        referralCode: normalizedCode
+      });
+
+      return {
+        success: true,
+        message: '추천인이 성공적으로 설정되었습니다.',
+        referrer: {
+          id: referrer.id,
+          nickname: displayName,
+          maskedNickname,
+          setAt: now.toISOString(),
+          canChangeAt: canChangeAt.toISOString(),
+          isChangeable: false
+        }
+      };
+
+    } catch (error) {
+      logger.error('Failed to set referrer by code', {
+        userId,
+        referralCode,
+        error: error instanceof Error ? error.message : 'Unknown error'
+      });
+
+      if (error instanceof ReferralError) {
+        throw error;
+      }
+
+      throw new ReferralError(
+        '추천인 설정 중 오류가 발생했습니다.',
+        'SET_REFERRER_ERROR',
+        500
+      );
+    }
+  }
 }
 
 // Export singleton instance
