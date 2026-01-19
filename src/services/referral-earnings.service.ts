@@ -2,6 +2,7 @@ import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { pointService } from './point.service';
 import { paymentService } from './payment.service';
+import { notificationService } from './notification.service';
 
 /**
  * Referral Earnings Service
@@ -753,6 +754,37 @@ class ReferralEarningsService {
       'referral',
       `Referral bonus for referral ${request.referralId}`
     );
+
+    // Get the referred user's nickname for notification
+    const { data: referredUser } = await this.supabase
+      .from('users')
+      .select('name, nickname')
+      .eq('id', request.referredId)
+      .single();
+
+    const friendNickname = referredUser?.nickname || referredUser?.name || '친구';
+
+    // Send push notification to referrer
+    try {
+      await notificationService.sendReferralPointNotification(
+        request.referrerId,
+        friendNickname,
+        request.amount
+      );
+
+      logger.info('Referral point notification sent', {
+        referrerId: request.referrerId,
+        friendNickname,
+        pointsEarned: request.amount
+      });
+    } catch (notificationError) {
+      // Don't fail the payout if notification fails
+      logger.error('Failed to send referral point notification', {
+        error: notificationError instanceof Error ? notificationError.message : 'Unknown error',
+        referrerId: request.referrerId,
+        amount: request.amount
+      });
+    }
 
     return result.id;
   }
