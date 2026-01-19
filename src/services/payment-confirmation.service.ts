@@ -14,6 +14,7 @@ import { getSupabaseClient } from '../config/database';
 import { portOneService, PaymentConfirmationRequest, PaymentConfirmationResponse } from './portone.service';
 import { logger } from '../utils/logger';
 import { PaymentStatus, ReservationStatus } from '../types/database.types';
+import { referralService } from './referral.service';
 
 export interface EnhancedPaymentConfirmationRequest extends PaymentConfirmationRequest {
   userId: string;
@@ -131,6 +132,23 @@ export class PaymentConfirmationService {
           error: error instanceof Error ? error.message : 'Unknown error'
         });
         // Don't fail the payment confirmation if shop notification fails
+      }
+
+      // Step 7.6: Process referral reward if user was referred
+      let referralRewardProcessed = false;
+      try {
+        referralRewardProcessed = await this.processReferralRewardIfApplicable(
+          request.userId,
+          request.amount,
+          paymentRecord.reservation_id
+        );
+      } catch (error) {
+        logger.error('Failed to process referral reward', {
+          userId: request.userId,
+          amount: request.amount,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+        // Don't fail the payment confirmation if referral reward processing fails
       }
 
       // Step 8: Generate and deliver receipt
@@ -693,6 +711,91 @@ ${paymentType}: ${paymentRecord.amount.toLocaleString()}원
     }
 
     return data || [];
+  }
+
+  /**
+   * Process referral reward if user was referred by someone
+   * Returns true if referral reward was processed, false if not applicable
+   */
+  private async processReferralRewardIfApplicable(
+    userId: string,
+    paymentAmount: number,
+    reservationId: string
+  ): Promise<boolean> {
+    try {
+      logger.info('Checking if user has referrer for reward processing', {
+        userId,
+        paymentAmount,
+        reservationId
+      });
+
+      // Step 1: Get user's referred_by_code
+      const { data: user, error: userError } = await this.supabase
+        .from('users')
+        .select('referred_by_code')
+        .eq('id', userId)
+        .single();
+
+      if (userError || !user || !user.referred_by_code) {
+        logger.info('User has no referrer, skipping referral reward', {
+          userId,
+          hasReferredByCode: !!user?.referred_by_code
+        });
+        return false;
+      }
+
+      // Step 2: Find referrer by referral code
+      const { data: referrer, error: referrerError } = await this.supabase
+        .from('users')
+        .select('id, nickname, name')
+        .eq('referral_code', user.referred_by_code)
+        .eq('user_status', 'active')
+        .single();
+
+      if (referrerError || !referrer) {
+        logger.warn('Referrer not found or inactive', {
+          userId,
+          referralCode: user.referred_by_code,
+          error: referrerError?.message
+        });
+        return false;
+      }
+
+      // Step 3: Process referral reward
+      logger.info('Processing referral reward', {
+        referrerId: referrer.id,
+        referredUserId: userId,
+        paymentAmount,
+        reservationId
+      });
+
+      await referralService.processReferralReward(
+        referrer.id,
+        userId,
+        paymentAmount,
+        reservationId
+      );
+
+      logger.info('Referral reward processed successfully', {
+        referrerId: referrer.id,
+        referredUserId: userId,
+        paymentAmount
+      });
+
+      return true;
+
+    } catch (error) {
+      logger.error('Failed to process referral reward', {
+        userId,
+        paymentAmount,
+        reservationId,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      });
+
+      // Re-throw error so it can be caught by the caller
+      throw error;
+    }
   }
 }
 
