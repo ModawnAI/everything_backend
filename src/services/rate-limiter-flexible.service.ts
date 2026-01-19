@@ -289,56 +289,81 @@ export class RateLimiterFlexibleService {
     context: RateLimitContext,
     config: RateLimitConfig
   ): Promise<RateLimitResult> {
-    try {
-      // ✅ Non-blocking: initPromise를 기다리지 않음
-      // Redis 연결 상태는 isRedisReady()로 즉시 확인
-      // 연결 안 되어 있으면 자동으로 메모리 limiter 사용
+    // ✅ CRITICAL: 전체 rate limit 체크를 1초 타임아웃으로 감쌈
+    // Redis가 느리거나 hang되어도 1초 후 자동으로 allow
+    const RATE_LIMIT_TIMEOUT_MS = 1000;
 
-      // Graceful degradation: 초기화 실패 시 즉시 처리
-      if (this.fallbackMode && !this.isRedisReady()) {
-        // 메모리 기반 rate limiter 사용 (즉시 응답)
+    const timeoutPromise = new Promise<RateLimitResult>((resolve) => {
+      setTimeout(() => {
+        logger.warn('Rate limit check timeout, allowing request', {
+          endpoint: context.endpoint,
+          ip: context.ip,
+          timeout: RATE_LIMIT_TIMEOUT_MS
+        });
+        resolve({
+          allowed: true,
+          totalHits: 0,
+          remainingRequests: 999,
+          resetTime: new Date(Date.now() + config.windowMs)
+        });
+      }, RATE_LIMIT_TIMEOUT_MS);
+    });
+
+    const checkPromise = (async () => {
+      try {
+        // ✅ Non-blocking: initPromise를 기다리지 않음
+        // Redis 연결 상태는 isRedisReady()로 즉시 확인
+        // 연결 안 되어 있으면 자동으로 메모리 limiter 사용
+
+        // Graceful degradation: 초기화 실패 시 즉시 처리
+        if (this.fallbackMode && !this.isRedisReady()) {
+          // 메모리 기반 rate limiter 사용 (즉시 응답)
+          const limiter = this.getRateLimiter(config, context);
+          const key = this.generateKeyPrefix(config, context);
+
+          try {
+            const result = await limiter.consume(key);
+            return this.mapRateLimiterResult(result, config);
+          } catch (error) {
+            if (error && typeof error === 'object' && 'remainingPoints' in error) {
+              return this.mapRateLimiterResult(error as RateLimiterRes, config);
+            }
+            throw error;
+          }
+        }
+
+        // Redis 사용 가능한 경우
         const limiter = this.getRateLimiter(config, context);
         const key = this.generateKeyPrefix(config, context);
 
-        try {
-          const result = await limiter.consume(key);
-          return this.mapRateLimiterResult(result, config);
-        } catch (error) {
-          if (error && typeof error === 'object' && 'remainingPoints' in error) {
-            return this.mapRateLimiterResult(error as RateLimiterRes, config);
-          }
-          throw error;
+        const result = await limiter.consume(key);
+
+        return this.mapRateLimiterResult(result, config);
+
+      } catch (error) {
+        // RateLimiterRes rejection (limit exceeded)인 경우 정상 처리
+        if (error && typeof error === 'object' && 'remainingPoints' in error) {
+          return this.mapRateLimiterResult(error as RateLimiterRes, config);
         }
+
+        // Graceful degradation - allow request if rate limiting fails
+        logger.debug('Rate limiting failed, allowing request', {
+          error: error instanceof Error ? error.message : 'Unknown',
+          endpoint: context.endpoint,
+          ip: context.ip
+        });
+
+        return {
+          allowed: true,
+          totalHits: 0,
+          remainingRequests: 999,
+          resetTime: new Date(Date.now() + config.windowMs)
+        };
       }
+    })();
 
-      // Redis 사용 가능한 경우
-      const limiter = this.getRateLimiter(config, context);
-      const key = this.generateKeyPrefix(config, context);
-
-      const result = await limiter.consume(key);
-
-      return this.mapRateLimiterResult(result, config);
-
-    } catch (error) {
-      // RateLimiterRes rejection (limit exceeded)인 경우 정상 처리
-      if (error && typeof error === 'object' && 'remainingPoints' in error) {
-        return this.mapRateLimiterResult(error as RateLimiterRes, config);
-      }
-
-      // Graceful degradation - allow request if rate limiting fails
-      logger.debug('Rate limiting failed, allowing request', {
-        error: error instanceof Error ? error.message : 'Unknown',
-        endpoint: context.endpoint,
-        ip: context.ip
-      });
-
-      return {
-        allowed: true,
-        totalHits: 0,
-        remainingRequests: 999,
-        resetTime: new Date(Date.now() + config.windowMs)
-      };
-    }
+    // ✅ Promise.race: 1초 안에 응답 못하면 타임아웃
+    return Promise.race([checkPromise, timeoutPromise]);
   }
 
   /**
