@@ -108,7 +108,7 @@ export class PointTransactionService {
           status: transactionDetails.status,
           available_from: transactionDetails.availableFrom,
           expires_at: transactionDetails.expiresAt,
-          related_user_id: request.relatedUserId,
+          referred_user_id: request.relatedUserId,
           metadata: {
             ...request.metadata,
             ...transactionDetails.metadata,

@@ -89,7 +89,7 @@ export class PointService {
           available_from: availableFrom.toISOString(),
           expires_at: expiresAt.toISOString(),
           payment_id: options?.paymentId,
-          related_user_id: options?.relatedUserId,  // ✅ Fixed: Use related_user_id instead of referred_user_id
+          referred_user_id: options?.relatedUserId,  // Correct column name from DB schema
           created_at: now.toISOString(),
           updated_at: now.toISOString()
         })

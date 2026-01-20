@@ -541,7 +541,7 @@ export interface PointTransaction {
   status: PointStatus;
   available_from?: string; // Timestamp (for 7-day rule)
   expires_at?: string; // Timestamp
-  related_user_id?: string; // References users(id) for referral points
+  referred_user_id?: string; // References users(id) for referral points (the user who was referred)
   metadata?: Record<string, any>; // JSONB
   created_at: string; // Timestamp
 }
