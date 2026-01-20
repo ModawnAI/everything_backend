@@ -1125,9 +1125,6 @@ class ReferralServiceImpl {
 
       // 9. Create referral history record (for friend list display)
       try {
-        const expiresAt = new Date(now);
-        expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
-
         const { error: referralRecordError } = await this.supabase
           .from('referrals')
           .insert({
@@ -1136,9 +1133,10 @@ class ReferralServiceImpl {
             referral_code: normalizedCode,
             status: 'pending',
             bonus_amount: 1000, // Default bonus amount
-            bonus_type: 'points',
             bonus_paid: false,
-            expires_at: expiresAt.toISOString(),
+            referral_reward_percentage: 10, // 10% reward
+            calculation_method: 'percentage',
+            chain_validation_passed: true,
             created_at: now.toISOString(),
             updated_at: now.toISOString()
           });
