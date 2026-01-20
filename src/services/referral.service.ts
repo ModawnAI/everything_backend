@@ -916,13 +916,27 @@ class ReferralServiceImpl {
       logger.debug('[getMyReferrer] Referrer query completed', { userId, hasReferrer: !!referrer, referrerError: referrerError?.message });
 
       if (referrerError || !referrer) {
-        logger.warn('Referrer not found by code', {
-          userId,
-          referralCode: user.referred_by_code,
-          error: referrerError?.message,
-          errorCode: referrerError?.code,
-          errorDetails: referrerError?.details
-        });
+        if (user.referred_by_code) {
+          logger.warn('Referrer code exists but referrer not found or inactive', {
+            userId,
+            referralCode: user.referred_by_code,
+            error: referrerError?.message,
+            errorCode: referrerError?.code,
+            errorDetails: referrerError?.details
+          });
+
+          const setAt = user.referrer_set_at || user.updated_at || new Date().toISOString();
+
+          return {
+            id: '',  // 빈 ID = 비활성 추천인
+            nickname: '탈퇴한 사용자',
+            maskedNickname: '탈퇴**',
+            referralCode: user.referred_by_code,
+            setAt,
+            canChangeAt: setAt,  // 즉시 변경 가능
+            isChangeable: true
+          };
+        }
         return null;
       }
 
@@ -1019,20 +1033,44 @@ class ReferralServiceImpl {
 
       // 5. Check if already has referrer and if it can be changed
       if (currentUser.referred_by_code) {
-        // Check if 3 months have passed since the referrer was set
-        const setAt = currentUser.referrer_set_at || currentUser.updated_at;
-        if (setAt) {
-          const setAtDate = new Date(setAt);
-          const canChangeAtDate = new Date(setAtDate);
-          canChangeAtDate.setMonth(canChangeAtDate.getMonth() + 3); // 3 months later
-          const now = new Date();
+        // 현재 추천인이 여전히 활성 상태인지 확인
+        const { data: currentReferrer, error: currentReferrerError } = await this.supabase
+          .from('users')
+          .select('id, user_status, referral_code')
+          .eq('referral_code', currentUser.referred_by_code)
+          .single();
 
-          if (now < canChangeAtDate) {
-            const daysUntilChange = Math.ceil((canChangeAtDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
-            return {
-              success: false,
-              message: `추천인은 설정 후 3개월이 지나야 변경할 수 있습니다. (${daysUntilChange}일 후 변경 가능)`
-            };
+        logger.debug('Current referrer validation', {
+          userId,
+          currentReferralCode: currentUser.referred_by_code,
+          currentReferrerFound: !!currentReferrer,
+          currentReferrerStatus: currentReferrer?.user_status
+        });
+
+        // 현재 추천인이 비활성/삭제됨 → 즉시 변경 허용
+        if (currentReferrerError || !currentReferrer || currentReferrer.user_status !== 'active') {
+          logger.info('Allowing referrer change - current referrer is invalid', {
+            userId,
+            oldReferralCode: currentUser.referred_by_code,
+            newReferralCode: normalizedCode
+          });
+          // 3개월 체크 스킵
+        } else {
+          // 현재 추천인이 활성 → 3개월 제한 적용
+          const setAt = currentUser.referrer_set_at || currentUser.updated_at;
+          if (setAt) {
+            const setAtDate = new Date(setAt);
+            const canChangeAtDate = new Date(setAtDate);
+            canChangeAtDate.setMonth(canChangeAtDate.getMonth() + 3); // 3 months later
+            const now = new Date();
+
+            if (now < canChangeAtDate) {
+              const daysUntilChange = Math.ceil((canChangeAtDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
+              return {
+                success: false,
+                message: `추천인은 설정 후 3개월이 지나야 변경할 수 있습니다. (${daysUntilChange}일 후 변경 가능)`
+              };
+            }
           }
         }
       }

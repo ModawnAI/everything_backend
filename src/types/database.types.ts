@@ -181,6 +181,7 @@ export interface User {
   social_provider_id?: string;
   referral_code?: string;
   referred_by_code?: string;
+  referrer_set_at?: string; // Timestamp when referrer was set
   total_points: number;
   available_points: number;
   total_referrals: number;

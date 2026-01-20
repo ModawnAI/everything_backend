@@ -656,6 +656,7 @@ export class ReferralController {
       logger.info('Set referrer completed', {
         userId,
         success: result.success,
+        message: result.message,
         duration,
         requestId
       });
