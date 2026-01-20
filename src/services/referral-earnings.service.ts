@@ -127,12 +127,12 @@ export interface FriendPaymentHistoryResponse {
       shopName: string;
       originalAmount: number;
       paidAt: string;
-      status: 'completed' | 'cancelled' | 'refunded';
+      status: 'completed' | 'cancelled' | 'refunded' | 'direct';
     };
     commission: {
       amount: number;
       rate: number;
-      type: 'first_booking' | 'repeat_booking' | 'influencer_bonus' | 'signup_bonus';
+      type: 'first_booking' | 'repeat_booking' | 'influencer_bonus' | 'signup_bonus' | 'direct_reward';
       status: 'pending' | 'available' | 'paid';
       creditedAt?: string;
       availableAt?: string;
@@ -949,141 +949,130 @@ class ReferralEarningsService {
 
       const myTotalEarnings = allCommissions?.reduce((sum, c) => sum + c.amount, 0) || 0;
 
-      // 5. 친구의 결제 내역 조회 (페이지네이션 적용)
+      // 5. 커미션 내역 직접 조회 (모든 커미션 포함, payment_id 유무 무관)
       const offset = (page - 1) * limit;
-      const { data: payments, error: paymentsError, count } = await this.supabase
-        .from('payments')
-        .select(`
-          id,
-          amount,
-          paid_at,
-          payment_status,
-          reservation_id,
-          reservations (
-            id,
-            shop_id,
-            shops (
-              id,
-              name
-            )
-          )
-        `, { count: 'exact' })
-        .eq('user_id', friendId)
-        .eq('payment_status', 'fully_paid')
-        .order('paid_at', { ascending: false })
+      const { data: commissions, error: commissionsError, count } = await this.supabase
+        .from('point_transactions')
+        .select('*', { count: 'exact' })
+        .eq('user_id', currentUserId)
+        .eq('referred_user_id', friendId)
+        .eq('transaction_type', 'earned_referral')
+        .order('created_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
-      // 🔍 DEBUG: 결제 데이터 로그
-      logger.info('🔍 [DEBUG] Fetched payments from DB', {
+      logger.info('🔍 [DEBUG] Fetched commissions from DB', {
         friendId,
-        paymentsCount: payments?.length,
+        commissionsCount: commissions?.length,
         totalCount: count,
-        payments: payments?.map(p => ({
-          id: p.id,
-          amount: p.amount,
-          paid_at: p.paid_at,
-          status: p.payment_status,
-          reservation_id: p.reservation_id,
-          has_reservation: !!p.reservations,
-          has_shop: !!(p.reservations as any)?.shops
+        commissions: commissions?.map(c => ({
+          id: c.id,
+          amount: c.amount,
+          created_at: c.created_at,
+          payment_id: c.payment_id,
+          reservation_id: c.reservation_id
         }))
       });
 
-      if (paymentsError) {
-        logger.error('Failed to fetch payments', {
-          errorMessage: paymentsError.message,
-          errorCode: paymentsError.code,
-          errorDetails: paymentsError.details,
-          errorHint: paymentsError.hint,
+      if (commissionsError) {
+        logger.error('Failed to fetch commissions', {
+          errorMessage: commissionsError.message,
           friendId
         });
-        throw new Error('PAYMENTS_FETCH_ERROR');
+        throw new Error('COMMISSIONS_FETCH_ERROR');
       }
 
-      // 6. 각 결제에 대한 커미션 정보 조회 (payment_id로 정확히 매칭)
+      // 6. 각 커미션에 대한 결제/예약 정보 조회 (있는 경우에만)
       const paymentHistories = await Promise.all(
-        (payments || []).map(async (payment: any) => {
-          // 서비스명 조회 (reservation_services 테이블)
-          const { data: reservationServices } = await this.supabase
-            .from('reservation_services')
-            .select(`
-              service_id,
-              shop_services!inner (
-                name
-              )
-            `)
-            .eq('reservation_id', payment.reservation_id)
-            .limit(1)
-            .maybeSingle();
+        (commissions || []).map(async (commissionTx: any) => {
+          let paymentInfo: any = null;
+          let shopName = '직접 보상';
+          let serviceName = '추천 보너스';
+          let paidAt = commissionTx.created_at;
+          let originalAmount = 0;
+          let commissionRate = 0;
+          let commissionType: 'first_booking' | 'repeat_booking' | 'direct_reward' = 'direct_reward';
 
-          const serviceName = (reservationServices?.shop_services as any)?.name || '서비스 정보 없음';
-          const shopName = (payment.reservations?.shops as any)?.name || '매장 정보 없음';
-
-          // 커미션 타입 결정 (첫 결제인지 확인)
-          const { count: previousPayments } = await this.supabase
-            .from('payments')
-            .select('id', { count: 'exact', head: true })
-            .eq('user_id', friendId)
-            .eq('payment_status', 'fully_paid')
-            .lt('paid_at', payment.paid_at);
-
-          const isFirstPayment = (previousPayments || 0) === 0;
-          const commissionType: 'first_booking' | 'repeat_booking' = isFirstPayment ? 'first_booking' : 'repeat_booking';
-          const commissionRate = isFirstPayment ? 10 : 5;
-
-          // 이 결제에 대한 커미션을 payment_id로 정확히 조회 (BUG FIX)
-          const { data: commission } = await this.supabase
-            .from('point_transactions')
-            .select('*')
-            .eq('user_id', currentUserId)
-            .eq('referred_user_id', friendId)
-            .eq('payment_id', payment.id)
-            .eq('transaction_type', 'earned_referral')
-            .maybeSingle();
-
-          // Fallback: payment_id가 없는 구 데이터는 reservation_id + 시간 범위로 매칭
-          let finalCommission = commission;
-          if (!finalCommission && payment.paid_at) {
-            const paymentTime = new Date(payment.paid_at);
-            const tenMinutesAgo = new Date(paymentTime.getTime() - 10 * 60 * 1000).toISOString();
-            const tenMinutesLater = new Date(paymentTime.getTime() + 10 * 60 * 1000).toISOString();
-
-            const { data: fallbackCommission } = await this.supabase
-              .from('point_transactions')
-              .select('*')
-              .eq('user_id', currentUserId)
-              .eq('referred_user_id', friendId)
-              .eq('reservation_id', payment.reservation_id)
-              .eq('transaction_type', 'earned_referral')
-              .is('payment_id', null)
-              .gte('created_at', tenMinutesAgo)
-              .lte('created_at', tenMinutesLater)
-              .order('created_at', { ascending: true })
-              .limit(1)
+          // payment_id가 있으면 결제 정보 조회
+          if (commissionTx.payment_id) {
+            const { data: payment } = await this.supabase
+              .from('payments')
+              .select(`
+                id,
+                amount,
+                paid_at,
+                payment_status,
+                reservation_id,
+                reservations (
+                  id,
+                  shop_id,
+                  shops (
+                    id,
+                    name
+                  )
+                )
+              `)
+              .eq('id', commissionTx.payment_id)
               .maybeSingle();
 
-            finalCommission = fallbackCommission || null;
+            if (payment) {
+              paymentInfo = payment;
+              originalAmount = payment.amount;
+              paidAt = payment.paid_at;
+
+              // Supabase의 중첩 select는 배열 또는 단일 객체를 반환할 수 있음
+              const reservation = Array.isArray(payment.reservations) ? payment.reservations[0] : payment.reservations;
+              const shop = reservation?.shops;
+              const shopObj = Array.isArray(shop) ? shop[0] : shop;
+              shopName = shopObj?.name || '매장 정보 없음';
+
+              // 서비스명 조회
+              const { data: reservationServices } = await this.supabase
+                .from('reservation_services')
+                .select(`
+                  service_id,
+                  shop_services!inner (
+                    name
+                  )
+                `)
+                .eq('reservation_id', payment.reservation_id)
+                .limit(1)
+                .maybeSingle();
+
+              serviceName = (reservationServices?.shop_services as any)?.name || '서비스 정보 없음';
+
+              // 커미션 타입 결정 (첫 결제인지 확인)
+              const { count: previousPayments } = await this.supabase
+                .from('payments')
+                .select('id', { count: 'exact', head: true })
+                .eq('user_id', friendId)
+                .eq('payment_status', 'fully_paid')
+                .lt('paid_at', payment.paid_at);
+
+              const isFirstPayment = (previousPayments || 0) === 0;
+              commissionType = isFirstPayment ? 'first_booking' : 'repeat_booking';
+              commissionRate = isFirstPayment ? 10 : 5;
+            }
           }
 
           return {
-            id: payment.id,
+            id: commissionTx.payment_id || commissionTx.id,
             friendId,
             friendName: friendUser.name || friendUser.nickname || 'Unknown',
             payment: {
-              id: payment.id,
+              id: commissionTx.payment_id,
               serviceName,
               shopName,
-              originalAmount: payment.amount,
-              paidAt: payment.paid_at,
-              status: 'completed' as const
+              originalAmount,
+              paidAt,
+              status: paymentInfo ? 'completed' as const : 'direct' as const
             },
             commission: {
-              amount: finalCommission?.amount || 0,
+              amount: commissionTx.amount || 0,
               rate: commissionRate,
               type: commissionType,
-              status: finalCommission?.status || 'pending',
-              creditedAt: finalCommission?.created_at,
-              availableAt: finalCommission?.available_from
+              status: commissionTx.status || 'available',
+              creditedAt: commissionTx.created_at,
+              availableAt: commissionTx.available_from
             }
           };
         })
