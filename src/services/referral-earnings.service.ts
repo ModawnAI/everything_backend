@@ -329,12 +329,12 @@ class ReferralEarningsService {
     try {
       logger.info('Getting referral earnings summary', { userId });
 
-      // Get referral earnings from point_transactions with type 'referral'
+      // Get referral earnings from point_transactions with transaction_type 'earned_referral'
       const { data: pointTransactions, error: pointError } = await this.supabase
         .from('point_transactions')
         .select('*')
         .eq('user_id', userId)
-        .eq('type', 'referral')
+        .eq('transaction_type', 'earned_referral')
         .order('created_at', { ascending: false });
 
       if (pointError) {
