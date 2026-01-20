@@ -973,6 +973,22 @@ class ReferralEarningsService {
         .order('paid_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
+      // 🔍 DEBUG: 결제 데이터 로그
+      logger.info('🔍 [DEBUG] Fetched payments from DB', {
+        friendId,
+        paymentsCount: payments?.length,
+        totalCount: count,
+        payments: payments?.map(p => ({
+          id: p.id,
+          amount: p.amount,
+          paid_at: p.paid_at,
+          status: p.payment_status,
+          reservation_id: p.reservation_id,
+          has_reservation: !!p.reservations,
+          has_shop: !!(p.reservations as any)?.shops
+        }))
+      });
+
       if (paymentsError) {
         logger.error('Failed to fetch payments', {
           errorMessage: paymentsError.message,
