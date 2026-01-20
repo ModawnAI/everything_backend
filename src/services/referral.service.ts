@@ -1123,10 +1123,55 @@ class ReferralServiceImpl {
         // Don't fail the operation if relationship creation fails
       }
 
-      // 9. Increment referrer's total_referrals count
+      // 9. Create referral history record (for friend list display)
+      try {
+        const expiresAt = new Date(now);
+        expiresAt.setDate(expiresAt.getDate() + 30); // 30 days from now
+
+        const { error: referralRecordError } = await this.supabase
+          .from('referrals')
+          .insert({
+            referrer_id: referrer.id,
+            referred_id: userId,
+            referral_code: normalizedCode,
+            status: 'pending',
+            bonus_amount: 1000, // Default bonus amount
+            bonus_type: 'points',
+            bonus_paid: false,
+            expires_at: expiresAt.toISOString(),
+            created_at: now.toISOString(),
+            updated_at: now.toISOString()
+          });
+
+        if (referralRecordError) {
+          logger.warn('Failed to create referral record, but referrer was set', {
+            referrerId: referrer.id,
+            referredId: userId,
+            error: referralRecordError.message,
+            errorCode: referralRecordError.code,
+            errorDetails: referralRecordError.details
+          });
+          // Don't fail the operation if referral record creation fails
+        } else {
+          logger.info('Referral history record created successfully', {
+            referrerId: referrer.id,
+            referredId: userId,
+            referralCode: normalizedCode
+          });
+        }
+      } catch (referralError) {
+        logger.warn('Exception while creating referral record', {
+          referrerId: referrer.id,
+          referredId: userId,
+          error: referralError instanceof Error ? referralError.message : 'Unknown error'
+        });
+        // Don't fail the operation
+      }
+
+      // 10. Increment referrer's total_referrals count
       await this.incrementReferralCount(referrer.id);
 
-      // 10. Calculate response data
+      // 11. Calculate response data
       const displayName = referrer.nickname || referrer.name || 'Unknown';
       const visibleLength = Math.min(3, Math.ceil(displayName.length * 0.5));
       const maskedNickname = displayName.substring(0, visibleLength) + '**';
