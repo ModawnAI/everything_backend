@@ -932,7 +932,7 @@ class ReferralEarningsService {
         .from('payments')
         .select('id, amount, paid_at, payment_status')
         .eq('user_id', friendId)
-        .eq('payment_status', 'completed')
+        .eq('payment_status', 'fully_paid')
         .order('paid_at', { ascending: false });
 
       const totalPayments = allPayments?.length || 0;
@@ -969,7 +969,7 @@ class ReferralEarningsService {
           )
         `, { count: 'exact' })
         .eq('user_id', friendId)
-        .eq('payment_status', 'completed')
+        .eq('payment_status', 'fully_paid')
         .order('paid_at', { ascending: false })
         .range(offset, offset + limit - 1);
 
@@ -1018,7 +1018,7 @@ class ReferralEarningsService {
             .from('payments')
             .select('id', { count: 'exact', head: true })
             .eq('user_id', friendId)
-            .eq('payment_status', 'completed')
+            .eq('payment_status', 'fully_paid')
             .lt('paid_at', payment.paid_at);
 
           const isFirstPayment = (previousPayments || 0) === 0;
