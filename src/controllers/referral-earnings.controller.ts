@@ -398,6 +398,95 @@ export class ReferralEarningsController {
     // TODO: Implement top earners logic
     return [];
   }
+
+  /**
+   * Get payment history and commissions for a referred friend
+   * GET /api/referral-earnings/friend/:friendId/payments
+   */
+  public getFriendPaymentHistory = async (
+    req: AuthenticatedRequest,
+    res: Response,
+    next: NextFunction
+  ): Promise<void> => {
+    try {
+      const { friendId } = req.params;
+      const currentUserId = req.user?.id;
+      const page = parseInt(req.query.page as string) || 1;
+      const limit = parseInt(req.query.limit as string) || 10;
+
+      if (!currentUserId) {
+        res.status(401).json({
+          success: false,
+          error: {
+            code: 'UNAUTHORIZED',
+            message: '인증이 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      if (!friendId) {
+        res.status(400).json({
+          success: false,
+          error: {
+            code: 'INVALID_FRIEND_ID',
+            message: '친구 ID가 필요합니다.'
+          }
+        });
+        return;
+      }
+
+      logger.info('Getting friend payment history', {
+        currentUserId,
+        friendId,
+        page,
+        limit
+      });
+
+      const result = await referralEarningsService.getFriendPaymentHistory(
+        currentUserId,
+        friendId,
+        page,
+        limit
+      );
+
+      res.json({
+        success: true,
+        data: result
+      });
+    } catch (error: any) {
+      logger.error('Get friend payment history error', {
+        error: error.message,
+        stack: error.stack,
+        friendId: req.params.friendId,
+        userId: req.user?.id
+      });
+
+      if (error.message === 'FRIEND_NOT_FOUND') {
+        res.status(404).json({
+          success: false,
+          error: {
+            code: 'FRIEND_NOT_FOUND',
+            message: '추천한 친구를 찾을 수 없습니다.'
+          }
+        });
+        return;
+      }
+
+      if (error.message === 'ACCESS_DENIED') {
+        res.status(403).json({
+          success: false,
+          error: {
+            code: 'ACCESS_DENIED',
+            message: '이 친구의 정보를 조회할 권한이 없습니다.'
+          }
+        });
+        return;
+      }
+
+      next(error);
+    }
+  };
 }
 
 export const referralEarningsController = new ReferralEarningsController();

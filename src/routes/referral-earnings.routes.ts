@@ -119,4 +119,16 @@ router.get(
   referralEarningsController.getTopEarners
 );
 
+/**
+ * @route GET /api/referral-earnings/friend/:friendId/payments
+ * @desc Get payment history and commissions for a referred friend
+ * @access Private (only referrer can view their friend's data)
+ */
+router.get(
+  '/friend/:friendId/payments',
+  referralEarningsController.referralEarningsRateLimit,
+  authenticateJWT(),
+  referralEarningsController.getFriendPaymentHistory
+);
+
 export default router;

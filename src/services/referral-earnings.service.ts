@@ -106,6 +106,46 @@ export interface ReferralTierConfig {
   requirements: string[];
 }
 
+export interface FriendPaymentHistoryResponse {
+  friend: {
+    id: string;
+    name: string;
+    maskedName: string;
+    joinedAt: string;
+    totalPayments: number;
+    totalSpent: number;
+    myTotalEarnings: number;
+    lastPaymentAt?: string;
+  };
+  payments: Array<{
+    id: string;
+    friendId: string;
+    friendName: string;
+    payment: {
+      id: string;
+      serviceName: string;
+      shopName: string;
+      originalAmount: number;
+      paidAt: string;
+      status: 'completed' | 'cancelled' | 'refunded';
+    };
+    commission: {
+      amount: number;
+      rate: number;
+      type: 'first_booking' | 'repeat_booking' | 'influencer_bonus' | 'signup_bonus';
+      status: 'pending' | 'available' | 'paid';
+      creditedAt?: string;
+      availableAt?: string;
+    };
+  }>;
+  pagination: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
 class ReferralEarningsService {
   private supabase = getSupabaseClient();
   private readonly DEFAULT_BASE_BONUS = 1000; // 1000 points
@@ -827,6 +867,223 @@ class ReferralEarningsService {
   private calculateNextPayoutDate(userId: string): string | undefined {
     // TODO: Implement payout scheduling logic
     return undefined;
+  }
+
+  /**
+   * Get payment history and commissions for a referred friend
+   */
+  async getFriendPaymentHistory(
+    currentUserId: string,
+    friendId: string,
+    page: number = 1,
+    limit: number = 10
+  ): Promise<FriendPaymentHistoryResponse> {
+    try {
+      logger.info('Getting friend payment history', {
+        currentUserId,
+        friendId,
+        page,
+        limit
+      });
+
+      // 1. 권한 검증: currentUserId가 friendId를 추천했는지 확인
+      const { data: referral, error: referralError } = await this.supabase
+        .from('referrals')
+        .select('*')
+        .eq('referrer_id', currentUserId)
+        .eq('referred_id', friendId)
+        .single();
+
+      if (referralError || !referral) {
+        logger.warn('Referral relationship not found', {
+          currentUserId,
+          friendId,
+          error: referralError?.message
+        });
+        throw new Error('ACCESS_DENIED');
+      }
+
+      // 2. 친구 정보 조회
+      const { data: friendUser, error: friendError } = await this.supabase
+        .from('users')
+        .select('id, name, nickname, email, created_at')
+        .eq('id', friendId)
+        .single();
+
+      if (friendError || !friendUser) {
+        logger.warn('Friend user not found', { friendId, error: friendError?.message });
+        throw new Error('FRIEND_NOT_FOUND');
+      }
+
+      // 3. 친구의 전체 결제 통계 조회 (페이지네이션 없이)
+      const { data: allPayments, error: allPaymentsError } = await this.supabase
+        .from('payments')
+        .select('id, amount, paid_at, payment_status')
+        .eq('user_id', friendId)
+        .eq('payment_status', 'completed')
+        .order('paid_at', { ascending: false });
+
+      const totalPayments = allPayments?.length || 0;
+      const totalSpent = allPayments?.reduce((sum, p) => sum + p.amount, 0) || 0;
+      const lastPaymentAt = allPayments?.[0]?.paid_at;
+
+      // 4. 추천자(currentUserId)가 받은 총 적립 포인트 조회
+      const { data: allCommissions } = await this.supabase
+        .from('point_transactions')
+        .select('amount')
+        .eq('user_id', currentUserId)
+        .eq('related_user_id', friendId)
+        .eq('transaction_type', 'earned_referral');
+
+      const myTotalEarnings = allCommissions?.reduce((sum, c) => sum + c.amount, 0) || 0;
+
+      // 5. 친구의 결제 내역 조회 (페이지네이션 적용)
+      const offset = (page - 1) * limit;
+      const { data: payments, error: paymentsError, count } = await this.supabase
+        .from('payments')
+        .select(`
+          id,
+          amount,
+          paid_at,
+          payment_status,
+          reservation_id,
+          reservations!inner (
+            id,
+            shop_id,
+            shops!inner (
+              id,
+              name
+            )
+          )
+        `, { count: 'exact' })
+        .eq('user_id', friendId)
+        .eq('payment_status', 'completed')
+        .order('paid_at', { ascending: false })
+        .range(offset, offset + limit - 1);
+
+      if (paymentsError) {
+        logger.error('Failed to fetch payments', { error: paymentsError, friendId });
+        throw new Error('PAYMENTS_FETCH_ERROR');
+      }
+
+      // 6. 각 결제에 대한 커미션 정보 조회
+      const paymentHistories = await Promise.all(
+        (payments || []).map(async (payment: any) => {
+          // 해당 결제에 대한 커미션 조회
+          const { data: commission } = await this.supabase
+            .from('point_transactions')
+            .select('*')
+            .eq('user_id', currentUserId)
+            .eq('related_user_id', friendId)
+            .eq('reservation_id', payment.reservation_id)
+            .eq('transaction_type', 'earned_referral')
+            .maybeSingle();
+
+          // 서비스명 조회 (reservation_services 테이블)
+          const { data: reservationServices } = await this.supabase
+            .from('reservation_services')
+            .select(`
+              service_id,
+              shop_services!inner (
+                name
+              )
+            `)
+            .eq('reservation_id', payment.reservation_id)
+            .limit(1)
+            .maybeSingle();
+
+          const serviceName = (reservationServices?.shop_services as any)?.name || '서비스 정보 없음';
+          const shopName = (payment.reservations?.shops as any)?.name || '매장 정보 없음';
+
+          // 커미션 타입 결정 (첫 결제인지 확인)
+          const { count: previousPayments } = await this.supabase
+            .from('payments')
+            .select('id', { count: 'exact', head: true })
+            .eq('user_id', friendId)
+            .eq('payment_status', 'completed')
+            .lt('paid_at', payment.paid_at);
+
+          const isFirstPayment = (previousPayments || 0) === 0;
+          const commissionType: 'first_booking' | 'repeat_booking' = isFirstPayment ? 'first_booking' : 'repeat_booking';
+          const commissionRate = isFirstPayment ? 10 : 5;
+
+          return {
+            id: payment.id,
+            friendId,
+            friendName: friendUser.name || friendUser.nickname || 'Unknown',
+            payment: {
+              id: payment.id,
+              serviceName,
+              shopName,
+              originalAmount: payment.amount,
+              paidAt: payment.paid_at,
+              status: 'completed' as const
+            },
+            commission: {
+              amount: commission?.amount || 0,
+              rate: commissionRate,
+              type: commissionType,
+              status: commission?.status || 'pending',
+              creditedAt: commission?.created_at,
+              availableAt: commission?.available_from
+            }
+          };
+        })
+      );
+
+      // 7. 친구 요약 정보 마스킹 처리
+      const friendName = friendUser.name || friendUser.nickname || 'Unknown';
+      const maskedName = this.maskUsername(friendName);
+
+      const result: FriendPaymentHistoryResponse = {
+        friend: {
+          id: friendId,
+          name: friendName,
+          maskedName,
+          joinedAt: friendUser.created_at,
+          totalPayments,
+          totalSpent,
+          myTotalEarnings,
+          lastPaymentAt
+        },
+        payments: paymentHistories,
+        pagination: {
+          page,
+          limit,
+          total: count || 0,
+          totalPages: Math.ceil((count || 0) / limit)
+        }
+      };
+
+      logger.info('Friend payment history retrieved', {
+        currentUserId,
+        friendId,
+        totalPayments: result.payments.length,
+        totalCommission: myTotalEarnings
+      });
+
+      return result;
+
+    } catch (error) {
+      logger.error('Failed to get friend payment history', {
+        error: error instanceof Error ? error.message : 'Unknown error',
+        currentUserId,
+        friendId
+      });
+      throw error;
+    }
+  }
+
+  /**
+   * Mask username for privacy
+   */
+  private maskUsername(username: string): string {
+    if (!username) return '';
+    const length = username.length;
+    if (length <= 2) return username + '**';
+
+    // 앞 2자만 표시, 나머지는 **
+    return username.substring(0, 2) + '**';
   }
 }
 
