@@ -699,17 +699,27 @@ export class EnhancedReferralService {
   }
 
   private groupReferralsByMonth(referrals: any[]): Array<{ month: string; count: number; rewards: number }> {
-    const monthlyData: { [key: string]: { count: number; rewards: number } } = {};
+    const monthlyData: {
+      [key: string]: {
+        uniqueFriends: Set<string>;
+        rewards: number;
+      }
+    } = {};
 
     referrals.forEach(referral => {
       const date = new Date(referral.created_at);
       const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
 
       if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = { count: 0, rewards: 0 };
+        monthlyData[monthKey] = {
+          uniqueFriends: new Set(),
+          rewards: 0
+        };
       }
 
-      monthlyData[monthKey].count++;
+      // Add referred_id to Set (automatically maintains uniqueness)
+      monthlyData[monthKey].uniqueFriends.add(referral.referred_id);
+
       if (referral.bonus_paid) {
         monthlyData[monthKey].rewards += referral.bonus_amount || 0;
       }
@@ -718,7 +728,7 @@ export class EnhancedReferralService {
     return Object.entries(monthlyData)
       .map(([month, data]) => ({
         month,
-        count: data.count,
+        count: data.uniqueFriends.size, // Use Set size for unique friend count
         rewards: data.rewards
       }))
       .sort((a, b) => b.month.localeCompare(a.month))
