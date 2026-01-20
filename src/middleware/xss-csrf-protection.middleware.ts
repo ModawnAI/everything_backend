@@ -253,7 +253,9 @@ class XSSProtectionService {
     }
 
     // Check headers
-    const suspiciousHeaders = ['x-forwarded-for', 'x-real-ip', 'x-originating-ip', 'x-remote-ip', 'x-remote-addr', 'referer', 'origin'];
+    // Note: Referer and origin headers are excluded because they contain URLs with query parameters
+    // which can trigger false positives (e.g., "reservationId=" matching event handler patterns)
+    const suspiciousHeaders = ['x-forwarded-for', 'x-real-ip', 'x-originating-ip', 'x-remote-ip', 'x-remote-addr'];
     for (const header of suspiciousHeaders) {
       const value = req.get(header);
       if (value) {

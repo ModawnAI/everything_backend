@@ -285,16 +285,10 @@ function createHelmetConfig(config: SecurityHeadersConfig): HelmetOptions {
   }
 
   // X-XSS-Protection
-  if (config.xssFilter) {
-    if (typeof config.xssFilter === 'boolean') {
-      helmetConfig.xssFilter = config.xssFilter;
-    } else {
-      helmetConfig.xssFilter = {
-        mode: config.xssFilter.mode,
-        reportUri: config.xssFilter.reportUri
-      } as any;
-    }
-  }
+  // Note: helmet's xssFilter option is deprecated as of v5+
+  // X-XSS-Protection header is manually set in other middlewares (response-standardization, csrf-sanitization)
+  // Disabling helmet's xssFilter to avoid deprecation warnings
+  helmetConfig.xssFilter = false;
 
   // Cross-Origin policies
   if (config.crossOrigin) {
