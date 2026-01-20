@@ -439,11 +439,7 @@ class ReferralServiceImpl {
           referred_id,
           status,
           bonus_amount,
-          bonus_type,
           bonus_paid,
-          bonus_paid_at,
-          completed_at,
-          expires_at,
           created_at,
           updated_at
         `)
@@ -515,12 +511,12 @@ class ReferralServiceImpl {
           },
           status: ref.status,
           bonusAmount: ref.bonus_amount,
-          bonusType: ref.bonus_type || 'points',
+          bonusType: 'points', // Default to points (only type currently supported)
           bonusPaid: ref.bonus_paid,
-          bonusPaidAt: ref.bonus_paid_at || null,
+          bonusPaidAt: ref.bonus_paid ? ref.updated_at : null,
           createdAt: ref.created_at,
-          completedAt: ref.completed_at || (ref.status === 'completed' ? ref.updated_at : null),
-          expiresAt: ref.expires_at || null
+          completedAt: ref.status === 'completed' ? ref.updated_at : null,
+          expiresAt: null // Expiration not tracked in current schema
         };
       });
 
