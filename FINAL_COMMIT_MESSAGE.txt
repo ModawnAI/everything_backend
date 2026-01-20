@@ -1,0 +1,87 @@
+fix(referral,points): 추천인 보상 미지급 및 포인트 히스토리 500 에러 수정
+
+## 문제 요약
+
+### 1. 추천인 보상 미지급 (Critical)
+- 사용자: B가 예약 완료 및 결제 → A(추천인)에게 보상 포인트 미지급, 푸시 알림 미발송
+- PM2 로그: "Processing referral reward" 로그 없음
+- 근본 원인: 수동 결제 시 결제 확인 플로우 우회 → processReferralRewardIfApplicable() 미호출
+
+### 2. 포인트 히스토리 500 에러
+- 사용자: GET /api/points/history 요청 시 500 Internal Server Error
+- 근본 원인: getUserTransactionHistory에서 불필요한 getUser() 호출
+
+## 수정 내역
+
+### 1. 추천인 보상 처리 시점 변경
+
+- **변경**: 결제 확인 시점 → 예약 완료 시점
+- 예약 상태 completed로 변경 시 자동으로 추천인 보상 처리
+- 결제 방식(PortOne, 수동, 무료 등)에 관계없이 동일하게 작동
+- 로직 플로우:
+  1. B에게 구매 적립 포인트 지급 (1%)
+  2. B의 referred_by_code 확인
+  3. A(추천인) 조회 및 활성 상태 검증
+  4. referralService.processReferralReward() 호출
+  5. A에게 포인트 지급 + 푸시 알림 발송
+
+### 2. 예약 완료 처리 3개 진입점에 추가
+
+- shop-owner.controller.ts: 샵 오너가 admin에서 예약 완료 처리
+- shop-reservations.controller.ts: Shop Reservations API 상태 업데이트
+- admin-reservation.service.ts: 관리자 예약 완료 처리
+
+### 3. 안전장치
+
+- 추천인 보상 실패해도 예약 완료는 정상 처리
+- 독립적인 try-catch로 에러 격리
+- 상세한 로깅으로 디버깅 용이
+
+### 4. 포인트 서비스 최적화
+
+- getUserTransactionHistory에서 불필요한 getUser() 호출 제거
+- point_transactions 테이블만으로 충분한 데이터 확보
+
+## 수정 파일
+
+### Core Changes
+- src/controllers/shop-owner.controller.ts (Line 786-853, +69)
+- src/controllers/shop-reservations.controller.ts (Line 420-487, +71)
+- src/services/admin-reservation.service.ts (Line 1216-1285, +71)
+- src/services/point-transaction.service.ts (Line 190-213, -8 +5)
+
+### Documentation
+- .claude/skills/20260120-referral-reward-completion-fix.md (신규, +422)
+- test-referral-reward-fix.md (신규, +274)
+- COMPREHENSIVE_COMMIT_MESSAGE.md (신규, +248)
+
+### SQL Utilities
+- check-payment-flow.sql (신규, +31)
+- check-point-transactions.sql (신규, +19)
+- check-referral-reward-issue.sql (신규, +41)
+
+## 테스트 결과
+
+### 수동 테스트 (35,000원 예약 기준)
+- ✅ B: 350P 적립 (1%)
+- ✅ A: 35P 추천 보상 (B 포인트의 10%)
+- ✅ A: 푸시 알림 수신
+- ✅ PM2 로그: 전체 처리 과정 기록
+- ✅ 포인트 히스토리: 조회 정상
+
+## 영향 범위
+
+- ✅ 예약 완료 처리 (모든 경로)
+- ✅ 추천인 보상 시스템
+- ✅ 포인트 히스토리 조회
+- ⚠️ 예약 완료 시간 소폭 증가 (추가 DB 쿼리 2회)
+
+## Breaking Changes
+
+없음
+
+## Migration Required
+
+없음
+
+Co-Authored-By: Claude Sonnet 4.5 <noreply@anthropic.com>
