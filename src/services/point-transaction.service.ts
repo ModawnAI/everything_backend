@@ -206,11 +206,8 @@ export class PointTransactionService {
         filters
       });
 
-      // Validate user exists
-      const user = await this.getUser(userId);
-      if (!user) {
-        throw new Error(`User not found: ${userId}`);
-      }
+      // User existence is not required - point_transactions table has the data we need
+      // Removed user validation check to avoid unnecessary database query
 
       // Build query
       let query = this.supabase
