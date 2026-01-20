@@ -3,6 +3,7 @@ import { logger } from '../utils/logger';
 import { pointService } from './point.service';
 import { paymentService } from './payment.service';
 import { notificationService } from './notification.service';
+import { enhancedReferralService } from './enhanced-referral.service';
 
 /**
  * Referral Earnings Service
@@ -86,6 +87,11 @@ export interface ReferralEarningsSummary {
     type: string;
     status: string;
     earnedAt: string;
+  }>;
+  monthlyBreakdown?: Array<{
+    month: string;
+    count: number;
+    rewards: number;
   }>;
   nextPayoutDate?: string;
   payoutHistory: Array<{
@@ -438,6 +444,23 @@ class ReferralEarningsService {
           processedAt: payout.processed_at || payout.created_at
         }));
 
+      // Get monthly breakdown with unique friend counting from enhanced referral service
+      let monthlyBreakdown: Array<{ month: string; count: number; rewards: number }> | undefined;
+      try {
+        const analytics = await enhancedReferralService.getReferralAnalytics(userId);
+        monthlyBreakdown = analytics.referralsByMonth.map(item => ({
+          month: item.month,
+          count: item.count, // Already unique counted by Set in enhanced service
+          rewards: item.rewards
+        }));
+      } catch (error) {
+        logger.warn('Failed to get monthly breakdown from enhanced service', {
+          error: error instanceof Error ? error.message : 'Unknown error',
+          userId
+        });
+        // Continue without monthly breakdown if it fails
+      }
+
       const summary: ReferralEarningsSummary = {
         userId,
         totalEarnings,
@@ -446,6 +469,7 @@ class ReferralEarningsService {
         availableBalance,
         earningsByType,
         recentEarnings,
+        monthlyBreakdown,
         payoutHistory,
         nextPayoutDate: this.calculateNextPayoutDate(userId)
       };
