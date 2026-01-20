@@ -959,10 +959,10 @@ class ReferralEarningsService {
           paid_at,
           payment_status,
           reservation_id,
-          reservations!inner (
+          reservations (
             id,
             shop_id,
-            shops!inner (
+            shops (
               id,
               name
             )
