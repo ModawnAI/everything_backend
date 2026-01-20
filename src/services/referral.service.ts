@@ -1134,7 +1134,7 @@ class ReferralServiceImpl {
             status: 'pending',
             bonus_amount: 1000, // Default bonus amount
             bonus_paid: false,
-            referral_reward_percentage: 10, // 10% reward
+            referral_reward_percentage: 0.1, // 10% reward (0.1 = 10%)
             calculation_method: 'percentage',
             chain_validation_passed: true,
             created_at: now.toISOString(),

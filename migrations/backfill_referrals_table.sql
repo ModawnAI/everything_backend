@@ -13,9 +13,10 @@ INSERT INTO public.referrals (
   referral_code,
   status,
   bonus_amount,
-  bonus_type,
   bonus_paid,
-  expires_at,
+  referral_reward_percentage,
+  calculation_method,
+  chain_validation_passed,
   created_at,
   updated_at
 )
@@ -25,9 +26,10 @@ SELECT
   referred.referred_by_code AS referral_code,
   'pending' AS status,
   1000 AS bonus_amount,
-  'points' AS bonus_type,
   false AS bonus_paid,
-  COALESCE(referred.referrer_set_at, referred.created_at, NOW()) + INTERVAL '30 days' AS expires_at,
+  0.1 AS referral_reward_percentage,
+  'percentage' AS calculation_method,
+  true AS chain_validation_passed,
   COALESCE(referred.referrer_set_at, referred.created_at, NOW()) AS created_at,
   COALESCE(referred.referrer_set_at, referred.created_at, NOW()) AS updated_at
 FROM
