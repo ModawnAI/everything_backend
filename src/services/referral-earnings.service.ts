@@ -944,7 +944,7 @@ class ReferralEarningsService {
         .from('point_transactions')
         .select('amount')
         .eq('user_id', currentUserId)
-        .eq('referrer_user_id', friendId)
+        .eq('referred_user_id', friendId)
         .eq('transaction_type', 'earned_referral');
 
       const myTotalEarnings = allCommissions?.reduce((sum, c) => sum + c.amount, 0) || 0;
@@ -991,7 +991,7 @@ class ReferralEarningsService {
         .from('point_transactions')
         .select('*')
         .eq('user_id', currentUserId)
-        .eq('referrer_user_id', friendId)
+        .eq('referred_user_id', friendId)
         .eq('transaction_type', 'earned_referral')
         .order('created_at', { ascending: false });
 
