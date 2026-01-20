@@ -439,7 +439,11 @@ class ReferralServiceImpl {
           referred_id,
           status,
           bonus_amount,
+          bonus_type,
           bonus_paid,
+          bonus_paid_at,
+          completed_at,
+          expires_at,
           created_at,
           updated_at
         `)
@@ -503,12 +507,12 @@ class ReferralServiceImpl {
           },
           status: ref.status,
           bonusAmount: ref.bonus_amount,
-          bonusType: 'points', // Default type since column doesn't exist
+          bonusType: ref.bonus_type || 'points',
           bonusPaid: ref.bonus_paid,
-          bonusPaidAt: null, // Column doesn't exist in table
+          bonusPaidAt: ref.bonus_paid_at || null,
           createdAt: ref.created_at,
-          completedAt: ref.status === 'completed' ? ref.updated_at : null,
-          expiresAt: null // Column doesn't exist in table
+          completedAt: ref.completed_at || (ref.status === 'completed' ? ref.updated_at : null),
+          expiresAt: ref.expires_at || null
         };
       });
 
