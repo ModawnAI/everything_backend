@@ -88,9 +88,8 @@ export class PointService {
           status: 'available', // Set status to 'available' so it counts in balance
           available_from: availableFrom.toISOString(),
           expires_at: expiresAt.toISOString(),
-          reservation_id: options?.reservationId,
           payment_id: options?.paymentId,
-          related_user_id: options?.relatedUserId,
+          referred_user_id: options?.relatedUserId,  // ✅ 수정: related_user_id → referred_user_id
           created_at: now.toISOString(),
           updated_at: now.toISOString()
         })
