@@ -984,22 +984,9 @@ class ReferralEarningsService {
         throw new Error('PAYMENTS_FETCH_ERROR');
       }
 
-      // 6. 각 결제에 대한 커미션 정보 조회
-      // NOTE: reservation_id 컬럼이 없어서 개별 결제와 커미션 매칭 불가
-      // 대신 친구의 총 커미션을 균등 분배하여 표시
-      const { data: allFriendCommissions } = await this.supabase
-        .from('point_transactions')
-        .select('*')
-        .eq('user_id', currentUserId)
-        .eq('referred_user_id', friendId)
-        .eq('transaction_type', 'earned_referral')
-        .order('created_at', { ascending: false });
-
-      const totalCommissionAmount = allFriendCommissions?.reduce((sum, c) => sum + c.amount, 0) || 0;
-      const commissionPerPayment = totalPayments > 0 ? Math.floor(totalCommissionAmount / totalPayments) : 0;
-
+      // 6. 각 결제에 대한 커미션 정보 조회 (payment_id로 정확히 매칭)
       const paymentHistories = await Promise.all(
-        (payments || []).map(async (payment: any, index: number) => {
+        (payments || []).map(async (payment: any) => {
           // 서비스명 조회 (reservation_services 테이블)
           const { data: reservationServices } = await this.supabase
             .from('reservation_services')
@@ -1028,8 +1015,39 @@ class ReferralEarningsService {
           const commissionType: 'first_booking' | 'repeat_booking' = isFirstPayment ? 'first_booking' : 'repeat_booking';
           const commissionRate = isFirstPayment ? 10 : 5;
 
-          // 해당 인덱스의 커미션 정보 (시간순으로 매칭)
-          const commission = allFriendCommissions?.[index];
+          // 이 결제에 대한 커미션을 payment_id로 정확히 조회 (BUG FIX)
+          const { data: commission } = await this.supabase
+            .from('point_transactions')
+            .select('*')
+            .eq('user_id', currentUserId)
+            .eq('related_user_id', friendId)
+            .eq('payment_id', payment.id)
+            .eq('transaction_type', 'earned_referral')
+            .maybeSingle();
+
+          // Fallback: payment_id가 없는 구 데이터는 reservation_id + 시간 범위로 매칭
+          let finalCommission = commission;
+          if (!finalCommission && payment.paid_at) {
+            const paymentTime = new Date(payment.paid_at);
+            const tenMinutesAgo = new Date(paymentTime.getTime() - 10 * 60 * 1000).toISOString();
+            const tenMinutesLater = new Date(paymentTime.getTime() + 10 * 60 * 1000).toISOString();
+
+            const { data: fallbackCommission } = await this.supabase
+              .from('point_transactions')
+              .select('*')
+              .eq('user_id', currentUserId)
+              .eq('related_user_id', friendId)
+              .eq('reservation_id', payment.reservation_id)
+              .eq('transaction_type', 'earned_referral')
+              .is('payment_id', null)
+              .gte('created_at', tenMinutesAgo)
+              .lte('created_at', tenMinutesLater)
+              .order('created_at', { ascending: true })
+              .limit(1)
+              .maybeSingle();
+
+            finalCommission = fallbackCommission || null;
+          }
 
           return {
             id: payment.id,
@@ -1044,12 +1062,12 @@ class ReferralEarningsService {
               status: 'completed' as const
             },
             commission: {
-              amount: commission?.amount || commissionPerPayment,
+              amount: finalCommission?.amount || 0,
               rate: commissionRate,
               type: commissionType,
-              status: commission?.status || 'available',
-              creditedAt: commission?.created_at,
-              availableAt: commission?.available_from
+              status: finalCommission?.status || 'pending',
+              creditedAt: finalCommission?.created_at,
+              availableAt: finalCommission?.available_from
             }
           };
         })

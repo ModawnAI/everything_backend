@@ -557,19 +557,26 @@ export class EnhancedReferralService {
 
   /**
    * Process referral reward payout with enhanced calculation
+   * @param referrerId - User who made the referral
+   * @param referredId - User who was referred
+   * @param originalPaymentAmount - Amount of the payment
+   * @param reservationId - Associated reservation ID
+   * @param paymentId - Payment that triggered the commission (NEW - fixes points mismatch bug)
    */
   async processReferralReward(
     referrerId: string,
     referredId: string,
     originalPaymentAmount: number,
-    reservationId?: string
+    reservationId?: string,
+    paymentId?: string
   ): Promise<void> {
     try {
       logger.info('Processing referral reward', {
         referrerId,
         referredId,
         originalPaymentAmount,
-        reservationId
+        reservationId,
+        paymentId
       });
 
       // Validate referral chain
@@ -585,13 +592,18 @@ export class EnhancedReferralService {
         originalPaymentAmount
       );
 
-      // Award points to referrer
+      // Award points to referrer with payment tracking
       await pointService.addPoints(
         referrerId,
         rewardCalculation.referralRewardAmount,
         'earned',
         'referral',
-        `추천 보상: ${rewardCalculation.referralRewardAmount}포인트`
+        `추천 보상: ${rewardCalculation.referralRewardAmount}포인트`,
+        {
+          reservationId,
+          paymentId,
+          relatedUserId: referredId
+        }
       );
 
       // Get the referred user's nickname for notification

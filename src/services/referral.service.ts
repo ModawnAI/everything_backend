@@ -844,18 +844,21 @@ class ReferralServiceImpl {
 
   /**
    * Process referral reward payout with enhanced calculation
+   * @param paymentId - Payment ID (optional) for accurate commission tracking
    */
   async processReferralReward(
     referrerId: string,
     referredId: string,
     originalPaymentAmount: number,
-    reservationId?: string
+    reservationId?: string,
+    paymentId?: string
   ) {
     return await enhancedReferralService.processReferralReward(
       referrerId,
       referredId,
       originalPaymentAmount,
-      reservationId
+      reservationId,
+      paymentId
     );
   }
 

@@ -140,12 +140,14 @@ export class PaymentConfirmationService {
         referralRewardProcessed = await this.processReferralRewardIfApplicable(
           request.userId,
           request.amount,
-          paymentRecord.reservation_id
+          paymentRecord.reservation_id,
+          paymentRecord.id  // Pass payment ID for accurate commission tracking
         );
       } catch (error) {
         logger.error('Failed to process referral reward', {
           userId: request.userId,
           amount: request.amount,
+          paymentId: paymentRecord.id,
           error: error instanceof Error ? error.message : 'Unknown error'
         });
         // Don't fail the payment confirmation if referral reward processing fails
@@ -716,17 +718,23 @@ ${paymentType}: ${paymentRecord.amount.toLocaleString()}원
   /**
    * Process referral reward if user was referred by someone
    * Returns true if referral reward was processed, false if not applicable
+   * @param userId - User who made the payment
+   * @param paymentAmount - Amount of the payment
+   * @param reservationId - Associated reservation ID
+   * @param paymentId - Payment ID (NEW - fixes points mismatch bug)
    */
   private async processReferralRewardIfApplicable(
     userId: string,
     paymentAmount: number,
-    reservationId: string
+    reservationId: string,
+    paymentId?: string
   ): Promise<boolean> {
     try {
       logger.info('Checking if user has referrer for reward processing', {
         userId,
         paymentAmount,
-        reservationId
+        reservationId,
+        paymentId
       });
 
       // Step 1: Get user's referred_by_code
@@ -761,25 +769,28 @@ ${paymentType}: ${paymentRecord.amount.toLocaleString()}원
         return false;
       }
 
-      // Step 3: Process referral reward
+      // Step 3: Process referral reward with payment ID
       logger.info('Processing referral reward', {
         referrerId: referrer.id,
         referredUserId: userId,
         paymentAmount,
-        reservationId
+        reservationId,
+        paymentId
       });
 
       await referralService.processReferralReward(
         referrer.id,
         userId,
         paymentAmount,
-        reservationId
+        reservationId,
+        paymentId
       );
 
       logger.info('Referral reward processed successfully', {
         referrerId: referrer.id,
         referredUserId: userId,
-        paymentAmount
+        paymentAmount,
+        paymentId
       });
 
       return true;

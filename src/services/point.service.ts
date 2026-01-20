@@ -49,13 +49,24 @@ export class PointService {
 
   /**
    * Add points to user account
+   * @param userId - User receiving the points
+   * @param amount - Point amount
+   * @param type - Legacy point type
+   * @param source - Legacy point source
+   * @param description - Transaction description
+   * @param options - Optional parameters (reservationId, paymentId, relatedUserId)
    */
   async addPoints(
     userId: string,
     amount: number,
     type: LegacyPointType,
     source: LegacyPointSource,
-    description: string
+    description: string,
+    options?: {
+      reservationId?: string;
+      paymentId?: string;
+      relatedUserId?: string;
+    }
   ): Promise<PointTransaction> {
     try {
       // Map legacy type+source to new transaction_type
@@ -77,6 +88,9 @@ export class PointService {
           status: 'available', // Set status to 'available' so it counts in balance
           available_from: availableFrom.toISOString(),
           expires_at: expiresAt.toISOString(),
+          reservation_id: options?.reservationId,
+          payment_id: options?.paymentId,
+          related_user_id: options?.relatedUserId,
           created_at: now.toISOString(),
           updated_at: now.toISOString()
         })
