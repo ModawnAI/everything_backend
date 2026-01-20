@@ -89,7 +89,7 @@ export class PointService {
           available_from: availableFrom.toISOString(),
           expires_at: expiresAt.toISOString(),
           payment_id: options?.paymentId,
-          referred_user_id: options?.relatedUserId,  // ✅ 수정: related_user_id → referred_user_id
+          related_user_id: options?.relatedUserId,  // ✅ Fixed: Use related_user_id instead of referred_user_id
           created_at: now.toISOString(),
           updated_at: now.toISOString()
         })
