@@ -72,6 +72,7 @@ export interface ReferralHistoryItem {
   };
   status: ReferralStatus;
   bonusAmount: number;
+  totalEarnings: number; // 추가: 친구로부터 받은 총 적립 포인트
   bonusType: BonusType;
   bonusPaid: boolean;
   bonusPaidAt?: string;

@@ -498,8 +498,37 @@ class ReferralServiceImpl {
         });
       }
 
+      // Fetch total earnings for each friend from point_transactions
+      const earningsMap = new Map<string, number>();
+
+      if (referredUserIds.length > 0) {
+        const earningsQueryPromise = this.supabase
+          .from('point_transactions')
+          .select('referred_user_id, amount')
+          .eq('user_id', userId)
+          .in('referred_user_id', referredUserIds)
+          .eq('transaction_type', 'earned_referral');
+
+        const earningsTimeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Earnings query timeout')), 5000)
+        );
+
+        const { data: earnings } = await Promise.race([
+          earningsQueryPromise,
+          earningsTimeoutPromise
+        ]) as any;
+
+        // Calculate total earnings per friend
+        earnings?.forEach((e: any) => {
+          const currentTotal = earningsMap.get(e.referred_user_id) || 0;
+          earningsMap.set(e.referred_user_id, currentTotal + e.amount);
+        });
+      }
+
       const referralHistory: ReferralHistoryItem[] = (referrals || []).map(ref => {
         const user = usersMap.get(ref.referred_id);
+        const totalEarnings = earningsMap.get(ref.referred_id) || 0;
+
         return {
           id: ref.id,
           referredUser: {
@@ -511,6 +540,7 @@ class ReferralServiceImpl {
           },
           status: ref.status,
           bonusAmount: ref.bonus_amount,
+          totalEarnings, // 추가: 친구로부터 받은 총 적립 포인트
           bonusType: 'points', // Default to points (only type currently supported)
           bonusPaid: ref.bonus_paid,
           bonusPaidAt: ref.bonus_paid ? ref.updated_at : null,
