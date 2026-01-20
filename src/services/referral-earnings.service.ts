@@ -888,17 +888,28 @@ class ReferralEarningsService {
 
       // 1. 권한 검증: currentUserId가 friendId를 추천했는지 확인
       const { data: referral, error: referralError } = await this.supabase
-        .from('referrals')
+        .from('referral_relationships')
         .select('*')
         .eq('referrer_id', currentUserId)
         .eq('referred_id', friendId)
+        .eq('status', 'active')
         .single();
 
-      if (referralError || !referral) {
-        logger.warn('Referral relationship not found', {
+      // PGRST116 = "no rows returned" 에러 코드
+      if (referralError && referralError.code !== 'PGRST116') {
+        logger.error('Error checking referral relationship', {
           currentUserId,
           friendId,
-          error: referralError?.message
+          errorMessage: referralError.message,
+          errorCode: referralError.code
+        });
+        throw new Error('DATABASE_ERROR');
+      }
+
+      if (!referral) {
+        logger.warn('Referral relationship not found', {
+          currentUserId,
+          friendId
         });
         throw new Error('ACCESS_DENIED');
       }
