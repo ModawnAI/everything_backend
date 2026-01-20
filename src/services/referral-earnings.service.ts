@@ -962,7 +962,13 @@ class ReferralEarningsService {
         .range(offset, offset + limit - 1);
 
       if (paymentsError) {
-        logger.error('Failed to fetch payments', { error: paymentsError, friendId });
+        logger.error('Failed to fetch payments', {
+          errorMessage: paymentsError.message,
+          errorCode: paymentsError.code,
+          errorDetails: paymentsError.details,
+          errorHint: paymentsError.hint,
+          friendId
+        });
         throw new Error('PAYMENTS_FETCH_ERROR');
       }
 
