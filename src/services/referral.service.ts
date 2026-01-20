@@ -463,6 +463,14 @@ class ReferralServiceImpl {
       logger.debug('[getReferralHistory] Referrals query completed', { userId, count: referrals?.length });
 
       if (referralsError) {
+        logger.error('[getReferralHistory] Supabase query error', {
+          userId,
+          error: referralsError,
+          errorMessage: referralsError.message,
+          errorDetails: referralsError.details,
+          errorHint: referralsError.hint,
+          errorCode: referralsError.code
+        });
         throw new ReferralError(
           '추천 기록 조회에 실패했습니다.',
           'REFERRAL_HISTORY_ERROR',
