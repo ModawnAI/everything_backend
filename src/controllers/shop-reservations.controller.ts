@@ -416,6 +416,77 @@ export class ShopReservationsController {
           });
           // Don't fail the status update if point awarding fails
         }
+
+        // Process referral reward if user was referred by someone
+        try {
+          const supabase = getSupabaseClient();
+
+          logger.info('Checking if user has referrer for reward processing', {
+            userId: updatedReservation.user_id,
+            reservationId,
+            totalAmount: updatedReservation.total_amount
+          });
+
+          // Get user's referred_by_code
+          const { data: user, error: userError } = await supabase
+            .from('users')
+            .select('referred_by_code')
+            .eq('id', updatedReservation.user_id)
+            .single();
+
+          if (userError || !user || !user.referred_by_code) {
+            logger.info('User has no referrer, skipping referral reward', {
+              userId: updatedReservation.user_id,
+              hasReferredByCode: !!user?.referred_by_code
+            });
+          } else {
+            // Find referrer by referral code
+            const { data: referrer, error: referrerError } = await supabase
+              .from('users')
+              .select('id, nickname, name')
+              .eq('referral_code', user.referred_by_code)
+              .eq('user_status', 'active')
+              .single();
+
+            if (referrerError || !referrer) {
+              logger.warn('Referrer not found or inactive', {
+                userId: updatedReservation.user_id,
+                referralCode: user.referred_by_code,
+                error: referrerError?.message
+              });
+            } else {
+              // Process referral reward
+              logger.info('Processing referral reward for completed reservation', {
+                referrerId: referrer.id,
+                referredUserId: updatedReservation.user_id,
+                reservationId,
+                totalAmount: updatedReservation.total_amount
+              });
+
+              const { referralService } = await import('../services/referral.service');
+              await referralService.processReferralReward(
+                referrer.id,
+                updatedReservation.user_id,
+                updatedReservation.total_amount,
+                reservationId
+              );
+
+              logger.info('Referral reward processed successfully for completed reservation', {
+                referrerId: referrer.id,
+                referredUserId: updatedReservation.user_id,
+                reservationId
+              });
+            }
+          }
+        } catch (error) {
+          logger.error('Failed to process referral reward for completed reservation', {
+            reservationId,
+            userId: updatedReservation.user_id,
+            error: error instanceof Error ? error.message : 'Unknown error',
+            stack: error instanceof Error ? error.stack : undefined
+          });
+          // Don't fail the status update if referral reward processing fails
+        }
       }
 
       // Send customer notification (async, don't wait for completion)

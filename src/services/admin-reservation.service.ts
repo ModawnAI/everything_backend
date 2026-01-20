@@ -1212,6 +1212,77 @@ export class AdminReservationService {
           totalAmount: reservation.total_amount
         });
       }
+
+      // Process referral reward if user was referred by someone
+      try {
+        const supabase = getSupabaseClient();
+
+        logger.info('Checking if user has referrer for reward processing', {
+          userId: reservation.user_id,
+          reservationId,
+          totalAmount: reservation.total_amount
+        });
+
+        // Get user's referred_by_code
+        const { data: user, error: userError } = await supabase
+          .from('users')
+          .select('referred_by_code')
+          .eq('id', reservation.user_id)
+          .single();
+
+        if (userError || !user || !user.referred_by_code) {
+          logger.info('User has no referrer, skipping referral reward', {
+            userId: reservation.user_id,
+            hasReferredByCode: !!user?.referred_by_code
+          });
+        } else {
+          // Find referrer by referral code
+          const { data: referrer, error: referrerError } = await supabase
+            .from('users')
+            .select('id, nickname, name')
+            .eq('referral_code', user.referred_by_code)
+            .eq('user_status', 'active')
+            .single();
+
+          if (referrerError || !referrer) {
+            logger.warn('Referrer not found or inactive', {
+              userId: reservation.user_id,
+              referralCode: user.referred_by_code,
+              error: referrerError?.message
+            });
+          } else {
+            // Process referral reward
+            logger.info('Processing referral reward for completed reservation', {
+              referrerId: referrer.id,
+              referredUserId: reservation.user_id,
+              reservationId,
+              totalAmount: reservation.total_amount
+            });
+
+            const { referralService } = await import('./referral.service');
+            await referralService.processReferralReward(
+              referrer.id,
+              reservation.user_id,
+              reservation.total_amount,
+              reservationId
+            );
+
+            logger.info('Referral reward processed successfully for completed reservation', {
+              referrerId: referrer.id,
+              referredUserId: reservation.user_id,
+              reservationId
+            });
+          }
+        }
+      } catch (referralError) {
+        logger.error('Failed to process referral reward for completed reservation', {
+          reservationId,
+          userId: reservation.user_id,
+          error: referralError instanceof Error ? referralError.message : 'Unknown error',
+          stack: referralError instanceof Error ? referralError.stack : undefined
+        });
+        // Don't fail the completion if referral reward processing fails
+      }
     } catch (error) {
       logger.error('Failed to process completion actions', {
         reservationId,
