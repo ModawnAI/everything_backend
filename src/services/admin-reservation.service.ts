@@ -1,6 +1,7 @@
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { ReservationStatus } from '../types/database.types';
+import { POINT_POLICY_V32 } from '../constants/point-policies';
 
 export interface ReservationFilters {
   status?: ReservationStatus;
@@ -1188,13 +1189,13 @@ export class AdminReservationService {
         }
       }
 
-      // Award points to user (1% of total amount, excluding points used)
+      // Award points to user (5% of total amount, excluding points used)
       const { PointService } = await import('./point.service');
       const pointService = new PointService();
 
-      // Calculate points to award: 1% of payment amount (not including points used)
+      // Calculate points to award: 5% of payment amount (not including points used)
       const paymentAmount = reservation.total_amount - (reservation.points_used || 0);
-      const pointsToAward = Math.floor(paymentAmount * 0.01); // 1% reward
+      const pointsToAward = Math.floor(paymentAmount * POINT_POLICY_V32.EARNING_RATE); // 5% reward (from policy)
 
       if (pointsToAward > 0) {
         await pointService.addPoints(

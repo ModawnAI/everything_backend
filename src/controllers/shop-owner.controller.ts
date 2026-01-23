@@ -12,6 +12,7 @@ import { Request, Response } from 'express';
 import { getSupabaseClient } from '../config/database';
 import { logger } from '../utils/logger';
 import { ReservationStatus, PaymentStatus } from '../types/database.types';
+import { POINT_POLICY_V32 } from '../constants/point-policies';
 // PDF service is dynamically imported to avoid startup errors
 import type { ShopAnalyticsReportData } from '../services/pdf-report.service';
 
@@ -748,7 +749,7 @@ export class ShopOwnerController {
 
           // Get reservation details for point calculation
           const paymentAmount = updatedReservation.total_amount - (updatedReservation.points_used || 0);
-          const pointsToAward = Math.floor(paymentAmount * 0.01); // 1% reward
+          const pointsToAward = Math.floor(paymentAmount * POINT_POLICY_V32.EARNING_RATE); // 5% reward (from policy)
 
           logger.info('[POINT-DEBUG] Checking point award conditions', {
             reservationId,

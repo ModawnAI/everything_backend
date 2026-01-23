@@ -15,6 +15,7 @@ import { ShopAccessRequest } from '../middleware/shop-access.middleware';
 import { reservationService } from '../services/reservation.service';
 import { logger } from '../utils/logger';
 import { getSupabaseClient } from '../config/database';
+import { POINT_POLICY_V32 } from '../constants/point-policies';
 
 export class ShopReservationsController {
   /**
@@ -382,7 +383,7 @@ export class ShopReservationsController {
 
           // Get reservation details for point calculation
           const paymentAmount = updatedReservation.total_amount - (updatedReservation.points_used || 0);
-          const pointsToAward = Math.floor(paymentAmount * 0.01); // 1% reward
+          const pointsToAward = Math.floor(paymentAmount * POINT_POLICY_V32.EARNING_RATE); // 5% reward (from policy)
 
           logger.info('[POINT-DEBUG] Checking point award conditions', {
             reservationId,
