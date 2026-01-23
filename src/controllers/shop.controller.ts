@@ -692,7 +692,7 @@ export class ShopController {
             .order('is_primary', { ascending: false })
             .order('display_order', { ascending: true });
 
-          console.log('[DEBUG] Fetched shop images for popular shops:', {
+          logger.debug('[DEBUG] Fetched shop images for popular shops', {
             shopIdsCount: shopIds.length,
             shopIds: shopIds.slice(0, 3),
             imagesCount: allShopImages?.length || 0,
@@ -707,7 +707,7 @@ export class ShopController {
               }
               shopImagesMap.get(image.shop_id)!.push(image);
             });
-            console.log('[DEBUG] Shop images map size:', shopImagesMap.size);
+            logger.debug('[DEBUG] Shop images map size', { size: shopImagesMap.size });
           }
         } catch (error) {
           logger.error('Failed to fetch shop images for popular shops', {

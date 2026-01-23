@@ -44,16 +44,16 @@ export class BookingValidationMiddleware {
         customerNotes: req.body.customerNotes
       };
 
-      console.log('🔍 [BOOKING-VALIDATION] Mapped booking request:', JSON.stringify(bookingRequest, null, 2));
+      logger.debug('[BOOKING-VALIDATION] Mapped booking request', { bookingRequest });
 
       // Perform comprehensive validation
       const validationResult = await this.validationService.validateBookingRequest(bookingRequest);
 
-      console.log('🔍 [BOOKING-VALIDATION] Validation result:', JSON.stringify({
+      logger.debug('[BOOKING-VALIDATION] Validation result', {
         isValid: validationResult.isValid,
         errors: validationResult.errors,
         warnings: validationResult.warnings
-      }, null, 2));
+      });
 
       // Store validation result in request for controller access
       req.validatedBooking = bookingRequest;

@@ -31,7 +31,7 @@ export class ShopOwnerReviewController {
   async getReviews(req: ShopOwnerRequest, res: Response): Promise<void> {
     try {
       const shopId = req.shop?.id;
-      console.log('🔍 [REVIEWS] getReviews called', { shopId, query: req.query });
+      logger.debug('[REVIEWS] getReviews called', { shopId, query: req.query });
 
       if (!shopId) {
         res.status(404).json({
@@ -46,7 +46,7 @@ export class ShopOwnerReviewController {
 
       const { page, limit, status, sortBy } = req.query;
 
-      console.log('🔍 [REVIEWS] Calling service', { shopId, status, page, limit, sortBy });
+      logger.debug('[REVIEWS] Calling service', { shopId, status, page, limit, sortBy });
 
       const result = await shopOwnerReviewService.getShopReviews(shopId, {
         page: page ? parseInt(page as string) : undefined,
@@ -55,14 +55,14 @@ export class ShopOwnerReviewController {
         sortBy: sortBy as 'newest' | 'oldest' | 'rating_high' | 'rating_low' | undefined,
       });
 
-      console.log('🔍 [REVIEWS] Service result', { reviewCount: result.reviews?.length, total: result.total });
+      logger.debug('[REVIEWS] Service result', { reviewCount: result.reviews?.length, total: result.total });
 
       res.status(200).json({
         success: true,
         data: result
       });
     } catch (error) {
-      console.error('❌ [REVIEWS] Error in getReviews', {
+      logger.error('[REVIEWS] Error in getReviews', {
         error: error instanceof Error ? error.message : 'Unknown error',
         stack: error instanceof Error ? error.stack : undefined
       });

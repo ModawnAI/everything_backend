@@ -146,7 +146,7 @@ export function requireShopOwnership() {
       const supabase = getSupabaseClient();
       const isAdmin = req.user.role === 'admin';
 
-      console.log('🔍 [SHOP-MIDDLEWARE-DEBUG] requireShopOwnership called', {
+      logger.debug('[SHOP-MIDDLEWARE] requireShopOwnership called', {
         userId: req.user.id,
         userRole: req.user.role,
         isAdmin,
@@ -187,7 +187,7 @@ export function requireShopOwnership() {
 
       const { data: shop, error } = await query.single();
 
-      console.log('🔍 [SHOP-MIDDLEWARE-DEBUG] Query result', {
+      logger.debug('[SHOP-MIDDLEWARE] Query result', {
         hasShop: !!shop,
         hasError: !!error,
         error: error?.message,

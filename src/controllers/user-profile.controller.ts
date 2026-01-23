@@ -112,7 +112,7 @@ export class UserProfileController {
         ...(profileData.shop_name && { shopName: profileData.shop_name })
       };
 
-      console.log('[DEBUG] /api/users/me response:', {
+      logger.debug('[DEBUG] /api/users/me response', {
         userId,
         phone_verified_db: profile.phone_verified,
         phoneVerified_response: transformedProfile.phoneVerified

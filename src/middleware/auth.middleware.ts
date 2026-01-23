@@ -1120,7 +1120,7 @@ export function authenticateJWT() {
     const DEBUG_AUTH = process.env.DEBUG_AUTH === 'true';
 
     if (DEBUG_AUTH) {
-      console.log('[AUTH] Request:', req.method, req.originalUrl);
+      logger.debug('[AUTH] Request', { method: req.method, url: req.originalUrl });
     }
 
     // Global timeout for entire authentication process (configurable, default: 5 seconds)

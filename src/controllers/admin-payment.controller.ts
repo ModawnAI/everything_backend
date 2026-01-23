@@ -25,7 +25,7 @@ export class AdminPaymentController {
       }
 
       // Extract query parameters for filtering
-      console.log('[AdminPaymentController] Raw query params:', {
+      logger.debug('[AdminPaymentController] Raw query params', {
         sortBy: req.query.sortBy,
         sortOrder: req.query.sortOrder,
         fullQuery: req.query
@@ -48,7 +48,7 @@ export class AdminPaymentController {
         limit: req.query.limit ? Number(req.query.limit) : 20
       } as PaymentFilters;
 
-      console.log('[AdminPaymentController] Parsed filters:', filters);
+      logger.debug('[AdminPaymentController] Parsed filters', { filters });
 
       const result = await this.adminPaymentService.getPayments(filters, adminId);
 

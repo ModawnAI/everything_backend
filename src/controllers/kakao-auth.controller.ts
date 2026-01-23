@@ -139,9 +139,9 @@ class KakaoAuthController {
       }
 
       // Authenticate with Kakao
-      console.log('[KAKAO] Step 1: Starting authentication');
+      logger.debug('[KAKAO] Step 1: Starting authentication');
       const { user, isNewUser, kakaoUserId } = await kakaoAuthService.authenticateWithKakao(accessToken);
-      console.log('[KAKAO] Step 2: User authenticated', user.id, isNewUser);
+      logger.debug('[KAKAO] Step 2: User authenticated', { userId: user.id, isNewUser });
 
       // Check if user is active
       if (user.user_status !== 'active') {
@@ -156,9 +156,9 @@ class KakaoAuthController {
       }
 
       // Generate JWT tokens
-      console.log('[KAKAO] Step 3: Generating JWT tokens for', user.id);
+      logger.debug('[KAKAO] Step 3: Generating JWT tokens', { userId: user.id });
       const tokens = await refreshTokenService.generateTokenPair(user.id);
-      console.log('[KAKAO] Step 4: JWT tokens generated');
+      logger.debug('[KAKAO] Step 4: JWT tokens generated');
 
       // Update FCM token if provided
       if (fcmToken) {

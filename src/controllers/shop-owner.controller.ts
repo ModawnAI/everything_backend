@@ -170,8 +170,8 @@ export class ShopOwnerController {
         logger.error('Failed to get recent reservations', { error: recentError.message });
       }
 
-      // Debug: Always log reservation query results (using console.log for immediate visibility)
-      console.log('📊 [DEBUG] Dashboard reservation query:', {
+      // Debug: Log reservation query results
+      logger.debug('[Dashboard] Reservation query result', {
         shopIds,
         reservationCount: recentReservations?.length || 0,
         error: recentError?.message || null
@@ -180,7 +180,7 @@ export class ShopOwnerController {
       // Debug: Log sample reservation data to check field availability
       if (recentReservations && recentReservations.length > 0) {
         const sample = recentReservations[0];
-        console.log('📊 [DEBUG] Sample reservation:', JSON.stringify({
+        logger.debug('[Dashboard] Sample reservation', {
           id: sample.id,
           reservation_date: sample.reservation_date,
           reservation_time: sample.reservation_time,
@@ -188,7 +188,7 @@ export class ShopOwnerController {
           status: sample.status,
           users: sample.users,
           reservation_services: sample.reservation_services
-        }, null, 2));
+        });
       }
 
       // Calculate metrics
@@ -557,8 +557,8 @@ export class ShopOwnerController {
         limit: limitNum
       });
 
-      // 🔍 DEBUG: Log the response data
-      console.log('🔍 [RESERVATIONS-RESPONSE] Sending response:', {
+      // Debug: Log the response data
+      logger.debug('[Reservations] Sending response', {
         itemsCount: formattedReservations.length,
         total: count,
         firstItem: formattedReservations[0] ? {
