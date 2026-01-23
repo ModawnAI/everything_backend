@@ -80,7 +80,8 @@ export type PointTransactionType =
   | 'used_service'
   | 'expired'
   | 'adjusted'
-  | 'influencer_bonus';
+  | 'influencer_bonus'
+  | 'signup_bonus';
 
 export type PointStatus = 'pending' | 'available' | 'used' | 'expired';
 
