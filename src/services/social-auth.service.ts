@@ -19,6 +19,7 @@ import {
   UserProviderLink
 } from '../types/social-auth.types';
 import { config } from '../config/environment';
+import { POINT_POLICY_V32 } from '../constants/point-policies';
 
 /**
  * Supabase Auth Social Authentication Service Implementation
@@ -365,6 +366,31 @@ class SupabaseSocialAuthService implements SocialAuthService {
 
       // Create provider link with compliance metadata
       await this.createProviderLinkWithCompliance(supabaseUser.id, provider, supabaseUser.id, supabaseUser);
+
+      // Award first-time signup bonus points
+      try {
+        const { PointService } = await import('./point.service');
+        const pointService = new PointService();
+
+        await pointService.addPoints(
+          createdUser.id,
+          POINT_POLICY_V32.FIRST_TIME_USER_BONUS,
+          'earned',
+          'first_time_bonus',
+          '신규 가입 축하 포인트'
+        );
+
+        logger.info('First-time signup bonus awarded', {
+          userId: createdUser.id,
+          points: POINT_POLICY_V32.FIRST_TIME_USER_BONUS
+        });
+      } catch (pointError) {
+        // Don't fail signup if point awarding fails
+        logger.error('Failed to award first-time signup bonus', {
+          userId: createdUser.id,
+          error: pointError instanceof Error ? pointError.message : 'Unknown error'
+        });
+      }
 
       logger.info('New user profile created successfully', { userId: createdUser.id });
       return createdUser;
