@@ -1323,7 +1323,15 @@ export class FeedService {
         });
 
       if (error) {
-        logger.error('Error creating report', { error });
+        logger.error('Error creating report', {
+          errorCode: error.code,
+          errorMessage: error.message,
+          errorDetails: error.details,
+          errorHint: error.hint,
+          postId,
+          userId,
+          reason: reportData.reason
+        });
         return { success: false, error: 'Failed to submit report' };
       }
 
