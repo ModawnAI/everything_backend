@@ -1269,7 +1269,7 @@ export class FeedService {
     try {
       // Check if post exists
       const { data: post, error: postError } = await this.supabase
-        .from('posts')
+        .from('feed_posts')
         .select('id, author_id, content')
         .eq('id', postId)
         .single();
