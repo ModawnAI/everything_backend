@@ -224,7 +224,7 @@ class UserBlockingServiceImpl {
           id,
           name,
           nickname,
-          profile_image
+          profile_image_url
         )
       `)
       .eq('blocker_id', userId)
@@ -255,7 +255,7 @@ class UserBlockingServiceImpl {
           id: block.blocked_user.id,
           name: block.blocked_user.name,
           nickname: block.blocked_user.nickname,
-          profileImage: block.blocked_user.profile_image,
+          profileImage: block.blocked_user.profile_image_url,
         } : undefined,
       })),
       total: count || 0,
