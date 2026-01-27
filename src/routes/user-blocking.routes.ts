@@ -66,7 +66,7 @@ const readLimiter = strictRateLimit(100, 15 * 60 * 1000);
  */
 router.post(
   '/block',
-  authenticateJWT,
+  authenticateJWT(),
   blockingLimiter,
   userBlockingController.blockUser.bind(userBlockingController)
 );
@@ -95,7 +95,7 @@ router.post(
  */
 router.delete(
   '/block/:userId',
-  authenticateJWT,
+  authenticateJWT(),
   blockingLimiter,
   userBlockingController.unblockUser.bind(userBlockingController)
 );
@@ -127,7 +127,7 @@ router.delete(
  */
 router.get(
   '/blocked',
-  authenticateJWT,
+  authenticateJWT(),
   readLimiter,
   userBlockingController.getBlockedUsers.bind(userBlockingController)
 );
@@ -148,7 +148,7 @@ router.get(
  */
 router.get(
   '/blocked/ids',
-  authenticateJWT,
+  authenticateJWT(),
   readLimiter,
   userBlockingController.getBlockedUserIds.bind(userBlockingController)
 );
@@ -176,7 +176,7 @@ router.get(
  */
 router.get(
   '/block/check/:userId',
-  authenticateJWT,
+  authenticateJWT(),
   readLimiter,
   userBlockingController.checkIsBlocked.bind(userBlockingController)
 );
