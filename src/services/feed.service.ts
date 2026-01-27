@@ -1267,11 +1267,12 @@ export class FeedService {
     description?: string;
   }): Promise<{ success: boolean; error?: string }> {
     try {
-      // Check if post exists
+      // Check if post exists and is active
       const { data: post, error: postError } = await this.supabase
         .from('feed_posts')
         .select('id, author_id, content')
         .eq('id', postId)
+        .eq('status', 'active')
         .single();
 
       if (postError || !post) {
