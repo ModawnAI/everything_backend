@@ -153,11 +153,9 @@ export class FeedController {
   async getFeedPosts(req: Request, res: Response): Promise<void> {
     const startTime = Date.now();
     try {
-      const userId = (req as any).user?.id;
-      if (!userId) {
-        res.status(401).json({ error: 'Authentication required' });
-        return;
-      }
+      // 🔧 iOS Guideline 5.1.1: Guest 모드 지원
+      // userId는 optional - 비로그인 사용자도 피드 조회 가능
+      const userId = (req as any).user?.id || null;
 
       // Validate query parameters
       // const { error, value } = validateFeedQuery(req.query);
