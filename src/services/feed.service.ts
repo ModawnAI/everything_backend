@@ -1275,6 +1275,13 @@ export class FeedService {
         .single();
 
       if (postError || !post) {
+        console.error('🔴 [REPORT] Error fetching post:', {
+          postId,
+          postError,
+          errorCode: postError?.code,
+          errorMessage: postError?.message,
+          errorDetails: postError?.details
+        });
         logger.error('Error fetching post for report', {
           postId,
           postError,
