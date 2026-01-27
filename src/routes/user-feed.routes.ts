@@ -30,8 +30,13 @@ import { feedUploadErrorHandler } from '../middleware/feed-upload.middleware';
 
 const router = Router();
 
-// All user feed routes require authentication
-router.use(authenticateJWT());
+// 🔧 iOS Guideline 5.1.1: Guest 모드 지원
+// 피드 조회(GET)는 인증 없이 가능, 상호작용(POST/PUT/DELETE)은 인증 필요
+
+/**
+ * PUBLIC ROUTES (No authentication required)
+ * Guest users can browse feed content
+ */
 
 /**
  * @swagger
@@ -93,6 +98,7 @@ router.use(authenticateJWT());
  *         description: Rate limit exceeded (5 posts per hour)
  */
 router.post('/posts',
+  authenticateJWT(), // 글 작성은 인증 필요
   createPostLimiter, // 5 posts per hour rate limit
   feedController.createPost.bind(feedController)
 );
@@ -160,6 +166,12 @@ router.get('/posts',
   generalFeedLimiter, // 200 requests per 15 minutes
   feedController.getFeedPosts.bind(feedController)
 );
+
+/**
+ * PROTECTED ROUTES (Authentication required)
+ * All routes below require user authentication
+ */
+router.use(authenticateJWT());
 
 /**
  * @swagger
