@@ -1267,6 +1267,18 @@ export class FeedService {
     description?: string;
   }): Promise<{ success: boolean; error?: string }> {
     try {
+      // Map frontend reason values to valid DB enum values
+      // Valid enum: 'spam', 'harassment', 'other'
+      const reasonMap: Record<string, string> = {
+        'spam': 'spam',
+        'inappropriate': 'other',      // 부적절한 콘텐츠 → other
+        'harassment': 'harassment',
+        'false_information': 'other',  // 허위 정보 → other
+        'copyright': 'other',          // 저작권 침해 → other
+        'other': 'other',
+      };
+      const mappedReason = reasonMap[reportData.reason] || 'other';
+
       // Check if post exists and is active
       const { data: post, error: postError } = await this.supabase
         .from('feed_posts')
@@ -1317,7 +1329,7 @@ export class FeedService {
         .insert({
           post_id: postId,
           reporter_id: userId,
-          reason: reportData.reason,
+          reason: mappedReason,
           description: reportData.description,
           status: 'pending'
         });
