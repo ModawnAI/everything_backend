@@ -21,6 +21,8 @@ export class UserBlockingController {
   async blockUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const blockerId = req.user?.id;
+      logger.info('[UserBlocking] blockUser called', { blockerId, body: req.body });
+
       if (!blockerId) {
         return res.status(401).json({
           success: false,
@@ -244,6 +246,8 @@ export class UserBlockingController {
   async getBlockedUserIds(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
+      logger.info('[UserBlocking] getBlockedUserIds called', { userId });
+
       if (!userId) {
         return res.status(401).json({
           success: false,
@@ -255,6 +259,7 @@ export class UserBlockingController {
       }
 
       const blockedIds = await userBlockingService.getBlockedUserIds(userId);
+      logger.info('[UserBlocking] Returning blocked IDs', { userId, count: blockedIds.length, ids: blockedIds });
 
       return res.status(200).json({
         success: true,
