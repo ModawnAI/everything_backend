@@ -4,20 +4,21 @@
  * Handles HTTP requests for user blocking functionality.
  */
 
-import { Request, Response, NextFunction } from 'express';
+import { Response, NextFunction } from 'express';
 import {
   userBlockingService,
   BlockReason,
   UserBlockingServiceError,
 } from '../services/user-blocking.service';
 import { logger } from '../utils/logger';
+import { AuthenticatedRequest } from '../types/auth.types';
 
 export class UserBlockingController {
   /**
    * Block a user
    * POST /api/users/block
    */
-  async blockUser(req: Request, res: Response, next: NextFunction) {
+  async blockUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const blockerId = req.user?.id;
       if (!blockerId) {
@@ -94,7 +95,7 @@ export class UserBlockingController {
    * Unblock a user
    * DELETE /api/users/block/:userId
    */
-  async unblockUser(req: Request, res: Response, next: NextFunction) {
+  async unblockUser(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const blockerId = req.user?.id;
       if (!blockerId) {
@@ -147,7 +148,7 @@ export class UserBlockingController {
    * Get blocked users list
    * GET /api/users/blocked
    */
-  async getBlockedUsers(req: Request, res: Response, next: NextFunction) {
+  async getBlockedUsers(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -197,7 +198,7 @@ export class UserBlockingController {
    * Check if a user is blocked
    * GET /api/users/block/check/:userId
    */
-  async checkIsBlocked(req: Request, res: Response, next: NextFunction) {
+  async checkIsBlocked(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const blockerId = req.user?.id;
       if (!blockerId) {
@@ -240,7 +241,7 @@ export class UserBlockingController {
    * Get blocked user IDs (for content filtering)
    * GET /api/users/blocked/ids
    */
-  async getBlockedUserIds(req: Request, res: Response, next: NextFunction) {
+  async getBlockedUserIds(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const userId = req.user?.id;
       if (!userId) {
@@ -273,7 +274,7 @@ export class UserBlockingController {
    * Get block notifications for admin review
    * GET /api/admin/blocks/notifications
    */
-  async getBlockNotifications(req: Request, res: Response, next: NextFunction) {
+  async getBlockNotifications(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const page = parseInt(req.query.page as string) || 1;
       const limit = parseInt(req.query.limit as string) || 20;
@@ -317,7 +318,7 @@ export class UserBlockingController {
    * Review a block notification
    * PATCH /api/admin/blocks/notifications/:id/review
    */
-  async reviewBlockNotification(req: Request, res: Response, next: NextFunction) {
+  async reviewBlockNotification(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const adminId = req.user?.id;
       if (!adminId) {
@@ -361,7 +362,7 @@ export class UserBlockingController {
    * Get block statistics for admin dashboard
    * GET /api/admin/blocks/statistics
    */
-  async getBlockStatistics(req: Request, res: Response, next: NextFunction) {
+  async getBlockStatistics(req: AuthenticatedRequest, res: Response, next: NextFunction) {
     try {
       const statistics = await userBlockingService.getBlockStatistics();
 

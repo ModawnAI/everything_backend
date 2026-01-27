@@ -7,22 +7,17 @@
 import { Router } from 'express';
 import { userBlockingController } from '../controllers/user-blocking.controller';
 import { authenticateJWT } from '../middleware/auth.middleware';
-import { createRateLimiter } from '../middleware/rate-limit.middleware';
+import { strictRateLimit } from '../middleware/rate-limit.middleware';
 
 const router = Router();
 
 // Rate limiter for blocking operations (more restrictive)
-const blockingLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 30, // 30 requests per 15 minutes
-  message: '너무 많은 요청입니다. 잠시 후 다시 시도해주세요.',
-});
+// 30 requests per 15 minutes
+const blockingLimiter = strictRateLimit(30, 15 * 60 * 1000);
 
 // General limiter for read operations
-const readLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per 15 minutes
-});
+// 100 requests per 15 minutes
+const readLimiter = strictRateLimit(100, 15 * 60 * 1000);
 
 /**
  * @swagger

@@ -7,16 +7,14 @@
 import { Router } from 'express';
 import { userBlockingController } from '../../controllers/user-blocking.controller';
 import { authenticateJWT } from '../../middleware/auth.middleware';
-import { requireRole } from '../../middleware/rbac.middleware';
-import { createRateLimiter } from '../../middleware/rate-limit.middleware';
+import { requireAdmin } from '../../middleware/rbac.middleware';
+import { strictRateLimit } from '../../middleware/rate-limit.middleware';
 
 const router = Router();
 
 // Rate limiter for admin operations
-const adminLimiter = createRateLimiter({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // 100 requests per 15 minutes
-});
+// 100 requests per 15 minutes
+const adminLimiter = strictRateLimit(100, 15 * 60 * 1000);
 
 /**
  * @swagger
@@ -60,7 +58,7 @@ const adminLimiter = createRateLimiter({
 router.get(
   '/notifications',
   authenticateJWT,
-  requireRole(['admin', 'super_admin']),
+  requireAdmin(),
   adminLimiter,
   userBlockingController.getBlockNotifications.bind(userBlockingController)
 );
@@ -100,7 +98,7 @@ router.get(
 router.patch(
   '/notifications/:id/review',
   authenticateJWT,
-  requireRole(['admin', 'super_admin']),
+  requireAdmin(),
   adminLimiter,
   userBlockingController.reviewBlockNotification.bind(userBlockingController)
 );
@@ -124,7 +122,7 @@ router.patch(
 router.get(
   '/statistics',
   authenticateJWT,
-  requireRole(['admin', 'super_admin']),
+  requireAdmin(),
   adminLimiter,
   userBlockingController.getBlockStatistics.bind(userBlockingController)
 );
