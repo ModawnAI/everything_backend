@@ -126,6 +126,8 @@ import shopOwnerNotificationRoutes from './routes/shop-owner-notification.routes
 import shopStaffRoutes, { staffAssignmentRouter } from './routes/shop-staff.routes';
 import staffScheduleRoutes from './routes/staff-schedule.routes';
 import { couponUserRoutes, couponAdminRoutes, couponShopOwnerRoutes } from './routes/coupon.routes';
+import userBlockingRoutes from './routes/user-blocking.routes';
+import adminUserBlockingRoutes from './routes/admin/user-blocking.routes';
 
 // Import services
 import { initializeWebSocketService } from './services/websocket.service';
@@ -387,6 +389,7 @@ app.use('/api/v2/auth', unifiedAuthRoutes);
 app.use('/api/auth', authRoutes);
 app.use('/api/registration', registrationRoutes);
 app.use('/api/users', userProfileRoutes);
+app.use('/api/users', userBlockingRoutes);
 
 // IMPORTANT: More specific routes MUST come BEFORE general routes
 // Place /api/admin/* specific routes before /api/admin
@@ -420,6 +423,7 @@ app.use('/api/admin/shops', adminShopRoutes); // Includes /:shopId/services sub-
 app.use('/api/admin/shop', adminShopRoutes);
 app.use('/api/admin/reservations', adminReservationRoutes);
 app.use('/api/admin/users', adminUserManagementRoutes);
+app.use('/api/admin/blocks', adminUserBlockingRoutes);
 app.use('/api/admin/services', adminServiceDetailsRoutes);
 app.use('/api/admin', userStatusRoutes);
 app.use('/api/shop-owner', shopOwnerRoutes);

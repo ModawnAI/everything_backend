@@ -31,7 +31,7 @@ import {
   getPersonalizedWeights,
   updatePersonalizedWeights
 } from '../controllers/feed-ranking.controller';
-import { authenticateJWT } from '../middleware/auth.middleware';
+import { authenticateJWT, optionalAuth } from '../middleware/auth.middleware';
 import { rateLimit } from '../middleware/rate-limit.middleware';
 import { validateRequestBody } from '../middleware/validation.middleware';
 import { xssProtection } from '../middleware/xss-csrf-protection.middleware';
@@ -447,7 +447,7 @@ router.post('/posts',
 
 router.get('/posts',
   generalFeedLimiter, // 200 requests per 15 minutes
-  requireFeedPostPermission('list'),
+  optionalAuth(), // Guest users can view posts, authenticated users get personalized content
   feedController.getFeedPosts.bind(feedController)
 );
 
@@ -545,7 +545,7 @@ router.get('/posts',
 
 router.get('/posts/:postId',
   generalFeedLimiter, // 200 requests per 15 minutes
-  requireFeedPostPermission('read'),
+  optionalAuth(), // Guest users can view post details, authenticated users get interaction status
   feedController.getPostById.bind(feedController)
 );
 
@@ -1232,7 +1232,7 @@ router.post('/posts/:postId/comments',
 
 router.get('/posts/:postId/comments',
   generalFeedLimiter, // 200 requests per 15 minutes
-  requireFeedCommentPermission('list'),
+  optionalAuth(), // Guest users can view comments, authenticated users get interaction status
   feedController.getComments.bind(feedController)
 );
 
