@@ -1275,6 +1275,13 @@ export class FeedService {
         .single();
 
       if (postError || !post) {
+        logger.error('Error fetching post for report', {
+          postId,
+          postError,
+          errorCode: postError?.code,
+          errorMessage: postError?.message,
+          errorDetails: postError?.details
+        });
         return { success: false, error: 'Post not found' };
       }
 
