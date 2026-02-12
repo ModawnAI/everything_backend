@@ -31,8 +31,8 @@ module.exports = {
 
   deploy: {
     production: {
-      user: 'ubuntu', // EC2 사용자명
-      host: 'YOUR_EC2_IP', // EC2 IP 주소
+      user: 'bitnami', // EC2 사용자명
+      host: '43.203.236.10', // EC2 IP 주소
       ref: 'origin/main',
       repo: 'git@github.com:ModawnAI/everything_backend.git',
       path: '/home/ubuntu/everything_backend', // EC2 배포 경로
