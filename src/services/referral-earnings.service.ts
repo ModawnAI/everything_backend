@@ -152,7 +152,7 @@ export interface FriendPaymentHistoryResponse {
   };
 }
 
-class ReferralEarningsService {
+export class ReferralEarningsService {
   private supabase = getSupabaseClient();
   private readonly DEFAULT_BASE_BONUS = 1000; // 1000 points
   private readonly INFLUENCER_MULTIPLIER = 2.0; // Updated to v3.2 policy (2x)

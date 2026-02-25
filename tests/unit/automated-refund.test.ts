@@ -10,78 +10,54 @@
  * - Comprehensive refund audit trail
  */
 
-import { automatedRefundService } from '../../src/services/automated-refund.service';
-import { pointService } from '../../src/services/point.service';
-import { tossPaymentsService } from '../../src/services/toss-payments.service';
+// Persistent mock object - created before jest.mock so factory can reference it
+const mockSupabase: any = {};
+function resetMockSupabase() {
+  const mockChain: any = {};
+  ['select','insert','update','upsert','delete','eq','neq','gt','gte','lt','lte',
+   'like','ilike','is','in','not','contains','containedBy','overlaps',
+   'filter','match','or','and','order','limit','range','offset','count',
+   'single','maybeSingle','csv','returns','textSearch','throwOnError'
+  ].forEach(m => { mockChain[m] = jest.fn().mockReturnValue(mockChain); });
+  mockChain.then = (resolve: any) => resolve({ data: null, error: null });
+  mockSupabase.from = jest.fn().mockReturnValue(mockChain);
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+  mockSupabase.auth = {
+    getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    admin: { getUserById: jest.fn(), listUsers: jest.fn(), deleteUser: jest.fn() },
+  };
+  mockSupabase.storage = { from: jest.fn(() => ({ upload: jest.fn(), getPublicUrl: jest.fn() })) };
+}
+resetMockSupabase();
 
 // Mock dependencies
-jest.mock('../../src/config/database');
-jest.mock('../../src/services/point.service');
-jest.mock('../../src/services/toss-payments.service');
-jest.mock('../../src/utils/logger');
-
-// Create mock Supabase client
-const mockSupabase = {
-  from: jest.fn(() => ({
-    select: jest.fn(() => ({
-      eq: jest.fn(() => ({
-        single: jest.fn(),
-        order: jest.fn(() => ({
-          limit: jest.fn()
-        })),
-        neq: jest.fn(() => ({
-          order: jest.fn()
-        })),
-        in: jest.fn(() => ({
-          order: jest.fn()
-        })),
-        lt: jest.fn(() => ({
-          toISOString: jest.fn()
-        }))
-      })),
-      gte: jest.fn(() => ({
-        lt: jest.fn()
-      })),
-      in: jest.fn(() => ({
-        order: jest.fn()
-      }))
-    })),
-    insert: jest.fn(() => ({
-      select: jest.fn(() => ({
-        single: jest.fn()
-      }))
-    })),
-    update: jest.fn(() => ({
-      eq: jest.fn()
-    })),
-    delete: jest.fn(() => ({
-      eq: jest.fn()
-    }))
-  })),
-  rpc: jest.fn()
-};
-
-// Mock the database module
 jest.mock('../../src/config/database', () => ({
-  getSupabaseClient: () => mockSupabase
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(() => ({ client: mockSupabase })),
+  getDatabase: jest.fn(() => ({ client: mockSupabase })),
+  database: { getClient: jest.fn(() => mockSupabase) },
+}));
+jest.mock('../../src/services/point.service');
+jest.mock('../../src/services/toss-payments.service', () => ({
+  tossPaymentsService: {
+    cancelPayment: jest.fn(),
+    confirmPayment: jest.fn(),
+    getPaymentStatus: jest.fn(),
+  },
+  TossPaymentsService: jest.fn(),
+}), { virtual: true });
+jest.mock('../../src/utils/logger', () => ({
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }
 }));
 
-// Mock services
-const mockPointService = {
-  addPoints: jest.fn(),
-  deductPoints: jest.fn()
-};
-(pointService as any) = mockPointService;
-
-const mockTossPaymentsService = {
-  cancelPayment: jest.fn()
-};
-(tossPaymentsService as any) = mockTossPaymentsService;
+import { automatedRefundService } from '../../src/services/automated-refund.service';
+import { pointService } from '../../src/services/point.service';
 
 // TODO: 결제 서비스 변경 후 활성화
 describe.skip('AutomatedRefundService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetMockSupabase();
   });
 
   describe('processAutomatedRefund', () => {

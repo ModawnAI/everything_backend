@@ -2,7 +2,11 @@
 export const faker = {
   datatype: { 
     uuid: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
-    number: (options = {}) => options.min ? Math.floor(Math.random() * (options.max - options.min + 1)) + options.min : Math.floor(Math.random() * 1000),
+    number: (options: any = {}) => {
+      const min = options.min ?? 0;
+      const max = options.max ?? 1000;
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    },
     boolean: () => Math.random() > 0.5,
     float: (options = {}) => options.min ? Math.random() * (options.max - options.min) + options.min : Math.random() * 100,
     datetime: () => new Date()

@@ -351,7 +351,7 @@ describe('ResponseFormatter', () => {
         responseFormatter.rateLimitExceeded(mockResponse as Response, '요청이 너무 많습니다.', retryAfter);
 
         expect(mockResponse.status).toHaveBeenCalledWith(429);
-        expect(mockResponse.setHeader).toHaveBeenCalledWith('Retry-After', '60');
+        expect(mockResponse.set).toHaveBeenCalledWith('Retry-After', '60');
         const callArgs = (mockResponse.json as jest.Mock).mock.calls[0][0];
         expect(callArgs.error.code).toBe('RATE_LIMIT_EXCEEDED');
         expect(callArgs.error.details.retryAfter).toBe(60);

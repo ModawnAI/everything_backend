@@ -10,64 +10,59 @@
  * - Admin action logging
  */
 
-import { adminFinancialController } from '../../src/controllers/admin-financial.controller';
-import { adminFinancialService } from '../../src/services/admin-financial.service';
-import { adminAdjustmentService } from '../../src/services/admin-adjustment.service';
+// Persistent mock Supabase object — singleton controller captures this at module load
+const mockSupabase: any = {};
+let queryResultQueue: any[] = [];
+let defaultQueryResult: any = { data: [], error: null };
 
-// Mock dependencies
-jest.mock('../../src/config/database');
+function createChainableQueryMock() {
+  // If there are queued results, pop the first one; otherwise use default
+  const result = queryResultQueue.length > 0 ? queryResultQueue.shift() : defaultQueryResult;
+  const mock: any = {};
+  const methods = [
+    'select', 'insert', 'update', 'upsert', 'delete',
+    'eq', 'neq', 'gt', 'gte', 'lt', 'lte',
+    'like', 'ilike', 'is', 'in', 'not',
+    'contains', 'containedBy', 'overlaps',
+    'filter', 'match', 'or', 'and',
+    'order', 'limit', 'range', 'offset', 'count',
+    'single', 'maybeSingle',
+    'csv', 'returns', 'textSearch', 'throwOnError',
+  ];
+  for (const method of methods) {
+    mock[method] = jest.fn(() => mock);
+  }
+  mock.then = (resolve: any) => resolve(result);
+  return mock;
+}
+
+function resetMockSupabase() {
+  queryResultQueue = [];
+  defaultQueryResult = { data: [], error: null };
+  mockSupabase.from = jest.fn(() => createChainableQueryMock());
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+}
+resetMockSupabase();
+
+jest.mock('../../src/config/database', () => ({
+  getSupabaseClient: () => mockSupabase,
+  initializeDatabase: jest.fn(),
+  getDatabase: jest.fn(),
+  database: { getClient: () => mockSupabase },
+}));
 jest.mock('../../src/services/admin-financial.service');
 jest.mock('../../src/services/admin-adjustment.service');
-jest.mock('../../src/utils/logger');
-
-// Create mock Supabase client
-const mockSupabase = {
-  from: jest.fn(() => ({
-    select: jest.fn(() => ({
-      eq: jest.fn(() => ({
-        single: jest.fn(),
-        order: jest.fn(() => ({
-          limit: jest.fn()
-        })),
-        gte: jest.fn(() => ({
-          lte: jest.fn(() => ({
-            in: jest.fn(() => ({
-              order: jest.fn()
-            }))
-          }))
-        }))
-      })),
-      gte: jest.fn(() => ({
-        lte: jest.fn(() => ({
-          eq: jest.fn()
-        }))
-      })),
-      in: jest.fn(() => ({
-        order: jest.fn()
-      }))
-    })),
-    insert: jest.fn(() => ({
-      select: jest.fn(() => ({
-        single: jest.fn()
-      }))
-    })),
-    update: jest.fn(() => ({
-      eq: jest.fn()
-    })),
-    delete: jest.fn(() => ({
-      eq: jest.fn()
-    }))
-  })),
-  rpc: jest.fn()
-};
-
-// Mock the database module
-jest.mock('../../src/config/database', () => ({
-  getSupabaseClient: () => mockSupabase
+jest.mock('../../src/services/admin-payment.service');
+jest.mock('../../src/services/refund.service');
+jest.mock('../../src/services/point.service');
+jest.mock('../../src/services/portone.service');
+jest.mock('../../src/utils/logger', () => ({
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
 }));
 
-// Mock services
-const mockAdminFinancialService = adminFinancialService as jest.Mocked<typeof adminFinancialService>;
+import { adminFinancialController } from '../../src/controllers/admin-financial.controller';
+import { adminAdjustmentService } from '../../src/services/admin-adjustment.service';
+
 const mockAdminAdjustmentService = adminAdjustmentService as jest.Mocked<typeof adminAdjustmentService>;
 
 describe('AdminFinancialController', () => {
@@ -76,12 +71,13 @@ describe('AdminFinancialController', () => {
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetMockSupabase();
 
     mockRequest = {
       user: {
         id: 'admin-id',
         email: 'admin@example.com',
-        user_role: 'admin',
+        role: 'admin',
         name: 'Test Admin'
       },
       query: {},
@@ -135,16 +131,12 @@ describe('AdminFinancialController', () => {
         }
       ];
 
-      // Mock database calls
-      mockSupabase.from().select().gte().lte().eq().in.mockResolvedValueOnce({
-        data: mockPayments,
-        error: null
-      });
-
-      mockSupabase.from().select().gte().lte().eq.mockResolvedValueOnce({
-        data: mockRefunds,
-        error: null
-      });
+      // Queue: 1st from() -> payments, 2nd from() -> refunds, 3rd from() -> audit log insert
+      queryResultQueue = [
+        { data: mockPayments, error: null },
+        { data: mockRefunds, error: null },
+        { data: null, error: null }, // audit log
+      ];
 
       mockRequest.query = {
         startDate: '2024-01-01',
@@ -159,8 +151,8 @@ describe('AdminFinancialController', () => {
             totalRevenue: 175000,
             totalTransactions: 2,
             totalRefunds: 25000,
-            totalCommissions: 8750, // 5% of 175000
-            netRevenue: 141250, // 175000 - 25000 - 8750
+            totalCommissions: 8750,
+            netRevenue: 141250,
             averageTransactionValue: 87500
           }),
           recentTransactions: expect.arrayContaining([
@@ -194,7 +186,7 @@ describe('AdminFinancialController', () => {
     });
 
     it('should reject non-admin users', async () => {
-      mockRequest.user.user_role = 'customer';
+      mockRequest.user.role = 'customer';
 
       await adminFinancialController.getPaymentOverview(mockRequest, mockResponse);
 
@@ -205,10 +197,9 @@ describe('AdminFinancialController', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      mockSupabase.from().select().gte().lte().eq().in.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Database connection failed' }
-      });
+      queryResultQueue = [
+        { data: null, error: { message: 'Database connection failed' } },
+      ];
 
       await adminFinancialController.getPaymentOverview(mockRequest, mockResponse);
 
@@ -251,15 +242,12 @@ describe('AdminFinancialController', () => {
         { available_points: 2000 }
       ];
 
-      mockSupabase.from().select().gte().lte().eq.mockResolvedValueOnce({
-        data: mockPointTransactions,
-        error: null
-      });
-
-      mockSupabase.from().select().gt.mockResolvedValueOnce({
-        data: mockUserBalances,
-        error: null
-      });
+      // Queue: 1st from() -> point_transactions, 2nd from() -> users (balances), 3rd -> audit log
+      queryResultQueue = [
+        { data: mockPointTransactions, error: null },
+        { data: mockUserBalances, error: null },
+        { data: null, error: null }, // audit log
+      ];
 
       await adminFinancialController.getPointSystemOverview(mockRequest, mockResponse);
 
@@ -269,7 +257,7 @@ describe('AdminFinancialController', () => {
             totalPointsIssued: 2500,
             totalPointsUsed: 1000,
             totalPointsExpired: 0,
-            activePointBalance: 10000, // 5000 + 3000 + 2000
+            activePointBalance: 10000,
             totalUsers: 3,
             averagePointsPerUser: expect.closeTo(3333.33, 1)
           }),
@@ -319,7 +307,7 @@ describe('AdminFinancialController', () => {
         newBalance: 15000
       };
 
-      mockAdminAdjustmentService.processPointAdjustment.mockResolvedValueOnce(mockAdjustmentResult);
+      mockAdminAdjustmentService.adjustUserPoints = jest.fn().mockResolvedValueOnce(mockAdjustmentResult);
 
       mockRequest.body = {
         userId: 'user-1',
@@ -330,9 +318,14 @@ describe('AdminFinancialController', () => {
         notes: 'Compensation for service issue'
       };
 
+      // Queue for audit log insert
+      queryResultQueue = [
+        { data: null, error: null },
+      ];
+
       await adminFinancialController.processPointAdjustment(mockRequest, mockResponse);
 
-      expect(mockAdminAdjustmentService.processPointAdjustment).toHaveBeenCalledWith({
+      expect(mockAdminAdjustmentService.adjustUserPoints).toHaveBeenCalledWith({
         userId: 'user-1',
         amount: 5000,
         adjustmentType: 'add',
@@ -340,7 +333,7 @@ describe('AdminFinancialController', () => {
         category: 'customer_service',
         adminId: 'admin-id',
         notes: 'Compensation for service issue',
-        requiresApproval: false // Amount <= 10,000
+        requiresApproval: false
       });
 
       expect(mockResponse.json).toHaveBeenCalledWith({
@@ -359,10 +352,10 @@ describe('AdminFinancialController', () => {
         reason: 'Large compensation',
         category: 'customer_service',
         requiresApproval: true,
-        status: 'pending_approval'
+        status: 'pending'
       };
 
-      mockAdminAdjustmentService.processPointAdjustment.mockResolvedValueOnce(mockAdjustmentResult);
+      mockAdminAdjustmentService.adjustUserPoints = jest.fn().mockResolvedValueOnce(mockAdjustmentResult);
 
       mockRequest.body = {
         userId: 'user-1',
@@ -372,11 +365,16 @@ describe('AdminFinancialController', () => {
         category: 'customer_service'
       };
 
+      // Queue for audit log insert
+      queryResultQueue = [
+        { data: null, error: null },
+      ];
+
       await adminFinancialController.processPointAdjustment(mockRequest, mockResponse);
 
-      expect(mockAdminAdjustmentService.processPointAdjustment).toHaveBeenCalledWith(
+      expect(mockAdminAdjustmentService.adjustUserPoints).toHaveBeenCalledWith(
         expect.objectContaining({
-          requiresApproval: true // Amount > 10,000
+          requiresApproval: true
         })
       );
 
@@ -390,7 +388,6 @@ describe('AdminFinancialController', () => {
     it('should validate required fields', async () => {
       mockRequest.body = {
         userId: 'user-1',
-        // Missing required fields
       };
 
       await adminFinancialController.processPointAdjustment(mockRequest, mockResponse);
@@ -434,20 +431,13 @@ describe('AdminFinancialController', () => {
         }
       ];
 
-      mockSupabase.from().select().eq().single.mockResolvedValueOnce({
-        data: mockShop,
-        error: null
-      });
-
-      mockSupabase.from().select().eq().gte().lte().in.mockResolvedValueOnce({
-        data: mockPayments,
-        error: null
-      });
-
-      mockSupabase.from().select().eq().gte().lte().eq.mockResolvedValueOnce({
-        data: mockRefunds,
-        error: null
-      });
+      // Queue: 1st from() -> shop, 2nd -> payments, 3rd -> refunds, 4th -> audit log
+      queryResultQueue = [
+        { data: mockShop, error: null },
+        { data: mockPayments, error: null },
+        { data: mockRefunds, error: null },
+        { data: null, error: null }, // audit log
+      ];
 
       mockRequest.query = {
         shopId: 'shop-1',
@@ -462,14 +452,14 @@ describe('AdminFinancialController', () => {
           shopId: 'shop-1',
           shopName: 'Test Shop',
           revenue: expect.objectContaining({
-            grossRevenue: 250000, // 100000 + 150000
+            grossRevenue: 250000,
             totalTransactions: 2,
             averageTransactionValue: 125000
           }),
           commissions: expect.objectContaining({
             platformCommissionRate: 0.05,
-            platformCommissionAmount: 12500, // 5% of 250000
-            paymentProcessingFee: 7310, // 2.9% + 30 KRW per transaction
+            platformCommissionAmount: 12500,
+            paymentProcessingFee: 7310,
             totalDeductions: 19810
           }),
           refunds: expect.objectContaining({
@@ -478,7 +468,7 @@ describe('AdminFinancialController', () => {
             refundImpact: 25000
           }),
           payout: expect.objectContaining({
-            netAmount: 205190, // 250000 - 19810 - 25000
+            netAmount: 205190,
             payoutStatus: 'pending',
             payoutMethod: 'bank_transfer'
           })
@@ -498,10 +488,9 @@ describe('AdminFinancialController', () => {
     });
 
     it('should handle non-existent shop', async () => {
-      mockSupabase.from().select().eq().single.mockResolvedValueOnce({
-        data: null,
-        error: { message: 'Shop not found' }
-      });
+      queryResultQueue = [
+        { data: null, error: { message: 'Shop not found' } },
+      ];
 
       mockRequest.query = { shopId: 'non-existent-shop' };
 
@@ -522,6 +511,11 @@ describe('AdminFinancialController', () => {
         reportType: 'summary',
         format: 'json'
       };
+
+      // Queue for audit log insert
+      queryResultQueue = [
+        { data: null, error: null },
+      ];
 
       await adminFinancialController.generateFinancialReport(mockRequest, mockResponse);
 
@@ -544,7 +538,6 @@ describe('AdminFinancialController', () => {
 
     it('should validate required report parameters', async () => {
       mockRequest.body = {
-        // Missing required fields
         reportType: 'summary'
       };
 
@@ -591,7 +584,7 @@ describe('AdminFinancialController', () => {
             shop_id: 'shop-1',
             user_id: 'user-1',
             total_price: 100000,
-            shops: { name: 'Test Shop' },
+            shops: { name: 'Test Shop', owner_id: 'owner-1' },
             users: { name: 'Test User', email: 'user@example.com' }
           }
         },
@@ -611,16 +604,17 @@ describe('AdminFinancialController', () => {
             shop_id: 'shop-2',
             user_id: 'user-2',
             total_price: 75000,
-            shops: { name: 'Test Shop 2' },
+            shops: { name: 'Test Shop 2', owner_id: 'owner-2' },
             users: { name: 'Test User 2', email: 'user2@example.com' }
           }
         }
       ];
 
-      mockSupabase.from().select().gte().lte().order.mockResolvedValueOnce({
-        data: mockRefunds,
-        error: null
-      });
+      // Queue: 1st from() -> refunds query, 2nd -> audit log
+      queryResultQueue = [
+        { data: mockRefunds, error: null },
+        { data: null, error: null }, // audit log
+      ];
 
       await adminFinancialController.getRefundManagement(mockRequest, mockResponse);
 
@@ -628,7 +622,7 @@ describe('AdminFinancialController', () => {
         expect.objectContaining({
           summary: expect.objectContaining({
             totalRefunds: 2,
-            totalRefundAmount: 137500, // 100000 + 37500
+            totalRefundAmount: 137500,
             averageRefundAmount: 68750,
             refundsByStatus: expect.objectContaining({
               completed: expect.objectContaining({
@@ -671,19 +665,30 @@ describe('AdminFinancialController', () => {
       const mockPendingRefunds = [
         {
           id: 'refund-2',
+          reservation_id: 'reservation-2',
           refund_status: 'pending',
+          refund_reason: 'Late cancellation',
+          requested_amount: 75000,
           refunded_amount: 37500,
+          triggered_by: 'user',
+          created_at: '2024-01-16T14:00:00Z',
+          processed_at: null,
           reservations: {
-            shops: { name: 'Test Shop' },
+            id: 'reservation-2',
+            shop_id: 'shop-2',
+            user_id: 'user-2',
+            total_price: 75000,
+            shops: { name: 'Test Shop', owner_id: 'owner-1' },
             users: { name: 'Test User', email: 'user@example.com' }
           }
         }
       ];
 
-      mockSupabase.from().select().gte().lte().eq().order.mockResolvedValueOnce({
-        data: mockPendingRefunds,
-        error: null
-      });
+      // Queue: 1st from() -> refunds, 2nd -> audit log
+      queryResultQueue = [
+        { data: mockPendingRefunds, error: null },
+        { data: null, error: null }, // audit log
+      ];
 
       await adminFinancialController.getRefundManagement(mockRequest, mockResponse);
 
@@ -698,4 +703,3 @@ describe('AdminFinancialController', () => {
     });
   });
 });
-

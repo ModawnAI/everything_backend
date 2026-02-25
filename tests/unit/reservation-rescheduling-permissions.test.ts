@@ -1,35 +1,64 @@
-import { ReservationReschedulingService } from '../services/reservation-rescheduling.service';
-import type { Reservation } from '../types/database.types';
+// Persistent mock object - created before jest.mock so factory can reference it
+const mockSupabase: any = {};
+function resetMockSupabase() {
+  const mockChain: any = {};
+  ['select','insert','update','upsert','delete','eq','neq','gt','gte','lt','lte',
+   'like','ilike','is','in','not','contains','containedBy','overlaps',
+   'filter','match','or','and','order','limit','range','offset','count',
+   'single','maybeSingle','csv','returns','textSearch','throwOnError'
+  ].forEach(m => { mockChain[m] = jest.fn().mockReturnValue(mockChain); });
+  mockChain.then = (resolve: any) => resolve({ data: null, error: null });
+  mockSupabase.from = jest.fn().mockReturnValue(mockChain);
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+  mockSupabase.auth = {
+    getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    admin: { getUserById: jest.fn(), listUsers: jest.fn(), deleteUser: jest.fn() },
+  };
+  mockSupabase.storage = { from: jest.fn(() => ({ upload: jest.fn(), getPublicUrl: jest.fn() })) };
+}
+resetMockSupabase();
 
-// Mock Supabase client
-const mockSupabase = {
-  from: jest.fn(() => ({
-    select: jest.fn(() => ({
-      eq: jest.fn(() => ({
-        single: jest.fn(() => ({
-          data: null,
-          error: null
-        }))
-      }))
-    })),
-    count: jest.fn(() => ({
-      eq: jest.fn(() => ({
-        data: 0,
-        error: null
-      }))
-    }))
-  })),
-  rpc: jest.fn(() => ({
-    data: null,
-    error: null
-  }))
-};
+jest.mock('../../src/config/database', () => ({
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(() => ({ client: mockSupabase })),
+  getDatabase: jest.fn(() => ({ client: mockSupabase })),
+  database: { getClient: jest.fn(() => mockSupabase) },
+}));
+jest.mock('../../src/utils/logger', () => ({
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+}));
+jest.mock('../../src/services/time-slot.service');
+jest.mock('../../src/services/reservation-state-machine.service');
+
+import { ReservationReschedulingService } from '../../src/services/reservation-rescheduling.service';
+import type { Reservation } from '../../src/types/database.types';
+
+/**
+ * Helper to get a local date string (YYYY-MM-DD) from a Date object.
+ * Avoids the UTC vs local mismatch from toISOString().
+ */
+function toLocalDateString(date: Date): string {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, '0');
+  const d = String(date.getDate()).padStart(2, '0');
+  return `${y}-${m}-${d}`;
+}
+
+/**
+ * Helper to get a local time string (HH:MM:SS) from a Date object.
+ */
+function toLocalTimeString(date: Date): string {
+  const h = String(date.getHours()).padStart(2, '0');
+  const min = String(date.getMinutes()).padStart(2, '0');
+  return `${h}:${min}:00`;
+}
 
 describe('Reservation Rescheduling Service - Authorization Rules', () => {
   let service: ReservationReschedulingService;
   
   beforeEach(() => {
     jest.clearAllMocks();
+    resetMockSupabase();
     service = new ReservationReschedulingService();
     // Mock the supabase property
     (service as any).supabase = mockSupabase;
@@ -97,8 +126,8 @@ describe('Reservation Rescheduling Service - Authorization Rules', () => {
       
       const nearReservation: Reservation = {
         ...mockConfirmedReservation,
-        reservation_date: futureDate.toISOString().split('T')[0],
-        reservation_time: futureDate.toTimeString().split(' ')[0].slice(0, 5) + ':00'
+        reservation_date: toLocalDateString(futureDate),
+        reservation_time: toLocalTimeString(futureDate)
       };
 
       // Mock getRescheduleCount to return 0
@@ -122,8 +151,8 @@ describe('Reservation Rescheduling Service - Authorization Rules', () => {
       
       const nearReservation: Reservation = {
         ...mockConfirmedReservation,
-        reservation_date: futureDate.toISOString().split('T')[0],
-        reservation_time: futureDate.toTimeString().split(' ')[0].slice(0, 5) + ':00'
+        reservation_date: toLocalDateString(futureDate),
+        reservation_time: toLocalTimeString(futureDate)
       };
 
       // Mock getRescheduleCount to return 0
@@ -216,8 +245,8 @@ describe('Reservation Rescheduling Service - Authorization Rules', () => {
       
       const nearReservation: Reservation = {
         ...mockConfirmedReservation,
-        reservation_date: futureDate.toISOString().split('T')[0],
-        reservation_time: futureDate.toTimeString().split(' ')[0].slice(0, 5) + ':00'
+        reservation_date: toLocalDateString(futureDate),
+        reservation_time: toLocalTimeString(futureDate)
       };
 
       const result = await (service as any).validatePermissions(
@@ -236,12 +265,13 @@ describe('Reservation Rescheduling Service - Authorization Rules', () => {
       futureDate.setHours(futureDate.getHours() + 5); // 5 hours from now
       
       const hours = (service as any).getHoursUntilReservation(
-        futureDate.toISOString().split('T')[0],
-        futureDate.toTimeString().split(' ')[0].slice(0, 5) + ':00'
+        toLocalDateString(futureDate),
+        toLocalTimeString(futureDate)
       );
 
-      expect(hours).toBeGreaterThan(4);
-      expect(hours).toBeLessThan(6);
+      // Math.floor is used in the implementation, so 5 hours minus a few seconds = 4
+      expect(hours).toBeGreaterThanOrEqual(4);
+      expect(hours).toBeLessThanOrEqual(5);
     });
 
     it('should return 0 for past reservation', () => {
@@ -249,8 +279,8 @@ describe('Reservation Rescheduling Service - Authorization Rules', () => {
       pastDate.setHours(pastDate.getHours() - 5); // 5 hours ago
       
       const hours = (service as any).getHoursUntilReservation(
-        pastDate.toISOString().split('T')[0],
-        pastDate.toTimeString().split(' ')[0].slice(0, 5) + ':00'
+        toLocalDateString(pastDate),
+        toLocalTimeString(pastDate)
       );
 
       expect(hours).toBeLessThanOrEqual(0);

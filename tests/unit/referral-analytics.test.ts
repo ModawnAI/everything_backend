@@ -1,40 +1,43 @@
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
+
+// Persistent mock object -- the service singleton captures this reference at module load
+const mockSupabase: any = {};
+
+function resetMockSupabase() {
+  const mockChain: any = {};
+  ['select','insert','update','upsert','delete','eq','neq','gt','gte','lt','lte',
+   'like','ilike','is','in','not','contains','containedBy','overlaps',
+   'filter','match','or','and','order','limit','range','offset','count',
+   'single','maybeSingle','csv','returns','textSearch','throwOnError'
+  ].forEach(m => { mockChain[m] = jest.fn().mockReturnValue(mockChain); });
+  mockChain.then = (resolve: any) => resolve({ data: null, error: null });
+  mockSupabase.from = jest.fn().mockReturnValue(mockChain);
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+  mockSupabase.auth = {
+    getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    admin: { getUserById: jest.fn(), listUsers: jest.fn(), deleteUser: jest.fn() },
+  };
+  mockSupabase.storage = { from: jest.fn(() => ({ upload: jest.fn(), getPublicUrl: jest.fn() })) };
+}
+resetMockSupabase();
+
+jest.mock('../../src/config/database', () => ({
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(() => ({ client: mockSupabase })),
+  getDatabase: jest.fn(() => ({ client: mockSupabase })),
+  database: { getClient: jest.fn(() => mockSupabase) },
+}));
+jest.mock('../../src/utils/logger', () => ({
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+}));
+
 import { referralAnalyticsService } from '../../src/services/referral-analytics.service';
 import { getSupabaseClient } from '../../src/config/database';
-
-// Mock dependencies
-jest.mock('../../src/config/database');
-
-const mockSupabase = {
-  from: jest.fn(() => ({
-    select: jest.fn(() => ({
-      eq: jest.fn(() => ({
-        single: jest.fn(() => ({
-          data: null,
-          error: null
-        })),
-        data: [],
-        error: null
-      })),
-      gte: jest.fn(() => ({
-        lte: jest.fn(() => ({
-          order: jest.fn(() => ({
-            data: [],
-            error: null
-          }))
-        }))
-      })),
-      data: [],
-      error: null
-    }))
-  }))
-};
-
-(getSupabaseClient as jest.Mock).mockReturnValue(mockSupabase);
 
 describe('ReferralAnalyticsService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
+    resetMockSupabase();
   });
 
   describe('getReferralAnalyticsOverview', () => {

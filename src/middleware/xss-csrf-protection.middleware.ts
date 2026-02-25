@@ -48,9 +48,18 @@ export interface CSRFViolation {
   blocked: boolean;
 }
 
-// Create DOMPurify instance for server-side sanitization
-const window = new JSDOM('').window;
-const purify = DOMPurify(window as any);
+// Create DOMPurify instance lazily to avoid crashes during import
+let purify: ReturnType<typeof DOMPurify>;
+let purifyInitialized = false;
+
+function getPurify() {
+  if (!purifyInitialized) {
+    const window = new JSDOM('').window;
+    purify = DOMPurify(window as any);
+    purifyInitialized = true;
+  }
+  return purify;
+}
 
 class XSSProtectionService {
   private violationHistory: XSSViolation[] = [];
@@ -141,7 +150,7 @@ class XSSProtectionService {
 
     if (allowHtml) {
       // Use DOMPurify for HTML sanitization
-      sanitized = purify.sanitize(sanitized, {
+      sanitized = getPurify().sanitize(sanitized, {
         ALLOWED_TAGS: allowedTags,
         ALLOWED_ATTR: allowedAttributes,
         KEEP_CONTENT: true,
@@ -151,7 +160,7 @@ class XSSProtectionService {
       });
     } else {
       // Remove all HTML and dangerous content
-      sanitized = purify.sanitize(sanitized, {
+      sanitized = getPurify().sanitize(sanitized, {
         ALLOWED_TAGS: [],
         ALLOWED_ATTR: [],
         KEEP_CONTENT: true,

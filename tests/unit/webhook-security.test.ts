@@ -46,6 +46,8 @@ describe('Webhook Security Service', () => {
     mockSupabase = createMockSupabase();
     const { getSupabaseClient } = require('../../src/config/database');
     getSupabaseClient.mockReturnValue(mockSupabase);
+    // Update the singleton's supabase reference to use the mock
+    (webhookSecurityService as any).supabase = mockSupabase;
   });
 
   describe('Signature Verification', () => {
@@ -433,23 +435,22 @@ describe('Webhook Security Service', () => {
       const webhookId = 'test-webhook-123';
 
       // Mock existing processed webhook
+      // checkIdempotency chains: .select().eq().eq().eq().order().limit().single()
+      const mockSingle = jest.fn(() => Promise.resolve({ 
+        data: { 
+          webhook_id: 'existing-webhook',
+          processed_at: new Date().toISOString(),
+          processed: true
+        }, 
+        error: null 
+      }));
+      const mockLimitFn = jest.fn(() => ({ single: mockSingle }));
+      const mockOrderFn = jest.fn(() => ({ limit: mockLimitFn }));
+      const mockEq3 = jest.fn(() => ({ order: mockOrderFn }));
+      const mockEq2 = jest.fn(() => ({ eq: mockEq3 }));
+      const mockEq1 = jest.fn(() => ({ eq: mockEq2 }));
       mockSupabase.from.mockReturnValueOnce({
-        select: jest.fn(() => ({
-          eq: jest.fn(() => ({
-            order: jest.fn(() => ({
-              limit: jest.fn(() => ({
-                single: jest.fn(() => Promise.resolve({ 
-                  data: { 
-                    webhook_id: 'existing-webhook',
-                    processed_at: new Date().toISOString(),
-                    processed: true
-                  }, 
-                  error: null 
-                }))
-              }))
-            }))
-          }))
-        }))
+        select: jest.fn(() => ({ eq: mockEq1 }))
       });
 
       const isDuplicate = await webhookSecurityService.checkIdempotency(paymentKey, status, webhookId);
@@ -462,19 +463,18 @@ describe('Webhook Security Service', () => {
       const webhookId = 'test-webhook-123';
 
       // Mock no existing webhook
+      // checkIdempotency chains: .select().eq().eq().eq().order().limit().single()
+      const mockSingleNew = jest.fn(() => Promise.resolve({ 
+        data: null, 
+        error: { code: 'PGRST116' } // No rows returned
+      }));
+      const mockLimitNew = jest.fn(() => ({ single: mockSingleNew }));
+      const mockOrderNew = jest.fn(() => ({ limit: mockLimitNew }));
+      const mockEqNew3 = jest.fn(() => ({ order: mockOrderNew }));
+      const mockEqNew2 = jest.fn(() => ({ eq: mockEqNew3 }));
+      const mockEqNew1 = jest.fn(() => ({ eq: mockEqNew2 }));
       mockSupabase.from.mockReturnValueOnce({
-        select: jest.fn(() => ({
-          eq: jest.fn(() => ({
-            order: jest.fn(() => ({
-              limit: jest.fn(() => ({
-                single: jest.fn(() => Promise.resolve({ 
-                  data: null, 
-                  error: { code: 'PGRST116' } // No rows returned
-                }))
-              }))
-            }))
-          }))
-        }))
+        select: jest.fn(() => ({ eq: mockEqNew1 }))
       });
 
       const isDuplicate = await webhookSecurityService.checkIdempotency(paymentKey, status, webhookId);

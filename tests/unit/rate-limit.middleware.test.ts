@@ -1,21 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
 import {
-  rateLimit,
-  endpointRateLimit,
-  loginRateLimit,
-  paymentRateLimit,
-  strictRateLimit,
-  getRateLimitStatus,
-  resetRateLimit,
-  rateLimitService
-} from '../../src/middleware/rate-limit.middleware';
-import { AuthenticatedRequest } from '../../src/middleware/auth.middleware';
-import {
   USER_ROLE_LIMITS,
   ENDPOINT_LIMITS,
   getRoleLimitConfig,
   getEndpointLimitConfig
 } from '../../src/config/rate-limit.config';
+import { AuthenticatedRequest } from '../../src/middleware/auth.middleware';
 
 // Mock dependencies
 jest.mock('../../src/utils/logger', () => ({
@@ -27,6 +17,22 @@ jest.mock('../../src/utils/logger', () => ({
   },
 }));
 
+// Mock the flexible rate limiter service using singleton-inside-factory pattern
+// (jest.mock is hoisted above const declarations, so we create the mock inside the factory)
+jest.mock('../../src/services/rate-limiter-flexible.service', () => {
+  const singletonFlexibleService = {
+    checkRateLimit: jest.fn(),
+    getRateLimitStatus: jest.fn(),
+    resetRateLimit: jest.fn(),
+    penalizeUser: jest.fn()
+  };
+  return {
+    getRateLimiterFlexibleService: jest.fn(() => singletonFlexibleService),
+    RateLimiterFlexibleService: jest.fn(() => singletonFlexibleService),
+    __mockFlexibleService: singletonFlexibleService
+  };
+});
+
 jest.mock('../../src/utils/redis-rate-limit-store', () => {
   const mockStore = {
     get: jest.fn(),
@@ -35,20 +41,35 @@ jest.mock('../../src/utils/redis-rate-limit-store', () => {
     reset: jest.fn(),
     cleanup: jest.fn()
   };
-
   return {
     getRedisRateLimitStore: jest.fn(() => mockStore),
     RedisRateLimitStore: jest.fn(() => mockStore)
   };
 });
 
+// Mock ip-blocking service
+jest.mock('../../src/services/ip-blocking.service', () => ({
+  ipBlockingService: {
+    isIPBlocked: jest.fn().mockResolvedValue(null),
+    recordViolation: jest.fn().mockResolvedValue(undefined)
+  }
+}));
+
 describe('Rate Limiting Middleware Tests', () => {
   let mockRequest: Partial<AuthenticatedRequest>;
   let mockResponse: Partial<Response>;
   let mockNext: NextFunction;
-  let mockStore: any;
+  let mockFlexibleService: any;
+
+  // Save and restore NODE_ENV to bypass the test-environment skip
+  const originalNodeEnv = process.env.NODE_ENV;
 
   beforeEach(() => {
+    // Set NODE_ENV to 'development' so rate limiting is not skipped
+    process.env.NODE_ENV = 'development';
+    process.env.DISABLE_RATE_LIMIT = 'false';
+    process.env.DISABLE_IP_BLOCKING = 'true'; // Skip IP blocking checks in tests
+
     mockRequest = {
       ip: '127.0.0.1',
       path: '/api/test',
@@ -73,11 +94,36 @@ describe('Rate Limiting Middleware Tests', () => {
 
     // Reset mocks
     jest.clearAllMocks();
+
+    // Retrieve the singleton mock flexible service
+    const flexMod = require('../../src/services/rate-limiter-flexible.service');
+    mockFlexibleService = flexMod.__mockFlexibleService;
     
-    // Setup store mock
-    const { getRedisRateLimitStore } = require('../../src/utils/redis-rate-limit-store');
-    mockStore = getRedisRateLimitStore();
+    // Default flexible service mock - allow requests
+    mockFlexibleService.checkRateLimit.mockResolvedValue({
+      allowed: true,
+      totalHits: 1,
+      remainingRequests: 99,
+      resetTime: new Date(Date.now() + 900000)
+    });
+    mockFlexibleService.getRateLimitStatus.mockResolvedValue({
+      allowed: true,
+      totalHits: 1,
+      remainingRequests: 99,
+      resetTime: new Date(Date.now() + 900000)
+    });
+    mockFlexibleService.resetRateLimit.mockResolvedValue(true);
   });
+
+  afterEach(() => {
+    // Restore NODE_ENV
+    process.env.NODE_ENV = originalNodeEnv;
+  });
+
+  // Import after mocks are set up (dynamic require to ensure mocks are active)
+  function getMiddlewares() {
+    return require('../../src/middleware/rate-limit.middleware');
+  }
 
   describe('Rate Limit Configuration', () => {
     test('should have user role limits defined', () => {
@@ -117,10 +163,14 @@ describe('Rate Limiting Middleware Tests', () => {
 
   describe('Basic Rate Limiting Middleware', () => {
     test('should allow requests within limit', async () => {
-      // Mock Redis to return data within limits
-      mockStore.get.mockResolvedValue(null); // New window
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 99,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit();
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
@@ -129,18 +179,15 @@ describe('Rate Limiting Middleware Tests', () => {
     });
 
     test('should block requests over limit', async () => {
-      // Mock Redis to return data over limits
-      mockStore.get.mockResolvedValue({
-        totalHits: 1000,
-        resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
-      });
-      mockStore.increment.mockResolvedValue({
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: false,
         totalHits: 1001,
+        remainingRequests: 0,
         resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
+        retryAfter: 900
       });
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit({
         config: { max: 10, windowMs: 900000, strategy: 'sliding_window', scope: 'ip' }
       });
@@ -160,9 +207,14 @@ describe('Rate Limiting Middleware Tests', () => {
     });
 
     test('should set rate limit headers', async () => {
-      mockStore.get.mockResolvedValue(null);
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 99,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit({
         config: { 
           max: 100, 
@@ -187,9 +239,14 @@ describe('Rate Limiting Middleware Tests', () => {
         status: 'active'
       };
 
-      mockStore.get.mockResolvedValue(null);
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 999,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit();
       await middleware(mockRequest as AuthenticatedRequest, mockResponse as Response, mockNext);
 
@@ -197,8 +254,10 @@ describe('Rate Limiting Middleware Tests', () => {
     });
 
     test('should handle Redis errors gracefully', async () => {
-      mockStore.get.mockRejectedValue(new Error('Redis error'));
+      // When flexibleService throws, RateLimitService catches and returns allowed: true
+      mockFlexibleService.checkRateLimit.mockRejectedValue(new Error('Redis error'));
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit();
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
@@ -209,17 +268,15 @@ describe('Rate Limiting Middleware Tests', () => {
 
   describe('Endpoint-Specific Rate Limiting', () => {
     test('should apply login rate limits', async () => {
-      mockStore.get.mockResolvedValue({
-        totalHits: 5,
-        resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
-      });
-      mockStore.increment.mockResolvedValue({
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: false,
         totalHits: 6,
+        remainingRequests: 0,
         resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
+        retryAfter: 900
       });
 
+      const { loginRateLimit } = getMiddlewares();
       const middleware = loginRateLimit();
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
@@ -234,17 +291,15 @@ describe('Rate Limiting Middleware Tests', () => {
         status: 'active'
       };
 
-      mockStore.get.mockResolvedValue({
-        totalHits: 10,
-        resetTime: new Date(Date.now() + 3600000),
-        remainingRequests: 0
-      });
-      mockStore.increment.mockResolvedValue({
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: false,
         totalHits: 11,
+        remainingRequests: 0,
         resetTime: new Date(Date.now() + 3600000),
-        remainingRequests: 0
+        retryAfter: 3600
       });
 
+      const { paymentRateLimit } = getMiddlewares();
       const middleware = paymentRateLimit();
       await middleware(mockRequest as AuthenticatedRequest, mockResponse as Response, mockNext);
 
@@ -262,9 +317,14 @@ describe('Rate Limiting Middleware Tests', () => {
     });
 
     test('should use endpoint-specific configuration', async () => {
-      mockStore.get.mockResolvedValue(null);
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 4,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { endpointRateLimit } = getMiddlewares();
       const middleware = endpointRateLimit('login');
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
@@ -274,17 +334,15 @@ describe('Rate Limiting Middleware Tests', () => {
 
   describe('Strict Rate Limiting', () => {
     test('should apply strict limits', async () => {
-      mockStore.get.mockResolvedValue({
-        totalHits: 3,
-        resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
-      });
-      mockStore.increment.mockResolvedValue({
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: false,
         totalHits: 4,
+        remainingRequests: 0,
         resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
+        retryAfter: 900
       });
 
+      const { strictRateLimit } = getMiddlewares();
       const middleware = strictRateLimit(3); // 3 requests max
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
@@ -309,9 +367,14 @@ describe('Rate Limiting Middleware Tests', () => {
         scope: 'ip' as const
       };
 
-      mockStore.get.mockResolvedValue(null);
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 9,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { rateLimitService } = getMiddlewares();
       const result = await rateLimitService.checkRateLimit(context, config);
 
       expect(result.allowed).toBe(true);
@@ -334,14 +397,19 @@ describe('Rate Limiting Middleware Tests', () => {
         scope: 'ip' as const
       };
 
-      mockStore.get.mockResolvedValue(null); // No previous data
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 4,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { rateLimitService } = getMiddlewares();
       const result = await rateLimitService.checkRateLimit(context, config);
 
       expect(result.allowed).toBe(true);
       expect(result.totalHits).toBe(1);
-      expect(mockStore.set).toHaveBeenCalled();
+      expect(mockFlexibleService.checkRateLimit).toHaveBeenCalled();
     });
 
     test('should handle existing window correctly', async () => {
@@ -359,17 +427,14 @@ describe('Rate Limiting Middleware Tests', () => {
         scope: 'ip' as const
       };
 
-      mockStore.get.mockResolvedValue({
-        totalHits: 3,
-        resetTime: new Date(Date.now() + 450000), // 7.5 minutes from now
-        remainingRequests: 2
-      });
-      mockStore.increment.mockResolvedValue({
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
         totalHits: 4,
-        resetTime: new Date(Date.now() + 450000),
-        remainingRequests: 1
+        remainingRequests: 1,
+        resetTime: new Date(Date.now() + 450000)
       });
 
+      const { rateLimitService } = getMiddlewares();
       const result = await rateLimitService.checkRateLimit(context, config);
 
       expect(result.allowed).toBe(true);
@@ -392,17 +457,15 @@ describe('Rate Limiting Middleware Tests', () => {
         scope: 'ip' as const
       };
 
-      mockStore.get.mockResolvedValue({
-        totalHits: 5,
-        resetTime: new Date(Date.now() + 450000),
-        remainingRequests: 0
-      });
-      mockStore.increment.mockResolvedValue({
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: false,
         totalHits: 6,
+        remainingRequests: 0,
         resetTime: new Date(Date.now() + 450000),
-        remainingRequests: 0
+        retryAfter: 450
       });
 
+      const { rateLimitService } = getMiddlewares();
       const result = await rateLimitService.checkRateLimit(context, config);
 
       expect(result.allowed).toBe(false);
@@ -414,12 +477,14 @@ describe('Rate Limiting Middleware Tests', () => {
 
   describe('Utility Functions', () => {
     test('should get rate limit status', async () => {
-      mockStore.get.mockResolvedValue({
+      mockFlexibleService.getRateLimitStatus.mockResolvedValue({
+        allowed: true,
         totalHits: 3,
-        resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 197
+        remainingRequests: 197,
+        resetTime: new Date(Date.now() + 900000)
       });
 
+      const { getRateLimitStatus } = getMiddlewares();
       const status = await getRateLimitStatus('user-123', '127.0.0.1', '/api/test');
 
       expect(status).toBeDefined();
@@ -427,17 +492,19 @@ describe('Rate Limiting Middleware Tests', () => {
     });
 
     test('should reset rate limits', async () => {
-      mockStore.reset.mockResolvedValue(undefined);
+      mockFlexibleService.resetRateLimit.mockResolvedValue(true);
 
+      const { resetRateLimit } = getMiddlewares();
       const result = await resetRateLimit('user-123', '127.0.0.1', '/api/test');
 
       expect(result).toBe(true);
-      expect(mockStore.reset).toHaveBeenCalled();
+      expect(mockFlexibleService.resetRateLimit).toHaveBeenCalled();
     });
 
     test('should handle reset errors gracefully', async () => {
-      mockStore.reset.mockRejectedValue(new Error('Reset failed'));
+      mockFlexibleService.resetRateLimit.mockRejectedValue(new Error('Reset failed'));
 
+      const { resetRateLimit } = getMiddlewares();
       const result = await resetRateLimit('user-123', '127.0.0.1', '/api/test');
 
       expect(result).toBe(false);
@@ -446,8 +513,11 @@ describe('Rate Limiting Middleware Tests', () => {
 
   describe('Error Handling', () => {
     test('should handle middleware errors gracefully', async () => {
-      mockStore.get.mockRejectedValue(new Error('Store error'));
+      // When flexibleService throws, RateLimitService.checkRateLimit catches it
+      // and logs 'Rate limit check failed' with the error message, then returns allowed: true
+      mockFlexibleService.checkRateLimit.mockRejectedValue(new Error('Store error'));
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit();
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
 
@@ -470,9 +540,14 @@ describe('Rate Limiting Middleware Tests', () => {
         status: 'active'
       };
 
-      mockStore.get.mockResolvedValue(null);
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 49,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit();
       await middleware(mockRequest as AuthenticatedRequest, mockResponse as Response, mockNext);
 
@@ -485,17 +560,15 @@ describe('Rate Limiting Middleware Tests', () => {
     test('should call custom onLimitReached handler', async () => {
       const customHandler = jest.fn();
       
-      mockStore.get.mockResolvedValue({
-        totalHits: 100,
-        resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
-      });
-      mockStore.increment.mockResolvedValue({
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: false,
         totalHits: 101,
+        remainingRequests: 0,
         resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 0
+        retryAfter: 900
       });
 
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit({
         config: { max: 10, windowMs: 900000, strategy: 'sliding_window', scope: 'ip' },
         onLimitReached: customHandler
@@ -517,21 +590,21 @@ describe('Rate Limiting Middleware Tests', () => {
   describe('Integration Tests', () => {
     test('should handle complete rate limiting flow', async () => {
       // Simulate multiple requests within window
-      mockStore.get
-        .mockResolvedValueOnce(null) // First request - new window
-        .mockResolvedValueOnce({     // Second request - within window
+      mockFlexibleService.checkRateLimit
+        .mockResolvedValueOnce({
+          allowed: true,
           totalHits: 1,
-          resetTime: new Date(Date.now() + 900000),
-          remainingRequests: 4
+          remainingRequests: 4,
+          resetTime: new Date(Date.now() + 900000)
+        })
+        .mockResolvedValueOnce({
+          allowed: true,
+          totalHits: 2,
+          remainingRequests: 3,
+          resetTime: new Date(Date.now() + 900000)
         });
 
-      mockStore.set.mockResolvedValue(undefined);
-      mockStore.increment.mockResolvedValue({
-        totalHits: 2,
-        resetTime: new Date(Date.now() + 900000),
-        remainingRequests: 3
-      });
-
+      const { rateLimit } = getMiddlewares();
       const middleware = rateLimit({
         config: { max: 5, windowMs: 900000, strategy: 'sliding_window', scope: 'ip' }
       });
@@ -540,8 +613,8 @@ describe('Rate Limiting Middleware Tests', () => {
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
       expect(mockNext).toHaveBeenCalledTimes(1);
 
-      // Reset mocks for second request
-      jest.clearAllMocks();
+      // Reset only next and response mocks for second request
+      (mockNext as jest.Mock).mockClear();
 
       // Second request
       await middleware(mockRequest as Request, mockResponse as Response, mockNext);
@@ -555,9 +628,14 @@ describe('Rate Limiting Middleware Tests', () => {
         status: 'active'
       };
 
-      mockStore.get.mockResolvedValue(null);
-      mockStore.set.mockResolvedValue(undefined);
+      mockFlexibleService.checkRateLimit.mockResolvedValue({
+        allowed: true,
+        totalHits: 1,
+        remainingRequests: 99,
+        resetTime: new Date(Date.now() + 900000)
+      });
 
+      const { rateLimit } = getMiddlewares();
       // Test user scope
       const userScopeMiddleware = rateLimit({
         config: { max: 100, windowMs: 900000, strategy: 'sliding_window', scope: 'user' }
@@ -567,4 +645,4 @@ describe('Rate Limiting Middleware Tests', () => {
       expect(mockNext).toHaveBeenCalled();
     });
   });
-}); 
+});

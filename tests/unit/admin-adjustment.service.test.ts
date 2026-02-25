@@ -33,7 +33,7 @@ describe('AdminAdjustmentService', () => {
   beforeEach(() => {
     jest.clearAllMocks();
     
-    // Create mock Supabase client
+    // Create mock Supabase client with thenable support
     mockSupabase = {
       from: jest.fn().mockReturnThis(),
       insert: jest.fn().mockReturnThis(),
@@ -45,7 +45,8 @@ describe('AdminAdjustmentService', () => {
       range: jest.fn().mockReturnThis(),
       gte: jest.fn().mockReturnThis(),
       lte: jest.fn().mockReturnThis(),
-      ilike: jest.fn().mockReturnThis()
+      ilike: jest.fn().mockReturnThis(),
+      then: (resolve: any) => resolve({ data: null, error: null, count: 0 }),
     };
 
     const { getSupabaseClient } = require('../../src/config/database');
@@ -101,24 +102,46 @@ describe('AdminAdjustmentService', () => {
         error: null
       });
 
+      // Mock getAdjustmentRecord call in processApprovedAdjustment
+      mockSupabase.single.mockResolvedValueOnce({
+        data: {
+          id: 'adjustment-id',
+          user_id: validRequest.userId,
+          amount: validRequest.amount,
+          adjustment_type: validRequest.adjustmentType,
+          reason: validRequest.reason,
+          category: validRequest.category,
+          adjusted_by: validRequest.adminId,
+          previous_balance: 5000,
+          status: 'completed'
+        },
+        error: null
+      });
+
       // Mock point transaction creation
       mockSupabase.single.mockResolvedValueOnce({
         data: { id: 'transaction-id' },
         error: null
       });
 
-      // Mock user balance update
-      mockSupabase.eq.mockResolvedValueOnce({
-        error: null
-      });
+      // User balance update resolves via mockSupabase.then (thenable)
 
-      // Mock adjustment status update
+      // Mock adjustment status update (includes all fields for mapAdjustmentToResponse)
       mockSupabase.single.mockResolvedValueOnce({
         data: {
           id: 'adjustment-id',
+          user_id: validRequest.userId,
+          amount: validRequest.amount,
+          adjustment_type: validRequest.adjustmentType,
+          reason: validRequest.reason,
+          category: validRequest.category,
+          adjusted_by: validRequest.adminId,
+          previous_balance: 5000,
           status: 'completed',
           new_balance: 6000,
-          transaction_id: 'transaction-id'
+          transaction_id: 'transaction-id',
+          audit_log_id: 'audit-log-id',
+          created_at: new Date().toISOString()
         },
         error: null
       });
@@ -224,7 +247,21 @@ describe('AdminAdjustmentService', () => {
       const approverId = 'approver-id';
       const approverLevel = 3;
 
-      // Mock adjustment lookup
+      // Mock adjustment lookup (in approveAdjustment)
+      mockSupabase.single.mockResolvedValueOnce({
+        data: {
+          id: adjustmentId,
+          user_id: 'user-id',
+          amount: 1000,
+          adjustment_type: 'add',
+          previous_balance: 5000,
+          status: 'pending',
+          approval_level: 3
+        },
+        error: null
+      });
+
+      // Mock getAdjustmentRecord call in processApprovedAdjustment
       mockSupabase.single.mockResolvedValueOnce({
         data: {
           id: adjustmentId,
@@ -244,10 +281,7 @@ describe('AdminAdjustmentService', () => {
         error: null
       });
 
-      // Mock user balance update
-      mockSupabase.eq.mockResolvedValueOnce({
-        error: null
-      });
+      // User balance update resolves via mockSupabase.then (thenable)
 
       // Mock adjustment status update
       mockSupabase.single.mockResolvedValueOnce({
@@ -277,11 +311,13 @@ describe('AdminAdjustmentService', () => {
       const approverLevel = 1; // Lower level
 
       // Mock adjustment lookup with higher required level
+      // getAdjustmentRecord returns raw DB data, source checks adjustment.approvalLevel
       mockSupabase.single.mockResolvedValueOnce({
         data: {
           id: adjustmentId,
           status: 'pending',
-          approval_level: 3 // Higher required level
+          approvalLevel: 3, // camelCase - as accessed by source code
+          approval_level: 3
         },
         error: null
       });
@@ -435,27 +471,26 @@ describe('AdminAdjustmentService', () => {
       const startDate = '2024-01-01';
       const endDate = '2024-12-31';
 
-      // Mock adjustments query
-      mockSupabase.select.mockResolvedValueOnce({
-        data: [
-          {
-            amount: 1000,
-            status: 'completed',
-            category: 'customer_service'
-          },
-          {
-            amount: 2000,
-            status: 'pending',
-            category: 'promotional'
-          },
-          {
-            amount: 500,
-            status: 'rejected',
-            category: 'customer_service'
-          }
-        ],
-        error: null
-      });
+      // Mock adjustments query - override thenable to return the test data
+      // The chain from().select().gte().lte() resolves via .then
+      const mockAdjustments = [
+        {
+          amount: 1000,
+          status: 'completed',
+          category: 'customer_service'
+        },
+        {
+          amount: 2000,
+          status: 'pending',
+          category: 'promotional'
+        },
+        {
+          amount: 500,
+          status: 'rejected',
+          category: 'customer_service'
+        }
+      ];
+      mockSupabase.then = (resolve: any) => resolve({ data: mockAdjustments, error: null });
 
       const result = await adminAdjustmentService.getAdjustmentStats(startDate, endDate);
 
@@ -468,11 +503,8 @@ describe('AdminAdjustmentService', () => {
     });
 
     it('should handle empty adjustments', async () => {
-      // Mock empty adjustments query
-      mockSupabase.select.mockResolvedValueOnce({
-        data: [],
-        error: null
-      });
+      // Mock empty adjustments query - override thenable
+      mockSupabase.then = (resolve: any) => resolve({ data: [], error: null });
 
       const result = await adminAdjustmentService.getAdjustmentStats();
 

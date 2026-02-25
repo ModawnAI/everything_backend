@@ -33,15 +33,14 @@ export class TestUserUtils {
     const phone_number = userData.phone_number || `+821012345${String(randomId).padStart(3, '0')}`;
     const password = `TestPassword${timestamp}!`;
 
-    // Create user in Supabase Auth
-    const { data: authData, error: authError } = await this.supabase.auth.signUp({
+    // Create user via admin API to bypass email rate limits
+    const { data: authData, error: authError } = await this.supabase.auth.admin.createUser({
       email,
       password,
-      options: {
-        data: {
-          name: userData.name,
-          phone: phone_number
-        }
+      email_confirm: true,
+      user_metadata: {
+        name: userData.name,
+        phone: phone_number
       }
     });
 
@@ -106,7 +105,7 @@ export class TestUserUtils {
       phone_number: `+82109876${randomId}`,
       email: `shop${timestamp}@example.com`,
       owner_id: ownerId,
-      main_category: shopData.main_category || 'beauty',
+      main_category: shopData.main_category || 'nail',
       shop_status: shopData.shop_status || 'active',
       verification_status: 'pending',
       is_featured: false,
@@ -146,7 +145,7 @@ export class TestUserUtils {
       shop_id: shopId,
       name: serviceData.name || `Test Service ${timestamp}-${randomId}`,
       description: serviceData.description || 'Test service for database function testing',
-      category: serviceData.category || 'haircut',
+      category: serviceData.category || 'hair',
       duration_minutes: serviceData.duration_minutes || 60,
       price_min: serviceData.price_min || 50000,
       price_max: serviceData.price_max || 50000,

@@ -479,13 +479,13 @@ describe('AutomatedPaymentBlockingService', () => {
           {
             field: 'fraud_score',
             operator: 'greater_than',
-            value: 80
+            value: 80,
+            logicalOperator: 'OR'
           },
           {
             field: 'amount',
             operator: 'greater_than',
-            value: 100000,
-            logicalOperator: 'OR'
+            value: 100000
           }
         ],
         actions: [{
@@ -571,7 +571,8 @@ describe('AutomatedPaymentBlockingService', () => {
 
       const result = await service.addToWhitelist(entry);
 
-      expect(result).toBe('whitelist-1');
+      expect(typeof result).toBe('string');
+      expect(result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(mockSupabase.from).toHaveBeenCalledWith('whitelist_entries');
       expect(mockSupabase.insert).toHaveBeenCalled();
     });
@@ -591,7 +592,8 @@ describe('AutomatedPaymentBlockingService', () => {
 
       const result = await service.addToBlacklist(entry);
 
-      expect(result).toBe('blacklist-1');
+      expect(typeof result).toBe('string');
+      expect(result).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
       expect(mockSupabase.from).toHaveBeenCalledWith('blacklist_entries');
       expect(mockSupabase.insert).toHaveBeenCalled();
     });
@@ -606,7 +608,8 @@ describe('AutomatedPaymentBlockingService', () => {
         metadata: {}
       };
 
-      mockSupabase.error = new Error('Database error');
+      // Make the insert chain throw an error
+      mockSupabase.insert.mockImplementation(() => { throw new Error('Database error'); });
 
       await expect(service.addToWhitelist(entry)).rejects.toThrow('Database error');
     });
@@ -622,7 +625,8 @@ describe('AutomatedPaymentBlockingService', () => {
         metadata: {}
       };
 
-      mockSupabase.error = new Error('Database error');
+      // Make the insert chain throw an error
+      mockSupabase.insert.mockImplementation(() => { throw new Error('Database error'); });
 
       await expect(service.addToBlacklist(entry)).rejects.toThrow('Database error');
     });
@@ -647,7 +651,7 @@ describe('AutomatedPaymentBlockingService', () => {
       expect(result.blocksBySeverity.medium).toBe(1);
       expect(result.blocksByRule['rule-1']).toBe(2);
       expect(result.blocksByRule['rule-2']).toBe(1);
-      expect(result.overrideRate).toBe(33.33);
+      expect(result.overrideRate).toBeCloseTo(33.33, 1);
       expect(result.whitelistSize).toBe(5);
       expect(result.blacklistSize).toBe(5);
       expect(result.activeRules).toBe(5);

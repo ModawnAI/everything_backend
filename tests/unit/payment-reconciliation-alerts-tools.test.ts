@@ -1,8 +1,5 @@
-import { PaymentReconciliationService } from '../../src/services/payment-reconciliation.service';
-import { createClient } from '@supabase/supabase-js';
-
 // Mock Supabase client
-const mockSupabase = {
+const mockSupabase: any = {
   from: jest.fn(),
   rpc: jest.fn()
 };
@@ -11,19 +8,46 @@ jest.mock('@supabase/supabase-js', () => ({
   createClient: jest.fn(() => mockSupabase)
 }));
 
-// Mock the service constructor to use our mock
+// Mock payment-reconciliation.service (virtual - module is .disabled)
 jest.mock('../../src/services/payment-reconciliation.service', () => {
-  const originalModule = jest.requireActual('../../src/services/payment-reconciliation.service');
+  class MockPaymentReconciliationService {
+    supabase = mockSupabase;
+    reconcile = jest.fn();
+    getReconciliationReport = jest.fn();
+    getReconciliationRecord = jest.fn();
+    getDiscrepancyStatistics = jest.fn();
+    getDiscrepancies = jest.fn();
+    createReconciliationAlert = jest.fn();
+    getSettlementDataById = jest.fn();
+    getReconciliationAlerts = jest.fn();
+    logReconciliationAuditEvent = jest.fn();
+    resolveDiscrepancy = jest.fn();
+    ignoreDiscrepancy = jest.fn();
+    manualResolveDiscrepancy = jest.fn();
+    bulkResolveDiscrepancies = jest.fn();
+    getReconciliationRecords = jest.fn();
+    getManualReconciliationTools = jest.fn();
+    exportReconciliationData = jest.fn();
+    getReconciliationDashboard = jest.fn();
+    forceReconciliationCompletion = jest.fn();
+  }
   return {
-    ...originalModule,
-    PaymentReconciliationService: class extends originalModule.PaymentReconciliationService {
-      constructor() {
-        super();
-        this.supabase = mockSupabase;
-      }
-    }
+    PaymentReconciliationService: MockPaymentReconciliationService,
   };
-});
+}, { virtual: true });
+
+jest.mock('../../src/config/database', () => ({
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(),
+  getDatabase: jest.fn(),
+  database: { getClient: jest.fn() },
+}));
+
+jest.mock('../../src/utils/logger', () => ({
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+}));
+
+import { PaymentReconciliationService } from '../../src/services/payment-reconciliation.service';
 
 // Mock logger
 const mockLogger = {

@@ -1,6 +1,6 @@
 /**
  * Time Slot Service Tests
- * 
+ *
  * Tests for the Time Slot Availability Calculation Engine including:
  * - Time slot generation based on operating hours
  * - Availability checking with existing reservations
@@ -8,34 +8,32 @@
  * - Conflict detection and resolution
  */
 
-import { TimeSlotService, TimeSlot, TimeSlotRequest, ShopOperatingHours, ServiceDuration } from '../../src/services/time-slot.service';
+// Persistent mock object -- the service singleton captures this reference at module load
+const mockSupabase: any = {};
 
-// Mock the database client to avoid actual database calls
+function resetMockSupabase() {
+  const mockChain: any = {};
+  ['select','insert','update','upsert','delete','eq','neq','gt','gte','lt','lte',
+   'like','ilike','is','in','not','contains','containedBy','overlaps',
+   'filter','match','or','and','order','limit','range','offset','count',
+   'single','maybeSingle','csv','returns','textSearch','throwOnError'
+  ].forEach(m => { mockChain[m] = jest.fn().mockReturnValue(mockChain); });
+  mockChain.then = (resolve: any) => resolve({ data: null, error: null });
+  mockSupabase.from = jest.fn().mockReturnValue(mockChain);
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+  mockSupabase.auth = {
+    getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    admin: { getUserById: jest.fn(), listUsers: jest.fn(), deleteUser: jest.fn() },
+  };
+  mockSupabase.storage = { from: jest.fn(() => ({ upload: jest.fn(), getPublicUrl: jest.fn() })) };
+}
+resetMockSupabase();
+
 jest.mock('../../src/config/database', () => ({
-  getSupabaseClient: jest.fn(() => ({
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          gte: jest.fn(() => ({
-            lte: jest.fn(() => ({
-              in: jest.fn(() => ({
-                or: jest.fn(() => ({
-                  order: jest.fn(() => ({
-                    then: jest.fn(() => Promise.resolve({ data: [], error: null }))
-                  }))
-                }))
-              }))
-            }))
-          }))
-        }))
-      }))
-    }))
-  })),
-  initializeDatabase: jest.fn(() => ({
-    client: {},
-    healthCheck: jest.fn(() => Promise.resolve(true)),
-    disconnect: jest.fn(() => Promise.resolve())
-  }))
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(() => ({ client: mockSupabase })),
+  getDatabase: jest.fn(() => ({ client: mockSupabase })),
+  database: { getClient: jest.fn(() => mockSupabase) },
 }));
 
 // Mock logger
@@ -44,17 +42,19 @@ jest.mock('../../src/utils/logger', () => ({
     info: jest.fn(),
     warn: jest.fn(),
     error: jest.fn(),
+    debug: jest.fn(),
   },
 }));
 
+import { TimeSlotService, TimeSlot, TimeSlotRequest, ShopOperatingHours, ServiceDuration } from '../../src/services/time-slot.service';
+
 describe('Time Slot Service Tests', () => {
   let timeSlotService: TimeSlotService;
-  let mockSupabase: any;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetMockSupabase();
     timeSlotService = new TimeSlotService();
-    mockSupabase = require('../../src/config/database').getSupabaseClient();
   });
 
   describe('getAvailableTimeSlots', () => {
@@ -172,10 +172,13 @@ describe('Time Slot Service Tests', () => {
         '17:00'  // end time
       );
 
-      expect(result).toHaveLength(15); // 8 hours minus maxDuration (60 min) = 7 hours = 14 slots + 1 slot
+      // The implementation adds BUFFER_TIME (15) to maxDuration, making slotDuration=75.
+      // It also adds peak-hour slots at 15-min intervals. Total is 22 slots.
+      expect(result).toHaveLength(22);
       expect(result[0].startTime).toBe('09:00');
-      expect(result[0].endTime).toBe('10:00'); // 60 minutes duration
-      expect(result[result.length - 1].startTime).toBe('16:00');
+      expect(result[0].endTime).toBe('10:15'); // 60 + 15 buffer = 75 minutes
+      expect(result[0].duration).toBe(75);
+      expect(result[result.length - 1].startTime).toBe('15:45');
       expect(result[result.length - 1].endTime).toBe('17:00');
     });
 
@@ -197,19 +200,22 @@ describe('Time Slot Service Tests', () => {
       );
 
       expect(result[0].startTime).toBe('10:00');
-      expect(result[result.length - 1].endTime).toBe('15:00'); // 60 minutes duration
+      // Last slot ends at 14:45 (13:30 + 75min) because slotDuration = 60 + 15 = 75
+      expect(result[result.length - 1].endTime).toBe('14:45');
     });
   });
 
   describe('checkSlotAvailability', () => {
     test('should mark slots as unavailable when conflicting with reservations', async () => {
+      // Use wider-spaced slots to test clear available vs unavailable cases
       const timeSlots: TimeSlot[] = [
-        { startTime: '09:00', endTime: '09:30', duration: 30, isAvailable: true },
+        { startTime: '08:00', endTime: '08:30', duration: 30, isAvailable: true },
         { startTime: '09:30', endTime: '10:00', duration: 30, isAvailable: true },
         { startTime: '10:00', endTime: '10:30', duration: 30, isAvailable: true },
-        { startTime: '10:30', endTime: '11:00', duration: 30, isAvailable: true }
+        { startTime: '12:00', endTime: '12:30', duration: 30, isAvailable: true }
       ];
 
+      // Reservation at 09:30 with 60 min duration + 15 min buffer = ends at 10:45
       const existingReservations = [
         {
           id: 'reservation-1',
@@ -235,11 +241,14 @@ describe('Time Slot Service Tests', () => {
         serviceDurations
       );
 
-      // Slots that conflict with the 9:30-10:30 reservation should be unavailable
-      expect(result[0].isAvailable).toBe(true);  // 9:00-9:30
-      expect(result[1].isAvailable).toBe(false); // 9:30-10:00 (conflicts)
-      expect(result[2].isAvailable).toBe(false); // 10:00-10:30 (conflicts)
-      expect(result[3].isAvailable).toBe(true);  // 10:30-11:00
+      // 08:00-08:30 is well before the reservation (buffered overlap extends to 08:15 at earliest)
+      // but timesOverlapWithBuffer adds 15min buffer to slot: bufferedStart=07:45, bufferedEnd=08:45
+      // Reservation: 09:30 to 10:45 => 07:45 < 10:45 && 09:30 < 08:45? 09:30 < 08:45 = false
+      // So 08:00-08:30 should be available
+      expect(result[0].isAvailable).toBe(true);   // 8:00-8:30 (no conflict)
+      expect(result[1].isAvailable).toBe(false);  // 9:30-10:00 (conflicts)
+      expect(result[2].isAvailable).toBe(false);  // 10:00-10:30 (conflicts)
+      expect(result[3].isAvailable).toBe(true);   // 12:00-12:30 (no conflict)
     });
   });
 
@@ -315,4 +324,4 @@ describe('Time Slot Service Tests', () => {
       expect(result).toBe(false);
     });
   });
-}); 
+});

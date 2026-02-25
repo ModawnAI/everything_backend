@@ -1,6 +1,6 @@
 /**
  * Reservation State Machine Unit Tests
- * 
+ *
  * Tests for the reservation state machine service including:
  * - State transition validation
  * - Business rule enforcement
@@ -9,42 +9,48 @@
  * - Rollback mechanisms
  */
 
+// Persistent mock object -- the service singleton captures this reference at module load
+const mockSupabase: any = {};
+
+function resetMockSupabase() {
+  const mockChain: any = {};
+  ['select','insert','update','upsert','delete','eq','neq','gt','gte','lt','lte',
+   'like','ilike','is','in','not','contains','containedBy','overlaps',
+   'filter','match','or','and','order','limit','range','offset','count',
+   'single','maybeSingle','csv','returns','textSearch','throwOnError','check'
+  ].forEach(m => { mockChain[m] = jest.fn().mockReturnValue(mockChain); });
+  mockChain.then = (resolve: any) => resolve({ data: null, error: null });
+  mockSupabase.from = jest.fn().mockReturnValue(mockChain);
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+  mockSupabase.auth = {
+    getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    admin: { getUserById: jest.fn(), listUsers: jest.fn(), deleteUser: jest.fn() },
+  };
+  mockSupabase.storage = { from: jest.fn(() => ({ upload: jest.fn(), getPublicUrl: jest.fn() })) };
+}
+resetMockSupabase();
+
+jest.mock('../../src/config/database', () => ({
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(() => ({ client: mockSupabase })),
+  getDatabase: jest.fn(() => ({ client: mockSupabase })),
+  database: { getClient: jest.fn(() => mockSupabase) },
+}));
+jest.mock('../../src/utils/logger', () => ({
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() },
+}));
+
 import { ReservationStateMachine, StateTransition } from '../../src/services/reservation-state-machine.service';
 import { getSupabaseClient } from '../../src/config/database';
 import { ReservationStatus, Reservation } from '../../src/types/database.types';
-
-// Mock the database client
-jest.mock('../../src/config/database', () => ({
-  getSupabaseClient: jest.fn()
-}));
-
-// Create a proper mock that chains methods correctly
-const createMockSupabase = () => {
-  const mock = {
-    from: jest.fn().mockReturnThis(),
-    select: jest.fn().mockReturnThis(),
-    update: jest.fn().mockReturnThis(),
-    insert: jest.fn().mockReturnThis(),
-    eq: jest.fn().mockReturnThis(),
-    in: jest.fn().mockReturnThis(),
-    lt: jest.fn().mockReturnThis(),
-    order: jest.fn().mockReturnThis(),
-    limit: jest.fn().mockReturnThis(),
-    single: jest.fn().mockReturnThis(),
-    check: jest.fn().mockReturnThis()
-  };
-  return mock;
-};
-
-const mockSupabase = createMockSupabase();
-(getSupabaseClient as jest.Mock).mockReturnValue(mockSupabase);
 
 describe('Reservation State Machine', () => {
   let stateMachine: ReservationStateMachine;
 
   beforeEach(() => {
-    stateMachine = new ReservationStateMachine();
     jest.clearAllMocks();
+    resetMockSupabase();
+    stateMachine = new ReservationStateMachine();
   });
 
   describe('State Transition Validation', () => {
@@ -201,13 +207,18 @@ describe('Reservation State Machine', () => {
     };
 
     beforeEach(() => {
-      // Mock the specific methods
-      jest.spyOn(stateMachine as any, 'getReservationById').mockResolvedValue(mockReservation);
-      jest.spyOn(stateMachine as any, 'updateReservationStatus').mockResolvedValue(updatedReservation);
-      jest.spyOn(stateMachine as any, 'logStateChange').mockResolvedValue(undefined);
+      // executeTransition flow calls getReservationById 3 times:
+      // 1. executeTransition: get current reservation
+      // 2. validateTransition (called internally): get reservation details
+      // 3. executeTransition: get updated reservation after RPC
+      jest.spyOn(stateMachine as any, 'getReservationById')
+        .mockResolvedValueOnce(mockReservation)   // executeTransition: current
+        .mockResolvedValueOnce(mockReservation)   // validateTransition: details
+        .mockResolvedValueOnce(updatedReservation); // executeTransition: after RPC
       jest.spyOn(stateMachine as any, 'sendNotifications').mockResolvedValue(undefined);
       jest.spyOn(stateMachine as any, 'validateShopOwnership').mockResolvedValue(true);
       jest.spyOn(stateMachine as any, 'getPaymentStatus').mockResolvedValue('fully_paid');
+      // supabase.rpc is already mocked by resetMockSupabase to return { data: null, error: null }
     });
 
     it('should execute valid transition successfully', async () => {
@@ -224,6 +235,10 @@ describe('Reservation State Machine', () => {
     });
 
     it('should fail to execute invalid transition', async () => {
+      // Reset getReservationById to just return mockReservation for all calls
+      // (validation will fail before reaching RPC)
+      jest.spyOn(stateMachine as any, 'getReservationById').mockResolvedValue(mockReservation);
+
       const result = await stateMachine.executeTransition(
         'reservation-123',
         'completed',
@@ -236,7 +251,8 @@ describe('Reservation State Machine', () => {
     });
 
     it('should handle database errors gracefully', async () => {
-      jest.spyOn(stateMachine as any, 'getReservationById').mockResolvedValue(null);
+      // Reset the existing spy to return null for all calls
+      (stateMachine as any).getReservationById.mockReset().mockResolvedValue(null);
 
       const result = await stateMachine.executeTransition(
         'reservation-123',
@@ -287,9 +303,9 @@ describe('Reservation State Machine', () => {
     ];
 
     beforeEach(() => {
-      // Mock the database queries
-      mockSupabase.select.mockResolvedValue({
-        data: mockReservations,
+      // processAutomaticTransitions calls supabase.rpc('comprehensive_reservation_cleanup')
+      mockSupabase.rpc.mockResolvedValue({
+        data: { no_show_detection: { no_show_count: 1 }, expired_cleanup: { expired_count: 1 } },
         error: null
       });
     });
@@ -302,7 +318,7 @@ describe('Reservation State Machine', () => {
     });
 
     it('should handle errors during automatic processing', async () => {
-      mockSupabase.select.mockResolvedValue({
+      mockSupabase.rpc.mockResolvedValue({
         data: null,
         error: { message: 'Database error' }
       });

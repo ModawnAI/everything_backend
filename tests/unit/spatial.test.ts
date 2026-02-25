@@ -11,6 +11,8 @@ import {
   type Coordinates,
   type NearbyShopsParams
 } from '../../src/utils/spatial';
+import { executeSpatialQuery } from '../../src/utils/secure-query-builder';
+const mockExecuteSpatialQuery = executeSpatialQuery as jest.MockedFunction<typeof executeSpatialQuery>;
 
 // Mock database
 const mockFrom = jest.fn();
@@ -34,6 +36,10 @@ jest.mock('../../src/utils/logger', () => ({
     warn: jest.fn(),
     error: jest.fn(),
   },
+}));
+
+jest.mock('../../src/utils/secure-query-builder', () => ({
+  executeSpatialQuery: jest.fn(),
 }));
 
 describe('Spatial Utilities Tests', () => {
@@ -184,20 +190,19 @@ describe('Spatial Utilities Tests', () => {
         }
       ];
 
-      mockSelect.mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          not: jest.fn().mockReturnValue({
-            not: jest.fn().mockReturnValue({
-              data: mockShops,
-              error: null
-            })
-          })
-        })
-      });
+      // Mock executeSpatialQuery to return shops with distance fields
+      mockExecuteSpatialQuery.mockResolvedValue(
+        mockShops.map(shop => ({
+          ...shop,
+          distance_km: 0.01,
+          distance_m: 10
+        }))
+      );
 
       const params: NearbyShopsParams = {
         userLocation: { latitude: 37.7749, longitude: -122.4194 },
-        radiusKm: 5
+        radiusKm: 5,
+        enforceSeoulBoundary: false
       };
 
       const result = await findNearbyShops(params);

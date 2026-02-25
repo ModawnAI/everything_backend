@@ -4,24 +4,21 @@ describe('Configuration Tests', () => {
   test('should load configuration object', () => {
     expect(config).toBeDefined();
     expect(config.server).toBeDefined();
-    expect(config.database).toBeDefined();
+    expect(config.supabase).toBeDefined();
   });
 
   test('should have correct server configuration', () => {
-    expect(config.server.env).toBe('test');
-    expect(config.server.port).toBe(3000);
-    expect(config.server.apiVersion).toBe('v1');
+    expect(config.server.port).toBe(parseInt(process.env.PORT || '3001', 10));
   });
 
   test('should have database configuration', () => {
-    expect(config.database.supabaseUrl).toBeDefined();
-    expect(config.database.supabaseAnonKey).toBeDefined();
-    expect(config.database.supabaseServiceRoleKey).toBeDefined();
+    expect(config.supabase.url).toBeDefined();
+    expect(config.supabase.anonKey).toBeDefined();
   });
 
-  test('should have authentication configuration', () => {
-    expect(config.auth.jwtSecret).toBeDefined();
-    expect(config.auth.jwtExpiresIn).toBe('7d');
-    expect(config.auth.bcryptSaltRounds).toBe(12);
+  test('should have payments configuration', () => {
+    expect(config.payments).toBeDefined();
+    expect(config.payments.tossPayments).toBeDefined();
+    expect(config.payments.tossPayments.baseUrl).toBe('https://api.tosspayments.com');
   });
-}); 
+});

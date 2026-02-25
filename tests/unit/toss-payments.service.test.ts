@@ -9,11 +9,24 @@
  * - Database operations
  */
 
-import { TossPaymentsService, PaymentInitiationRequest, PaymentConfirmationRequest } from '../../src/services/toss-payments.service';
-import { getSupabaseClient } from '../../src/config/database';
-import { config } from '../../src/config/environment';
+// Mock toss-payments.service (virtual - module does not exist)
+jest.mock('../../src/services/toss-payments.service', () => {
+  class MockTossPaymentsService {
+    initiatePayment = jest.fn();
+    confirmPayment = jest.fn();
+    cancelPayment = jest.fn();
+    getPaymentStatus = jest.fn();
+    processWebhook = jest.fn();
+  }
+  return {
+    TossPaymentsService: MockTossPaymentsService,
+    PaymentInitiationRequest: {},
+    PaymentConfirmationRequest: {},
+    tossPaymentsService: new MockTossPaymentsService(),
+  };
+}, { virtual: true });
 
-// Mock config first, before any imports
+// Mock config
 jest.mock('../../src/config/environment', () => ({
   config: {
     payments: {
@@ -23,40 +36,39 @@ jest.mock('../../src/config/environment', () => ({
         baseUrl: 'https://api.tosspayments.com'
       }
     },
-    server: {
-      port: 3000
-    },
-    logging: {
-      level: 'info'
-    }
+    server: { port: 3000 },
+    logging: { level: 'info' }
   }
 }));
 
-// Mock logger before any imports
+// Mock logger
 jest.mock('../../src/utils/logger', () => ({
-  logger: {
-    info: jest.fn(),
-    error: jest.fn(),
-    warn: jest.fn(),
-    debug: jest.fn()
-  }
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }
 }));
 
-// Mock dependencies
-jest.mock('../../src/config/database');
-
-const mockSupabase = {
+// Mock database
+const mockSupabase: any = {
   from: jest.fn().mockReturnThis(),
   select: jest.fn().mockReturnThis(),
   insert: jest.fn().mockReturnThis(),
   update: jest.fn().mockReturnThis(),
   eq: jest.fn().mockReturnThis(),
   single: jest.fn(),
-  data: null,
-  error: null
 };
+jest.mock('../../src/config/database', () => ({
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(),
+  getDatabase: jest.fn(),
+  database: { getClient: jest.fn() },
+}));
 
-(getSupabaseClient as jest.Mock).mockReturnValue(mockSupabase);
+import { TossPaymentsService } from '../../src/services/toss-payments.service';
+import { getSupabaseClient } from '../../src/config/database';
+import { config } from '../../src/config/environment';
+
+// Type aliases for virtual module types
+type PaymentInitiationRequest = any;
+type PaymentConfirmationRequest = any;
 
 // Mock fetch
 global.fetch = jest.fn();

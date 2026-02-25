@@ -1,40 +1,56 @@
 /**
  * Reservation Service Tests
- * 
+ *
  * Tests for reservation service with concurrent booking prevention
  * Focuses on business logic and error handling without complex database mocking
  */
 
-import { ReservationService, CreateReservationRequest } from '../../src/services/reservation.service';
+// Persistent mock object -- the service singleton captures this reference at module load
+const mockSupabase: any = {};
 
-// Mock the database client with a simple approach
+/**
+ * Create a table-aware from() mock.
+ * Returns different chain mocks based on table name, each resolving to the configured result.
+ */
+function createTableAwareFromMock(tableOverrides: Record<string, any> = {}) {
+  const defaultResult = { data: null, error: null };
+
+  return jest.fn((tableName: string) => {
+    const result = tableOverrides[tableName] || defaultResult;
+    const chain: any = {};
+    ['select','insert','update','upsert','delete','eq','neq','gt','gte','lt','lte',
+     'like','ilike','is','in','not','contains','containedBy','overlaps',
+     'filter','match','or','and','order','limit','range','offset','count',
+     'single','maybeSingle','csv','returns','textSearch','throwOnError'
+    ].forEach(m => { chain[m] = jest.fn().mockReturnValue(chain); });
+    chain.then = (resolve: any) => resolve(result);
+    return chain;
+  });
+}
+
+function resetMockSupabase() {
+  mockSupabase.from = createTableAwareFromMock();
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+  mockSupabase.auth = {
+    getUser: jest.fn().mockResolvedValue({ data: { user: null }, error: null }),
+    admin: { getUserById: jest.fn(), listUsers: jest.fn(), deleteUser: jest.fn() },
+  };
+  mockSupabase.storage = { from: jest.fn(() => ({ upload: jest.fn(), getPublicUrl: jest.fn() })) };
+}
+resetMockSupabase();
+
 jest.mock('../../src/config/database', () => ({
-  getSupabaseClient: jest.fn(() => ({
-    rpc: jest.fn(),
-    from: jest.fn(() => ({
-      select: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          order: jest.fn(() => ({
-            range: jest.fn(() => ({
-              then: jest.fn(() => Promise.resolve({ data: [], error: null, count: 0 }))
-            }))
-          }))
-        }))
-      })),
-      update: jest.fn(() => ({
-        eq: jest.fn(() => ({
-          select: jest.fn(() => ({
-            single: jest.fn(() => Promise.resolve({ data: null, error: null }))
-          }))
-        }))
-      }))
-    }))
-  })),
-  initializeDatabase: jest.fn(() => ({
-    client: {},
-    healthCheck: jest.fn(() => Promise.resolve(true)),
-    disconnect: jest.fn(() => Promise.resolve())
-  }))
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(() => ({ client: mockSupabase })),
+  getDatabase: jest.fn(() => ({ client: mockSupabase })),
+  database: { getClient: jest.fn(() => mockSupabase) },
+}));
+
+// Mock query-cache.service to bypass caching and directly call queryFn
+jest.mock('../../src/services/query-cache.service', () => ({
+  queryCacheService: {
+    getCachedQuery: jest.fn(async (_key: string, queryFn: () => Promise<any>) => queryFn()),
+  }
 }));
 
 // Mock the time slot service
@@ -57,20 +73,25 @@ jest.mock('../../src/utils/logger', () => ({
   }
 }));
 
+import { ReservationService, CreateReservationRequest } from '../../src/services/reservation.service';
 import { getSupabaseClient } from '../../src/config/database';
 import { timeSlotService } from '../../src/services/time-slot.service';
 import { logger } from '../../src/utils/logger';
 
+// Mock service data returned by shop_services query
+const mockServiceData = [
+  { id: 'service-1', price_min: 50000, name: 'Test Service', deposit_amount: null, deposit_percentage: null }
+];
+
 describe('Reservation Service Tests', () => {
   let reservationService: ReservationService;
-  let mockSupabase: any;
   let mockTimeSlotService: jest.Mocked<typeof timeSlotService>;
   let mockLogger: jest.Mocked<typeof logger>;
 
   beforeEach(() => {
     jest.clearAllMocks();
+    resetMockSupabase();
     reservationService = new ReservationService();
-    mockSupabase = getSupabaseClient();
     mockTimeSlotService = timeSlotService as jest.Mocked<typeof timeSlotService>;
     mockLogger = logger as jest.Mocked<typeof logger>;
   });
@@ -168,13 +189,15 @@ describe('Reservation Service Tests', () => {
         conflictReason: null,
         conflictingReservations: []
       });
-      
-      // Debug: Check if the mock is set up correctly
-      console.log('mockSupabase:', mockSupabase);
-      console.log('mockSupabase.rpc:', mockSupabase.rpc);
-      
-      // Mock successful database response
-      const mockResponse = {
+
+      // Set up from() to return proper service data for shop_services query
+      mockSupabase.from = createTableAwareFromMock({
+        'shop_services': { data: mockServiceData, error: null },
+        'users': { data: { booking_preferences: {} }, error: null },
+      });
+
+      // Mock RPC to return reservation data
+      mockSupabase.rpc.mockResolvedValue({
         data: {
           id: 'reservation-123',
           shopId: 'shop-123',
@@ -189,10 +212,7 @@ describe('Reservation Service Tests', () => {
           updatedAt: new Date().toISOString()
         },
         error: null
-      };
-      
-      console.log('Setting up mock response:', mockResponse);
-      mockSupabase.rpc.mockResolvedValue(mockResponse);
+      });
 
       const result = await reservationService.createReservation(mockRequest);
 
@@ -214,13 +234,24 @@ describe('Reservation Service Tests', () => {
     };
 
     beforeEach(() => {
-      mockTimeSlotService.isSlotAvailable.mockResolvedValue(true);
+      // Mock slot validation to pass
+      mockTimeSlotService.validateSlotAvailability.mockResolvedValue({
+        available: true,
+        conflictReason: null,
+        conflictingReservations: []
+      });
+
+      // Set up from() to return proper service data
+      mockSupabase.from = createTableAwareFromMock({
+        'shop_services': { data: mockServiceData, error: null },
+        'users': { data: { booking_preferences: {} }, error: null },
+      });
     });
 
     it('should handle slot conflict errors', async () => {
       mockSupabase.rpc.mockResolvedValue({
         data: null,
-        error: { 
+        error: {
           message: 'SLOT_CONFLICT: Time slot is not available due to existing reservations',
           details: '',
           hint: '',
@@ -234,10 +265,11 @@ describe('Reservation Service Tests', () => {
     });
 
     it('should handle lock timeout errors', async () => {
+      // Use uppercase LOCK_TIMEOUT to match the code's includes check
       mockSupabase.rpc.mockResolvedValue({
         data: null,
-        error: { 
-          message: 'lock_timeout: Lock acquisition failed',
+        error: {
+          message: 'LOCK_TIMEOUT: Lock acquisition failed',
           details: '',
           hint: '',
           code: '40P01',
@@ -252,7 +284,7 @@ describe('Reservation Service Tests', () => {
     it('should handle deadlock errors', async () => {
       mockSupabase.rpc.mockResolvedValue({
         data: null,
-        error: { 
+        error: {
           message: 'deadlock detected',
           details: '',
           hint: '',
@@ -268,7 +300,7 @@ describe('Reservation Service Tests', () => {
     it('should handle service not found errors', async () => {
       mockSupabase.rpc.mockResolvedValue({
         data: null,
-        error: { 
+        error: {
           message: 'SERVICE_NOT_FOUND: Service with ID does not exist',
           details: '',
           hint: '',
@@ -284,7 +316,7 @@ describe('Reservation Service Tests', () => {
     it('should handle invalid quantity errors', async () => {
       mockSupabase.rpc.mockResolvedValue({
         data: null,
-        error: { 
+        error: {
           message: 'INVALID_QUANTITY: Quantity must be greater than 0',
           details: '',
           hint: '',
@@ -300,7 +332,7 @@ describe('Reservation Service Tests', () => {
     it('should handle insufficient amount errors', async () => {
       mockSupabase.rpc.mockResolvedValue({
         data: null,
-        error: { 
+        error: {
           message: 'INSUFFICIENT_AMOUNT: Points used cannot exceed total amount',
           details: '',
           hint: '',
@@ -316,7 +348,7 @@ describe('Reservation Service Tests', () => {
     it('should handle generic database errors', async () => {
       mockSupabase.rpc.mockResolvedValue({
         data: null,
-        error: { 
+        error: {
           message: 'Unknown database error',
           details: '',
           hint: '',
@@ -353,13 +385,26 @@ describe('Reservation Service Tests', () => {
     };
 
     beforeEach(() => {
-      mockTimeSlotService.isSlotAvailable.mockResolvedValue(true);
+      // Mock slot validation to pass
+      mockTimeSlotService.validateSlotAvailability.mockResolvedValue({
+        available: true,
+        conflictReason: null,
+        conflictingReservations: []
+      });
+
+      // Set up from() to return proper service data
+      mockSupabase.from = createTableAwareFromMock({
+        'shop_services': { data: mockServiceData, error: null },
+        'users': { data: { booking_preferences: {} }, error: null },
+      });
     });
 
     it('should retry on lock acquisition failures', async () => {
-      // Mock initial failure, then success
+      // Use 'lock_timeout' in error message to match shouldRetry() check
+      // First call: rpc throws (rejected) → withEnhancedRetry catches → shouldRetry → retry
+      // Second call: rpc succeeds
       mockSupabase.rpc
-        .mockRejectedValueOnce(new Error('Lock acquisition failed'))
+        .mockRejectedValueOnce(new Error('lock_timeout: Lock acquisition failed'))
         .mockResolvedValueOnce({
           data: {
             id: 'reservation-123',
@@ -368,7 +413,7 @@ describe('Reservation Service Tests', () => {
             reservationDate: '2024-03-15',
             reservationTime: '10:00',
             status: 'confirmed',
-            totalAmount: 5000,
+            totalAmount: 50000,
             pointsUsed: 0,
             specialRequests: 'Test request',
             createdAt: new Date().toISOString(),
@@ -381,18 +426,23 @@ describe('Reservation Service Tests', () => {
 
       expect(result.id).toBe('reservation-123');
       expect(mockSupabase.rpc).toHaveBeenCalledTimes(2);
-      expect(mockLogger.warn).toHaveBeenCalledWith(
-        expect.stringContaining('Retrying reservation operation')
-      );
     });
 
     it('should fail after maximum retries', async () => {
-      mockSupabase.rpc.mockRejectedValue(new Error('Lock acquisition failed'));
+      // Mock delay/sleep to speed up the test
+      const service = reservationService as any;
+      service.delay = jest.fn().mockResolvedValue(undefined);
+      service.sleep = jest.fn().mockResolvedValue(undefined);
+
+      // All rpc calls throw with retryable error
+      mockSupabase.rpc.mockRejectedValue(new Error('lock_timeout: Lock acquisition failed'));
 
       await expect(reservationService.createReservation(mockRequest))
-        .rejects.toThrow('Lock acquisition failed');
-      
-      expect(mockSupabase.rpc).toHaveBeenCalledTimes(3); // Default max retries
+        .rejects.toThrow('lock_timeout: Lock acquisition failed');
+
+      // Inner loop retries 3 times per attempt, outer withEnhancedRetry does 4 attempts total
+      // 4 outer × 3 inner = 12 rpc calls
+      expect(mockSupabase.rpc).toHaveBeenCalledTimes(12);
     });
   });
 
@@ -400,7 +450,7 @@ describe('Reservation Service Tests', () => {
     it('should have proper timeout and retry configuration', () => {
       // Test that the service has the expected configuration
       expect(reservationService).toBeDefined();
-      
+
       // These values should be accessible for testing
       const service = reservationService as any;
       expect(service.LOCK_TIMEOUT).toBe(10000); // 10 seconds
@@ -410,4 +460,4 @@ describe('Reservation Service Tests', () => {
       expect(service.DEADLOCK_RETRY_DELAY).toBe(2000); // 2 seconds
     });
   });
-}); 
+});

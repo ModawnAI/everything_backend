@@ -150,7 +150,7 @@ describe('Basic Database Functions Tests (Current Schema)', () => {
       const service = await testUserUtils.createTestService(shop.id, {
         name: 'Premium Haircut',
         description: 'A premium haircut service',
-        category: 'haircut',
+        category: 'hair',
         duration_minutes: 90,
         price_min: 80000,
         price_max: 100000,

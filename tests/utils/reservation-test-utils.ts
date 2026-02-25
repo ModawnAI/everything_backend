@@ -11,27 +11,41 @@
 
 // Mock faker for testing
 const faker = {
-  datatype: { 
-    uuid: () => 'test-uuid',
-    number: () => 12345
+  datatype: {
+    uuid: () => 'test-uuid-' + Math.random().toString(36).substr(2, 9),
+    number: (options: any = {}) => {
+      const min = options.min ?? 0;
+      const max = options.max ?? 100;
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    },
+    boolean: () => Math.random() > 0.5,
   },
-  date: { 
+  date: {
     future: () => new Date(Date.now() + 86400000),
     recent: () => new Date(Date.now() - 86400000),
     past: () => new Date(Date.now() - 172800000),
     between: () => new Date(Date.now() - 86400000)
   },
-  lorem: { words: () => 'test words' },
-  internet: { email: () => 'test@example.com' },
-  name: { 
-    firstName: () => 'Test', 
+  lorem: {
+    words: (count = 3) => Array(count).fill(0).map(() => 'test').join(' '),
+    sentence: () => 'This is a test sentence.',
+    paragraph: () => 'This is a test paragraph with multiple sentences.',
+  },
+  internet: {
+    email: () => `test${Math.random().toString(36).substring(7)}@example.com`,
+    url: () => 'https://example.com',
+  },
+  name: {
+    firstName: () => 'Test',
     lastName: () => 'User',
     fullName: () => 'Test User'
   },
   phone: { number: () => '010-1234-5678' },
   address: {
     city: () => 'Seoul',
-    streetAddress: () => '123 Test St'
+    streetAddress: () => '123 Test St',
+    country: () => 'South Korea',
+    zipCode: () => '12345',
   },
   company: {
     name: () => 'Test Company'
@@ -41,41 +55,8 @@ const faker = {
 import { getSupabaseClient } from '../../src/config/database';
 import { ReservationStatus, CreateReservationRequest, Reservation } from '../../src/types/database.types';
 
-// Mock faker if not available
-const mockFaker = {
-  datatype: {
-    uuid: () => Math.random().toString(36).substring(7),
-    number: (options: any) => Math.floor(Math.random() * (options?.max || 100)),
-    boolean: () => Math.random() > 0.5,
-  },
-  date: {
-    future: () => new Date(Date.now() + Math.random() * 30 * 24 * 60 * 60 * 1000),
-    recent: () => new Date(Date.now() - Math.random() * 7 * 24 * 60 * 60 * 1000),
-  },
-  lorem: {
-    sentence: () => 'Test description',
-    words: (count: number) => Array(count).fill(0).map(() => 'test'),
-  },
-  name: {
-    fullName: () => 'Test User',
-    firstName: () => 'Test',
-    lastName: () => 'User',
-  },
-  internet: {
-    email: () => `test${Math.random().toString(36).substring(7)}@example.com`,
-  },
-  address: {
-    streetAddress: () => '123 Test Street',
-    city: () => 'Test City',
-    country: () => 'South Korea',
-  },
-  phone: {
-    number: () => '010-1234-5678',
-  },
-};
-
-// Use mock faker if real faker is not available
-const fakerInstance = typeof faker !== 'undefined' ? faker : mockFaker;
+// fakerInstance is used throughout the test utilities
+const fakerInstance = faker;
 
 export interface TestUser {
   id: string;

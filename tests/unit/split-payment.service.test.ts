@@ -9,38 +9,44 @@
  */
 
 import { describe, it, expect, beforeEach, jest } from '@jest/globals';
-import { splitPaymentService } from '../../src/services/split-payment.service';
-import { tossPaymentsService } from '../../src/services/toss-payments.service';
-import { paymentConfirmationService } from '../../src/services/payment-confirmation.service';
-import { getSupabaseClient } from '../../src/config/database';
+
+// Persistent mock object
+const mockSupabase: any = {};
+function resetMockSupabase() {
+  const mockChain: any = {};
+  ['select','insert','update','upsert','delete','eq','neq','gt','gte','lt','lte',
+   'like','ilike','is','in','not','contains','containedBy','overlaps',
+   'filter','match','or','and','order','limit','range','offset','count',
+   'single','maybeSingle','csv','returns','textSearch','throwOnError'
+  ].forEach(m => { mockChain[m] = jest.fn().mockReturnValue(mockChain); });
+  mockChain.then = (resolve: any) => resolve({ data: null, error: null });
+  mockSupabase.from = jest.fn().mockReturnValue(mockChain);
+  mockSupabase.rpc = jest.fn().mockResolvedValue({ data: null, error: null });
+}
+resetMockSupabase();
 
 // Mock dependencies
-jest.mock('../../src/config/database');
-jest.mock('../../src/services/toss-payments.service');
+jest.mock('../../src/config/database', () => ({
+  getSupabaseClient: jest.fn(() => mockSupabase),
+  initializeDatabase: jest.fn(() => ({ client: mockSupabase })),
+  getDatabase: jest.fn(() => ({ client: mockSupabase })),
+  database: { getClient: jest.fn(() => mockSupabase) },
+}));
+jest.mock('../../src/services/toss-payments.service', () => ({
+  tossPaymentsService: {
+    cancelPayment: jest.fn(),
+    confirmPayment: jest.fn(),
+    getPaymentStatus: jest.fn(),
+  },
+  TossPaymentsService: jest.fn(),
+}), { virtual: true });
 jest.mock('../../src/services/payment-confirmation.service');
-jest.mock('../../src/utils/logger');
+jest.mock('../../src/utils/logger', () => ({
+  logger: { debug: jest.fn(), info: jest.fn(), warn: jest.fn(), error: jest.fn() }
+}));
 
-const mockSupabase = {
-  from: jest.fn().mockReturnValue({
-    select: jest.fn().mockReturnValue({
-      eq: jest.fn().mockReturnValue({
-        single: jest.fn(),
-        order: jest.fn(),
-        lt: jest.fn()
-      }),
-      update: jest.fn().mockReturnValue({
-        eq: jest.fn().mockReturnValue({
-          eq: jest.fn()
-        })
-      }),
-      insert: jest.fn()
-    }),
-    rpc: jest.fn()
-  }),
-  rpc: jest.fn()
-};
-
-(getSupabaseClient as jest.Mock).mockReturnValue(mockSupabase);
+import { splitPaymentService } from '../../src/services/split-payment.service';
+import { getSupabaseClient } from '../../src/config/database';
 
 // TODO: 결제 서비스 변경 후 활성화
 describe.skip('SplitPaymentService', () => {

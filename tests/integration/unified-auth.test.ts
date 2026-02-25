@@ -4,7 +4,7 @@
  */
 
 import request from 'supertest';
-import { app } from '../../src/app';
+import app from '../../src/app';
 import { UnifiedAuthService } from '../../src/services/unified-auth.service';
 import { SessionRepository, LoginAttemptRepository, AccountSecurityRepository } from '../../src/repositories';
 import { getSupabaseClient } from '../../src/config/database';

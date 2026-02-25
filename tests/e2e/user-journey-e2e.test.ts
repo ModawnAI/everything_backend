@@ -13,6 +13,59 @@
 import { ReservationTestUtils } from '../utils/reservation-test-utils';
 import { getTestConfig } from '../config/reservation-test-config';
 
+// Mock dependencies - must be before imports for hoisting
+jest.mock('../../src/config/database');
+jest.mock('../../src/services/toss-payments.service');
+jest.mock('../../src/services/email.service');
+jest.mock('../../src/services/sms.service');
+jest.mock('../../src/services/push-notification.service');
+jest.mock('../../src/utils/logger');
+
+// Mock non-existent modules
+jest.mock('../../src/services/shop.service', () => ({
+  ShopService: jest.fn().mockImplementation(() => ({
+    searchShops: jest.fn().mockResolvedValue({ shops: [] }),
+    getShopDetails: jest.fn().mockResolvedValue({}),
+    getOwnerDashboard: jest.fn().mockResolvedValue({}),
+    getNearbyShops: jest.fn().mockResolvedValue({ shops: [] }),
+    updateOperatingHours: jest.fn().mockResolvedValue({ success: true }),
+    addService: jest.fn().mockResolvedValue({ success: true, service: {} }),
+    getBusinessAnalytics: jest.fn().mockResolvedValue({})
+  })),
+  shopService: {
+    searchShops: jest.fn().mockResolvedValue({ shops: [] }),
+    getShopDetails: jest.fn().mockResolvedValue({}),
+    getOwnerDashboard: jest.fn().mockResolvedValue({}),
+    getNearbyShops: jest.fn().mockResolvedValue({ shops: [] }),
+    updateOperatingHours: jest.fn().mockResolvedValue({ success: true }),
+    addService: jest.fn().mockResolvedValue({ success: true, service: {} }),
+    getBusinessAnalytics: jest.fn().mockResolvedValue({})
+  }
+}), { virtual: true });
+
+jest.mock('../../src/services/user.service', () => ({
+  UserService: jest.fn().mockImplementation(() => ({
+    registerUser: jest.fn().mockResolvedValue({ success: true, user: {} }),
+    sendVerificationEmail: jest.fn().mockResolvedValue({ success: true }),
+    completeProfile: jest.fn().mockResolvedValue({ success: true }),
+    updateNotificationPreferences: jest.fn().mockResolvedValue({ success: true }),
+    loginUser: jest.fn().mockResolvedValue({ success: true, session: {} }),
+    getUserProfile: jest.fn().mockResolvedValue({ success: true, user: {} }),
+    refreshSession: jest.fn().mockResolvedValue({ success: true, session: {} }),
+    logoutUser: jest.fn().mockResolvedValue({ success: true })
+  })),
+  userService: {
+    registerUser: jest.fn().mockResolvedValue({ success: true, user: {} }),
+    sendVerificationEmail: jest.fn().mockResolvedValue({ success: true }),
+    completeProfile: jest.fn().mockResolvedValue({ success: true }),
+    updateNotificationPreferences: jest.fn().mockResolvedValue({ success: true }),
+    loginUser: jest.fn().mockResolvedValue({ success: true, session: {} }),
+    getUserProfile: jest.fn().mockResolvedValue({ success: true, user: {} }),
+    refreshSession: jest.fn().mockResolvedValue({ success: true, session: {} }),
+    logoutUser: jest.fn().mockResolvedValue({ success: true })
+  }
+}));
+
 // Import services for E2E testing
 import { ReservationService } from '../../src/services/reservation.service';
 import { PaymentService } from '../../src/services/payment.service';
@@ -20,14 +73,6 @@ import { NotificationService } from '../../src/services/notification.service';
 import { TimeSlotService } from '../../src/services/time-slot.service';
 import { UserService } from '../../src/services/user.service';
 import { ShopService } from '../../src/services/shop.service';
-
-// Mock dependencies
-jest.mock('../../src/config/database');
-jest.mock('../../src/services/toss-payments.service');
-jest.mock('../../src/services/email.service');
-jest.mock('../../src/services/sms.service');
-jest.mock('../../src/services/push-notification.service');
-jest.mock('../../src/utils/logger');
 
 import { getSupabaseClient } from '../../src/config/database';
 import { tossPaymentsService } from '../../src/services/toss-payments.service';

@@ -10,8 +10,11 @@ import { logger } from '../src/utils/logger';
 import dotenv from 'dotenv';
 import path from 'path';
 
-// Load test environment variables
-dotenv.config({ path: path.resolve(process.cwd(), '.env') });
+// Load test environment variables (prefer .env.test over .env)
+import fs from 'fs';
+const envTestPath = path.resolve(process.cwd(), '.env.test');
+const envPath = path.resolve(process.cwd(), '.env');
+dotenv.config({ path: fs.existsSync(envTestPath) ? envTestPath : envPath });
 
 // Test database configuration
 export const testConfig = {
@@ -113,7 +116,7 @@ export async function createTestShop(shopData: any = {}) {
     phone_number: shopData.phone_number || '+821012345678',
     shop_status: 'active',
     verification_status: 'verified',
-    main_category: 'beauty',
+    main_category: 'nail',
     operating_hours: shopData.operating_hours || {
       monday: { open: '09:00', close: '18:00', closed: false },
       tuesday: { open: '09:00', close: '18:00', closed: false },
