@@ -1310,6 +1310,7 @@ export class ReservationService {
       const { data: reservations, error, count } = await query;
 
       if (error) {
+        console.error('🔍 [RESERVATION-LIST-DEBUG] Error:', { message: error.message, details: error.details, hint: error.hint, code: error.code });
         logger.error('Error fetching user reservations', {
           userId,
           error: error.message,
