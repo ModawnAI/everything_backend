@@ -508,6 +508,12 @@ export class ReservationService {
         const remainingAmount = pricingInfo?.remainingAmount || 0;
         const totalAmount = depositAmount + remainingAmount;
 
+        console.log('🔍 [RPC-DEBUG] Calling create_reservation_with_lock with:', {
+          p_user_id: userId, p_shop_id: shopId, p_reservation_date: reservationDate,
+          p_reservation_time: reservationTime, p_total_amount: totalAmount,
+          p_deposit_amount: depositAmount, p_special_requests: specialRequests || null
+        });
+
         const { data: reservation, error } = await this.supabase.rpc('create_reservation_with_lock', {
           p_user_id: userId,
           p_shop_id: shopId,
@@ -517,6 +523,8 @@ export class ReservationService {
           p_deposit_amount: depositAmount,
           p_special_requests: specialRequests || null
         });
+
+        console.log('🔍 [RPC-DEBUG] RPC result:', { data: reservation, error: error?.message, errorCode: error?.code, errorDetails: error?.details, errorHint: error?.hint });
 
         if (error) {
           lastError = error;
